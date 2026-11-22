@@ -16,8 +16,11 @@
 // Prints one JSON line: { "payloads": {...}, "keys": [...] }.
 import fs from "node:fs";
 import { join } from "node:path";
+// The block after the save says what it did through panel.js's own t() (tests/js/panel_t.mjs).
+import { panelT } from "./panel_t.mjs";
 
 const SRC = fs.readFileSync(join(process.argv[2], "maps.js"), "utf8");
+const { t } = panelT(fs.readFileSync(join(process.argv[2], "..", "panel.js"), "utf8"));
 
 // The object literal, from `const transform = {` to its own closer at the
 // same indent.
@@ -57,8 +60,8 @@ for (const [name, cache] of Object.entries(CACHES)) {
 // After the save (review 2026-11-11, item 12): the plan list AND the model are read again, so "Current layout scale"
 // shows the new size at once. The block run as the click handler has it, with a stand-in ctx.
 const AFTER = SRC.slice(SRC.indexOf("            const _txResult = await ctx.actions.callWS"), SRC.indexOf("          } catch(e) {", SRC.indexOf("const _txResult = await ctx.actions.callWS")));
-const after = new Function("ctx", "map", "transform", "scale_x_m", "scale_y_m", "ppm", "_len1", "return (async () => {" + AFTER + "})();");
+const after = new Function("ctx", "map", "transform", "scale_x_m", "scale_y_m", "ppm", "_len1", "t", "return (async () => {" + AFTER + "})();");
 const refreshed = [];
 await after({ toast: () => {}, state: { maps: {} }, actions: { callWS: async () => ({}), mapsRefresh: async () => refreshed.push("maps"), modelRefresh: async () => refreshed.push("model") } },
-  { id: "m1" }, {}, 10, 8, 50, (v) => String(v));
+  { id: "m1" }, {}, 10, 8, 50, (v) => String(v), t);
 console.log(JSON.stringify({ payloads, keys: Object.keys(payloads["panel agrees"]), refreshed }));

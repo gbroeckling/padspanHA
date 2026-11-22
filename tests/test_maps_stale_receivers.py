@@ -28,6 +28,14 @@ def _src() -> str:
     return _MAPS.read_text(encoding="utf-8")
 
 
+def _panel_t() -> str:
+    """panel.js's own t() and tn() (as tests/js/panel_t.mjs lifts them), views/i18n.js not loaded: the English
+    with its {placeholders} filled, for code lifted from a view that asks for its words through them."""
+    p = (_MAPS.parents[1] / "panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    a = p.index("const _enFill = ")
+    return "let _I18N = null;\n" + p[a:p.index("\nfunction pill(text)", a)]
+
+
 def _func(src: str, name: str) -> str:
     """The text of `export function <name>(...) { ... }`, brace-matched."""
     start = src.index(f"export function {name}(")
@@ -45,7 +53,7 @@ def _func(src: str, name: str) -> str:
 
 def _stale_section(src: str) -> str:
     a = src.index("// ── Stale Receivers (read-only) ──")
-    b = src.index('"No stale");', a)
+    b = src.index('t("No stale"));', a)
     return src[a:b]
 
 
@@ -82,6 +90,7 @@ def test_no_stale_house_unchanged():
 def test_stale_list_renders_names_and_maps():
     src = _src()
     js = "\n".join([
+        _panel_t(),
         _func(src, "_staleReceivers").replace("export ", ""),
         _func(src, "_staleReceiversBox").replace("export ", ""),
         r"""

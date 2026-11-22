@@ -350,13 +350,13 @@ def test_the_rooms_tab_is_the_sh3d_one_while_off():
     js = (_CC / "www" / "padspan-ha" / "views" / "maps.js").read_text(encoding="utf-8")
     assert 'const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true;' in js
     assert 'fileInput.accept = roomplanOn ? ".sh3d,.json,.usdz" : ".sh3d";' in js
-    assert 'roomplanOn ? "📐 Import floorplan (.sh3d, RoomPlan .usdz or .json)" : "📐 Import floorplan (.sh3d)"' in js
+    assert 'roomplanOn ? t("📐 Import floorplan (.sh3d, RoomPlan .usdz or .json)") : t("📐 Import floorplan (.sh3d)")' in js
     # only a .json file, and only while on, goes to the RoomPlan command
     assert ('const parsed = roomplanOn && /\\.(json|usdz)$/i.test(file.name || "")\n'
             '          ? await ctx.actions.wsCall("padspan_ha/floorplan_import_roomplan", { roomplan_base64: b64 })\n'
             '          : await ctx.actions.wsCall("padspan_ha/floorplan_import_sh3d", { sh3d_base64: b64 });') in js
     # an .sh3d import keeps its label (parse_sh3d has no "source")
-    assert 'label: raw.source === "roomplan" ? "Imported (RoomPlan)" : "Imported (SH3D)"' in js
+    assert 'label: raw.source === "roomplan" ? t("Imported (RoomPlan)") : t("Imported (SH3D)")' in js
     assert '"source"' not in inspect.getsource(parse_sh3d)
 
 

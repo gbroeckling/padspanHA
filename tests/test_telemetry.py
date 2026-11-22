@@ -395,8 +395,8 @@ def test_the_tab_vocabulary_is_the_panel():
     bt_tabs = set(re.findall(r'tabButton\("([a-z_]+)"', bt))
     assert bt_tabs == set(T.SUBTABS["bluetooth"]), (bt_tabs ^ set(T.SUBTABS["bluetooth"]))
     maps = (www / "views" / "maps.js").read_text(encoding="utf-8")
-    line = next(l for l in maps.splitlines() if '["library","Library"],["upload","Upload"],["edit"' in l)
-    map_tabs = set(re.findall(r'\["([a-z_]+)","', line))
+    line = next(l for l in maps.splitlines() if '["library",t("Library")],["upload",t("Upload")],["edit"' in l)
+    map_tabs = set(re.findall(r'\["([a-z_]+)",t\("', line))
     assert map_tabs == set(T.SUBTABS["maps"]), (map_tabs ^ set(T.SUBTABS["maps"]))
 
 

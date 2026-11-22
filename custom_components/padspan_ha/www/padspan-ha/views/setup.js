@@ -409,7 +409,7 @@ function _helperUndo(ctx, u) {
     return x;
   };
   if (!_undoAsking) {
-    box.appendChild(b(AIW.UNDO_TITLE, "helper-undo-ask", () => { _undoAsking = true; _undoSaid = ""; ctx.actions.renderRooms(); }));
+    box.appendChild(b(AIW.undoTitle ? AIW.undoTitle() : AIW.UNDO_TITLE, "helper-undo-ask", () => { _undoAsking = true; _undoSaid = ""; ctx.actions.renderRooms(); }));
     return box;
   }
   box.appendChild(el("div", { style: "color:#fde68a;margin-top:2px" }, AIW.undoSure(u)));

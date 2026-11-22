@@ -24,7 +24,7 @@ def test_refresh_keeps_its_width_and_the_text_wraps() -> None:
     text_box = re.search(r'el\("div",\{style:"([^"]*)"\},\[\s*el\("div",\{class:"card-head"\}', head)
     assert text_box and "min-width:0" in text_box.group(1) and "flex:1" in text_box.group(1), \
         "the header text no longer takes the room that is left"
-    refresh = re.search(r'el\("div",\{style:"([^"]*)"\},\[\s*el\("button",\{class:"btn inline", style:"([^"]*)"[^}]*\}, "Refresh"\)', head)
+    refresh = re.search(r'el\("div",\{style:"([^"]*)"\},\[\s*el\("button",\{class:"btn inline", style:"([^"]*)"[^}]*\}, t\("Refresh"\)\)', head)
     assert refresh, "the Refresh button moved — update this test"
     assert "flex:none" in refresh.group(1), "the Refresh box can shrink"
     assert "white-space:nowrap" in refresh.group(2), "Refresh can wrap one letter per line"

@@ -9,8 +9,9 @@ i18n/<lang>/<group>.json:
 
   help     help_content.js, the ? pages
   panel    panel.js (the shell) and every file that imports i18n and is not in GROUPS
-  setup, screens, health, devices
-           the files GROUPS lists for each (a file's words go with its screen)
+  setup, mapping, stack, plans, calibration, screens, health, devices
+           the files GROUPS lists for each (a file's words go with its screen;
+           a big file's named part with its own group, see Part)
   server   the sentences the backend sends that the panel shows as they are:
            every send_error message and System Critics' title, message and
            action that is one whole sentence in the source (server_sentences).
@@ -46,9 +47,14 @@ _JS_STR = r'"((?:[^"\\]|\\.)*)"'
 T_RE = re.compile(r"(?<![\w.$])t\(\s*" + _JS_STR)
 TN_RE = re.compile(r"(?<![\w.$])tn\(\s*[^,()]+,\s*" + _JS_STR + r"\s*,\s*" + _JS_STR)
 
-# The files of each group but panel and help, relative to www/padspan-ha/.
+# The files of each group but panel and help, relative to www/padspan-ha/. "views/maps.js#stack" is one named part
+# of a file (Part); "views/maps.js" is then that file without its named parts.
 GROUPS: dict[str, tuple[str, ...]] = {
-    "setup": ("views/setup.js", "views/setup_status.js", "views/maps.js", "views/iphone_irk.js"),
+    "setup": ("views/setup.js", "views/setup_status.js", "views/iphone_irk.js"),
+    "mapping": ("views/maps.js",),
+    "stack": ("views/maps.js#stack",),
+    "plans": ("views/scale_nudge.js", "views/plan_measure.js", "views/wizard_build.js", "views/rough_plan.js",
+              "views/ai_wizard_offer.js"),
     "screens": ("views/overview.js", "views/whos_where.js", "views/receiver_room.js", "views/map_text.js",
                 "views/follow.js", "views/locate.js", "views/occupancy.js"),
     "health": ("views/health.js", "views/diagnostics.js"),
@@ -67,16 +73,43 @@ def shipped() -> list[str]:
     return re.findall(r'"([a-z]{2,3})"', m.group(1)) if m else []
 
 
+_PART_RE = re.compile(r"^\s*// i18n part: (\S+)")
+
+
+class Part(type(Path())):
+    """A file in GROUPS, or one named part of it, so a big file's words can be split between groups and each group
+    file stays under its budget. In the file a line "// i18n part: stack" starts the part named stack, and
+    "// i18n part: -" goes back to the rest; a part may come back further down. read_text gives the part's lines
+    only, the others blank, so a line number said is still the file's. part None: the file without its named parts."""
+    part: str | None = None
+
+    def read_text(self, *args, **kwargs) -> str:
+        cur, out = None, []
+        for line in super().read_text(*args, **kwargs).split("\n"):
+            m = _PART_RE.match(line)
+            if m:
+                cur = None if m.group(1) == "-" else m.group(1)
+            out.append(line if cur == self.part else "")
+        return "\n".join(out)
+
+
+def _part(entry: str) -> Part:
+    path, _, name = entry.partition("#")
+    p = Part(WWW / path)
+    p.part = name or None
+    return p
+
+
 def group_files() -> dict[str, list[Path]]:
     """The files whose t()/tn() strings make each group's keys (all but server)."""
     users = [p for p in sorted(WWW.rglob("*.js"))
              if p != HELPER and "vendor" not in p.parts and "i18n.js" in p.read_text(encoding="utf-8")]
-    named = {g: [WWW / f for f in files] for g, files in GROUPS.items()}
-    taken = {p for files in named.values() for p in files}
+    named = {g: [_part(f) for f in files] for g, files in GROUPS.items()}
+    taken = {Path(p) for files in named.values() for p in files}
     out = {"help": [p for p in users if p == HELP],
            "panel": [p for p in users if p != HELP and p not in taken]}
     for g, files in named.items():
-        out[g] = [p for p in users if p in files]
+        out[g] = [p for u in users for p in files if Path(p) == u]
     return out
 
 

@@ -40,11 +40,11 @@ def test_add_and_delete_room_keep_the_open_draft():
     re-copied everything from the model - every unsaved corner, scanner and
     wall drag gone, with no warning."""
     src = _MAPS.read_text(encoding="utf-8")
-    add = src[src.index('ctx.toast(`✔ "${name}" added'):]
+    add = src[src.index('ctx.toast(t("✔ \\"{name}\\" added'):]
     add = add[:add.index("} catch (err)")]
     assert "mapState._roomsDraft[name] = " in add
     assert add.index("mapState._roomsDraftFloorId = null") > add.index("} else {")
-    dele = src[src.index('ctx.toast(`Deleted "${only}"`);'):]
+    dele = src[src.index('ctx.toast(t("Deleted \\"{room}\\"", { room: only }));'):]
     dele = dele[:dele.index("} catch (err)")]
     assert "_roomsDraftFloorId = null" not in dele
     assert "delete mapState._roomsDraft[only]" in dele

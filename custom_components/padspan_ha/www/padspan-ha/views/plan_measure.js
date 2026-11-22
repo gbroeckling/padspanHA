@@ -9,6 +9,8 @@
 // its own window), the length field, what the length was read as, the plan's size from it, and the bar that keeps
 // Save in view. Moved here from ai_wizard.js, not copied. The caller owns the draft (`sc`), the server's answer, the
 // counters and every write; nothing here sends anything.
+// Its words in the panel's language (views/i18n.js; English is the key). tapWord stays the English token callers compare.
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 /** "Tap" on a touch screen, "Click" with a mouse. */
 export const tapWord = () => (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "Tap" : "Click");
@@ -56,10 +58,14 @@ export const MUTED = (ctx, text) => ctx.helpers.el("div", { style: "font-size:12
 export const row = (ctx, kids, style = "") => ctx.helpers.el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;" + style }, kids);
 
 /** What to do, said once above the picture. */
-export const measureHow = (tap) => `${tap} both ends of something you know the length of (the longest wall you can, or the whole house), then type its length. ` +
-  "The longer the thing you measure, the more exact your map: a doorway is too short to trust." + (tap === "Tap" ? " Pinch with two fingers, or use + below the plan, to look closer." : "");
+export const measureHow = (tap) => (tap === "Tap" ? t("Tap both ends of something you know the length of (the longest wall you can, or the whole house), then type its length.")
+  : t("Click both ends of something you know the length of (the longest wall you can, or the whole house), then type its length.")) + " " +
+  t("The longer the thing you measure, the more exact your map: a doorway is too short to trust.") + (tap === "Tap" ? " " + t("Pinch with two fingers, or use + below the plan, to look closer.") : "");
 /** The line under the picture: which end is next, or how to move one. */
-export const endHint = (sc, tap) => (sc.pts.length < 2 ? `${tap} the ${sc.pts.length ? "other" : "first"} end on the plan.` : `Drag an end, or ${tap.toLowerCase()} near it, to move it.`);
+export const endHint = (sc, tap) => (sc.pts.length < 2
+  ? (tap === "Tap" ? (sc.pts.length ? t("Tap the other end on the plan.") : t("Tap the first end on the plan."))
+    : (sc.pts.length ? t("Click the other end on the plan.") : t("Click the first end on the plan.")))
+  : (tap === "Tap" ? t("Drag an end, or tap near it, to move it.") : t("Drag an end, or click near it, to move it.")));
 
 /** A window's scroll put back once it is on the page, before it is painted (a microtask: the panel draws a screen and
  *  puts it on the page in one go), so a redraw neither jumps nor flickers. */
@@ -188,17 +194,17 @@ export function measurePicture(ctx, sc, map, on) {
     if (nz > 1 && on.zoomed) on.zoomed();
     on.redraw();
   };
-  return el("div", {}, [view, row(ctx, [MUTED(ctx, "Zoom:"),
-    btn(ctx, "−", () => zoomTo(Math.max(1, z - 1)), { disabled: z <= 1, attrs: { "data-aiw": "zoom-out", "aria-label": "Smaller" } }),
-    btn(ctx, "+", () => zoomTo(Math.min(ZOOM_MAX, z + 1)), { disabled: z >= ZOOM_MAX, attrs: { "data-aiw": "zoom-in", "aria-label": "Bigger" } })], "margin:0")]);
+  return el("div", {}, [view, row(ctx, [MUTED(ctx, t("Zoom:")),
+    btn(ctx, "−", () => zoomTo(Math.max(1, z - 1)), { disabled: z <= 1, attrs: { "data-aiw": "zoom-out", "aria-label": t("Smaller") } }),
+    btn(ctx, "+", () => zoomTo(Math.min(ZOOM_MAX, z + 1)), { disabled: z >= ZOOM_MAX, attrs: { "data-aiw": "zoom-in", "aria-label": t("Bigger") } })], "margin:0")]);
 }
 
 /** The length field under its label, in `side`, and the span beside it that says what it was read as (paintSaid).
  *  Typing goes to `onInput(text)`; the field is never rebuilt while it is typed in (the caller paints the answer in
  *  place). `key`: its data-aiw. */
-export function lengthField(ctx, side, text, { busy = false, onInput, key = "scale-length", label = "Its length:" }) {
+export function lengthField(ctx, side, text, { busy = false, onInput, key = "scale-length", label = t("Its length:") }) {
   const { el } = ctx.helpers;
-  const len = el("input", { type: "text", maxlength: "40", "data-aiw": key, placeholder: feetOn(ctx) ? "e.g. 13' 9\" or 4.2 m" : "e.g. 4.2 m or 13' 9\"",
+  const len = el("input", { type: "text", maxlength: "40", "data-aiw": key, placeholder: feetOn(ctx) ? t("e.g. 13' 9\" or 4.2 m") : t("e.g. 4.2 m or 13' 9\""),
     style: "flex:0 1 180px;min-width:120px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:14px" });
   len.value = text;
   if (busy) len.disabled = true;
@@ -216,7 +222,8 @@ export function paintSaid(said, text, pv, i = 0, feet = false) {
   // A metric length typed with feet on says so too (review 2026-11-11, C10): "4.2 m" is "= 13' 9" (read as metres)".
   const unit = (pv && Array.isArray(pv.assumed) && pv.assumed[i])
     || (feet && /\d\s*(mm|cm|m|metres?|meters?)\b/i.test(text) ? "metres" : null);
-  said.textContent = !String(text || "").trim() ? "" : m ? `= ${feet ? feetText(m) : `${Number(m).toFixed(2)} m`}${unit ? ` (read as ${unit})` : ""}` : (pv && pv.invalid) || "";
+  const unitWord = { feet: t("feet"), metres: t("metres"), millimetres: t("millimetres"), centimetres: t("centimetres") }[unit] || unit;
+  said.textContent = !String(text || "").trim() ? "" : m ? `= ${feet ? feetText(m) : `${Number(m).toFixed(2)} m`}${unit ? " " + t("(read as {unit})", { unit: unitWord }) : ""}` : (pv && pv.invalid) || "";
   said.style.color = m ? "#a7f3d0" : "#f59e0b";
 }
 
@@ -224,11 +231,12 @@ export function paintSaid(said, text, pv, i = 0, feet = false) {
  *  house has said plainly (`odd`: said, never refused). */
 export function sizeLines(ctx, pv) {
   const { el } = ctx.helpers, ft = feetOn(ctx);
-  const lines = [P(ctx, `The whole picture, margins and all, will be ${lengthText(pv.across_m, ft)} across and ${lengthText(pv.down_m, ft)} down.`, "font-weight:600")];
+  const lines = [P(ctx, t("The whole picture, margins and all, will be {w} across and {h} down.", { w: lengthText(pv.across_m, ft), h: lengthText(pv.down_m, ft) }), "font-weight:600")];
   if (pv.odd) {
     const big = pv.across_m > 100 || pv.across_m < 2 ? ["across", pv.across_m] : ["down", pv.down_m];
     lines.push(el("div", { "data-aiw": "scale-odd", style: "font-size:12px;color:#f59e0b;line-height:1.5;margin:4px 0" },
-      `That makes your plan ${lengthText(big[1], ft)} ${big[0]}. Is the number right? You can change it, or save it as it is.`));
+      big[0] === "across" ? t("That makes your plan {len} across. Is the number right? You can change it, or save it as it is.", { len: lengthText(big[1], ft) })
+        : t("That makes your plan {len} down. Is the number right? You can change it, or save it as it is.", { len: lengthText(big[1], ft) })));
   }
   return lines;
 }

@@ -3931,7 +3931,7 @@ class PadSpanHaApp extends HTMLElement {
    *  are drawn again in it. A string not translated stays English. */
   _loadPanelLanguage(){
     const req = this._panelLangReq = (this._panelLangReq || 0) + 1;
-    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "screens", "health", "devices", "server"]) : "en").then(got => {
+    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "screens", "health", "devices", "server"]) : "en").then(got => {
       if(req !== this._panelLangReq || got === (this._panelLangShown || "en")) return;
       this._panelLangShown = got;
       if(this.$){ this._paintShellWords(); this._paintDataModeLabel(); }

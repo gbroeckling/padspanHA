@@ -77,7 +77,7 @@ def test_save_takes_live_aboards_doors_and_windows_with_the_rooms_it_saved() -> 
     3D file), only for the rooms whose save went through, written in the same Save by house3d_edit (Edit's own save
     and checks), and said in Save's message. Nothing is written before Save, so Discard has nothing to take back."""
     src = _MAPS.read_text(encoding="utf-8")
-    save = src[src.index('const saveBtn = el("button", {'):src.index('}, "Discard changes"));')]
+    save = src[src.index('const saveBtn = el("button", {'):src.index('}, t("Discard changes")));')]
     rooms = save[save.index("for (const room of changedRooms) {"):save.index("for (const src of movedScanners) {")]
     assert "saved[room] = draft[room];" in rooms and rooms.index("ok++;") < rooms.index("saved[room] = draft[room];")
     # Only while Live Aboard is on at Pro (its file isn't read otherwise; the server refuses the write then anyway).
@@ -85,7 +85,7 @@ def test_save_takes_live_aboards_doors_and_windows_with_the_rooms_it_saved() -> 
             "            ? await _carryOpenings(ctx, floorId, draftOrig, { ...draftOrig, ...saved })") in rooms.replace("\r\n", "\n")
     assert "+ (carried.text ? `. ${carried.text}` : \"\"), !!fail || carried.bad);" in save
     assert "mapState._roomsCarryNote = carried.text || null;" in save
-    discard = src[src.index('}, "Discard changes"));') - 400:src.index('}, "Discard changes"));')]
+    discard = src[src.index('}, t("Discard changes")));') - 400:src.index('}, t("Discard changes")));')]
     assert "house3d" not in discard and "_carryOpenings" not in discard
     # The one writer: the 3D file is written from Layout only by _carryOpenings, through house3d_edit with openings alone;
     # the 3D rules reached through the 3D host (lights_map.js), as Mapping reaches every 3D module.

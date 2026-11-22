@@ -333,7 +333,7 @@ def test_every_t_call_names_its_english() -> None:
     assert not bad, "\n".join(bad[:20])
 
 
-_PANEL_GROUPS = ("panel", "setup", "screens", "health", "devices", "server")
+_PANEL_GROUPS = ("panel", "setup", "mapping", "stack", "plans", "screens", "health", "devices", "server")
 
 
 def _check_group(cov, group: str, keys: dict) -> None:
@@ -363,7 +363,9 @@ def test_each_panel_group_is_its_screens_words_and_fully_translated() -> None:
     cov = _coverage()
     files = cov.group_files()
     assert set(files) == {"help"} | set(_PANEL_GROUPS) - {"server"}
-    assert len(cov.keys_in(files["panel"])) >= 30 and len(cov.keys_in(files["setup"])) >= 150
+    # Mapping's words left setup for their own group in phase 3 (maps.js with them).
+    assert len(cov.keys_in(files["panel"])) >= 30 and len(cov.keys_in(files["setup"])) >= 120
+    assert len(cov.keys_in(files["mapping"])) >= 150
     for group in _PANEL_GROUPS:
         if group != "server":
             _check_group(cov, group, cov.keys_in(files[group]))

@@ -895,8 +895,8 @@ def test_the_old_rooms_tab_has_merge_and_corner_tools():
     import subprocess
     src = (_ROOT / "www" / "padspan-ha" / "views" / "maps.js").read_text(encoding="utf-8")
     tab = src[src.index("function _roomsTab("):]
-    assert 'wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others })' in tab and "if (!confirm(`Merge " in tab
-    merge = tab[tab.index('wsCall("padspan_ha/fabric_rooms_merge"'):tab.index('"Merge into one")')]
+    assert 'wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others })' in tab and 'if (!confirm(tn(others.length, "Merge {rooms} into' in tab
+    merge = tab[tab.index('wsCall("padspan_ha/fabric_rooms_merge"'):tab.index('t("Merge into one"))')]
     assert "_roomsAfterMerge(mapState._roomsDraft, mapState._roomsOrig, keep, others, res);" in merge     # review B5: the open draft kept,
     assert "_roomsDraftFloorId" not in merge                                                             # never rebuilt from the store
     # Through the draft-room helpers, which also keep which saved corner each is (Live Aboard's doors go with a room).

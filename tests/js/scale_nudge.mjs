@@ -139,7 +139,7 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   check("upload: Edit opens on the new plan", h.state.mapsTab === "edit" && h.state.activeMapId === "up1", [h.state.mapsTab, h.state.activeMapId]);
   let root = await render(h);
   root = await render(h);
-  check("the nudge: shown in Edit, its title and Later", !!q(root, '[data-nudge="card"]') && root.textContent.includes(N.TITLE) && !!q(root, '[data-nudge="later"]'),
+  check("the nudge: shown in Edit, its title and Later", !!q(root, '[data-nudge="card"]') && root.textContent.includes(N.TITLE()) && !!q(root, '[data-nudge="later"]'),
     root.textContent.slice(0, 300));
   check("the nudge: counted shown once over two draws", count(h, "shown") === 1, h.tele);
   check("the nudge: none of the helper's Claude words", !/Claude|Anthropic|read|Pro\b/.test(q(root, '[data-nudge="card"]').textContent), q(root, '[data-nudge="card"]').textContent);
@@ -490,8 +490,8 @@ const TF = { p2: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }
       && !q(gr, '[data-nudge="later"]') && !gr.textContent.includes("Measurement 1 of 2") && gr.textContent.includes("Measure one distance you know"),
       gr.textContent.slice(0, 400));
     // Review 2026-11-13, break 7: Basic has no Edit → Measure; it is told Setup's scale step.
-    check(`${cx}: where to measure again, in words for the mode`, cx === "basic" ? gr.textContent.includes(N.SAVE_SAYS_BASIC) && !gr.textContent.includes("Edit → Measure")
-      : gr.textContent.includes(N.SAVE_SAYS), gr.textContent.slice(-300));
+    check(`${cx}: where to measure again, in words for the mode`, cx === "basic" ? gr.textContent.includes(N.SAVE_SAYS_BASIC()) && !gr.textContent.includes("Edit → Measure")
+      : gr.textContent.includes(N.SAVE_SAYS()), gr.textContent.slice(-300));
     tap(gr, 80, 300); gr = await render(g); tap(gr, 480, 300); await tick(); gr = await render(g);
     await typeIn(gr, "scale-length", "5 m");
     q(gr, '[data-nudge="save"]').click();

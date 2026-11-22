@@ -120,16 +120,21 @@ export async function putOnMap(ctx, traced, deps){
   if (blockNow) { ctx.toast(blockNow, true); return; }
   ctx.state._wizardBuilding = true;
   if (deps.started) deps.started();
-  const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+  // What happened, in the panel's language: the caller hands in views/i18n.js's own t (deps.t) and the counted words
+  // (deps.roomWords, deps.rxWords; maps.js does). Without them, the English with its {placeholders} filled.
+  const fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+  const t = deps.t || fill;
   try {
     const r = await buildHouse(ctx, traced, deps);
-    const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "receiver") : ""].filter(Boolean).join(" and ");
+    const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+    const parts = [r.rooms ? (deps.roomWords || ((k) => n(k, "room")))(r.rooms) : "", r.scanners ? (deps.rxWords || ((k) => n(k, "receiver")))(r.scanners) : ""].filter(Boolean);
+    const done = parts.length > 1 ? t("{list} and {last}", { list: parts[0], last: parts[1] }) : (parts[0] || "");
     const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
     ctx.toast(done
-      ? `${done} now on the map${left ? `; ${left} couldn't be (${deps.where})` : ""}.`
-      : `Nothing could be put on the map${left ? `: ${left} couldn't be (${deps.where})` : ""}.`, !done || !!left);
+      ? (left ? t("{what} now on the map; {left} couldn't be ({where}).", { what: done, left, where: deps.where }) : t("{what} now on the map.", { what: done }))
+      : (left ? t("Nothing could be put on the map: {left} couldn't be ({where}).", { left, where: deps.where }) : t("Nothing could be put on the map.")), !done || !!left);
   } catch (e) {
-    ctx.toast("Couldn't put it on the map: " + ctx.helpers.errorText(e), true);
+    ctx.toast(t("Couldn't put it on the map: {why}", { why: ctx.helpers.errorText(e) }), true);
   } finally {
     ctx.state._wizardBuilding = false;
     await deps.refresh();

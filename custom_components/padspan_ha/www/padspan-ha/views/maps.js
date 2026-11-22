@@ -151,7 +151,7 @@ export function render(ctx){
   if (ROUGH && ROUGH.walking(ctx)) {
     // Before the server has said whether this is the house or the demo, it is not yet known who may add a plan:
     // the link's walk-through waits, it is not thrown away (review 2026-11-16: the first draw comes before settings).
-    if (ctx.state._dataModeKnown === false) { root.appendChild(el("div",{class:"card muted","data-rough":"walk-wait"}, "One moment…")); return root; }
+    if (ctx.state._dataModeKnown === false) { root.appendChild(el("div",{class:"card muted","data-rough":"walk-wait"}, t("One moment…"))); return root; }
     if (ctx.state.dataMode === "live" && ctx.hass?.user?.is_admin !== false && !ctx.state.kioskMode) {
       root.appendChild(ROUGH.walk(ctx, { toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()), floors: _houseFloors(ctx),
         onMade: (m) => _roughMade(ctx, m), onClose: () => ctx.actions.renderRooms() }));
@@ -161,12 +161,12 @@ export function render(ctx){
     // phone may well not be one; review 2026-11-16: the link showed plain Mapping and nothing else).
     if (!ctx.state.kioskMode) {
       const why = ctx.state.dataMode !== "live"
-        ? "This is the demo house. Switch to your own house (Data: Live, at the top) and open the link again."
-        : "Adding a floor plan needs an administrator of this Home Assistant. Ask one to sign in on this phone, or to give the scan file to PadSpan themselves: Mapping → Upload → No floor plan? → Scan the floor.";
+        ? t("This is the demo house. Switch to your own house (Data: Live, at the top) and open the link again.")
+        : t("Adding a floor plan needs an administrator of this Home Assistant. Ask one to sign in on this phone, or to give the scan file to PadSpan themselves: Mapping → Upload → No floor plan? → Scan the floor.");
       const no = el("div",{class:"card","data-rough":"walk-no",style:"max-width:560px;margin:0 auto"},[
-        el("div",{class:"h2",style:"font-size:20px"},"Scan a floor with an iPhone or iPad"),
+        el("div",{class:"h2",style:"font-size:20px"},t("Scan a floor with an iPhone or iPad")),
         el("div",{style:"font-size:16px;line-height:1.6;color:#cbd5e1;margin:8px 0"}, why)]);
-      const ok = el("button",{class:"btn inline","data-rough":"walk-close",style:"font-size:16px;padding:12px 18px;min-height:48px"},"Close");
+      const ok = el("button",{class:"btn inline","data-rough":"walk-close",style:"font-size:16px;padding:12px 18px;min-height:48px"},t("Close"));
       ok.addEventListener("click", ()=>{ ctx.state._roughPlan.walk = null; ctx.actions.renderRooms(); });
       no.appendChild(ok);
       root.appendChild(no);
@@ -194,14 +194,14 @@ export function render(ctx){
   // look at and a place that says what a key adds. This used to hide the tab
   // without a key, which left PadSpan Bright's free program with no map at all.
   const tabDefs = isBasic
-    ? [["library","Library"],["upload","Upload"]]
-    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Layout"],["lights","Atlas builder"],["export","Export"],["help","Help"]];
+    ? [["library",t("Library")],["upload",t("Upload")]]
+    : [["library",t("Library")],["upload",t("Upload")],["edit",t("Edit")],["stack",t("3D Stack")],["rooms",t("Layout")],["lights",t("Atlas builder")],["export",t("Export")],["help",t("Help")]];
 
   // Live Aboard's Furnish (P2), after Atlas: only while Live Aboard shows (the
   // switch on, at Pro or Bright Pro). Otherwise there is no such tab, the way
   // Basic leaves tabs out, and nothing of it is loaded.
   const furnishTab = !isBasic && ctx.state.settings?.atlas_3d_enabled === true && _tierAtLeast(ctx.state.settings?.tier, "pro");
-  if (furnishTab) tabDefs.splice(tabDefs.findIndex(([id]) => id === "lights") + 1, 0, ["furnish", "Furnish"]);
+  if (furnishTab) tabDefs.splice(tabDefs.findIndex(([id]) => id === "lights") + 1, 0, ["furnish", t("Furnish")]);
   else if (tab === "furnish") ctx.state.mapsTab = "lights";
 
   // If current tab is not in basic tab list, reset to library (a link's
@@ -238,26 +238,26 @@ export function render(ctx){
     el("div",{style:"display:flex;align-items:center;gap:10px;justify-content:space-between"},[
       el("div",{style:"flex:1 1 auto;min-width:0"},[
         el("div",{class:"card-head"},[
-          el("div",{style:"font-weight:700;font-size:16px"},"Mapping"),
+          el("div",{style:"font-weight:700;font-size:16px"},t("Mapping")),
           helpBtn("maps"),
         ]),
         el("div",{class:"muted"}, isBasic
-          ? "Upload a photo of your floor plan to visualise where your Bluetooth receivers are placed."
-          : "Upload floorplans (any image type), auto-size to PNG, then place BLE receivers. Export maps + receiver layout."),
+          ? t("Upload a photo of your floor plan to visualise where your Bluetooth receivers are placed.")
+          : t("Upload floorplans (any image type), auto-size to PNG, then place BLE receivers. Export maps + receiver layout.")),
       ]),
       el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
-        el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, "Refresh"),
+        el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, t("Refresh")),
         // The guided Setup (views/setup.js), where this build shows it; not
         // over the Library's "No floor plans yet", whose button opens it.
         ...(_setupShown && !_noPlansYet
           ? [el("button",{class:"btn inline", style:"white-space:nowrap", "data-setup-link":"maps",
-              title:"Plan, scale, floors, rooms, receivers and calibration, one step at a time",
-              onclick:()=>ctx.actions.showView("setup")}, "Setup")] : []),
+              title:t("Plan, scale, floors, rooms, receivers and calibration, one step at a time"),
+              onclick:()=>ctx.actions.showView("setup")}, t("Setup"))] : []),
       ])
     ]),
     tabs,
   ]);
-  if(!isAdmin) header.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"Only an administrator can add or change floor plans."));
+  if(!isAdmin) header.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},t("Only an administrator can add or change floor plans.")));
 
   const body = el("div",{},[
     activeTab==="library" ? _library(ctx, maps, activeId, helpBtn, isBasic) :
@@ -283,7 +283,7 @@ function _focused(ctx, f, active, maps){
   const { el } = ctx.helpers;
   if (f.tab === "edit") return _edit(ctx, active, maps, { tools: [f.part], focused: true });
   if (f.part === "floor_heights") return el("div",{class:"card","data-focus-part":"floor_heights"},[_floorHeights(ctx)]);
-  return el("div",{class:"card muted","data-focus-missing":f.part},"This isn't available on this install.");
+  return el("div",{class:"card muted","data-focus-missing":f.part},t("This isn't available on this install."));
 }
 
 // ── Tab Button Helper ─────────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ function _isOutsideMap(m) { return (m.floor_id || "") === OUTSIDE_FLOOR_ID; }
 // An HA floor may be called Outside too: two headings or buttons mustn't read
 // the same. Pass only the floors that get one on this screen.
 function _outsideLabel(floors) {
-  return floors.some(f => String(f.name || "").trim().toLowerCase() === "outside") ? "Outside (Exp.)" : "Outside";
+  return floors.some(f => String(f.name || "").trim().toLowerCase() === "outside") ? t("Outside (Exp.)") : t("Outside");
 }
 
 // Resolve a floor_id to a human-readable name from the HA floor registry.
@@ -326,7 +326,7 @@ function _floorName(ctx, floor_id){
   const floors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
   const id = String(floor_id || "").trim();
   if(!id) return "—";
-  if(id === OUTSIDE_FLOOR_ID) return "Outside (Exp.)";
+  if(id === OUTSIDE_FLOOR_ID) return t("Outside (Exp.)");
   const f = floors.find(x=>String(x.id)===id);
   return f ? (f.name || f.id) : id;
 }
@@ -1197,22 +1197,22 @@ function _upload(ctx, helpBtn, isBasic){
   const { el } = ctx.helpers;
   const card = el("div",{class:"card"});
   card.appendChild(el("div",{class:"card-head"},[
-    el("div",{class:"h2"}, isBasic ? "Upload a floor plan" : "Upload floor plan"),
+    el("div",{class:"h2"}, isBasic ? t("Upload a floor plan") : t("Upload floor plan")),
     helpBtn("maps_upload"),
   ]));
 
   // First-upload tip: shown only when no maps exist yet
   if(!(ctx.state.maps?.list||[]).length){
     card.appendChild(el("div",{style:"margin:10px 0 4px;padding:10px 12px;border-radius:8px;background:#0a1a0a;border:1px solid #52b788;font-size:12px;color:#a7f3d0;line-height:1.6"},
-      "💡 First map tip — Upload your most precise, to-scale floor plan first. " +
+      t("💡 First map tip — Upload your most precise, to-scale floor plan first. ") +
       // Basic has no 3D Stack (review 2026-11-11, C5): what the first plan is for, in Basic's terms.
-      (isBasic ? "PadSpan lines your other floors up with it, so accuracy starts here."
-        : "It makes the best Reference when you line up your other floors in 3D Stack, so accuracy starts here.")
+      (isBasic ? t("PadSpan lines your other floors up with it, so accuracy starts here.")
+        : t("It makes the best Reference when you line up your other floors in 3D Stack, so accuracy starts here."))
     ));
   }
   card.appendChild(el("div",{class:"muted",style:"margin-bottom:10px"}, isBasic
-    ? "Take a photo of your house plan (or use any image). Give it a name and click Upload."
-    : "Upload floorplan image (PNG/JPG/WebP/GIF/SVG). We'll auto-resize and store as optimized PNG for mapping."));
+    ? t("Take a photo of your house plan (or use any image). Give it a name and click Upload.")
+    : t("Upload floorplan image (PNG/JPG/WebP/GIF/SVG). We'll auto-resize and store as optimized PNG for mapping.")));
 
   const floors = (ctx.state.model && ctx.state.model.floors) ? ctx.state.model.floors : [];
   const floorSel = document.createElement("select");
@@ -1225,7 +1225,7 @@ function _upload(ctx, helpBtn, isBasic){
   }
   // Always offer "Outside" option
   const _outsideOpt = document.createElement("option");
-  _outsideOpt.value = OUTSIDE_FLOOR_ID; _outsideOpt.textContent = "Outside (Experimental)";
+  _outsideOpt.value = OUTSIDE_FLOOR_ID; _outsideOpt.textContent = t("Outside (Experimental)");
   floorSel.appendChild(_outsideOpt);
   // Restore floor choice across rebuilds the same way the picked file survives
   // them (see comment above _upload) — a rebuild mid-upload (e.g. WS reconnect)
@@ -1253,8 +1253,8 @@ function _upload(ctx, helpBtn, isBasic){
   sketch.checked = !!ctx.state._mapsUploadSketch;
   sketch.addEventListener("change", ()=>{ ctx.state._mapsUploadSketch = sketch.checked; });
 
-  const name = el("input",{type:"text", placeholder:"Map name (e.g., Main Floor)"});
-  const maxw = el("input",{type:"text", placeholder:"Max size (e.g., 1600). Default 1600"});
+  const name = el("input",{type:"text", placeholder:t("Map name (e.g., Main Floor)")});
+  const maxw = el("input",{type:"text", placeholder:t("Max size (e.g., 1600). Default 1600")});
   const file = document.createElement("input");
   file.type = "file";
   file.accept = "image/*";
@@ -1274,7 +1274,7 @@ function _upload(ctx, helpBtn, isBasic){
   const cropCanvas   = document.createElement("canvas");
   cropCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair";
   const cropInfo     = el("div",{class:"muted",style:"font-size:11px;margin-top:5px"}, "");
-  const cropClearBtn = el("button",{class:"btn tiny",style:"margin-top:6px"}, "Reset Crop");
+  const cropClearBtn = el("button",{class:"btn tiny",style:"margin-top:6px"}, t("Reset Crop"));
 
   function _ccFrac(clientX, clientY){
     const r = cropCanvas.getBoundingClientRect();
@@ -1295,9 +1295,9 @@ function _upload(ctx, helpBtn, isBasic){
       g2.fillStyle="#52b788";
       for(const [hx,hy] of [[px0,py0],[px0+pw,py0],[px0,py0+ph],[px0+pw,py0+ph]])
         g2.fillRect(hx-hs/2,hy-hs/2,hs,hs);
-      cropInfo.textContent=`Crop: ${Math.round(_imgNatW*(fx1-fx0))}\u00d7${Math.round(_imgNatH*(fy1-fy0))} px  (original: ${_imgNatW}\u00d7${_imgNatH}) \u2014 drag to adjust`;
+      cropInfo.textContent=t("Crop: {w}×{h} px  (original: {ow}×{oh}) — drag to adjust", { w: Math.round(_imgNatW*(fx1-fx0)), h: Math.round(_imgNatH*(fy1-fy0)), ow: _imgNatW, oh: _imgNatH });
     } else {
-      cropInfo.textContent=`Full image: ${_imgNatW}\u00d7${_imgNatH} px \u2014 drag to select a crop region`;
+      cropInfo.textContent=t("Full image: {w}×{h} px — drag to select a crop region", { w: _imgNatW, h: _imgNatH });
     }
   }
   function _updateCropFromDrag(){
@@ -1339,7 +1339,7 @@ function _upload(ctx, helpBtn, isBasic){
       URL.revokeObjectURL(objUrl);
       ctx.state._mapsUploadFile = null;
       _upTel("bad_picture");
-      status.textContent = "Could not load image. Supported formats: PNG, JPG, GIF, BMP, WebP, SVG.";
+      status.textContent = t("Could not load image. Supported formats: PNG, JPG, GIF, BMP, WebP, SVG.");
       status.style.color = "#f87171";
     };
     previewImg.src=objUrl;
@@ -1348,7 +1348,7 @@ function _upload(ctx, helpBtn, isBasic){
   previewWrap.appendChild(previewImg);
   previewWrap.appendChild(cropCanvas);
   previewOuter.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},
-    "Preview \u2014 drag to select a crop/trim region (optional):"));
+    t("Preview \u2014 drag to select a crop/trim region (optional):")));
   previewOuter.appendChild(previewWrap);
   previewOuter.appendChild(cropClearBtn);
   previewOuter.appendChild(cropInfo);
@@ -1356,7 +1356,7 @@ function _upload(ctx, helpBtn, isBasic){
   const btn = el("button",{class:"btn inline", onclick: async ()=>{
     // Use file from ctx.state (survives re-renders), with file input as fallback
     const f = ctx.state._mapsUploadFile || (file.files && file.files[0]);
-    if(!f){ _upTel("no_file"); status.textContent = "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG."; return; }
+    if(!f){ _upTel("no_file"); status.textContent = t("Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG."); return; }
     // The floor the user actually chose, not whatever this <select> happens to
     // be showing right now. render() re-runs on a 5s poll regardless of what
     // the user is doing — spend that long in the native file-browse dialog and
@@ -1372,20 +1372,20 @@ function _upload(ctx, helpBtn, isBasic){
     let floor_id = (ctx.state._mapsUploadFloorId && _validFloorIds.has(ctx.state._mapsUploadFloorId))
       ? ctx.state._mapsUploadFloorId
       : (floorSel.value||"").trim();
-    if(!floor_id){ status.textContent = "Choose a floor before uploading."; return; }
+    if(!floor_id){ status.textContent = t("Choose a floor before uploading."); return; }
     if(floor_id === OUTSIDE_FLOOR_ID){
       const existingMaps = ctx.state.maps?.list || [];
       if(existingMaps.some(m => m.floor_id === OUTSIDE_FLOOR_ID)){
-        status.textContent = "Only one Outside map is allowed. Delete the existing one first.";
+        status.textContent = t("Only one Outside map is allowed. Delete the existing one first.");
         return;
       }
     }
-    status.textContent = "Reading\u2026";
+    status.textContent = t("Reading\u2026");
     status.style.color = "";
     try{
       const max = parseInt((maxw.value||"").trim() || "1600", 10);
       const res = await _preparePng(f, isFinite(max) ? max : 1600, cropRect);
-      status.textContent = `Uploading\u2026 (${res.width}\u00d7${res.height})`;
+      status.textContent = t("Uploading… ({w}×{h})", { w: res.width, h: res.height });
       // The plan's scale, asked for straight after (scale_nudge.js): in Advanced "Set this plan's
       // scale now" waits on the plan in Edit; in Basic the Setup Wizard's own scale step opens; an
       // upload in the wizard goes on to that step anyway. Never for an Outside plan.
@@ -1401,7 +1401,7 @@ function _upload(ctx, helpBtn, isBasic){
         ...(_askScale && !isBasic ? { scale_nudge: true } : {}),
         ...(ctx.state._mapsUploadSketch && floor_id !== OUTSIDE_FLOOR_ID ? { kind: "sketch" } : {}),
       });
-      status.textContent = "Uploaded \u2714";
+      status.textContent = t("Uploaded \u2714");
       _upTel("ok");
       if (ctx.state._mapsUploadSketch) _upTel("sketch");
       ctx.state._mapsUploadSketch = false;
@@ -1416,20 +1416,20 @@ function _upload(ctx, helpBtn, isBasic){
       ctx.actions.renderRooms();
     }catch(e){
       _upTel(e?.code === "upload_too_large" ? "too_large" : e?.code === "invalid_image" ? "bad_picture" : "failed");
-      status.textContent = "Upload failed: " + (e?.message || e?.code || String(e));
+      status.textContent = t("Upload failed: {why}", { why: ctx.helpers.errorText ? ctx.helpers.errorText(e) : (e?.message || e?.code || String(e)) });
     }
-  }}, "Upload & Convert");
+  }}, t("Upload & Convert"));
 
   card.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:10px"},[
-    el("div",{},[ el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"},"Floor (from HA)"), floorSel ]),
-    el("div",{class:"muted",style:"font-size:12px;align-self:flex-end;padding-bottom:4px"}, "Manage floors in HA Settings \u2192 Areas, labels & zones"),
+    el("div",{},[ el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"},t("Floor (from HA)")), floorSel ]),
+    el("div",{class:"muted",style:"font-size:12px;align-self:flex-end;padding-bottom:4px"}, t("Manage floors in HA Settings \u2192 Areas, labels & zones")),
   ]));
 
   card.appendChild(name);
   card.appendChild(maxw);
   card.appendChild(file);
   if (_roughOn) card.appendChild(el("label",{style:"display:flex;gap:8px;align-items:center;font-size:12px;color:#94a3b8;margin:8px 0"},
-    [sketch, el("span",{}, "This is my own sketch, not to scale (PadSpan then takes a length each way)")]));
+    [sketch, el("span",{}, t("This is my own sketch, not to scale (PadSpan then takes a length each way)"))]));
   card.appendChild(previewOuter);
   card.appendChild(btn);
   card.appendChild(status);
@@ -1448,11 +1448,11 @@ function _upload(ctx, helpBtn, isBasic){
       previewOuter.style.display="";
     };
     previewImg.src = objUrl;
-    status.textContent = `File selected: ${f.name} (${Math.round(f.size/1024)} KB)`;
+    status.textContent = t("File selected: {name} ({kb} KB)", { name: f.name, kb: Math.round(f.size/1024) });
   }
 
   card.appendChild(el("div",{class:"muted", style:"margin-top:12px;font-size:12px"},
-    "Best practice: upload one map per floor. Floors let you keep room placement clean and avoid mixing levels."
+    t("Best practice: upload one map per floor. Floors let you keep room placement clean and avoid mixing levels.")
   ));
 
   return card;
@@ -1640,8 +1640,8 @@ function _wizKeep(ctx){
     try{
       await _saveLayout(ctx, map);
       if(ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_draw:kept");
-      ctx.toast("Saved \u2714");
-    }catch(err){ ctx.toast("Not saved: " + ctx.helpers.errorText(err) + ". Press Save Layout under the plan.", true); }
+      ctx.toast(t("Saved \u2714"));
+    }catch(err){ ctx.toast(t("Not saved: {why}. Press Save Layout under the plan.", { why: ctx.helpers.errorText(err) }), true); }
     ctx.actions.renderRooms();
   });
 }
@@ -1920,9 +1920,10 @@ function _wizardFinish(ctx, map, w){
       putBtn.disabled = building;
       // One press for every "Put it on the map" (wizard_build.putOnMap): Tune's Save check at the click, as before.
       putBtn.addEventListener("click", () => putOnMap(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh(),
-        writeBlock: () => TSP.tuneWriteBlock(ctx.state),
+        writeBlock: () => TSP.tuneWriteBlock(ctx.state), t,
+        roomWords: (k) => tn(k, "1 room", "{n} rooms"), rxWords: (k) => tn(k, "1 receiver", "{n} receivers"),
         // Basic has neither Layout nor Tune (review 2026-11-11, C5): its own words.
-        where: ctx.state.complexity === "basic" ? "the Rooms page and Calibration's first step show them" : "Mapping → Layout and Calibration → Tune show them",
+        where: ctx.state.complexity === "basic" ? t("the Rooms page and Calibration's first step show them") : t("Mapping → Layout and Calibration → Tune show them"),
         started: () => { putBtn.disabled = true; putBtn.textContent = t("Putting it on the map…"); } }));
       box.appendChild(putBtn);
     }
@@ -2062,23 +2063,23 @@ function _rxHeightRow(ctx, sel, rerender){
   const fab = src ? ((ctx.state.model && ctx.state.model.scanner_positions_m) || {})[src] : null;
   if(!fab){
     return el("div",{class:"muted", style:"font-size:11px;margin-top:8px", "data-rx-height":"none"},
-      "Height: set once this radio has a position (Save Layout, then Calibration → Tune → Save).");
+      t("Height: set once this radio has a position (Save Layout, then Calibration → Tune → Save)."));
   }
   const zInp = el("input",{type:"number", min:"0", max:"100", step:"0.1",
     style:"width:72px;background:#071008;border:1px solid #2d4a38;color:#e2e8f0;padding:6px 8px;border-radius:8px;font-size:12px"});
   zInp.value = String(fab.z_m != null ? fab.z_m : 2.4);
-  zInp.setAttribute("aria-label", "Height above floor (m)");
+  zInp.setAttribute("aria-label", t("Height above floor (m)"));
   const zBtn = el("button",{class:"btn inline", style:"margin-top:0",
-    title:"Mounting height above this radio's own floor. Used for 3D distance; survives map syncs. Same value as Calibration → Tune."}, "Save height");
+    title:t("Mounting height above this radio's own floor. Used for 3D distance; survives map syncs. Same value as Calibration → Tune.")}, t("Save height"));
   zBtn.addEventListener("click", async ()=>{
     const v = parseFloat(zInp.value);
     if(!Number.isFinite(v) || v < 0 || v > 100){
-      ctx.toast("Height must be 0–100 m", true);
+      ctx.toast(t("Height must be 0–100 m"), true);
       return;
     }
     const ts = (TSP && ctx.state._calibTune) || null;
     if(ts && !TSP.tuneTryAcquire(ts)){
-      ctx.toast("A save is in progress — try again in a moment", true);
+      ctx.toast(t("A save is in progress — try again in a moment"), true);
       return;
     }
     zBtn.disabled = true;
@@ -2088,7 +2089,7 @@ function _rxHeightRow(ctx, sel, rerender){
         source: src, z_m: v,
       });
       if(res && res.ok === false){
-        ctx.toast("Save failed: height not stored", true);
+        ctx.toast(t("Save failed: height not stored"), true);
         return;
       }
       // Publish the acknowledged height before refreshing (modelRefresh
@@ -2100,11 +2101,11 @@ function _rxHeightRow(ctx, sel, rerender){
         spm[src] = { ...(prev && typeof prev === "object" ? prev : {}),
           z_m: Math.round(Math.max(0, Math.min(100, v)) * 100) / 100 };
       }catch(_e){ /* best-effort */ }
-      ctx.toast(`${sel.label || src}: height set to ${v} m`);
+      ctx.toast(t("{name}: height set to {m} m", { name: sel.label || src, m: v }));
       if(ts) ts._tuneRev = (ts._tuneRev || 0) + 1;
       if(ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
     }catch(e){
-      ctx.toast("Save failed: height not stored", true);
+      ctx.toast(t("Save failed: height not stored"), true);
     }finally{
       if(ts) TSP.tuneRelease(ts);
       zBtn.disabled = false;
@@ -2112,7 +2113,7 @@ function _rxHeightRow(ctx, sel, rerender){
     if(rerender) rerender();
   });
   return el("div",{style:"display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px", "data-rx-height":src},[
-    el("span",{class:"muted", style:"font-size:12px"}, "Height above floor (m)"),
+    el("span",{class:"muted", style:"font-size:12px"}, t("Height above floor (m)")),
     zInp,
     zBtn,
   ]);
@@ -2258,7 +2259,7 @@ function _edit(ctx, map, allMaps, opts){
 
   if(!map){
     ctx.state.maps._openMode = null;   // the plan asked for is gone: its one-shot tool is not kept for the next one opened
-    card.appendChild(el("div",{class:"muted"},"No map selected. Go to Library or Upload tab."));
+    card.appendChild(el("div",{class:"muted"},t("No map selected. Go to Library or Upload tab.")));
     return card;
   }
 
@@ -2384,9 +2385,9 @@ function _edit(ctx, map, allMaps, opts){
   mapSel.onchange = ()=>{ ctx.actions.mapsSetActive(mapSel.value); };
 
   const titleBtns = el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"}, _focused ? [] : [
-    el("div",{class:"muted", style:"font-size:12px"},"Map:"),
+    el("div",{class:"muted", style:"font-size:12px"},t("Map:")),
     mapSel,
-    el("div",{class:"muted", style:"font-size:12px"},"Floor:"),
+    el("div",{class:"muted", style:"font-size:12px"},t("Floor:")),
     _floorSelect(floors, mapFloorId, async (fid)=>{
       ctx.state.maps._draftFloorId = fid;
       if(ctx.state.maps._selectedRoom && !eligibleRooms.includes(ctx.state.maps._selectedRoom)){
@@ -2398,10 +2399,10 @@ function _edit(ctx, map, allMaps, opts){
   ]);
   const title = el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},[
     el("div",{},[
-      el("div",{style:"font-weight:700"}, `Edit: ${map.name || map.id}`),
-      el("div",{class:"muted", style:"font-size:12px"}, !_focused ? "Draw the rooms, then place the receivers. Save when done."
-        : _toolOk("rooms") ? "Draw the room's outline on the plan, then Save Layout."
-        : "Drag the receiver to where it is mounted and set its height, then Save Layout."),
+      el("div",{style:"font-weight:700"}, t("Edit: {name}", { name: map.name || map.id })),
+      el("div",{class:"muted", style:"font-size:12px"}, !_focused ? t("Draw the rooms, then place the receivers. Save when done.")
+        : _toolOk("rooms") ? t("Draw the room's outline on the plan, then Save Layout.")
+        : t("Drag the receiver to where it is mounted and set its height, then Save Layout.")),
     ]),
     titleBtns,
   ]);
@@ -2456,6 +2457,8 @@ function _edit(ctx, map, allMaps, opts){
   };
   const _MAT_ATTEN = {metal:12, concrete:8, brick:4, custom:6, open:0};
   const _MAT_COLORS = {metal:"#ef4444",concrete:"#f97316",brick:"#eab308",custom:"#a855f7",open:"#38bdf8"};
+  const _matWord = (mat) => ({ metal: t("Metal"), concrete: t("Concrete"), brick: t("Brick"), custom: t("Custom"), open: t("Open (Loft)") })[mat] || mat;
+  const _matLower = (mat) => ({ metal: t("metal"), concrete: t("concrete"), brick: t("brick"), custom: t("custom"), open: t("open") })[mat] || mat;
   // Custom is the one material with a number the user sets (0–30 dB, 6 until
   // they do): an old plaster-and-lath wall, a thick stone one, a glass block.
   const _customDb = () => {
@@ -2480,7 +2483,7 @@ function _edit(ctx, map, allMaps, opts){
   };
   const _placeWall = async (name, material, atten, fracPts) => {
     const tf = _wallTx();
-    if (!tf) { ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return null; }
+    if (!tf) { ctx.toast(t("Measure this map first (Measure tool) — walls are stored in metres."), true); return null; }
     const points_m = fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
       .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
     try {
@@ -2490,13 +2493,13 @@ function _edit(ctx, map, allMaps, opts){
         name, material, attenuation_dbm: atten, floor_id: _wallFloor(), points_m, ...(material === "open" ? { rail: "none" } : {}) } });
       await ctx.actions.modelRefresh();
       return r && r.barrier ? r.barrier.id : null;
-    } catch (e) { ctx.toast("Could not place wall: " + ctx.helpers.errorText(e), true); return null; }
+    } catch (e) { ctx.toast(t("Could not place wall: {why}", { why: ctx.helpers.errorText(e) }), true); return null; }
   };
   const _removeWall = async (id) => {
     try {
       await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_remove", barrier_id: id });
       await ctx.actions.modelRefresh();
-    } catch (e) { ctx.toast("Could not remove wall: " + ctx.helpers.errorText(e), true); }
+    } catch (e) { ctx.toast(t("Could not remove wall: {why}", { why: ctx.helpers.errorText(e) }), true); }
   };
 
   // ── Open edges: a room edge with no wall on it (a loft, an open plan) ──────
@@ -2528,7 +2531,7 @@ function _edit(ctx, map, allMaps, opts){
       const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_open_edges_apply", action, set_barriers, remove_barrier_ids });
       await ctx.actions.modelRefresh();
       return r && r.ok ? r : null;
-    } catch (e) { ctx.toast("Could not change the open edges: " + ctx.helpers.errorText(e), true); return null; }
+    } catch (e) { ctx.toast(t("Could not change the open edges: {why}", { why: ctx.helpers.errorText(e) }), true); return null; }
   };
   // One write at a time: a double tap writes once, and no second confirm opens.
   const _oneOpenEdgeWrite = async (work) => {
@@ -2548,28 +2551,31 @@ function _edit(ctx, map, allMaps, opts){
         set.push(piece);
       });
       if (!kept.length) remove.push(bar.id);
-      const kind = `${bar.material || "custom"}, ${bar.attenuation_dbm ?? 6} dB`;
-      lines.push(`"${bar.name || "Wall"}" (${kind}) runs along ${_metres(along_m)} of it. That part of the wall goes.`
-        + (kept.length ? ` The wall continues past it: the other ${_metres(kept_m)} stay as they are.` : " Nothing of the wall is left."));
+      const kind = `${_matLower(bar.material || "custom")}, ${bar.attenuation_dbm ?? 6} dB`;
+      lines.push(t("\"{wall}\" ({kind}) runs along {len} of it. That part of the wall goes.", { wall: bar.name || t("Wall"), kind, len: _metres(along_m) })
+        + " " + (kept.length ? t("The wall continues past it: the other {len} stay as they are.", { len: _metres(kept_m) }) : t("Nothing of the wall is left.")));
     }
-    return { set, remove, text: `Replace ${walls.length === 1 ? "a signal wall" : `${walls.length} signal walls`} with an open edge?\n\n`
-      + `This edge of ${room}${neighbour ? `, shared with ${neighbour},` : ""} is ${_metres(Math.hypot(q[0] - p[0], q[1] - p[1]))} long.\n`
+    const len = _metres(Math.hypot(q[0] - p[0], q[1] - p[1]));
+    return { set, remove, text: tn(walls.length, "Replace a signal wall with an open edge?", "Replace {n} signal walls with an open edge?") + "\n\n"
+      + (neighbour ? t("This edge of {room}, shared with {other}, is {len} long.", { room, other: neighbour, len })
+        : t("This edge of {room} is {len} long.", { room, len })) + "\n"
       + lines.join("\n")
-      + `\n\nSignal changes: positioning and the coverage map stop counting ${walls.length === 1 ? "that wall" : "those walls"} here, so where people and devices show near it can shift.`
-      + `\nRemove open edges won't bring a wall back; it would have to be drawn again.` };
+      + "\n\n" + tn(walls.length, "Signal changes: positioning and the coverage map stop counting that wall here, so where people and devices show near it can shift.",
+        "Signal changes: positioning and the coverage map stop counting those walls here, so where people and devices show near it can shift.")
+      + "\n" + t("Remove open edges won't bring a wall back; it would have to be drawn again.") };
   };
   const _openEdgeTap = (fx, fy) => _oneOpenEdgeWrite(async () => {
     const tf = _wallTx();
-    if (!tf) { ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return; }
+    if (!tf) { ctx.toast(t("Measure this map first (Measure tool) — walls are stored in metres."), true); return; }
     const [mx, my] = mapFracToMetres(tf, fx, fy);
     const hit = stretchAt(_openEdgeGeom(), ctx.state.model?.room_geometry_m, _wallFloor(), mx, my);
     const snap = hit && metresToMapFrac(tf, hit.x, hit.y);
     if (!hit || !snap || Math.hypot(snap[0] - fx, snap[1] - fy) > 0.03) {
-      ctx.toast("Tap closer to a room's edge (a room needs Save Layout before its edges can be marked).", true); return;
+      ctx.toast(t("Tap closer to a room's edge (a room needs Save Layout before its edges can be marked)."), true); return;
     }
     const [sp, sq] = hit.points;
     const gaps = openGaps(sp, sq, _openBarriersHere().map(x => x.points_m));
-    if (!gaps.length) { ctx.toast(`That edge of ${hit.room} is already open.`); return; }
+    if (!gaps.length) { ctx.toast(t("That edge of {room} is already open.", { room: hit.room })); return; }
     // Part of the stretch open already: the part not open that the tap is nearest.
     const off = ([u, v]) => { const L = Math.hypot(v[0] - u[0], v[1] - u[1]) || 1, t = Math.max(0, Math.min(1, ((hit.x - u[0]) * (v[0] - u[0]) + (hit.y - u[1]) * (v[1] - u[1])) / (L * L)));
       return Math.hypot(u[0] + (v[0] - u[0]) * t - hit.x, u[1] + (v[1] - u[1]) * t - hit.y); };
@@ -2589,11 +2595,11 @@ function _edit(ctx, map, allMaps, opts){
     if (!r) return;
     const made = (r.barriers || []).filter(b => b.material === "open");
     if (made.length) ctx.state.maps._selectedBarrierId = made[made.length - 1].id;
-    ctx.toast(walls.length ? `Open edge — ${hit.room}. Signal changes here: the wall's loss no longer counts.` : `Open edge — ${hit.room}`);
+    ctx.toast(walls.length ? t("Open edge — {room}. Signal changes here: the wall's loss no longer counts.", { room: hit.room }) : t("Open edge — {room}", { room: hit.room }));
   });
   const _openAllEdges = (room) => _oneOpenEdgeWrite(async () => {
     const stretches = roomStretches(ctx.state.model?.room_geometry_m, _wallFloor(), room);
-    if (!stretches) { ctx.toast("Save Layout first: that room has no saved outline yet.", true); return; }
+    if (!stretches) { ctx.toast(t("Save Layout first: that room has no saved outline yet."), true); return; }
     const todo = [];
     let had = 0, walled = 0;
     const opens = _openBarriersHere().map(x => x.points_m), bars = _barriersHere();
@@ -2602,17 +2608,17 @@ function _edit(ctx, map, allMaps, opts){
       if (!gaps.length) had++;
       for (const g of gaps) { if (wallsAlong(g[0], g[1], bars).length) walled++; else todo.push(g); }
     }
-    const left = walled ? `${walled} with a signal wall on ${walled === 1 ? "it" : "them"} left as ${walled === 1 ? "it is" : "they are"}: tap ${walled === 1 ? "it" : "one"} to replace the wall` : "";
-    const edges = (n) => `${n} edge${n !== 1 ? "s" : ""}`;
+    const left = walled ? tn(walled, "1 with a signal wall on it left as it is: tap it to replace the wall", "{n} with a signal wall on them left as they are: tap one to replace the wall") : "";
+    const tail = (had ? " " + tn(had, "(1 already open)", "({n} already open)") : "") + (left ? "; " + left : "");
     if (!todo.length) {
-      ctx.toast(`${room}: no edges to mark${had ? ` (${had} already open)` : ""}${left ? `; ${left}` : ""}`, !!walled);
+      ctx.toast(t("{room}: no edges to mark", { room }) + tail, !!walled);
       return;
     }
-    if (!confirm(`Mark ${edges(todo.length)} of ${room} open?\n\nThe 3D house leaves its walls out there. Signal doesn't change: nothing counted a wall there.`
-      + `${left ? `\n\n${left[0].toUpperCase()}${left.slice(1)}.` : ""}\n\nRemove open edges takes them back.`)) return;
+    if (!confirm(tn(todo.length, "Mark 1 edge of {room} open?", "Mark {n} edges of {room} open?", { room }) + "\n\n" + t("The 3D house leaves its walls out there. Signal doesn't change: nothing counted a wall there.")
+      + `${left ? `\n\n${left[0].toUpperCase()}${left.slice(1)}.` : ""}\n\n` + t("Remove open edges takes them back."))) return;
     const r = await _openEdgesApply("all", todo.map(g => _openEdgeRecord(room, g)));
     if (!r) return;
-    ctx.toast(`${room}: ${edges(todo.length)} marked open${had ? ` (${had} already open)` : ""}${left ? `; ${left}` : ""}`, !!walled);
+    ctx.toast(tn(todo.length, "{room}: 1 edge marked open", "{room}: {n} edges marked open", { room }) + tail, !!walled);
   });
   // The open edges the tool wrote along a room: named for it, or running along
   // its outline (a shared edge, tapped from the other side). Hand-drawn Open
@@ -2624,13 +2630,12 @@ function _edit(ctx, map, allMaps, opts){
   };
   const _removeOpenEdges = (room) => _oneOpenEdgeWrite(async () => {
     const mine = _openEdgesOf(room);
-    if (!mine.length) { ctx.toast(`${room} has no open edges to remove.`); return; }
-    const edges = `${mine.length} open edge${mine.length !== 1 ? "s" : ""}`;
-    if (!confirm(`Remove ${edges} of ${room}?\n\nThe 3D house draws its walls there again. Signal doesn't change: an open edge counts for nothing. A signal wall one replaced doesn't come back; it would have to be drawn again.`)) return;
+    if (!mine.length) { ctx.toast(t("{room} has no open edges to remove.", { room })); return; }
+    if (!confirm(tn(mine.length, "Remove 1 open edge of {room}?", "Remove {n} open edges of {room}?", { room }) + "\n\n" + t("The 3D house draws its walls there again. Signal doesn't change: an open edge counts for nothing. A signal wall one replaced doesn't come back; it would have to be drawn again."))) return;
     const ids = mine.map(x => x.id);
     if (!(await _openEdgesApply("removed", [], ids))) return;
     if (ids.includes(ctx.state.maps._selectedBarrierId)) ctx.state.maps._selectedBarrierId = null;
-    ctx.toast(`${room}: ${edges} removed`);
+    ctx.toast(tn(mine.length, "{room}: 1 open edge removed", "{room}: {n} open edges removed", { room }));
   });
 
   // ── Sub-zones (subzones.py): named areas inside a room, in metres ──────────
@@ -2647,18 +2652,18 @@ function _edit(ctx, map, allMaps, opts){
   };
   const _szAdd = async (name, fracPts) => {
     const tf = _wallTx();
-    if (!tf) { ctx.toast("Measure this map first (Measure tool) — sub-zones are stored in metres.", true); return; }
+    if (!tf) { ctx.toast(t("Measure this map first (Measure tool) — sub-zones are stored in metres."), true); return; }
     const points_m = fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
       .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
     try {
       _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_add",
         zone: { name, floor_id: _wallFloor(), type: "poly", points_m } }));
-      ctx.toast(`Sub-zone "${name}" added`);
-    } catch (e) { ctx.toast("Could not add sub-zone: " + ctx.helpers.errorText(e), true); }
+      ctx.toast(t("Sub-zone \"{name}\" added", { name }));
+    } catch (e) { ctx.toast(t("Could not add sub-zone: {why}", { why: ctx.helpers.errorText(e) }), true); }
   };
   const _szRemove = async (id) => {
     try { _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_remove", zone_id: id })); }
-    catch (e) { ctx.toast("Could not remove sub-zone: " + ctx.helpers.errorText(e), true); }
+    catch (e) { ctx.toast(t("Could not remove sub-zone: {why}", { why: ctx.helpers.errorText(e) }), true); }
   };
 
   // ── Door/window barrier project, step 3: mark a door/window on a wall ──────
@@ -2677,9 +2682,9 @@ function _edit(ctx, map, allMaps, opts){
     const pts2 = ctx.state.maps._doorMarkPts;
     if (!pts2 || pts2.length !== 2) return;
     const bar = _fabricWallsHere().find(b => b.id === barId);
-    if (!bar) { ctx.toast("That wall no longer exists.", true); return; }
+    if (!bar) { ctx.toast(t("That wall no longer exists."), true); return; }
     const split = splitPolylineAtTwoPositions(bar.points, pts2[0], pts2[1]);
-    if (!split.middle) { ctx.toast("Pick two different points on the wall.", true); return; }
+    if (!split.middle) { ctx.toast(t("Pick two different points on the wall."), true); return; }
     const tf = _wallTx();
     if (!tf) return;
     const toMetres = (fracPts) => fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
@@ -2716,9 +2721,9 @@ function _edit(ctx, map, allMaps, opts){
       ctx.state.maps._doorMarkBarrierId = null;
       ctx.state.maps._doorMarkPts = null;
       if (doorId) ctx.state.maps._selectedBarrierId = doorId;
-      ctx.toast(`Door/window marked on "${bar.name || "wall"}".`);
+      ctx.toast(t("Door/window marked on \"{wall}\".", { wall: bar.name || t("wall") }));
     } catch (e) {
-      ctx.toast("Could not mark the door: " + ctx.helpers.errorText(e), true);
+      ctx.toast(t("Could not mark the door: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
     renderAll(); renderTools();
   };
@@ -2730,17 +2735,17 @@ function _edit(ctx, map, allMaps, opts){
 
   // --- Right panel (tools) ---
   const right = el("div",{class:"card", style:"margin-top:10px"},[]);
-  const _modeHelp = {"receivers":"Double-click map to place receiver; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between","subzones":"Click points around the bed, couch or desk; double-click to finish"};
+  const _modeHelp = {"receivers":t("Double-click map to place receiver; drag to reposition"),"rooms":t("Click map to add points; double-click to finish"),"barriers":t("Click to draw wall segments; double-click to finish"),"measure":t("Click two points you know the real distance between"),"subzones":t("Click points around the bed, couch or desk; double-click to finish")};
   // Built each time renderTools draws, so the lit tool and the hint follow the
   // tool in use. A tool's own tint goes while it is lit: as an inline style it
   // would hide .primary.
   const modeRow = () => el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
     // In build order (review 2026-11-13): measure the plan, draw its rooms, place its receivers, then signal walls.
-    _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:ctx.state.maps._mode==="measure"?"":"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
-    _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
-    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Receivers") : null,
-    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:ctx.state.maps._mode==="barriers"?"":"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._openEdgeTap=false; renderAll(); renderTools(); }}, "Signal walls") : null,
-    ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []).filter(() => _toolOk("subzones")),
+    _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:ctx.state.maps._mode==="measure"?"":"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, t("\ud83d\udccf Measure")) : null,
+    _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, t("Rooms")) : null,
+    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, t("Receivers")) : null,
+    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:ctx.state.maps._mode==="barriers"?"":"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._openEdgeTap=false; renderAll(); renderTools(); }}, t("Signal walls")) : null,
+    ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, t("Sub-zones"))] : []).filter(() => _toolOk("subzones")),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
     helpBtn("maps_edit"),
   ]);
@@ -2757,7 +2762,7 @@ function _edit(ctx, map, allMaps, opts){
 
   const _saveBtn = el("button",{class:"btn inline" + (_dirty ? " save-pulse" : ""), onclick:async (e)=>{
       const btn = e.currentTarget;
-      btn.disabled = true; btn.textContent = "Saving\u2026"; btn.classList.remove("save-pulse");
+      btn.disabled = true; btn.textContent = t("Saving\u2026"); btn.classList.remove("save-pulse");
       try{
         // Verify save: the maps are fetched again, and room_bounds checked as persisted
         const _saved = await _saveLayout(ctx, map);
@@ -2766,15 +2771,15 @@ function _edit(ctx, map, allMaps, opts){
         console.log("[PadSpan] Save verify: draft rooms=%d, persisted rooms=%d, map_id=%s", _draftCount, _rbCount, map.id);
         if(_draftCount > 0 && _rbCount === 0){
           console.error("[PadSpan] room_bounds LOST after save! Draft:", JSON.stringify(ctx.state.maps._draftRoomBounds));
-          ctx.toast("Warning: rooms may not have saved — check logs", true);
+          ctx.toast(t("Warning: rooms may not have saved — check logs"), true);
         } else {
-          ctx.toast("Layout saved \u2714");
+          ctx.toast(t("Layout saved \u2714"));
         }
         if(_saved) _paintNext(_saved);
-      }catch(err){ ctx.toast("Save failed: "+ctx.helpers.errorText(err), true); }
-      btn.disabled = false; btn.textContent = "\ud83d\udcbe Save Layout"; btn.classList.remove("save-pulse");
+      }catch(err){ ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(err) }), true); }
+      btn.disabled = false; btn.textContent = t("\ud83d\udcbe Save Layout"); btn.classList.remove("save-pulse");
   }});
-  _saveBtn.textContent = _dirty ? "\ud83d\udcbe Save Layout" : "Save Layout";
+  _saveBtn.textContent = _dirty ? t("\ud83d\udcbe Save Layout") : t("Save Layout");
 
   const saveRow = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"},[
     _saveBtn,
@@ -2786,11 +2791,11 @@ function _edit(ctx, map, allMaps, opts){
       ctx.state.maps._selectedRxId = null;
       ctx.state.maps._selectedRoom = "";
       renderAll(); renderTools();
-    }}, "Revert"),
+    }}, t("Revert")),
   ]);
 
   const info = el("div",{class:"muted", style:"margin-top:10px;font-size:12px"},
-    "Coordinates are stored normalized (0–1), so they stay correct if you re-upload a resized map with the same aspect ratio."
+    t("Coordinates are stored normalized (0–1), so they stay correct if you re-upload a resized map with the same aspect ratio.")
   );
 
   const list = el("div",{class:"mono", style:"margin-top:10px;white-space:pre-wrap"});
@@ -2879,7 +2884,7 @@ function _edit(ctx, map, allMaps, opts){
         const hiI = Math.ceil((bar.points.length - 1) / 2);
         const midX = (bar.points[loI][0] + bar.points[hiI][0]) / 2;
         const midY = (bar.points[loI][1] + bar.points[hiI][1]) / 2;
-        _stageLabel(clamp01(midX), clamp01(midY - 0.02), bar.material === "open" ? "Open (Loft)" : (bar.material||"metal") + " (" + (bar.attenuation_dbm||12) + "dB)", bc);
+        _stageLabel(clamp01(midX), clamp01(midY - 0.02), bar.material === "open" ? t("Open (Loft)") : _matLower(bar.material||"metal") + " (" + (bar.attenuation_dbm||12) + "dB)", bc);
       }
     }
 
@@ -2911,7 +2916,7 @@ function _edit(ctx, map, allMaps, opts){
       svg.appendChild(rpoly);
       const rcx = recoPoly.polygon.reduce((s,p)=>s+p[0],0)/recoPoly.polygon.length;
       const rcy = recoPoly.polygon.reduce((s,p)=>s+p[1],0)/recoPoly.polygon.length;
-      _stageLabel(clamp01(rcx), clamp01(rcy), "Recommended zone", "#fbbf24");
+      _stageLabel(clamp01(rcx), clamp01(rcy), t("Recommended zone"), "#fbbf24");
     }
 
     // Draft drawing polyline
@@ -2968,7 +2973,7 @@ function _edit(ctx, map, allMaps, opts){
       mk.style.left = `${Math.round((r.x||0)*10000)/100}%`;
       mk.style.top  = `${Math.round((r.y||0)*10000)/100}%`;
       const sid = r.source ? _sid(r.source) : "";
-      mk.title = (r.label || r.id || "receiver") + (sid ? ` [${sid}]` : "") + (r.room ? ` • ${r.room}` : "");
+      mk.title = (r.label || r.id || t("receiver")) + (sid ? ` [${sid}]` : "") + (r.room ? ` • ${r.room}` : "");
       mk.textContent = sid || (r.label || r.id || "R").slice(0,2).toUpperCase();
       // Desktop selection: click a marker to load its label + room editor.
       // Mobile selection: the same edit panel via _makeDraggable's onTap —
@@ -3058,9 +3063,9 @@ function _edit(ctx, map, allMaps, opts){
       recoBtn.disabled = !hasData;
       if(!hasData) recoBtn.style.opacity = "0.4";
       recoBtn.title = hasData
-        ? "Analyse coverage gaps and highlight the best area to place a new receiver"
-        : "Draw room boundaries first to enable coverage gap analysis";
-      recoBtn.textContent = isActive ? "Clear Suggestion" : "Suggest Placement";
+        ? t("Analyse coverage gaps and highlight the best area to place a new receiver")
+        : t("Draw room boundaries first to enable coverage gap analysis");
+      recoBtn.textContent = isActive ? t("Clear Suggestion") : t("Suggest Placement");
       recoBtn.addEventListener("click", ()=>{
         if(isActive){
           ctx.state.maps._recommendPoly = null;
@@ -3070,13 +3075,13 @@ function _edit(ctx, map, allMaps, opts){
         const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
         const result = _recommendPlacement(ctx.state.maps._draftReceivers, ctx.state.maps._draftRoomBounds, snap);
         if(!result){
-          ctx.toast("All areas appear well-covered — no obvious placement gaps found.", false);
+          ctx.toast(t("All areas appear well-covered — no obvious placement gaps found."), false);
           return;
         }
         ctx.state.maps._recommendPoly = result;
         renderAll(); renderTools();
         const rNames = result.rooms.slice(0,3).join(", ");
-        ctx.toast(`Coverage gap found near: ${rNames}${result.rooms.length>3?" +more":""}`, false);
+        ctx.toast(t("Coverage gap found near: {rooms}", { rooms: rNames + (result.rooms.length>3 ? " " + t("+more") : "") }), false);
       });
       right.appendChild(recoBtn);
     }
@@ -3085,37 +3090,37 @@ function _edit(ctx, map, allMaps, opts){
       // "Put my receivers in their rooms": Setup's one block and command, here where receivers are placed.
       const _rb = !_focused && SETUP && SETUP.receiversBlock ? SETUP.receiversBlock(ctx) : null;
       if(_rb) right.appendChild(_rb);
-      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Receiver tools"));
+      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, t("Receiver tools")));
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
         el("button",{class:"btn inline", onclick:()=>{
           const id = `rx_${Date.now().toString(16)}`;
           ctx.state.maps._draftReceivers.push({id, label:`Receiver ${ctx.state.maps._draftReceivers.length+1}`, x:0.5, y:0.5, room:""});
           ctx.state.maps._selectedRxId = id;
           renderAll(); refreshList(); renderTools();
-        }}, "Add Receiver"),
+        }}, t("Add Receiver")),
         el("button",{class:"btn inline", onclick:()=>{
           if(!ctx.state.maps._draftReceivers.length) return;
           const last = ctx.state.maps._draftReceivers.pop();
           if(last && ctx.state.maps._selectedRxId===last.id) ctx.state.maps._selectedRxId=null;
           renderAll(); refreshList(); renderTools();
-        }}, "Undo"),
+        }}, t("Undo")),
       ]));
 
       const sel = ctx.state.maps._draftReceivers.find(x=>x.id===ctx.state.maps._selectedRxId) || null;
       if(sel){
-        const lbl = el("input",{type:"text", value: sel.label||"", placeholder:"Receiver label"});
-        lbl.setAttribute("aria-label", "Receiver label");
+        const lbl = el("input",{type:"text", value: sel.label||"", placeholder:t("Receiver label")});
+        lbl.setAttribute("aria-label", t("Receiver label"));
         lbl.addEventListener("input", ()=>{ sel.label = lbl.value; renderAll(); refreshList(); });
 
         // Same room choices as Add receiver: eligibleRooms (HA areas for this
         // floor + tag-map + snapshot rooms), prefilled from the selected
         // receiver's current draft room. Change flows to Save Layout via the
         // existing draft → mapsUpdateQuiet payload (full receivers list).
-        const roomLbl = el("label",{class:"muted", style:"font-size:12px;margin-top:6px", for:"_rx_room_sel"}, "Room");
+        const roomLbl = el("label",{class:"muted", style:"font-size:12px;margin-top:6px", for:"_rx_room_sel"}, t("Room"));
         const roomSel = document.createElement("select");
         roomSel.className = "select";
         roomSel.id = "_rx_room_sel";
-        const opt0 = document.createElement("option"); opt0.value=""; opt0.textContent="(no room)"; roomSel.appendChild(opt0);
+        const opt0 = document.createElement("option"); opt0.value=""; opt0.textContent=t("(no room)"); roomSel.appendChild(opt0);
         for(const r of eligibleRooms){
           const o = document.createElement("option");
           o.value = r; o.textContent = r;
@@ -3128,7 +3133,7 @@ function _edit(ctx, map, allMaps, opts){
         });
 
         right.appendChild(el("div",{style:"margin-top:10px"},[
-          el("div",{class:"muted", style:"font-size:12px"},"Selected receiver"),
+          el("div",{class:"muted", style:"font-size:12px"},t("Selected receiver")),
           el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px"},[
             el("div",{class:"pill"}, sel.id),
             el("div",{class:"muted", style:"font-size:12px"}, `x=${(sel.x||0).toFixed(3)} y=${(sel.y||0).toFixed(3)}`),
@@ -3141,10 +3146,10 @@ function _edit(ctx, map, allMaps, opts){
             ctx.state.maps._draftReceivers = ctx.state.maps._draftReceivers.filter(x=>x.id!==sel.id);
             ctx.state.maps._selectedRxId = null;
             renderAll(); refreshList(); renderTools();
-          }}, "Delete receiver"),
+          }}, t("Delete receiver")),
         ]));
       } else {
-        right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Tip: tap or click a radio marker to edit its room assignment, or use Edit next to a placed radio below."));
+        right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, t("Tip: tap or click a radio marker to edit its room assignment, or use Edit next to a placed radio below.")));
       }
 
       // Live BLE Radios panel — shows actual HA BLE scanners for placement
@@ -3152,8 +3157,8 @@ function _edit(ctx, map, allMaps, opts){
       const liveRadios = (snap2 && snap2.ble && Array.isArray(snap2.ble.radios)) ? snap2.ble.radios : [];
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
       right.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:14px"},[
-        el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Receivers"),
-        !_focused && ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
+        el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, t("Live BLE Receivers")),
+        !_focused && ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, t("All receivers")) : null,
       ].filter(Boolean)));
       // #88: in Sample mode these are the demo house's radios. Placed on a
       // real plan they'd become phantom scanners at the next Tune → Save.
@@ -3161,7 +3166,7 @@ function _edit(ctx, map, allMaps, opts){
       if(_rxBlock){
         right.appendChild(el("div",{class:"muted", style:"font-size:11px;margin-top:2px"}, _rxBlock));
       } else if(liveRadios.length){
-        right.appendChild(el("div",{class:"muted", style:"font-size:11px;margin-top:2px;margin-bottom:6px"}, "Click Add to place on map, then drag to position."));
+        right.appendChild(el("div",{class:"muted", style:"font-size:11px;margin-top:2px;margin-bottom:6px"}, t("Click Add to place on map, then drag to position.")));
         const radList = el("div",{style:"display:flex;flex-direction:column;gap:5px"});
         for(const radio of liveRadios){
           const placedRx = ctx.state.maps._draftReceivers.find(r => (r.source && r.source === radio.source) || (r.label && radio.name && r.label.toLowerCase() === radio.name.toLowerCase()) || r.id === radio.source) || null;
@@ -3174,27 +3179,27 @@ function _edit(ctx, map, allMaps, opts){
           row.appendChild(el("span",{style:"font-family:monospace;font-weight:700;font-size:10px;color:#94a3b8;white-space:nowrap"}, sid));
           // Name + room
           const info = el("div",{style:"flex:1;min-width:0"});
-          info.appendChild(el("div",{style:"font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, radio.display_name || radio.name || radio.source || "Unknown"));
-          const _netParts = [radio.area_name || "no room"];
+          info.appendChild(el("div",{style:"font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, radio.display_name || radio.name || radio.source || t("Unknown")));
+          const _netParts = [radio.area_name || t("no room")];
           if(radio.ip) _netParts.push(radio.ip);
           if(radio.ssid) _netParts.push(radio.ssid);
           else if(radio.connection_type) _netParts.push(radio.connection_type);
           info.appendChild(el("div",{class:"muted",style:"font-size:10px"}, _netParts.join(" · ")));
           row.appendChild(info);
           if(radio.disabled){
-            row.appendChild(el("span",{style:"font-size:10px;color:#c084fc;white-space:nowrap"}, "⊘ Disabled"));
+            row.appendChild(el("span",{style:"font-size:10px;color:#c084fc;white-space:nowrap"}, t("⊘ Disabled")));
           } else if(radio.lost){
-            row.appendChild(el("span",{style:"font-size:10px;color:#f59e0b;white-space:nowrap"}, "⚠ Lost"));
+            row.appendChild(el("span",{style:"font-size:10px;color:#f59e0b;white-space:nowrap"}, t("⚠ Lost")));
           } else if(alreadyPlaced){
             // Existing room editing: selecting a placed radio loads the same
             // label + room editor above (identical eligibleRooms choices as Add
             // receiver, same draft, same Save Layout persistence). Identity,
             // coordinates and all other properties preserved — only room/label
             // edits change until Save. No backend/schema change.
-            row.appendChild(el("span",{style:"font-size:10px;color:#52b788;white-space:nowrap"}, "✓ placed"));
+            row.appendChild(el("span",{style:"font-size:10px;color:#52b788;white-space:nowrap"}, t("✓ placed")));
             row.appendChild(el("button",{class:"btn inline", style:"font-size:10px;padding:2px 8px;white-space:nowrap", onclick:()=>{
               ctx.state.maps._selectedRxId = placedRx.id; renderAll(); renderTools();
-            }}, "Edit"));
+            }}, t("Edit")));
           } else {
             row.appendChild(el("button",{class:"btn inline", style:"font-size:10px;padding:2px 8px;white-space:nowrap", onclick:()=>{
               const id = `rx_${Date.now().toString(16)}`;
@@ -3206,47 +3211,47 @@ function _edit(ctx, map, allMaps, opts){
               });
               ctx.state.maps._selectedRxId = id;
               renderAll(); refreshList(); renderTools();
-            }}, "Add"));
+            }}, t("Add")));
           }
           radList.appendChild(row);
         }
         right.appendChild(radList);
       } else {
         right.appendChild(el("div",{class:"muted", style:"margin-top:4px;font-size:11px"},
-          snap2 ? "No live BLE receivers detected. Enable Bluetooth proxy in HA." : "Switch to Live mode to see your BLE receivers."));
+          snap2 ? t("No live BLE receivers detected. Enable Bluetooth proxy in HA.") : t("Switch to Live mode to see your BLE receivers.")));
       }
     } else if(ctx.state.maps._mode==="subzones" && _szOn()){
       right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"},
-        "Sub-zones: a named area inside a room. Each one gets binary_sensor.padspan_<name>_occupied and sensor.padspan_<name>_who."));
-      const szName = el("input",{type:"text", value: ctx.state.maps._szName || "", placeholder:"Name for the next one (e.g. Bed)"});
+        t("Sub-zones: a named area inside a room. Each one gets binary_sensor.padspan_<name>_occupied and sensor.padspan_<name>_who.")));
+      const szName = el("input",{type:"text", value: ctx.state.maps._szName || "", placeholder:t("Name for the next one (e.g. Bed)")});
       szName.addEventListener("input", ()=>{ ctx.state.maps._szName = szName.value; });
       right.appendChild(el("div",{style:"margin-top:6px"}, [szName]));
       if((ctx.state.maps._szDrawing || []).length){
-        right.appendChild(el("button",{class:"btn tiny", style:"margin-top:6px", onclick:()=>{ ctx.state.maps._szDrawing=null; renderAll(); renderTools(); }}, "Cancel drawing"));
+        right.appendChild(el("button",{class:"btn tiny", style:"margin-top:6px", onclick:()=>{ ctx.state.maps._szDrawing=null; renderAll(); renderTools(); }}, t("Cancel drawing")));
       }
       const szList = _szHere();
-      if(!szList.length) right.appendChild(el("div",{class:"muted", style:"margin-top:6px;font-size:11px"}, "No sub-zones on this floor yet."));
+      if(!szList.length) right.appendChild(el("div",{class:"muted", style:"margin-top:6px;font-size:11px"}, t("No sub-zones on this floor yet.")));
       for(const z of szList){
         right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px"},[
-          el("div",{style:"flex:1"}, `${z.name}${z.room ? " · " + z.room : ""} — ${(z.people || []).length ? z.people.join(", ") : "nobody"}`),
-          el("button",{class:"btn tiny", onclick:()=>{ if(confirm(`Delete sub-zone "${z.name}" and its two sensors?`)) _szRemove(z.id); }}, "Delete"),
+          el("div",{style:"flex:1"}, `${z.name}${z.room ? " · " + z.room : ""} — ${(z.people || []).length ? z.people.join(", ") : t("nobody")}`),
+          el("button",{class:"btn tiny", onclick:()=>{ if(confirm(t("Delete sub-zone \"{name}\" and its two sensors?", { name: z.name }))) _szRemove(z.id); }}, t("Delete")),
         ]));
       }
     } else if(ctx.state.maps._mode==="barriers"){
-      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Signal wall tools"));
+      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, t("Signal wall tools")));
 
       // Material selector
       const matSel = document.createElement("select");
       matSel.className = "select";
-      for(const [mat, atten, label] of [["open",0,"Open (Loft) — no wall"],["brick",4,null],["concrete",8,null],["metal",12,null],["custom",6,null]]){
+      for(const [mat, atten, label] of [["open",0,t("Open (Loft) — no wall")],["brick",4,null],["concrete",8,null],["metal",12,null],["custom",6,null]]){
         const o = document.createElement("option");
-        o.value = mat; o.textContent = label || `${mat.charAt(0).toUpperCase()+mat.slice(1)} (${atten} dB)`;
+        o.value = mat; o.textContent = label || `${_matWord(mat)} (${atten} dB)`;
         matSel.appendChild(o);
       }
       matSel.value = ctx.state.maps._barrierMaterial || "metal";
       matSel.addEventListener("change", ()=>{ ctx.state.maps._barrierMaterial = matSel.value; renderTools(); });
       right.appendChild(el("div",{style:"margin-top:8px"},[
-        el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, "Material"),
+        el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, t("Material")),
         matSel,
       ]));
       if (matSel.value === "custom") {
@@ -3254,11 +3259,11 @@ function _edit(ctx, map, allMaps, opts){
           value:String(_customDb()), style:"width:70px;box-sizing:content-box"});
         dbIn.addEventListener("change", ()=>{ ctx.state.maps._barrierCustomDb = dbIn.value; dbIn.value = String(_customDb()); });
         right.appendChild(el("div",{style:"margin-top:6px;display:flex;align-items:center;gap:6px;font-size:12px"},
-          [el("span",{class:"muted"},"Loss through it"), dbIn, el("span",{class:"muted"},"dB")]));
+          [el("span",{class:"muted"},t("Loss through it")), dbIn, el("span",{class:"muted"},"dB")]));
       }
       right.appendChild(el("div",{class:"muted", style:"margin-top:6px;font-size:11px;line-height:1.4"}, [
-        "These are rough starting points, not measurements of your house. Drywall is about 3 dB, an old plaster wall on wire mesh can be 10+ (pick Metal or Custom). ",
-        el("a",{href:WALLS_GUIDE_URL, target:"_blank", rel:"noopener"}, "Which material?"),
+        t("These are rough starting points, not measurements of your house. Drywall is about 3 dB, an old plaster wall on wire mesh can be 10+ (pick Metal or Custom). "),
+        el("a",{href:WALLS_GUIDE_URL, target:"_blank", rel:"noopener"}, t("Which material?")),
       ]));
 
       // Drawing controls
@@ -3268,63 +3273,63 @@ function _edit(ctx, map, allMaps, opts){
         if(!ctx.state.maps._drawing || !ctx.state.maps._drawing.points.length) return;
         ctx.state.maps._drawing.points.pop();
         renderAll(); renderTools();
-      }}, "Undo point");
+      }}, t("Undo point"));
       const bFinish = el("button",{class:"btn inline", onclick: async ()=>{
         const d = ctx.state.maps._drawing;
-        if(!d || d.points.length < 2){ ctx.toast("Need at least 2 points for a barrier.", true); return; }
+        if(!d || d.points.length < 2){ ctx.toast(t("Need at least 2 points for a barrier."), true); return; }
         const mat = ctx.state.maps._barrierMaterial || "metal";
         const pts = d.points.slice();
         ctx.state.maps._drawing = null;
         const id = await _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _attenFor(mat), pts);
         if (id) ctx.state.maps._selectedBarrierId = id;
         renderAll(); renderTools();
-      }}, `Finish (${bPts} pts)`);
+      }}, t("Finish ({n} pts)", { n: bPts }));
       const bCancel = el("button",{class:"btn inline", onclick:()=>{
         ctx.state.maps._drawing = null;
         renderAll(); renderTools();
-      }}, "Cancel");
+      }}, t("Cancel"));
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
         bUndoPt, bFinish, bCancel,
       ]));
       right.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"}, bDrawing
-        ? `Drawing: ${bPts} point${bPts!==1?"s":""} placed. Click on map to add, double-click or Finish to complete.`
+        ? tn(bPts, "Drawing: 1 point placed. Click on map to add, double-click or Finish to complete.", "Drawing: {n} points placed. Click on map to add, double-click or Finish to complete.")
         : (_wallTx()
-            ? "Click on the map to start drawing a wall. It is stored in metres in the room and receiver layout the moment you finish."
-            : "Measure this map first (Measure tool): walls are stored in metres, and this map has no scale yet.")));
+            ? t("Click on the map to start drawing a wall. It is stored in metres in the room and receiver layout the moment you finish.")
+            : t("Measure this map first (Measure tool): walls are stored in metres, and this map has no scale yet."))));
 
       // Open edges: rooms not divided by a wall (a loft, one big open space).
       const oeRooms = Object.keys(_openEdgeGeom());
       const oeArmed = !!ctx.state.maps._openEdgeTap;
       const oeTapBtn = el("button",{class:"btn inline"+(oeArmed?" primary":""), "data-open-edge":"tap",
-        title:"Tap a room's edge on the map: an Open (0 dB) wall goes along the stretch it shares with the room next door, or the whole edge if nothing shares it",
-        onclick:()=>{ ctx.state.maps._openEdgeTap = !oeArmed; ctx.state.maps._drawing = null; renderAll(); renderTools(); }}, "Open edge: tap a room edge");
+        title:t("Tap a room's edge on the map: an Open (0 dB) wall goes along the stretch it shares with the room next door, or the whole edge if nothing shares it"),
+        onclick:()=>{ ctx.state.maps._openEdgeTap = !oeArmed; ctx.state.maps._drawing = null; renderAll(); renderTools(); }}, t("Open edge: tap a room edge"));
       const oeSel = document.createElement("select");
       oeSel.className = "select"; oeSel.setAttribute("data-open-edge", "room");
       for (const r of oeRooms) { const o = document.createElement("option"); o.value = r; o.textContent = r; oeSel.appendChild(o); }
       if (oeRooms.includes(ctx.state.maps._openEdgeRoom)) oeSel.value = ctx.state.maps._openEdgeRoom;
       oeSel.addEventListener("change", ()=>{ ctx.state.maps._openEdgeRoom = oeSel.value; });
       const oeAllBtn = el("button",{class:"btn inline", "data-open-edge":"all",
-        title:"Every edge of this room gets an Open (0 dB) wall: a loft, or one big open space. It asks first.",
+        title:t("Every edge of this room gets an Open (0 dB) wall: a loft, or one big open space. It asks first."),
         onclick: async ()=>{
           const room = oeSel.value;
-          if(!room){ ctx.toast("Choose a room first.", true); return; }
+          if(!room){ ctx.toast(t("Choose a room first."), true); return; }
           await _openAllEdges(room); renderAll(); renderTools();
-        }}, "Open all edges");
+        }}, t("Open all edges"));
       const oeRemoveBtn = el("button",{class:"btn inline", "data-open-edge":"remove",
-        title:"Takes back the open edges this tool marked along this room. It asks first.",
+        title:t("Takes back the open edges this tool marked along this room. It asks first."),
         onclick: async ()=>{
           const room = oeSel.value;
-          if(!room){ ctx.toast("Choose a room first.", true); return; }
+          if(!room){ ctx.toast(t("Choose a room first."), true); return; }
           await _removeOpenEdges(room); renderAll(); renderTools();
-        }}, "Remove open edges");
+        }}, t("Remove open edges"));
       right.appendChild(el("div",{style:"margin-top:12px;padding-top:8px;border-top:1px solid #1b3526"},[
-        el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:4px"}, "Open edges"),
+        el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:4px"}, t("Open edges")),
         el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"}, oeRooms.length ? [oeTapBtn, oeSel, oeAllBtn, oeRemoveBtn] : [oeTapBtn]),
         el("div",{class:"muted",style:"font-size:11px;margin-top:6px;line-height:1.4"}, oeArmed
-          ? "Tap a room edge on the map. Only the stretch it shares with the room next door opens; an edge with no neighbour opens whole. An edge two rooms share is marked once."
+          ? t("Tap a room edge on the map. Only the stretch it shares with the room next door opens; an edge with no neighbour opens whole. An edge two rooms share is marked once.")
           : (oeRooms.length
-            ? "Rooms not divided by a wall (a loft, one big open space): signal already passes where no wall is drawn. Marking the edge open records that on the map, and the 3D house leaves the wall out there."
-            : "Save Layout first: a room's edges can be marked once its outline is saved.")),
+            ? t("Rooms not divided by a wall (a loft, one big open space): signal already passes where no wall is drawn. Marking the edge open records that on the map, and the 3D house leaves the wall out there.")
+            : t("Save Layout first: a room's edges can be marked once its outline is saved."))),
       ]));
 
       // Door/window marking (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 3):
@@ -3338,14 +3343,14 @@ function _edit(ctx, map, allMaps, opts){
         const dmPts = ctx.state.maps._doorMarkPts || [];
         const panel = el("div",{style:"margin-top:12px;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:#1a1030"});
         panel.appendChild(el("div",{style:"font-size:12px;font-weight:600;color:#c4b5fd"},
-          `Marking a door/window on "${(dmBar && dmBar.name) || "wall"}"`));
+          t("Marking a door/window on \"{wall}\"", { wall: (dmBar && dmBar.name) || t("wall") })));
         if(!dmBar){
-          panel.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"}, "That wall no longer exists."));
-          panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},"Close"));
+          panel.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"}, t("That wall no longer exists.")));
+          panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},t("Close")));
         } else if(dmPts.length < 2){
           panel.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"},
-            `Click ${dmPts.length===0?"two points":"one more point"} on this wall — the opening's own start and end. ${dmPts.length}/2 picked.`));
-          panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},"Cancel"));
+            (dmPts.length===0 ? t("Click two points on this wall — the opening's own start and end. {n}/2 picked.", { n: dmPts.length }) : t("Click one more point on this wall — the opening's own start and end. {n}/2 picked.", { n: dmPts.length }))));
+          panel.appendChild(el("button",{class:"btn inline",style:"margin-top:8px",onclick:_cancelDoorMark},t("Cancel")));
         } else {
           // Entity picker: light_codes.isDoorSensor itself — the admission
           // gate Mapping → Lights uses — so the two surfaces can never
@@ -3358,11 +3363,11 @@ function _edit(ctx, map, allMaps, opts){
           const entSel = document.createElement("select");
           entSel.className = "select";
           if(!candidates.length){
-            const o = document.createElement("option"); o.value=""; o.textContent="No door/window sensors found";
+            const o = document.createElement("option"); o.value=""; o.textContent=t("No door/window sensors found");
             entSel.appendChild(o); entSel.disabled = true;
           } else {
             const placeholder = document.createElement("option");
-            placeholder.value=""; placeholder.textContent="Choose a door/window sensor…";
+            placeholder.value=""; placeholder.textContent=t("Choose a door/window sensor…");
             entSel.appendChild(placeholder);
             for(const eid of candidates){
               const o = document.createElement("option");
@@ -3373,7 +3378,7 @@ function _edit(ctx, map, allMaps, opts){
           entSel.value = ctx.state.maps._doorMarkEntity || "";
           entSel.addEventListener("change", ()=>{ ctx.state.maps._doorMarkEntity = entSel.value; renderTools(); });
           panel.appendChild(el("div",{style:"margin-top:8px"},[
-            el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, "Linked sensor"),
+            el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, t("Linked sensor")),
             entSel,
           ]));
 
@@ -3381,7 +3386,7 @@ function _edit(ctx, map, allMaps, opts){
           dmMatSel.className = "select";
           for(const [mat, atten] of [["metal",12],["concrete",8],["brick",4],["custom",6],["open",0]]){
             const o = document.createElement("option");
-            o.value = mat; o.textContent = `${mat.charAt(0).toUpperCase()+mat.slice(1)} (${atten} dB)`;
+            o.value = mat; o.textContent = mat === "open" ? t("Open (0 dB)") : `${_matWord(mat)} (${atten} dB)`;
             dmMatSel.appendChild(o);
           }
           // Defaults to the PARENT wall's own material — a door cut into a
@@ -3391,22 +3396,22 @@ function _edit(ctx, map, allMaps, opts){
           dmMatSel.value = ctx.state.maps._doorMarkMaterial || (dmBar && dmBar.material) || "metal";
           dmMatSel.addEventListener("change", ()=>{ ctx.state.maps._doorMarkMaterial = dmMatSel.value; });
           panel.appendChild(el("div",{style:"margin-top:8px"},[
-            el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, "Door/window material"),
+            el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, t("Door/window material")),
             dmMatSel,
           ]));
 
           const createBtn = el("button",{class:"btn inline primary", style:"margin-top:10px",
             onclick: async ()=>{
               const entityId = ctx.state.maps._doorMarkEntity;
-              if(!entityId){ ctx.toast("Choose a door/window sensor first.", true); return; }
+              if(!entityId){ ctx.toast(t("Choose a door/window sensor first."), true); return; }
               await _commitDoorMark(dmBar.id, entityId, dmMatSel.value);
               ctx.state.maps._doorMarkEntity = null;
               ctx.state.maps._doorMarkMaterial = null;
-            }}, "Create door/window");
+            }}, t("Create door/window"));
           const redoBtn = el("button",{class:"btn inline", style:"margin-top:10px;margin-left:8px",
-            onclick: ()=>{ ctx.state.maps._doorMarkPts = []; renderAll(); renderTools(); }}, "Pick again");
+            onclick: ()=>{ ctx.state.maps._doorMarkPts = []; renderAll(); renderTools(); }}, t("Pick again"));
           const cancelBtn = el("button",{class:"btn inline", style:"margin-top:10px;margin-left:8px",
-            onclick:_cancelDoorMark}, "Cancel");
+            onclick:_cancelDoorMark}, t("Cancel"));
           panel.appendChild(el("div",{},[createBtn, redoBtn, cancelBtn]));
         }
         right.appendChild(panel);
@@ -3416,16 +3421,16 @@ function _edit(ctx, map, allMaps, opts){
       const bList = _fabricWallsHere();
       if(bList.length){
         const layersDiv = el("div",{style:"margin-top:14px"});
-        layersDiv.appendChild(el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:6px"},`Walls on this floor (${bList.length})`));
+        layersDiv.appendChild(el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:6px"},t("Walls on this floor ({n})", { n: bList.length })));
         const _matColors2 = _MAT_COLORS;
         for(let bi = 0; bi < bList.length; bi++){
           const bar = bList[bi];
           const bc = _matColors2[bar.material] || "#ef4444";
           const isSel = ctx.state.maps._selectedBarrierId === bar.id;
-          const delBtn = el("button",{class:"btn tiny"},"Delete");
+          const delBtn = el("button",{class:"btn tiny"},t("Delete"));
           delBtn.addEventListener("click", async (ev)=>{
             ev.stopPropagation();
-            if(!confirm(`Delete wall "${bar.name || "wall"}"?`)) return;
+            if(!confirm(t("Delete wall \"{wall}\"?", { wall: bar.name || t("wall") }))) return;
             await _removeWall(bar.id);
             if(ctx.state.maps._selectedBarrierId === bar.id) ctx.state.maps._selectedBarrierId = null;
             renderAll(); renderTools();
@@ -3441,8 +3446,8 @@ function _edit(ctx, map, allMaps, opts){
             ? ((ctx.hass && ctx.hass.states[bar.linked_entity_id]?.attributes?.friendly_name) || bar.linked_entity_id)
             : null;
           row.appendChild(el("div",{style:"flex:1"},[
-            el("div",{style:"font-size:12px;font-weight:600"}, bar.name || `Barrier ${bi+1}`),
-            el("div",{class:"muted",style:"font-size:10px"}, bar.material === "open" ? `Open (Loft) · ${(bar.points||[]).length} pts` : `${bar.material} · ${bar.attenuation_dbm}dB · ${(bar.points||[]).length} pts`),
+            el("div",{style:"font-size:12px;font-weight:600"}, bar.name || t("Barrier {n}", { n: bi+1 })),
+            el("div",{class:"muted",style:"font-size:10px"}, bar.material === "open" ? t("Open (Loft) · {n} pts", { n: (bar.points||[]).length }) : t("{material} · {db}dB · {n} pts", { material: _matLower(bar.material), db: bar.attenuation_dbm, n: (bar.points||[]).length })),
             linkedName ? el("div",{style:"font-size:10px;color:#c4b5fd;margin-top:2px"}, `🚪 ${linkedName}`) : null,
           ]));
           // An Open (Loft) edge's railing in Live Aboard (2026-11-02): the
@@ -3454,25 +3459,25 @@ function _edit(ctx, map, allMaps, opts){
             const rawRail = ((ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id) || {}).rail;
             const railNow = rawRail === "glass" ? "glass" : rawRail === "none" ? "none" : null;
             const railBtn = el("button",{class:"btn tiny" + (railNow === "glass" ? " primary" : "")},
-              railNow === "glass" ? "Railing" : railNow === "none" ? "No railing" : "Railing: as before");
-            railBtn.title = railNow ? "In Live Aboard: a glass railing on this edge, or none. Click to change."
-              : "In Live Aboard this edge is railed only where it looks down into a hall that rises past it (as before this choice). Click for a railing; click again for none.";
+              railNow === "glass" ? t("Railing") : railNow === "none" ? t("No railing") : t("Railing: as before"));
+            railBtn.title = railNow ? t("In Live Aboard: a glass railing on this edge, or none. Click to change.")
+              : t("In Live Aboard this edge is railed only where it looks down into a hall that rises past it (as before this choice). Click for a railing; click again for none.");
             railBtn.addEventListener("click", async (ev)=>{
               ev.stopPropagation();
               const raw = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id);
-              if(!raw){ ctx.toast("That edge no longer exists.", true); return; }
+              if(!raw){ ctx.toast(t("That edge no longer exists."), true); return; }
               try {
                 await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
                   barrier: { ...raw, rail: railNow === "glass" ? "none" : "glass" } });
                 await ctx.actions.modelRefresh();
                 renderAll(); renderTools();
-              } catch (e) { ctx.toast("Could not update: " + ctx.helpers.errorText(e), true); }
+              } catch (e) { ctx.toast(t("Could not update: {why}", { why: ctx.helpers.errorText(e) }), true); }
             });
             row.appendChild(railBtn);
           }
           if(!bar.linked_entity_id){
-            const doorBtn = el("button",{class:"btn tiny"},"Door");
-            doorBtn.title = "Mark a door/window on this wall";
+            const doorBtn = el("button",{class:"btn tiny"},t("Door"));
+            doorBtn.title = t("Mark a door/window on this wall");
             doorBtn.addEventListener("click", (ev)=>{
               ev.stopPropagation();
               ctx.state.maps._selectedBarrierId = bar.id;
@@ -3490,18 +3495,18 @@ function _edit(ctx, map, allMaps, opts){
           // makes sense for a linked door/window contact sensor.
           if(bar.linked_entity_id && !bar.linked_entity_id.startsWith("lock.")){
             const invertBtn = el("button",{class:"btn tiny" + (bar.invert_state ? " primary" : "")},
-              bar.invert_state ? "Inverted" : "Invert");
-            invertBtn.title = "This sensor reports backwards (\"on\" means closed, not open) — flip the reading";
+              bar.invert_state ? t("Inverted") : t("Invert"));
+            invertBtn.title = t("This sensor reports backwards (\"on\" means closed, not open) — flip the reading");
             invertBtn.addEventListener("click", async (ev)=>{
               ev.stopPropagation();
               const raw = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id);
-              if(!raw){ ctx.toast("That wall no longer exists.", true); return; }
+              if(!raw){ ctx.toast(t("That wall no longer exists."), true); return; }
               try {
                 await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
                   barrier: { ...raw, invert_state: !raw.invert_state } });
                 await ctx.actions.modelRefresh();
                 renderAll(); renderTools();
-              } catch (e) { ctx.toast("Could not update: " + ctx.helpers.errorText(e), true); }
+              } catch (e) { ctx.toast(t("Could not update: {why}", { why: ctx.helpers.errorText(e) }), true); }
             });
             row.appendChild(invertBtn);
           }
@@ -3509,17 +3514,17 @@ function _edit(ctx, map, allMaps, opts){
           layersDiv.appendChild(row);
         }
         const clearAllBtn = el("button",{class:"btn inline",style:"margin-top:6px",onclick: async ()=>{
-          if(!confirm(`Delete all ${bList.length} wall(s) on this floor from the layout?`)) return;
+          if(!confirm(tn(bList.length, "Delete the 1 wall on this floor from the layout?", "Delete all {n} walls on this floor from the layout?"))) return;
           for (const bar of bList) await _removeWall(bar.id);
           ctx.state.maps._selectedBarrierId = null;
           renderAll(); renderTools();
-        }}, "Delete all walls on this floor");
+        }}, t("Delete all walls on this floor"));
         layersDiv.appendChild(clearAllBtn);
         right.appendChild(layersDiv);
       }
 
     } else if(ctx.state.maps._mode!=="measure"){
-      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Room boundary tools"));
+      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, t("Room boundary tools")));
 
       // Build lookup: rooms already placed on OTHER maps (for warning in dropdown)
       const _allMaps = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
@@ -3533,11 +3538,11 @@ function _edit(ctx, map, allMaps, opts){
 
       const roomSel = document.createElement("select");
       roomSel.className = "select";
-      const opt = document.createElement("option"); opt.value=""; opt.textContent="Choose room…"; roomSel.appendChild(opt);
+      const opt = document.createElement("option"); opt.value=""; opt.textContent=t("Choose room…"); roomSel.appendChild(opt);
       for(const r of eligibleRooms){
         const o = document.createElement("option");
         o.value = r;
-        o.textContent = _roomPlacedOn[r] ? `${r}  ⚠ on "${_roomPlacedOn[r]}"` : r;
+        o.textContent = _roomPlacedOn[r] ? t("{room}  ⚠ on \"{map}\"", { room: r, map: _roomPlacedOn[r] }) : r;
         if(_roomPlacedOn[r]) o.style.color = "#fbbf24";
         roomSel.appendChild(o);
       }
@@ -3549,25 +3554,25 @@ function _edit(ctx, map, allMaps, opts){
       });
 
       const startBtn = el("button",{class:"btn inline", onclick:()=>{
-        if(!ctx.state.maps._selectedRoom){ ctx.toast("Choose a room first.", true); return; }
+        if(!ctx.state.maps._selectedRoom){ ctx.toast(t("Choose a room first."), true); return; }
         ctx.state.maps._drawing = { room: ctx.state.maps._selectedRoom, points: [] };
         renderAll(); renderTools();
-      }}, "Start drawing");
+      }}, t("Start drawing"));
 
       const undoPt = el("button",{class:"btn inline", onclick:()=>{
         if(!ctx.state.maps._drawing || !ctx.state.maps._drawing.points.length) return;
         ctx.state.maps._drawing.points.pop();
         renderAll(); renderTools();
-      }}, "Undo point");
+      }}, t("Undo point"));
 
       const finishBtn = el("button",{class:"btn inline", onclick:()=>{
         const d = ctx.state.maps._drawing;
-        if(!d || !Array.isArray(d.points) || d.points.length < 3){ ctx.toast("Need at least 3 points.", true); return; }
+        if(!d || !Array.isArray(d.points) || d.points.length < 3){ ctx.toast(t("Need at least 3 points."), true); return; }
         ctx.state.maps._draftRoomBounds[d.room] = { type:"poly", points: d.points.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
         ctx.state.maps._drawing = null;
         renderAll(); refreshList(); renderTools();
         _wizKeep(ctx);
-      }}, "Finish outline");   // not "Finish": the wizard's own chip is (review 2026-11-11, item 13)
+      }}, t("Finish outline"));   // not "Finish": the wizard's own chip is (review 2026-11-11, item 13)
 
       const clearBtn = el("button",{class:"btn inline", onclick:()=>{
         const r = ctx.state.maps._selectedRoom;
@@ -3575,29 +3580,29 @@ function _edit(ctx, map, allMaps, opts){
         delete ctx.state.maps._draftRoomBounds[r];
         ctx.state.maps._drawing = null;
         renderAll(); refreshList(); renderTools();
-      }}, "Clear boundary");
+      }}, t("Clear boundary"));
 
       right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[
         roomSel,
-        !_focused && (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
+        !_focused && (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:t("Every room's settings on one page (unsaved outlines stay here until you Save)"), onclick:()=>ctx.actions.openRooms()}, t("All rooms")) : null,
       ]));
       // No room to choose (review 2026-11-11): said, with the one press that helps: a Home Assistant area made here,
       // on this plan's floor, as the room helper's "Also add to Home Assistant" makes one (padspan_ha/area_add).
       if(!eligibleRooms.length && ctx.state.dataMode === "live" && !ctx.state.kioskMode){
-        const nameIn = el("input",{class:"input", type:"text", maxlength:"60", placeholder:"Room name, e.g. Kitchen", "data-area-add":"name", style:"flex:1 1 160px;min-width:0"});
+        const nameIn = el("input",{class:"input", type:"text", maxlength:"60", placeholder:t("Room name, e.g. Kitchen"), "data-area-add":"name", style:"flex:1 1 160px;min-width:0"});
         const addBtn = el("button",{class:"btn inline primary", "data-area-add":"go", onclick: async ()=>{
           const name = String(nameIn.value || "").trim();
-          if(!name){ ctx.toast("Type the room's name first.", true); return; }
+          if(!name){ ctx.toast(t("Type the room's name first."), true); return; }
           addBtn.disabled = true;
           let r = null;
           try { r = await ctx.actions.callWS({ type:"padspan_ha/area_add", name, floor_id: ctx.state.maps._draftFloorId || map.floor_id || null }); } catch(e){ r = null; }
-          if(!r || r.result === "failed"){ addBtn.disabled = false; ctx.toast("Home Assistant couldn't add that room. Add it on Home Assistant's Areas page.", true); return; }
+          if(!r || r.result === "failed"){ addBtn.disabled = false; ctx.toast(t("Home Assistant couldn't add that room. Add it on Home Assistant's Areas page."), true); return; }
           ctx.state.maps._selectedRoom = name;
           if(ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(()=>{});
           renderAll(); renderTools();
-        }}, "Add to Home Assistant");
+        }}, t("Add to Home Assistant"));
         right.appendChild(el("div",{"data-area-add":"box", style:"margin-top:6px;padding:8px 10px;border-radius:8px;background:#0a1f14;border:1px solid #1a4228;font-size:12px;color:#cbd5e1;line-height:1.5"},[
-          el("div",{}, "There is no room to choose for this floor yet: rooms are Home Assistant's areas. Name one and it is added to Home Assistant, on this plan's floor."),
+          el("div",{}, t("There is no room to choose for this floor yet: rooms are Home Assistant's areas. Name one and it is added to Home Assistant, on this plan's floor.")),
           el("div",{style:"display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"},[nameIn, addBtn]),
         ]));
       }
@@ -3606,41 +3611,41 @@ function _edit(ctx, map, allMaps, opts){
       const _selRoom = ctx.state.maps._selectedRoom;
       if(_selRoom && _roomPlacedOn[_selRoom]){
         right.appendChild(el("div",{style:"margin-top:6px;padding:6px 10px;border-radius:6px;background:#2a1a0a;border:1px solid #d97706;font-size:11px;color:#fbbf24"},
-          `This room already has a boundary on "${_roomPlacedOn[_selRoom]}". Drawing it here will create a duplicate.`));
+          t("This room already has a boundary on \"{map}\". Drawing it here will create a duplicate.", { map: _roomPlacedOn[_selRoom] })));
       }
 
       // "Enclose" button — auto-generate RF barriers along all edges of this room's polygon
       const encloseBtn = el("button",{class:"btn inline", style:"color:#f59e0b;border-color:#92400e",
-        title:"Add weak signal walls (3 dB) along every edge of this room's boundary polygon — models thin interior walls",
+        title:t("Add weak signal walls (3 dB) along every edge of this room's boundary polygon — models thin interior walls"),
         onclick: async ()=>{
         const r2 = ctx.state.maps._selectedRoom;
-        if(!r2){ ctx.toast("Choose a room first.", true); return; }
+        if(!r2){ ctx.toast(t("Choose a room first."), true); return; }
         const poly = ctx.state.maps._draftRoomBounds && ctx.state.maps._draftRoomBounds[r2];
         if(!poly || poly.type !== "poly" || !poly.points || poly.points.length < 3){
-          ctx.toast("Draw the room boundary first, then enclose.", true); return;
+          ctx.toast(t("Draw the room boundary first, then enclose."), true); return;
         }
         const pts = poly.points;
         let added = 0;
-        if(!_wallTx()){ ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return; }
+        if(!_wallTx()){ ctx.toast(t("Measure this map first (Measure tool) — walls are stored in metres."), true); return; }
         for(let i = 0; i < pts.length; i++){
           const a = pts[i], b = pts[(i + 1) % pts.length];
           await _placeWall(`${r2} wall ${i + 1}`, "custom", 3, [[a[0], a[1]], [b[0], b[1]]]);
           added++;
         }
-        ctx.toast(`Added ${added} wall segment${added!==1?"s":""} around ${r2} at 3 dB`);
+        ctx.toast(tn(added, "Added 1 wall segment around {room} at 3 dB", "Added {n} wall segments around {room} at 3 dB", { room: r2 }));
         renderAll(); renderTools();
-      }}, "Enclose (3dB walls)");
+      }}, t("Enclose (3dB walls)"));
 
       // Straighten edges (room_snap.js): every outline on this plan, in its own metres; a corner rooms share moves for all.
       const straightBtn = el("button",{class:"btn inline", "data-room-straighten":"edit",
-        title:"Make every edge that is less than 5 cm off level or upright straight", onclick:()=>{
+        title:t("Make every edge that is less than 5 cm off level or upright straight"), onclick:()=>{
         const k = _planK();
-        if(!k){ ctx.toast("Set this plan's scale first: straightening works in metres.", true); return; }
+        if(!k){ ctx.toast(t("Set this plan's scale first: straightening works in metres."), true); return; }
         const rb = ctx.state.maps._draftRoomBounds || {};
         const polys = Object.fromEntries(Object.entries(rb).filter(([, b]) => b && b.type === "poly" && Array.isArray(b.points) && b.points.length >= 3)
           .map(([room, b]) => [room, b.points.map(p => [p[0] * k[0], p[1] * k[1]])]));
         const res = SNAP.straightenRooms(polys);
-        if(!res.fixed){ ctx.toast("Nothing to straighten: no edge is less than 5 cm off."); return; }
+        if(!res.fixed){ ctx.toast(t("Nothing to straighten: no edge is less than 5 cm off.")); return; }
         // Only corners that moved are written back; the rest keep their fractions exactly.
         for(const [room, pts] of Object.entries(res.rooms)){
           const was = polys[room];
@@ -3649,21 +3654,21 @@ function _edit(ctx, map, allMaps, opts){
         }
         renderAll(); refreshList(); renderTools();
         _wizKeep(ctx);
-        ctx.toast(`Straightened ${res.fixed} edge${res.fixed === 1 ? "" : "s"}.` + (ctx.state._mapsWizard ? "" : " Save Layout keeps it; Revert takes it back."));
-      }}, "Straighten edges");
+        ctx.toast(tn(res.fixed, "Straightened 1 edge.", "Straightened {n} edges.") + (ctx.state._mapsWizard ? "" : " " + t("Save Layout keeps it; Revert takes it back.")));
+      }}, t("Straighten edges"));
 
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
         startBtn, undoPt, finishBtn, clearBtn, straightBtn, _toolOk("barriers") ? encloseBtn : null,
       ]));
       right.appendChild(el("div",{"data-room-snap":"hint", style:"margin-top:6px;font-size:12px;color:#94a3b8"},
-        "A corner you click near another room's corner or edge lands on it. Hold Alt to place it exactly where you click."));
+        t("A corner you click near another room's corner or edge lands on it. Hold Alt to place it exactly where you click.")));
       // Rooms on this plan drawn over each other (the report's own check), in metres: needs the plan's scale.
       {
         const tf = _wallTx();
         const roomsM = tf ? Object.fromEntries(Object.entries(ctx.state.maps._draftRoomBounds || {})
           .filter(([, b]) => b && b.type === "poly" && Array.isArray(b.points) && b.points.length >= 3)
           .map(([room, b]) => [room, b.points.map(p => mapFracToMetres(tf, p[0], p[1]).map(v => Math.round(v * 1000) / 1000))])) : {};
-        right.appendChild(_overlapNote(ctx, roomsM, "Redraw one of them so the two only meet at the wall."));
+        right.appendChild(_overlapNote(ctx, roomsM, t("Redraw one of them so the two only meet at the wall.")));
       }
       // A scanned plan: corners land on the scanned wall ends, and (the lesser option) a scanned room's own outline
       // can be taken for the room chosen. A drawn room comes first; this only saves the clicks.
@@ -3671,17 +3676,17 @@ function _edit(ctx, map, allMaps, opts){
         const picking = !!ctx.state.maps._scanPick && !!ctx.state.maps._selectedRoom && !ctx.state.maps._drawing;
         if(!picking) ctx.state.maps._scanPick = false;
         right.appendChild(el("div",{"data-scan-rooms":"line", style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#94a3b8"},[
-          el("span",{}, picking ? `Click inside the scanned room that is ${ctx.state.maps._selectedRoom}.` : "Corners you click near a scanned wall end land on it."),
+          el("span",{}, picking ? t("Click inside the scanned room that is {room}.", { room: ctx.state.maps._selectedRoom }) : t("Corners you click near a scanned wall end land on it.")),
           ctx.state.maps._selectedRoom && !ctx.state.maps._drawing ? el("button",{class:"btn inline", "data-scan-rooms":"use", style:"font-size:11px;padding:2px 10px", onclick:()=>{
             ctx.state.maps._scanPick = !picking; renderTools();
-          }}, picking ? "Cancel" : "Use a scanned outline instead") : null,
+          }}, picking ? t("Cancel") : t("Use a scanned outline instead")) : null,
         ]));
       }
 
       const r = ctx.state.maps._selectedRoom;
       if(r){
         const hasPoly = ctx.state.maps._draftRoomBounds && ctx.state.maps._draftRoomBounds[r] && ctx.state.maps._draftRoomBounds[r].type==="poly";
-        const hint = hasPoly ? "Boundary saved. You can re-draw to replace it." : "No boundary yet. If a receiver is assigned to this room, you will see a dashed auto-circle until you draw a polygon.";
+        const hint = hasPoly ? t("Boundary saved. You can re-draw to replace it.") : t("No boundary yet. If a receiver is assigned to this room, you will see a dashed auto-circle until you draw a polygon.");
         right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, hint));
         // Tags list for the selected room (LIVE detected + configured-missing)
         const snap = ctx.state.live && ctx.state.live.snapshot;
@@ -3689,7 +3694,7 @@ function _edit(ctx, map, allMaps, opts){
         const missing = (snap && snap.room_tag_map_missing && snap.room_tag_map_missing[r]) ? snap.room_tag_map_missing[r] : [];
 
         const tagBox = el("div", { style: "margin-top:10px" });
-        tagBox.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:4px" }, "Tags in this room (live):"));
+        tagBox.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:4px" }, t("Tags in this room (live):")));
 
         if (liveTags.length) {
           const list = el("div", { class: "list" });
@@ -3703,11 +3708,11 @@ function _edit(ctx, map, allMaps, opts){
           }
           tagBox.appendChild(list);
         } else {
-          tagBox.appendChild(el("div", { class: "muted", style: "font-size:12px" }, "No live tags detected for this room."));
+          tagBox.appendChild(el("div", { class: "muted", style: "font-size:12px" }, t("No live tags detected for this room.")));
         }
 
         if (missing && missing.length) {
-          tagBox.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:6px" }, `Configured (missing): ${missing.length}`));
+          tagBox.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:6px" }, t("Configured (missing): {n}", { n: missing.length })));
         }
 
         right.appendChild(tagBox);
@@ -3718,11 +3723,11 @@ function _edit(ctx, map, allMaps, opts){
       const polyEntries = Object.entries(ctx.state.maps._draftRoomBounds || {}).filter(([,b]) => b && b.type === "poly");
       if(polyEntries.length){
         const layersDiv = el("div",{style:"margin-top:14px"});
-        layersDiv.appendChild(el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:6px"},`Polygon layers (${polyEntries.length})`));
+        layersDiv.appendChild(el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:6px"},t("Polygon layers ({n})", { n: polyEntries.length })));
         for(const [room, b] of polyEntries){
-          const isOrphan = !allRooms.includes(room);
+          const isOrphan = !allRooms.includes(room), nPts = (b.points||[]).length;
           const c = roomColor(room);
-          const delBtn = el("button",{class:"btn tiny"},"Delete");
+          const delBtn = el("button",{class:"btn tiny"},t("Delete"));
           delBtn.addEventListener("click", ()=>{
             delete ctx.state.maps._draftRoomBounds[room];
             renderAll(); refreshList(); renderTools();
@@ -3730,8 +3735,8 @@ function _edit(ctx, map, allMaps, opts){
           const row = el("div",{style:"display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid #1b3526;border-radius:6px;background:#0a150e;margin-bottom:4px"},[
             el("span",{style:`width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0`}),
             el("div",{style:"flex:1"},[
-              el("div",{style:`font-size:12px;font-weight:600${isOrphan?";color:#f59e0b":""}`},room+(isOrphan?" ⚠ orphan":"")),
-              el("div",{class:"muted",style:"font-size:10px"},`${(b.points||[]).length} points${isOrphan?" · not in room registry":""}`),
+              el("div",{style:`font-size:12px;font-weight:600${isOrphan?";color:#f59e0b":""}`},room+(isOrphan?" " + t("⚠ orphan"):"")),
+              el("div",{class:"muted",style:"font-size:10px"},tn(nPts, "1 point", "{n} points") + (isOrphan ? " · " + t("not in room registry") : "")),
             ]),
             delBtn,
           ]);
@@ -3754,21 +3759,21 @@ function _edit(ctx, map, allMaps, opts){
       const _ft = PM.feetOn(ctx), _len1 = (v) => (_ft ? PM.feetText(v) : `${v.toFixed(1)}m`);
 
       mPanel.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#7dd3fc;margin-bottom:6px"},
-        "\ud83d\udccf Reference Distance Calibration"));
+        t("\ud83d\udccf Reference Distance Calibration")));
       mPanel.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px;line-height:1.5"},
-        "Two measurements at different angles are required to verify the map's aspect ratio. Click two points, enter the real distance, then repeat at a different angle."));
+        t("Two measurements at different angles are required to verify the map's aspect ratio. Click two points, enter the real distance, then repeat at a different angle.")));
 
       // Current measurement progress
       const needed = 2 - meas.length;
       if (needed > 0) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#f59e0b;margin-bottom:6px;font-weight:600"},
-          `Measurement ${meas.length + 1} of 2`));
+          t("Measurement {n} of 2", { n: meas.length + 1 })));
       }
 
       if (mPts.length === 0) {
-        mPanel.appendChild(el("div",{style:"color:#94a3b8;font-size:12px"}, "Click the first point on the map\u2026"));
+        mPanel.appendChild(el("div",{style:"color:#94a3b8;font-size:12px"}, t("Click the first point on the map\u2026")));
       } else if (mPts.length === 1) {
-        mPanel.appendChild(el("div",{style:"color:#7dd3fc;font-size:12px"}, `Point 1 set. Now click the second point\u2026`));
+        mPanel.appendChild(el("div",{style:"color:#7dd3fc;font-size:12px"}, t("Point 1 set. Now click the second point…")));
       } else if (mPts.length >= 2) {
         const dx_px = (mPts[1][0] - mPts[0][0]) * imgW;
         const dy_px = (mPts[1][1] - mPts[0][1]) * imgH;
@@ -3776,7 +3781,7 @@ function _edit(ctx, map, allMaps, opts){
         const angle_deg = Math.round(Math.atan2(Math.abs(dy_px), Math.abs(dx_px)) * 180 / Math.PI);
 
         mPanel.appendChild(el("div",{style:"color:#52b788;font-size:12px;margin-bottom:4px"},
-          `Two points selected \u2014 ${dist_px.toFixed(1)}px at ${angle_deg}\u00b0`));
+          t("Two points selected — {px}px at {deg}°", { px: dist_px.toFixed(1), deg: angle_deg })));
 
         const inputRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
         const distInput = document.createElement("input");
@@ -3784,14 +3789,14 @@ function _edit(ctx, map, allMaps, opts){
         // one-length screen reads it (88' 10", 13.5, 4.2 m); off, the number field exactly as it was.
         if (_ft) { distInput.type = "text"; distInput.setAttribute("data-measure-length", ""); }
         else { distInput.type = "number"; distInput.min = "0.1"; distInput.max = "500"; distInput.step = "0.1"; }
-        distInput.placeholder = _ft ? "13' 9\", 13.5 or 4.2 m" : "metres";
+        distInput.placeholder = _ft ? t("13' 9\", 13.5 or 4.2 m") : t("metres");
         distInput.style.cssText = "width:100px;padding:4px 8px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:12px";
-        inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Real distance:"));
+        inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},t("Real distance:")));
         inputRow.appendChild(distInput);
         if (!_ft) inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"m"));
 
         const addBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:4px 12px;color:#7dd3fc;border-color:#1e4976"},
-          meas.length === 0 ? "Add 1st Measurement" : "Add 2nd Measurement");
+          meas.length === 0 ? t("Add 1st Measurement") : t("Add 2nd Measurement"));
         addBtn.addEventListener("click", async () => {
           let realDist;
           if (_ft) {
@@ -3799,12 +3804,13 @@ function _edit(ctx, map, allMaps, opts){
             let pv = null;
             try { pv = await ctx.actions.callWS({ type: "padspan_ha/maps_scale_measure", map_id: map.id, measures: [{ text: String(distInput.value || "").slice(0, 40) }] }); } catch (_) { pv = null; }
             const m0 = pv && Array.isArray(pv.metres) ? pv.metres[0] : null;
-            if (!pv || pv.invalid || !(m0 >= 0.05 && m0 <= 1000)) { ctx.toast((pv && pv.invalid) || "Type a length such as 13' 9\", 13.5 or 4.2 m.", true); return; }
+            if (!pv || pv.invalid || !(m0 >= 0.05 && m0 <= 1000)) { ctx.toast((pv && pv.invalid) || t("Type a length such as 13' 9\", 13.5 or 4.2 m."), true); return; }
             realDist = Math.round(m0 * 10000) / 10000;
-            const unit = { feet: "feet", metres: "metres", millimetres: "millimetres", centimetres: "centimetres" }[(pv.assumed || [])[0]];
-            ctx.state.maps._measRead = `${distInput.value} read as ${PM.feetText(realDist)} (${realDist.toFixed(2)} m)${unit ? `, a bare number in ${unit}` : ""}.`;
+            const unit = { feet: t("feet"), metres: t("metres"), millimetres: t("millimetres"), centimetres: t("centimetres") }[(pv.assumed || [])[0]];
+            ctx.state.maps._measRead = unit ? t("{typed} read as {len} ({m} m), a bare number in {unit}.", { typed: distInput.value, len: PM.feetText(realDist), m: realDist.toFixed(2), unit })
+              : t("{typed} read as {len} ({m} m).", { typed: distInput.value, len: PM.feetText(realDist), m: realDist.toFixed(2) });
           } else realDist = parseFloat(distInput.value);
-          if (!realDist || realDist <= 0) { ctx.toast("Enter a valid distance"); return; }
+          if (!realDist || realDist <= 0) { ctx.toast(t("Enter a valid distance")); return; }
           const ppm = dist_px / realDist;
           meas.push({
             p1: [mPts[0][0], mPts[0][1]], p2: [mPts[1][0], mPts[1][1]],
@@ -3823,7 +3829,7 @@ function _edit(ctx, map, allMaps, opts){
         for (let i = 0; i < meas.length; i++) {
           const m2 = meas[i];
           measDiv.appendChild(el("div",{style:"font-size:11px;color:#7dd3fc;margin-bottom:2px"},
-            `#${i+1}: ${_ft ? PM.feetText(m2.distance_m) : `${m2.distance_m}m`} \u2192 ${m2.px_per_meter.toFixed(1)} px/m at ${m2.angle_deg}\u00b0`));
+            t("#{i}: {len} → {ppm} px/m at {deg}°", { i: i+1, len: _ft ? PM.feetText(m2.distance_m) : `${m2.distance_m}m`, ppm: m2.px_per_meter.toFixed(1), deg: m2.angle_deg })));
         }
         if (_ft && ctx.state.maps._measRead) measDiv.appendChild(el("div",{"data-measure-read":"", style:"font-size:11px;color:#a7f3d0;margin-bottom:2px"}, ctx.state.maps._measRead));
         mPanel.appendChild(measDiv);
@@ -3844,25 +3850,25 @@ function _edit(ctx, map, allMaps, opts){
           analysisDiv.style.background = "rgba(245,158,11,.08)";
           analysisDiv.style.border = "1px solid #f59e0b33";
           analysisDiv.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;font-weight:600"},
-            `\u26a0 Measurements are at similar angles (${meas[0].angle_deg}\u00b0 vs ${meas[1].angle_deg}\u00b0). For best results, measure at different orientations (e.g., one horizontal, one more vertical).`));
+            t("⚠ Measurements are at similar angles ({a}° vs {b}°). For best results, measure at different orientations (e.g., one horizontal, one more vertical).", { a: meas[0].angle_deg, b: meas[1].angle_deg })));
         }
 
         if (diffPct <= 10) {
           analysisDiv.style.background = analysisDiv.style.background || "rgba(82,183,136,.08)";
           analysisDiv.style.border = analysisDiv.style.border || "1px solid #52b78833";
           analysisDiv.appendChild(el("div",{style:"font-size:12px;color:#52b788;font-weight:700;margin-bottom:4px"},
-            `\u2705 Aspect ratio OK \u2014 ${diffPct.toFixed(1)}% difference`));
+            t("✅ Aspect ratio OK — {pct}% difference", { pct: diffPct.toFixed(1) })));
           analysisDiv.appendChild(el("div",{style:"font-size:11px;color:#94a3b8"},
-            `Scale: ${avgPpm.toFixed(1)} px/m (avg of ${ppm1.toFixed(1)} and ${ppm2.toFixed(1)}). Map width = ${_len1(imgW/avgPpm)}, height = ${_len1(imgH/avgPpm)}`));
+            t("Scale: {ppm} px/m (avg of {a} and {b}). Map width = {w}, height = {h}", { ppm: avgPpm.toFixed(1), a: ppm1.toFixed(1), b: ppm2.toFixed(1), w: _len1(imgW/avgPpm), h: _len1(imgH/avgPpm) })));
         } else {
           analysisDiv.style.background = "rgba(248,113,113,.08)";
           analysisDiv.style.border = "1px solid #f8717133";
           analysisDiv.appendChild(el("div",{style:"font-size:12px;color:#f87171;font-weight:700;margin-bottom:4px"},
-            `\u26a0 Map appears stretched \u2014 ${diffPct.toFixed(1)}% scale difference`));
+            t("⚠ Map appears stretched — {pct}% scale difference", { pct: diffPct.toFixed(1) })));
           analysisDiv.appendChild(el("div",{style:"font-size:11px;color:#94a3b8"},
-            `Measurement 1: ${ppm1.toFixed(1)} px/m at ${meas[0].angle_deg}\u00b0. Measurement 2: ${ppm2.toFixed(1)} px/m at ${meas[1].angle_deg}\u00b0. Average: ${avgPpm.toFixed(1)} px/m`));
+            t("Measurement 1: {a} px/m at {da}°. Measurement 2: {b} px/m at {db}°. Average: {ppm} px/m", { a: ppm1.toFixed(1), da: meas[0].angle_deg, b: ppm2.toFixed(1), db: meas[1].angle_deg, ppm: avgPpm.toFixed(1) })));
           analysisDiv.appendChild(el("div",{style:"font-size:10px;color:#fca5a5;margin-top:4px"},
-            "The floor plan image may have non-uniform scaling. Consider re-exporting the image with correct proportions."));
+            t("The floor plan image may have non-uniform scaling. Consider re-exporting the image with correct proportions.")));
         }
         mPanel.appendChild(analysisDiv);
 
@@ -3872,9 +3878,9 @@ function _edit(ctx, map, allMaps, opts){
 
         // Save button — prominent green to make it clear this is the save action
         const applyBtn = el("button",{class:"btn save-pulse",style:"margin-top:12px;width:100%;padding:12px;font-size:15px;background:#1a3a0a;border:2px solid #52b788;color:#a7f3d0;font-weight:800;border-radius:8px;cursor:pointer"},
-          `\ud83d\udcbe  Save Scale: ${avgPpm.toFixed(1)} px/m \u2192 ${_len1(_preview_x_m)} \u00d7 ${_len1(_preview_y_m)}`);
+          t("💾  Save Scale: {ppm} px/m → {w} × {h}", { ppm: avgPpm.toFixed(1), w: _len1(_preview_x_m), h: _len1(_preview_y_m) }));
         applyBtn.addEventListener("click", async () => {
-          applyBtn.disabled = true; applyBtn.textContent = "Saving\u2026";
+          applyBtn.disabled = true; applyBtn.textContent = t("Saving\u2026");
           const ppm = Math.round(avgPpm * 100) / 100;
           const fl = map.floor_id || "main";
 
@@ -3916,7 +3922,7 @@ function _edit(ctx, map, allMaps, opts){
           try {
             // Save transform directly to fabric — fabric is the sole authority
             const _txResult = await ctx.actions.callWS({ type: "padspan_ha/fabric_map_transform_set", map_id: map.id, transform });
-            ctx.toast(`Scale saved: ${_len1(scale_x_m)} \u00d7 ${_len1(scale_y_m)} (${ppm} px/m)`);
+            ctx.toast(t("Scale saved: {w} × {h} ({ppm} px/m)", { w: _len1(scale_x_m), h: _len1(scale_y_m), ppm }));
             ctx.state.maps._measurePts = [];
             ctx.state.maps._measurements = [];
             await ctx.actions.mapsRefresh();
@@ -3924,8 +3930,8 @@ function _edit(ctx, map, allMaps, opts){
             // (review 2026-11-11, item 12: it kept the old size until a reload).
             if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
           } catch(e) {
-            ctx.toast("Save failed: " + ctx.helpers.errorText(e));
-            applyBtn.disabled = false; applyBtn.textContent = "Apply Scale";
+            ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }));
+            applyBtn.disabled = false; applyBtn.textContent = t("Apply Scale");
           }
         });
         mPanel.appendChild(applyBtn);
@@ -3935,18 +3941,18 @@ function _edit(ctx, map, allMaps, opts){
       const _fabTx = (ctx.state.model?.map_transforms || {})[map.id];
       if (_fabTx && _fabTx.scale_x_m) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#52b788;margin-top:8px"},
-          `Current layout scale: ${_len1(_fabTx.scale_x_m)} \u00d7 ${_len1(_fabTx.scale_y_m)}`));
+          t("Current layout scale: {w} × {h}", { w: _len1(_fabTx.scale_x_m), h: _len1(_fabTx.scale_y_m) })));
         mPanel.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px"},
-          `World origin: (${(_fabTx.origin_x_m||0).toFixed(2)}, ${(_fabTx.origin_y_m||0).toFixed(2)})m \u2014 locked; display edits never move it`));
+          t("World origin: ({x}, {y})m — locked; display edits never move it", { x: (_fabTx.origin_x_m||0).toFixed(2), y: (_fabTx.origin_y_m||0).toFixed(2) })));
         // No "Re-anchor origin" button: it sent only the map id, which the
         // backend treats as a no-op (there is no stack placement left to anchor
         // to), and still toasted "Re-anchored". Placement edits go through the
         // align editor, which sends the new pose.
       } else if (cal.px_per_meter) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#f59e0b;margin-top:8px"},
-          `Legacy map scale: ${cal.px_per_meter.toFixed(1)} px/m (not in the layout yet)`));
+          t("Legacy map scale: {ppm} px/m (not in the layout yet)", { ppm: cal.px_per_meter.toFixed(1) })));
       }
-      const resetBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;margin-top:6px;color:#94a3b8"}, "Start Over");
+      const resetBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;margin-top:6px;color:#94a3b8"}, t("Start Over"));
       resetBtn.addEventListener("click", () => { ctx.state.maps._measurePts = []; ctx.state.maps._measurements = []; renderAll(); renderTools(); });
       mPanel.appendChild(resetBtn);
 
@@ -4078,7 +4084,7 @@ function _edit(ctx, map, allMaps, opts){
       // "Use a scanned outline": the scanned room clicked in becomes the chosen room's outline, to keep or redraw.
       const rect = overlay.getBoundingClientRect();
       const pts = ROUGH && ROUGH.scanRoomAt(map, (ev.clientX - rect.left) / rect.width, (ev.clientY - rect.top) / rect.height);
-      if(!pts){ ctx.toast("Click inside one of the scanned rooms.", true); return; }
+      if(!pts){ ctx.toast(t("Click inside one of the scanned rooms."), true); return; }
       ctx.state.maps._scanPick = false;
       ctx.state.maps._draftRoomBounds[ctx.state.maps._selectedRoom] = { type:"poly", points: pts.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
       ROUGH.scanCounted(ctx, "scan_room_used");
@@ -4091,7 +4097,7 @@ function _edit(ctx, map, allMaps, opts){
         if(!ctx.state.maps._selectedRoom){
           // Said, not silent (2026-11-15): a click on the plan before a room is chosen did nothing at all.
           if(ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_draw:no_room");
-          ctx.toast(ctx.state._mapsWizard ? "Choose a room first: press its name above the plan." : "Choose a room first, in the list under the plan.", true);
+          ctx.toast(ctx.state._mapsWizard ? t("Choose a room first: press its name above the plan.") : t("Choose a room first, in the list under the plan."), true);
           return;
         }
         ctx.state.maps._drawing = { room: ctx.state.maps._selectedRoom, points: [] };
@@ -4136,7 +4142,7 @@ function _edit(ctx, map, allMaps, opts){
   const trimCanvas = document.createElement("canvas");
   trimCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair";
   const trimInfo   = el("div",{class:"muted",style:"font-size:11px;margin-top:5px"}, "");
-  const trimClearBtn = el("button",{class:"btn tiny",style:"margin-top:6px"}, "Reset Selection");
+  const trimClearBtn = el("button",{class:"btn tiny",style:"margin-top:6px"}, t("Reset Selection"));
 
   function _tcFrac(cx,cy){ const r=trimCanvas.getBoundingClientRect(); return [Math.max(0,Math.min(1,(cx-r.left)/r.width)),Math.max(0,Math.min(1,(cy-r.top)/r.height))]; }
   function _drawTrimOverlay(){
@@ -4153,9 +4159,9 @@ function _edit(ctx, map, allMaps, opts){
       const hs=Math.max(4,cw/100); g2.fillStyle="#52b788";
       for(const [hx,hy] of [[px0,py0],[px0+pw,py0],[px0,py0+ph],[px0+pw,py0+ph]])
         g2.fillRect(hx-hs/2,hy-hs/2,hs,hs);
-      trimInfo.textContent=`Keep: ${Math.round(_trimImgW*(fx1-fx0))}\u00d7${Math.round(_trimImgH*(fy1-fy0))} px  (original: ${_trimImgW}\u00d7${_trimImgH}) \u2014 drag to adjust`;
+      trimInfo.textContent=t("Keep: {w}×{h} px  (original: {ow}×{oh}) — drag to adjust", { w: Math.round(_trimImgW*(fx1-fx0)), h: Math.round(_trimImgH*(fy1-fy0)), ow: _trimImgW, oh: _trimImgH });
     } else {
-      trimInfo.textContent=`Full image: ${_trimImgW}\u00d7${_trimImgH} px \u2014 drag to select region to keep`;
+      trimInfo.textContent=t("Full image: {w}×{h} px — drag to select region to keep", { w: _trimImgW, h: _trimImgH });
     }
   }
   function _updateTrimCrop(){
@@ -4190,11 +4196,11 @@ function _edit(ctx, map, allMaps, opts){
   trimWrap.appendChild(trimCanvas);
 
   const trimApplyBtn = el("button",{class:"btn inline", onclick: async ()=>{
-    if(!_trimCrop){ trimStatus.textContent="Drag on the image to select the region to keep first."; return; }
-    trimStatus.textContent="Processing\u2026";
+    if(!_trimCrop){ trimStatus.textContent=t("Drag on the image to select the region to keep first."); return; }
+    trimStatus.textContent=t("Processing\u2026");
     try{
       const res = await _preparePngFromUrl(url, 1600, _trimCrop);
-      trimStatus.textContent=`Uploading\u2026 (${res.width}\u00d7${res.height})`;
+      trimStatus.textContent=t("Uploading… ({w}×{h})", { w: res.width, h: res.height });
       await ctx.actions.mapsReplaceImage({
         map_id: map.id,
         width: res.width,
@@ -4204,17 +4210,17 @@ function _edit(ctx, map, allMaps, opts){
       });
       // Reset draft state so edit reloads from fresh map data
       ctx.state.maps._draftMapId = null;
-      trimStatus.textContent="Trim applied \u2714";
+      trimStatus.textContent=t("Trim applied \u2714");
       trimPanel.style.display="none";
       ctx.actions.renderRooms();
     }catch(e){
-      trimStatus.textContent="Failed: "+(e?.message || e?.code || String(e));
+      trimStatus.textContent=t("Failed: {why}", { why: ctx.helpers.errorText ? ctx.helpers.errorText(e) : (e?.message || e?.code || String(e)) });
     }
-  }}, "Apply Trim");
+  }}, t("Apply Trim"));
 
-  const trimCancelBtn = el("button",{class:"btn inline", onclick:()=>{ trimPanel.style.display="none"; }}, "Cancel");
+  const trimCancelBtn = el("button",{class:"btn inline", onclick:()=>{ trimPanel.style.display="none"; }}, t("Cancel"));
 
-  trimPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},"Drag to select the region to keep, then click Apply Trim:"));
+  trimPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},t("Drag to select the region to keep, then click Apply Trim:")));
   trimPanel.appendChild(trimWrap);
   trimPanel.appendChild(trimClearBtn);
   trimPanel.appendChild(trimInfo);
@@ -4225,7 +4231,7 @@ function _edit(ctx, map, allMaps, opts){
   const trimToggleBtn = el("button",{class:"btn inline", onclick:()=>{
     trimPanel.style.display = trimPanel.style.display==="none" ? "" : "none";
     trimStatus.textContent="\u2014";
-  }}, "Trim Image");
+  }}, t("Trim Image"));
 
   // Insert Trim button into the existing title row buttons (direct reference — no fragile querySelector)
   if (!_focused && ctx.hass?.user?.is_admin !== false) titleBtns.insertBefore(trimToggleBtn, titleBtns.firstChild);
@@ -4268,11 +4274,11 @@ function _edit(ctx, map, allMaps, opts){
     rotBtns.appendChild(resetBtn);
 
     const applyStatus = el("div",{class:"mono",style:"font-size:12px;margin-top:6px"});
-    const applyBtn = el("button",{class:"btn inline",style:"margin-top:8px"}, "Apply Rotation");
+    const applyBtn = el("button",{class:"btn inline",style:"margin-top:8px"}, t("Apply Rotation"));
     applyBtn.addEventListener("click", async ()=>{
-      if(_rotAngle === 0){ applyStatus.textContent = "No rotation to apply."; return; }
+      if(_rotAngle === 0){ applyStatus.textContent = t("No rotation to apply."); return; }
       applyBtn.disabled = true;
-      applyStatus.textContent = "Rotating image…";
+      applyStatus.textContent = t("Rotating image…");
       try {
         const img = await _loadImage(url);
         const sw = img.naturalWidth || img.width;
@@ -4293,7 +4299,7 @@ function _edit(ctx, map, allMaps, opts){
         const ab = await blob.arrayBuffer();
         const b64 = _arrayBufferToBase64(ab);
 
-        applyStatus.textContent = "Uploading rotated image…";
+        applyStatus.textContent = t("Uploading rotated image…");
 
         // The server turns the room outlines and pins with the image (the
         // pixel_op below): there is nothing to remap or save here.
@@ -4302,26 +4308,26 @@ function _edit(ctx, map, allMaps, opts){
           pixel_op: { deg: _rotAngle, sx: 1, sy: 1 },
         });
         if(_repRes && _repRes.scale_invalidated){
-          ctx.toast("Map scale could not survive this rotation — re-measure the map (Measure tool).", true);
+          ctx.toast(t("Map scale could not survive this rotation — re-measure the map (Measure tool)."), true);
         }
         applyStatus.style.color = "#4ade80";
-        applyStatus.textContent = `Rotated ${_rotAngle}° and saved. Reloading edit…`;
+        applyStatus.textContent = t("Rotated {deg}° and saved. Reloading edit…", { deg: _rotAngle });
         _rotAngle = 0;
         // Short delay so the user sees the success message, then refresh
         await new Promise(r => setTimeout(r, 1200));
         await ctx.actions.mapsRefresh();
       } catch(e){
         applyStatus.style.color = "#f87171";
-        applyStatus.textContent = "Failed: " + (e.message || e);
+        applyStatus.textContent = t("Failed: {why}", { why: ctx.helpers.errorText ? ctx.helpers.errorText(e) : (e.message || e) });
       }
       applyBtn.disabled = false;
     });
 
-    const rotCancelBtn = el("button",{class:"btn inline", onclick:()=>{ rotatePanel.style.display="none"; _rotAngle=0; _updatePreview(); }}, "Cancel");
+    const rotCancelBtn = el("button",{class:"btn inline", onclick:()=>{ rotatePanel.style.display="none"; _rotAngle=0; _updatePreview(); }}, t("Cancel"));
 
-    rotatePanel.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},"Preview rotation, then click Apply to bake it into the image:"));
+    rotatePanel.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},t("Preview rotation, then click Apply to bake it into the image:")));
     if((map.receivers||[]).length || Object.keys(map.room_bounds||{}).length){
-      rotatePanel.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;margin-bottom:6px"},"Receivers and room boundaries will be remapped to match the rotated image."));
+      rotatePanel.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;margin-bottom:6px"},t("Receivers and room boundaries will be remapped to match the rotated image.")));
     }
     rotatePanel.appendChild(rotWrap);
     rotatePanel.appendChild(rotBtns);
@@ -4331,7 +4337,7 @@ function _edit(ctx, map, allMaps, opts){
 
     const rotateToggleBtn = el("button",{class:"btn inline", onclick:()=>{
       rotatePanel.style.display = rotatePanel.style.display==="none" ? "" : "none";
-    }}, "Rotate Image");
+    }}, t("Rotate Image"));
     titleBtns.insertBefore(rotateToggleBtn, titleBtns.firstChild);
   }
 
@@ -4357,19 +4363,19 @@ function _edit(ctx, map, allMaps, opts){
         const im = await _loadImage(objUrl);
         const nw = im.naturalWidth || im.width, nh = im.naturalHeight || im.height;
         if(Math.abs((nw/nh) - (W/H)) > 0.02*(W/H)
-           && !confirm(`This picture's shape (${nw}×${nh}) is not the map's (${W}×${H}). Rooms and pins are placed on the map's shape, so it will be stretched to fit. Use it anyway?`)) return;
+           && !confirm(t("This picture's shape ({nw}×{nh}) is not the map's ({w}×{h}). Rooms and pins are placed on the map's shape, so it will be stretched to fit. Use it anyway?", { nw, nh, w: W, h: H }))) return;
         const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
         cv.getContext("2d").drawImage(im, 0, 0, W, H);
         const blob = await new Promise(r=>cv.toBlob(r,"image/png"));
-        picStatus.textContent = "Uploading picture…";
+        picStatus.textContent = t("Uploading picture…");
         await ctx.actions.mapsReplaceImage({ map_id: map.id, png_base64: _arrayBufferToBase64(await blob.arrayBuffer()), width: W, height: H });
-        ctx.toast("Picture uploaded");
-      }catch(e){ picStatus.textContent = "Upload failed: " + (e.message || e); }
+        ctx.toast(t("Picture uploaded"));
+      }catch(e){ picStatus.textContent = t("Upload failed: {why}", { why: ctx.helpers.errorText ? ctx.helpers.errorText(e) : (e.message || e) }); }
       finally{ URL.revokeObjectURL(objUrl); }
     });
     card.appendChild(el("div",{style:"display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;padding:8px 10px;border:1px solid #d97706;border-radius:8px"},[
-      el("div",{style:"font-size:13px"},"No picture: this map was restored from a backup that did not have one. Its rooms, pins and calibration are kept. Re-upload the same floor plan picture to see it again."),
-      el("button",{class:"btn inline", onclick:()=>picInput.click()},"Re-upload picture…"),
+      el("div",{style:"font-size:13px"},t("No picture: this map was restored from a backup that did not have one. Its rooms, pins and calibration are kept. Re-upload the same floor plan picture to see it again.")),
+      el("button",{class:"btn inline", onclick:()=>picInput.click()},t("Re-upload picture…")),
       picStatus, picInput,
     ]));
   }
@@ -4402,7 +4408,7 @@ function _floorSelect(floors, value, onChange){
   }
   // Always offer "Outside" as a floor option
   const oOut = document.createElement("option");
-  oOut.value = OUTSIDE_FLOOR_ID; oOut.textContent = "Outside (Experimental)";
+  oOut.value = OUTSIDE_FLOOR_ID; oOut.textContent = t("Outside (Experimental)");
   sel.appendChild(oOut);
   sel.value = value || (floors[0] && floors[0].id) || "main";
   sel.addEventListener("change", ()=>onChange(sel.value));
@@ -4519,12 +4525,12 @@ function _libraryThumb(m, ctx, reco){
 // a personal note, not for re-import (there is no parser for this format).
 function _layoutText(receivers, roomBounds){
   const lines = [];
-  lines.push("Receivers:");
+  lines.push(t("Receivers:"));
   for(const r of (receivers||[])){
     lines.push(`- ${r.id}  ${String(r.label||"").padEnd(16)}  room=${r.room||"-"}  x=${(r.x||0).toFixed(3)} y=${(r.y||0).toFixed(3)}`);
   }
   lines.push("");
-  lines.push("Room bounds:");
+  lines.push(t("Room bounds:"));
   for(const [room,b] of Object.entries(roomBounds||{})){
     if(!b) continue;
     if(b.type==="poly" && Array.isArray(b.points)){
@@ -4845,7 +4851,7 @@ function _emergencyRecoverTieIns(allMaps, model) {
       const gap = _placementGapM(tieIns[0], pv);
       if(gap !== null && gap > TIE_MAJOR_M){
         plans.push({ map: m, keptTieIns: [], removedTieIns: tieIns,
-          reason: `sole tie-in puts this map ${gap.toFixed(1)} m from where it is saved` });
+          reason: t("sole tie-in puts this map {m} m from where it is saved", { m: gap.toFixed(1) }) });
       }
       continue;
     }
@@ -4867,7 +4873,7 @@ function _emergencyRecoverTieIns(allMaps, model) {
     const keptTieIns    = tieIns.filter((_, i) => agreeCount[i] >= keepMin);
     if(removedTieIns.length > 0){
       plans.push({ map: m, keptTieIns, removedTieIns,
-        reason: `${removedTieIns.length} outlier${removedTieIns.length>1?"s":""} outside consensus cluster` });
+        reason: tn(removedTieIns.length, "1 outlier outside consensus cluster", "{n} outliers outside consensus cluster") });
     }
   }
   return plans;
@@ -4961,7 +4967,7 @@ function _export(ctx, active, maps_list){
   const haFloors2 = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
   const lvlOpts2 = haFloors2.length > 0
     ? haFloors2.slice().sort((a,b)=>(a.level??999)-(b.level??999)).map((f,i)=>({value:f.level??i,label:f.name||f.id}))
-    : _LEVEL_NAMES.map((n,i)=>({value:i,label:n}));
+    : _levelNames().map((n,i)=>({value:i,label:n}));
   const isoSvgStr = _stackIsoSVG(maps_list, ctx, lvlOpts2, null, ctx.state.maps._stackFloorGap || 200, ctx.state.maps._stackHorizGap || 0);
   const isoStatus = el("div",{class:"muted",style:"font-size:12px;min-height:16px"});
   const dlIsoSvg = el("button",{class:"btn inline", onclick:()=>{
@@ -5764,6 +5770,7 @@ function _buildDemoSVG(fp){
   return s;
 }
 
+// i18n part: stack   (the 3D Stack and Layout tabs' words: i18n/<lang>/stack.json, scripts/i18n_coverage.py)
 // ─── 3D Stack Tab ─────────────────────────────────────────────────────────────
 // The spatial backbone of PadSpan's multi-floor system. Three main sections:
 //
@@ -5784,7 +5791,8 @@ function _buildDemoSVG(fp){
 // Also includes: Point Align (side-by-side affine solver), tie-ins with
 // conflict resolution on Save, and emergency tie-in recovery.
 
-const _LEVEL_NAMES = ["Basement", "Ground", "Level 1", "Level 2", "Level 3"];
+// The level names offered when Home Assistant has no floors, in the panel's language (a function: read when drawn).
+const _levelNames = () => [t("Basement"), t("Ground"), t("Level 1"), t("Level 2"), t("Level 3")];
 
 // Floor elevation belongs to the floor, not to a map: two maps on one floor
 // must not each carry their own copy of its height.  One batch save, because
@@ -5798,19 +5806,18 @@ function _floorHeights(ctx, w = null){
   const derived = ctx.state.model?.floor_elevations || {};
 
   const wrap = el("div",{style:"margin-top:16px"},[
-    el("div",{class:"muted",style:"font-size:13px;font-weight:600"},"Floor Heights"),
+    el("div",{class:"muted",style:"font-size:13px;font-weight:600"},t("Floor Heights")),
     el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
-      "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
-      "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
-      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height)"+
-      (basic ? ". Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it can have a railing (set in Advanced mode), and a mezzanine gets its real base elevation here and sits under the room's roof."
-        : ", or on the Layout tab: select it, then Rises to (the same value). "+
-      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing where you set one (Railing, on its open edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof.")),
+      t("Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors.") + " " +
+      t("Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine.") + " " +
+      (basic ? t("For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height). Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it can have a railing (set in Advanced mode), and a mezzanine gets its real base elevation here and sits under the room's roof.")
+        : t("For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height), or on the Layout tab: select it, then Rises to (the same value).") + " " +
+      t("Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing where you set one (Railing, on its open edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof."))),
   ]);
   const nx = _floorsNext(ctx, w);
   if (nx) wrap.appendChild(nx);
   if(!floors.length){
-    wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));
+    wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},t("No floors defined in Home Assistant yet.")));
     return wrap;
   }
 
@@ -5822,17 +5829,17 @@ function _floorHeights(ctx, w = null){
 
   const rows = floors.map(f => ({
     id: f.id,
-    f2f:  _num(f.floor_to_floor_m,  1.5, 100, "2.8", "Finished floor to the next finished floor. Blank = 2.8 m default."),
-    base: _num(f.base_elevation_m, -50, 500, "derived", "Absolute height of this floor's walking surface. Blank = stack the floors below."),
+    f2f:  _num(f.floor_to_floor_m,  1.5, 100, "2.8", t("Finished floor to the next finished floor. Blank = 2.8 m default.")),
+    base: _num(f.base_elevation_m, -50, 500, t("derived"), t("Absolute height of this floor's walking surface. Blank = stack the floors below.")),
   }));
 
   const table = el("table",{style:"width:100%;border-collapse:collapse;font-size:13px;margin-top:8px"});
   const th = "text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500";
   table.appendChild(el("thead",{},el("tr",{style:"border-bottom:1px solid #1b3526"},[
-    el("th",{style:th},"Floor"),
-    el("th",{style:th},"Floor↕ (m)"),
-    el("th",{style:th},"Base elevation (m)"),
-    el("th",{style:th},"In use (m)"),
+    el("th",{style:th},t("Floor")),
+    el("th",{style:th},t("Floor↕ (m)")),
+    el("th",{style:th},t("Base elevation (m)")),
+    el("th",{style:th},t("In use (m)")),
   ])));
   table.appendChild(el("tbody",{}, rows.map((r,i) => el("tr",{style:"border-bottom:1px solid #0f2017"},[
     el("td",{style:"padding:6px 8px;font-weight:500"}, floors[i].name || floors[i].id),
@@ -5848,10 +5855,10 @@ function _floorHeights(ctx, w = null){
       await ctx.actions.callWS({ type:"padspan_ha/fabric_floor_elevations_set", floors: rows.map(r => ({
         id: r.id, floor_to_floor_m: _val(r.f2f), base_elevation_m: _val(r.base),
       }))});
-      ctx.toast("Floor heights saved");
+      ctx.toast(t("Floor heights saved"));
       await ctx.actions.modelRefresh();
-    }catch(e){ ctx.toast("Save failed: "+ctx.helpers.errorText(e), true); }
-  }},"Save Floor Heights")));
+    }catch(e){ ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+  }},t("Save Floor Heights"))));
   return wrap;
 }
 
@@ -5872,14 +5879,14 @@ export function _staleReceivers(maps, isLive){
 export function _staleReceiversBox(el, list){
   return el("div",{class:"stale-rx-box",style:"margin-top:8px;padding:8px 10px;border:1px solid #92400e;border-radius:6px;font-size:12px"},[
     el("div",{style:"color:#ffd54f;margin-bottom:4px"},
-      `${list.length} receiver${list.length !== 1 ? "s" : ""} on your maps that Home Assistant doesn't hear right now`),
+      tn(list.length, "1 receiver on your maps that Home Assistant doesn't hear right now", "{n} receivers on your maps that Home Assistant doesn't hear right now")),
     el("div",{class:"muted",style:"margin-bottom:6px"},
-      "A receiver that is offline, unplugged or renamed in Home Assistant shows here too. Nothing has been removed."),
+      t("A receiver that is offline, unplugged or renamed in Home Assistant shows here too. Nothing has been removed.")),
     el("ul",{style:"margin:0 0 6px 18px;padding:0"},
       list.map(s => el("li",{}, `${s.name}${s.source && !s.name.includes(s.source) ? ` (${s.source})` : ""} — ${s.map}`))),
     el("div",{class:"muted"},
-      "To take one off a floor plan: open that map in Library, go to Edit, click the receiver, press Delete receiver, then Save Layout. " +
-      "That removes it from that floor plan only. Its saved position in the house model stays, so it can show up again if that map is re-measured or its image is replaced."),
+      t("To take one off a floor plan: open that map in Library, go to Edit, click the receiver, press Delete receiver, then Save Layout.") + " " +
+      t("That removes it from that floor plan only. Its saved position in the house model stays, so it can show up again if that map is re-measured or its image is replaced.")),
   ]);
 }
 
@@ -5971,7 +5978,7 @@ function _stack(ctx, maps, helpBtn){
         .slice()
         .sort((a,b)=> (a.level ?? 999) - (b.level ?? 999) || (a.name||"").localeCompare(b.name||""))
         .map((f, i) => ({ value: f.level ?? i, label: f.name || f.id }))
-    : _LEVEL_NAMES.map((name, i) => ({ value: i, label: name }));
+    : _levelNames().map((name, i) => ({ value: i, label: name }));
 
   // View zoom scales the entire overlay stage (not individual maps) so both
   // reference and target are visible even when the target is offset far off.
@@ -5982,20 +5989,20 @@ function _stack(ctx, maps, helpBtn){
 
   const card = el("div",{class:"card"});
   card.appendChild(el("div",{class:"card-head"},[
-    el("div",{style:"font-weight:700"},"3D Floor Stack"),
+    el("div",{style:"font-weight:700"},t("3D Floor Stack")),
     helpBtn("maps_stack"),
   ]));
 
   card.appendChild(_floorHeights(ctx));
 
   if(!maps.length){
-    card.appendChild(el("div",{class:"muted",style:"margin-top:10px"},"No maps uploaded yet. Go to Upload tab first."));
+    card.appendChild(el("div",{class:"muted",style:"margin-top:10px"},t("No maps uploaded yet. Go to Upload tab first.")));
     return card;
   }
 
   // ── Section 1: Floor Assignment & Ceiling Height Table ───────────────────
-  card.appendChild(el("div",{class:"muted",style:"margin-top:16px;font-size:13px;font-weight:600"},"Floor Assignment & Ceiling Heights"));
-  card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},"Assign each map to an HA floor (auto-sets stack level) and set ceiling height."));
+  card.appendChild(el("div",{class:"muted",style:"margin-top:16px;font-size:13px;font-weight:600"},t("Floor Assignment & Ceiling Heights")));
+  card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},t("Assign each map to an HA floor (auto-sets stack level) and set ceiling height.")));
 
   if(!ctx.state.maps._hiddenMapIds){
     // Prefer HA settings store (persists across restarts); fall back to localStorage
@@ -6016,11 +6023,11 @@ function _stack(ctx, maps, helpBtn){
   table.style.cssText = "width:100%;border-collapse:collapse;font-size:13px";
   const thead = document.createElement("thead");
   thead.innerHTML = `<tr style="border-bottom:1px solid #1b3526">
-    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Map</th>
-    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">HA Floor</th>
-    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Stack Level</th>
-    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">Ceiling (m)</th>
-    <th style="text-align:center;padding:6px 8px;color:#94a3b8;font-weight:500">Show</th>
+    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">${esc(t("Map"))}</th>
+    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">${esc(t("HA Floor"))}</th>
+    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">${esc(t("Stack Level"))}</th>
+    <th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:500">${esc(t("Ceiling (m)"))}</th>
+    <th style="text-align:center;padding:6px 8px;color:#94a3b8;font-weight:500">${esc(t("Show"))}</th>
     <th style="padding:6px 8px"></th>
   </tr>`;
   table.appendChild(thead);
@@ -6042,7 +6049,7 @@ function _stack(ctx, maps, helpBtn){
     const floorSel2 = document.createElement("select");
     floorSel2.className = "select";
     floorSel2.style.minWidth = "120px";
-    const flOpt0 = document.createElement("option"); flOpt0.value = ""; flOpt0.textContent = "— None —";
+    const flOpt0 = document.createElement("option"); flOpt0.value = ""; flOpt0.textContent = t("— None —");
     floorSel2.appendChild(flOpt0);
     haFloors.forEach(f => {
       const o = document.createElement("option");
@@ -6052,7 +6059,7 @@ function _stack(ctx, maps, helpBtn){
     });
     // Always offer "Outside" option
     const _oOpt2 = document.createElement("option");
-    _oOpt2.value = OUTSIDE_FLOOR_ID; _oOpt2.textContent = "Outside (Experimental)";
+    _oOpt2.value = OUTSIDE_FLOOR_ID; _oOpt2.textContent = t("Outside (Experimental)");
     if(m.floor_id === OUTSIDE_FLOOR_ID) _oOpt2.selected = true;
     floorSel2.appendChild(_oOpt2);
     tdFloor.appendChild(floorSel2);
@@ -6119,7 +6126,7 @@ function _stack(ctx, maps, helpBtn){
       // basement slab. A floor's storey comes from Home Assistant; a picture
       // never sets it. Its heights are owned by the Floor Heights table above.
       ctx.actions.mapsRefresh();
-    }},"Save"));
+    }},t("Save")));
     tr.appendChild(tdSave);
     tbody.appendChild(tr);
   }
@@ -6129,9 +6136,9 @@ function _stack(ctx, maps, helpBtn){
 
   // ── Section 2: Alignment Overlay Editor ──────────────────────────────────
   const alignHdrRow = el("div",{style:"margin-top:24px;display:flex;align-items:center;justify-content:space-between"});
-  alignHdrRow.appendChild(el("div",{class:"muted",style:"font-size:13px;font-weight:600"},"Alignment Overlay"));
+  alignHdrRow.appendChild(el("div",{class:"muted",style:"font-size:13px;font-weight:600"},t("Alignment Overlay")));
   card.appendChild(alignHdrRow);
-  card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},"Drag the target floor plan (semi-transparent) over the reference to align them spatially. Use Scale +/− to resize."));
+  card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},t("Drag the target floor plan (semi-transparent) over the reference to align them spatially. Use Scale +/− to resize.")));
 
   const selRow = el("div",{style:"display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"});
   const refSel = document.createElement("select"); refSel.className = "select";
@@ -6158,8 +6165,8 @@ function _stack(ctx, maps, helpBtn){
     if(m.id === alignState.targetId) oT.selected = true;
     tgtSel.appendChild(oT);
   }
-  selRow.appendChild(el("div",{},[el("div",{class:"muted",style:"font-size:11px;margin-bottom:3px"},"Reference (fixed)"), refSel]));
-  selRow.appendChild(el("div",{},[el("div",{class:"muted",style:"font-size:11px;margin-bottom:3px"},"Target (draggable)"), tgtSel]));
+  selRow.appendChild(el("div",{},[el("div",{class:"muted",style:"font-size:11px;margin-bottom:3px"},t("Reference (fixed)")), refSel]));
+  selRow.appendChild(el("div",{},[el("div",{class:"muted",style:"font-size:11px;margin-bottom:3px"},t("Target (draggable)")), tgtSel]));
   card.appendChild(selRow);
   // The align refusal that used to stand here is gone with the master flag.
   // An align is a placement like every other placement now, so there is no
@@ -6169,12 +6176,10 @@ function _stack(ctx, maps, helpBtn){
   const readoutDiv = el("div",{style:"margin-top:8px;font-size:12px;font-family:monospace;color:#94a3b8"});
   const updateReadout = ()=>{
     const p = alignState.place;
-    if(!p){ readoutDiv.textContent = "Not placed — pick a placed Reference, then press Reset to start this map on top of it."; return; }
-    const lean = Math.abs(p.shear_rad) > 1e-4 ? `  Lean: ${(p.shear_rad*180/Math.PI).toFixed(1)}°` : "";
+    if(!p){ readoutDiv.textContent = t("Not placed — pick a placed Reference, then press Reset to start this map on top of it."); return; }
+    const lean = Math.abs(p.shear_rad) > 1e-4 ? "  " + t("Lean: {deg}°", { deg: (p.shear_rad*180/Math.PI).toFixed(1) }) : "";
     readoutDiv.textContent =
-      `Origin: ${p.origin_x_m.toFixed(2)}, ${p.origin_y_m.toFixed(2)} m`
-      + `  Size: ${p.scale_x_m.toFixed(2)} × ${p.scale_y_m.toFixed(2)} m`
-      + `  Rot: ${(p.rotation_rad*180/Math.PI).toFixed(1)}°${lean}`;
+      t("Origin: {x}, {y} m  Size: {w} × {h} m  Rot: {deg}°", { x: p.origin_x_m.toFixed(2), y: p.origin_y_m.toFixed(2), w: p.scale_x_m.toFixed(2), h: p.scale_y_m.toFixed(2), deg: (p.rotation_rad*180/Math.PI).toFixed(1) }) + lean;
   };
   updateReadout();
   card.appendChild(readoutDiv);
@@ -6389,8 +6394,8 @@ function _stack(ctx, maps, helpBtn){
     noScaleRef.innerHTML = "";
     noScaleRef.style.display = ref && !_placeOf(ref.id) ? "" : "none";
     if (!ref || _placeOf(ref.id)) return;
-    noScaleRef.appendChild(el("span",{}, `${ref.name || "The Reference plan"} has no scale yet, so nothing can be lined up to it. `));
-    noScaleRef.appendChild(el("button",{class:"btn inline", "data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id, "stack")}, "\ud83d\udccf Measure it"));
+    noScaleRef.appendChild(el("span",{}, t("{plan} has no scale yet, so nothing can be lined up to it.", { plan: ref.name || t("The Reference plan") }) + " "));
+    noScaleRef.appendChild(el("button",{class:"btn inline", "data-stack-go":"measure", onclick:()=>_openMeasure(ctx, ref.id, "stack")}, t("\ud83d\udccf Measure it")));
   };
   refSel.addEventListener("change", paintNoScaleRef);
   paintNoScaleRef();
@@ -6411,7 +6416,7 @@ function _stack(ctx, maps, helpBtn){
   // cursor while it is resized. `_keepCentre` is the whole of that.
   const _editPlace = (fn) => {
     const p = alignState.place;
-    if(!p){ ctx.toast("This map is not placed yet — press Reset to start it on the reference.", true); return; }
+    if(!p){ ctx.toast(t("This map is not placed yet — press Reset to start it on the reference."), true); return; }
     const next = fn({ ...p });
     if(next) alignState.place = _keepCentre(p, next);
     applyCurrentTransform();
@@ -6426,8 +6431,8 @@ function _stack(ctx, maps, helpBtn){
 
   if(ctx.state.maps._stackArLocked === undefined) ctx.state.maps._stackArLocked = true;
 
-  const xMinusBtn = el("button",{class:"btn inline",title:"Stretch left/right only (horizontal squeeze/stretch)"},"X −");
-  const xPlusBtn  = el("button",{class:"btn inline",title:"Stretch left/right only (horizontal squeeze/stretch)"},"X +");
+  const xMinusBtn = el("button",{class:"btn inline",title:t("Stretch left/right only (horizontal squeeze/stretch)")},"X −");
+  const xPlusBtn  = el("button",{class:"btn inline",title:t("Stretch left/right only (horizontal squeeze/stretch)")},"X +");
   const _setXBtnState = (locked)=>{
     xMinusBtn.disabled = locked; xMinusBtn.style.opacity = locked ? "0.3" : "";
     xPlusBtn.disabled  = locked; xPlusBtn.style.opacity  = locked ? "0.3" : "";
@@ -6438,8 +6443,8 @@ function _stack(ctx, maps, helpBtn){
 
   const lockArBtn = el("button",{
     class:"btn inline",
-    title:"Lock aspect ratio: Scale +/− resizes both axes equally. Unlock to enable X-only stretch.",
-  }, ctx.state.maps._stackArLocked ? "Lock AR ✓" : "Lock AR");
+    title:t("Lock aspect ratio: Scale +/− resizes both axes equally. Unlock to enable X-only stretch."),
+  }, ctx.state.maps._stackArLocked ? t("Lock AR ✓") : t("Lock AR"));
   lockArBtn.style.cssText = ctx.state.maps._stackArLocked
     ? "background:#52b788;color:#071008;font-weight:700"
     : "color:#94a3b8";
@@ -6449,16 +6454,16 @@ function _stack(ctx, maps, helpBtn){
     lockArBtn.style.background = lk ? "#52b788" : "";
     lockArBtn.style.color      = lk ? "#071008" : "#94a3b8";
     lockArBtn.style.fontWeight = lk ? "700"     : "";
-    lockArBtn.textContent      = lk ? "Lock AR ✓" : "Lock AR";
+    lockArBtn.textContent      = lk ? t("Lock AR ✓") : t("Lock AR");
     _setXBtnState(lk);
   };
 
   const _scaleStep = ()=> ctx.state.maps._stackOutsideMode ? 1.25 : 1.05;
-  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap"},"Scale:"));
+  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap"},t("Scale:")));
   ctrlRow.appendChild(el("button",{class:"btn inline",
-    onclick:()=>{ const f=_scaleStep(); _scaleBy(f, f); }},"Scale +"));
+    onclick:()=>{ const f=_scaleStep(); _scaleBy(f, f); }},t("Scale +")));
   ctrlRow.appendChild(el("button",{class:"btn inline",
-    onclick:()=>{ const f=1/_scaleStep(); _scaleBy(f, f); }},"Scale −"));
+    onclick:()=>{ const f=1/_scaleStep(); _scaleBy(f, f); }},t("Scale −")));
   ctrlRow.appendChild(lockArBtn);
   ctrlRow.appendChild(xPlusBtn);
   ctrlRow.appendChild(xMinusBtn);
@@ -6472,30 +6477,30 @@ function _stack(ctx, maps, helpBtn){
     style: ctx.state.maps._stackOutsideMode
       ? "background:#52b788;color:#071008;font-weight:700"
       : "color:#94a3b8",
-    title: "Outside map mode: coarser steps (25% per click) for large outdoor spaces",
+    title: t("Outside map mode: coarser steps (25% per click) for large outdoor spaces"),
     onclick: ()=>{
       ctx.state.maps._stackOutsideMode = !ctx.state.maps._stackOutsideMode;
       outsideBtn.style.background = ctx.state.maps._stackOutsideMode ? "#52b788" : "";
       outsideBtn.style.color      = ctx.state.maps._stackOutsideMode ? "#071008" : "#94a3b8";
       outsideBtn.style.fontWeight = ctx.state.maps._stackOutsideMode ? "700"     : "";
-      outsideBtn.textContent      = ctx.state.maps._stackOutsideMode ? "Outside ✓" : "Outside map";
+      outsideBtn.textContent      = ctx.state.maps._stackOutsideMode ? t("Outside ✓") : t("Outside map");
     }
-  }, ctx.state.maps._stackOutsideMode ? "Outside ✓" : "Outside map");
+  }, ctx.state.maps._stackOutsideMode ? t("Outside ✓") : t("Outside map"));
   ctrlRow.appendChild(outsideBtn);
 
   // Rotate controls
   const _turn = (deg)=>_editPlace(p => { p.rotation_rad += deg * Math.PI / 180; return p; });
-  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"Rotate:"));
+  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},t("Rotate:")));
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>_turn(-15)},"−15°"));
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>_turn(15)},"﹢15°"));
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>_editPlace(p => { p.rotation_rad = 0; return p; })},"0°"));
 
   // View zoom controls (scales stage content so both maps are visible — zooming out reveals overflowed target maps)
-  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"View:"));
+  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},t("View:")));
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{
     ctx.state.maps._stackViewScale = Math.max(0.2, Math.round(((ctx.state.maps._stackViewScale||1.0)-0.1)*100)/100);
     stageWrap.style.transform = `scale(${ctx.state.maps._stackViewScale})`;
-  }},"Zoom −"));
+  }},t("Zoom −")));
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{
     ctx.state.maps._stackViewScale = 1.0;
     stageWrap.style.transform = "scale(1)";
@@ -6503,10 +6508,10 @@ function _stack(ctx, maps, helpBtn){
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{
     ctx.state.maps._stackViewScale = Math.min(2.0, Math.round(((ctx.state.maps._stackViewScale||1.0)+0.1)*100)/100);
     stageWrap.style.transform = `scale(${ctx.state.maps._stackViewScale})`;
-  }},"Zoom +"));
+  }},t("Zoom +")));
 
   // Opacity controls (how transparent the draggable target layer is)
-  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},"Opacity:"));
+  ctrlRow.appendChild(el("span",{class:"muted",style:"font-size:11px;white-space:nowrap;margin-left:8px"},t("Opacity:")));
   ctrlRow.appendChild(el("button",{class:"btn inline", onclick:()=>{
     ctx.state.maps._stackTgtOpacity = Math.max(0.05, Math.round(((ctx.state.maps._stackTgtOpacity||0.55)-0.1)*100)/100);
     if(tgtLayerRef) tgtLayerRef.style.opacity = String(ctx.state.maps._stackTgtOpacity);
@@ -6526,10 +6531,10 @@ function _stack(ctx, maps, helpBtn){
   ctrlRow.appendChild(el("button",{class:"btn inline",style:"margin-left:8px", onclick:()=>{
     const tgtMap = maps.find(m=>m.id===(alignState.targetId||tgtSel.value));
     const seed = tgtMap && _seedPlace(tgtMap, alignState.refId||refSel.value);
-    if(!seed){ ctx.toast("The Reference plan has no scale yet: measure it first (Measure it, below).", true); return; }
+    if(!seed){ ctx.toast(t("The Reference plan has no scale yet: measure it first (Measure it, below)."), true); return; }
     alignState.place = seed;
     applyCurrentTransform();
-  }},"Reset"));
+  }},t("Reset")));
 
   // ── Point Align ────────────────────────────────────────────────────────────
   // Opens a MODAL OVERLAY (position:fixed) for side-by-side point matching.
@@ -6702,14 +6707,14 @@ function _stack(ctx, maps, helpBtn){
   const _openPointAlignModal = () => {
     const refMap = maps.find(m => m.id === refSel.value);
     const tgtMap = maps.find(m => m.id === tgtSel.value);
-    if (!refMap) { ctx.toast("Select a reference map first", true); return; }
-    if (!tgtMap || tgtMap.id === refMap.id) { ctx.toast("Select a different target map", true); return; }
+    if (!refMap) { ctx.toast(t("Select a reference map first"), true); return; }
+    if (!tgtMap || tgtMap.id === refMap.id) { ctx.toast(t("Select a different target map"), true); return; }
     // The align needs the reference to BE somewhere: the solve maps target
     // fractions onto reference fractions, and turning that into a placement
     // needs the reference's own metres. Refused here, before any points are
     // placed, rather than after the Compute the Apply would then reject.
     if (!_placeOf(refMap.id)) {
-      ctx.toast("The Reference plan has no scale yet: measure it first, or line it up to a measured plan.", true);
+      ctx.toast(t("The Reference plan has no scale yet: measure it first, or line it up to a measured plan."), true);
       return;
     }
 
@@ -6752,18 +6757,18 @@ function _stack(ctx, maps, helpBtn){
       // -- Toolbar --
       toolbar.innerHTML = "";
       const pairs = Math.min(refPts.length, tgtPts.length);
-      const placing = phase === "ref" ? "Reference" : "Target";
+      const placing = phase === "ref" ? t("Reference") : t("Target");
       const nextPt = phase === "ref" ? refPts.length + 1 : tgtPts.length + 1;
       const phaseColor = phase === "ref" ? "#52b788" : "#f59e0b";
 
       const title = document.createElement("span");
       title.style.cssText = "font-weight:700;font-size:14px;color:#7dd3fc";
-      title.textContent = "Point Align";
+      title.textContent = t("Point Align");
       toolbar.appendChild(title);
 
       const status = document.createElement("span");
       status.style.cssText = "font-size:12px;font-weight:600;color:" + phaseColor;
-      status.textContent = "Place point " + nextPt + " on " + placing;
+      status.textContent = t("Place point {n} on {plan}", { n: nextPt, plan: placing });
       toolbar.appendChild(status);
 
       const badge = document.createElement("span");
@@ -6780,7 +6785,7 @@ function _stack(ctx, maps, helpBtn){
       const undoBtn = document.createElement("button");
       undoBtn.className = "btn inline";
       undoBtn.style.cssText = "font-size:11px;padding:3px 10px;color:#e2e8f0;background:#162016;border:1px solid #2d5a2d;border-radius:4px;cursor:pointer";
-      undoBtn.textContent = "Undo";
+      undoBtn.textContent = t("Undo");
       undoBtn.onclick = () => {
         if (phase === "ref" && refPts.length > 0) refPts.pop();
         else if (phase === "tgt" && tgtPts.length > 0) tgtPts.pop();
@@ -6794,7 +6799,7 @@ function _stack(ctx, maps, helpBtn){
       const clearBtn = document.createElement("button");
       clearBtn.className = "btn inline";
       clearBtn.style.cssText = "font-size:11px;padding:3px 10px;color:#e2e8f0;background:#162016;border:1px solid #2d5a2d;border-radius:4px;cursor:pointer";
-      clearBtn.textContent = "Clear";
+      clearBtn.textContent = t("Clear");
       clearBtn.onclick = () => { refPts.length = 0; tgtPts.length = 0; phase = "ref"; _rebuild(); };
       toolbar.appendChild(clearBtn);
 
@@ -6809,10 +6814,10 @@ function _stack(ctx, maps, helpBtn){
       // Baking writes a new picture: an administrator's to do.
       if (ctx.hass?.user?.is_admin === false) {
         bake = false; bakeCb.checked = false; bakeCb.disabled = true;
-        bakeLabel.title = "Only an administrator can add or change floor plans.";
+        bakeLabel.title = t("Only an administrator can add or change floor plans.");
       }
       bakeLabel.appendChild(bakeCb);
-      bakeLabel.appendChild(document.createTextNode("Bake"));
+      bakeLabel.appendChild(document.createTextNode(t("Bake")));
       toolbar.appendChild(bakeLabel);
 
       // Full transform checkbox — OFF (default) = rigid (translate + rotate + scale only),
@@ -6825,7 +6830,7 @@ function _stack(ctx, maps, helpBtn){
       ftCb.style.cssText = "width:14px;height:14px;accent-color:#f59e0b;cursor:pointer";
       ftCb.onchange = () => { fullTransform = ftCb.checked; };
       ftLabel.appendChild(ftCb);
-      ftLabel.appendChild(document.createTextNode("Full transform"));
+      ftLabel.appendChild(document.createTextNode(t("Full transform")));
       toolbar.appendChild(ftLabel);
 
       // Compute button
@@ -6834,20 +6839,20 @@ function _stack(ctx, maps, helpBtn){
       computeBtn.style.cssText = "font-size:12px;padding:4px 16px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid " +
         (canCompute ? "#52b788;background:#1b4a2e;color:#e2e8f0" : "#333;background:#1a1a1a;color:#555");
       computeBtn.disabled = !canCompute;
-      computeBtn.textContent = canCompute ? "Compute (" + pairs + " pairs)" : "Need 3+ pairs";
+      computeBtn.textContent = canCompute ? t("Compute ({n} pairs)", { n: pairs }) : t("Need 3+ pairs");
       computeBtn.onclick = () => {
         try {
           computeBtn.disabled = true;
-          computeBtn.textContent = "Computing...";
+          computeBtn.textContent = t("Computing...");
           const arHW = _refIH / _refIW;  // height/width for isotropic space
           const arTgt = (tgtMap.image?.height || 600) / (tgtMap.image?.width || 800);
           const result = fullTransform
             ? _solvePtAlign(refPts, tgtPts, arHW)              // 6-DOF affine (allows skew)
             : _solvePtAlignRigid(refPts, tgtPts, arHW, arTgt); // 4-DOF rigid (no skew)
           if (!result) {
-            ctx.toast("Could not compute — points may be collinear", true);
+            ctx.toast(t("Could not compute — points may be collinear"), true);
             computeBtn.disabled = false;
-            computeBtn.textContent = "Compute (" + pairs + " pairs)";
+            computeBtn.textContent = t("Compute ({n} pairs)", { n: pairs });
             return;
           }
           // Sanitize
@@ -6943,9 +6948,9 @@ function _stack(ctx, maps, helpBtn){
           _showPreview(rDx, rDy, rScale, rRotation, rStretch, resPct, pairs, perPoint, rawM, arHW);
         } catch (err) {
           console.error("[PtAlign] Compute error:", err);
-          ctx.toast("Compute error: " + ctx.helpers.errorText(err), true);
+          ctx.toast(t("Compute error: {why}", { why: ctx.helpers.errorText(err) }), true);
           computeBtn.disabled = false;
-          computeBtn.textContent = "Compute (" + pairs + " pairs)";
+          computeBtn.textContent = t("Compute ({n} pairs)", { n: pairs });
         }
       };
       toolbar.appendChild(computeBtn);
@@ -6953,7 +6958,7 @@ function _stack(ctx, maps, helpBtn){
       // Cancel button
       const cancelBtn = document.createElement("button");
       cancelBtn.style.cssText = "font-size:11px;padding:3px 10px;color:#f87171;background:#1a0808;border:1px solid #7f1d1d;border-radius:4px;cursor:pointer";
-      cancelBtn.textContent = "Cancel";
+      cancelBtn.textContent = t("Cancel");
       cancelBtn.onclick = _close;
       toolbar.appendChild(cancelBtn);
 
@@ -6979,7 +6984,7 @@ function _stack(ctx, maps, helpBtn){
         if (phase === which) {
           const arrow = document.createElement("span");
           arrow.style.cssText = "font-size:10px;color:" + color + ";font-weight:700;border:1px solid " + color + ";padding:1px 6px;border-radius:4px";
-          arrow.textContent = "Click here";
+          arrow.textContent = t("Click here");
           hdr.appendChild(arrow);
         }
         panel.appendChild(hdr);
@@ -7024,7 +7029,7 @@ function _stack(ctx, maps, helpBtn){
           (phase === which ? "cursor:crosshair" : "cursor:not-allowed;opacity:0.3");
         catcher.addEventListener("click", (ev) => {
           if (phase !== which) {
-            ctx.toast("Click the " + (phase === "ref" ? "Reference" : "Target") + " map (left = ref, right = target)", true);
+            ctx.toast(phase === "ref" ? t("Click the Reference map (left = ref, right = target)") : t("Click the Target map (left = ref, right = target)"), true);
             return;
           }
           const rect = catcher.getBoundingClientRect();
@@ -7033,11 +7038,11 @@ function _stack(ctx, maps, helpBtn){
           const py = (ev.clientY - rect.top) / rect.height;
           if (px < 0 || px > 1 || py < 0 || py > 1) return;
           if (which === "ref") {
-            if (refPts.length >= 8) { ctx.toast("Max 8 points"); return; }
+            if (refPts.length >= 8) { ctx.toast(t("Max 8 points")); return; }
             refPts.push({ x: px, y: py });
             phase = "tgt";
           } else {
-            if (tgtPts.length >= 8) { ctx.toast("Max 8 points"); return; }
+            if (tgtPts.length >= 8) { ctx.toast(t("Max 8 points")); return; }
             tgtPts.push({ x: px, y: py });
             phase = "ref";
           }
@@ -7049,13 +7054,13 @@ function _stack(ctx, maps, helpBtn){
         return panel;
       };
 
-      panelsRow.appendChild(_buildPanel(refMap, "Reference", "#52b788", refPts, "ref"));
-      panelsRow.appendChild(_buildPanel(tgtMap, "Target", "#f59e0b", tgtPts, "tgt"));
+      panelsRow.appendChild(_buildPanel(refMap, t("Reference"), "#52b788", refPts, "ref"));
+      panelsRow.appendChild(_buildPanel(tgtMap, t("Target"), "#f59e0b", tgtPts, "tgt"));
 
       // Help text at the bottom of toolbar
       const help = document.createElement("div");
       help.style.cssText = "width:100%;font-size:10px;color:#64748b;margin-top:4px";
-      help.textContent = "Click the same real-world point on both maps. Auto-alternates. 3+ pairs required to Compute.";
+      help.textContent = t("Click the same real-world point on both maps. Auto-alternates. 3+ pairs required to Compute.");
       toolbar.appendChild(help);
     };
 
@@ -7097,7 +7102,7 @@ function _stack(ctx, maps, helpBtn){
       // -- Toolbar: result summary + Apply/Discard buttons --
       const title = document.createElement("span");
       title.style.cssText = "font-weight:700;font-size:14px;color:#7dd3fc";
-      title.textContent = "Preview";
+      title.textContent = t("Preview");
       toolbar.appendChild(title);
 
       // The residual in the reference's metres: the RMS of the per-point
@@ -7122,20 +7127,20 @@ function _stack(ctx, maps, helpBtn){
         const lo = (f * stretchLo).toFixed(2), hi = (f * stretchHi).toFixed(2);
         return (lo === hi ? lo : lo + "\u2013" + hi) + " m";
       };
-      const ptLimits = "For this plan: Excellent under " + _limM(0.02) + ", Fair under " + _limM(0.05) +
-        (_limM(0.05).includes("\u2013") ? " (the limits are a share of its width and depth, so they depend on the direction)" : "") + ".";
+      const ptLimits = _limM(0.05).includes("\u2013")
+        ? t("For this plan: Excellent under {good}, Fair under {fair} (the limits are a share of its width and depth, so they depend on the direction).", { good: _limM(0.02), fair: _limM(0.05) })
+        : t("For this plan: Excellent under {good}, Fair under {fair}.", { good: _limM(0.02), fair: _limM(0.05) });
 
       const stats = document.createElement("span");
       stats.style.cssText = "font-size:11px;color:#94a3b8";
-      stats.textContent = pairs + " pairs | residual " + resText + " | scale " +
-        rScale.toFixed(3) + " | rot " + rRotation.toFixed(1) + "\u00b0" +
-        (Math.abs(rStretch - 1.0) > 0.005 ? " | stretch " + Math.round(rStretch * 100) + "%" : "");
+      stats.textContent = t("{n} pairs | residual {res} | scale {scale} | rot {deg}°", { n: pairs, res: resText, scale: rScale.toFixed(3), deg: rRotation.toFixed(1) }) +
+        (Math.abs(rStretch - 1.0) > 0.005 ? " | " + t("stretch {pct}%", { pct: Math.round(rStretch * 100) }) : "");
       toolbar.appendChild(stats);
 
       // Residual quality badge
       const qBadge = document.createElement("span");
       const qColor = resPct < 2 ? "#52b788" : resPct < 5 ? "#f59e0b" : "#f87171";
-      const qLabel = resPct < 2 ? "Excellent" : resPct < 5 ? "Fair" : "Poor";
+      const qLabel = resPct < 2 ? t("Excellent") : resPct < 5 ? t("Fair") : t("Poor");
       qBadge.style.cssText = "font-size:10px;padding:2px 8px;border-radius:4px;background:" + qColor + "22;color:" + qColor + ";border:1px solid " + qColor + "44";
       qBadge.textContent = qLabel;
       qBadge.title = ptLimits;
@@ -7148,7 +7153,7 @@ function _stack(ctx, maps, helpBtn){
       // Back button — go back to point placement
       const backBtn = document.createElement("button");
       backBtn.style.cssText = "font-size:11px;padding:3px 12px;color:#e2e8f0;background:#162016;border:1px solid #2d5a2d;border-radius:4px;cursor:pointer";
-      backBtn.textContent = "Back";
+      backBtn.textContent = t("Back");
       backBtn.onclick = () => _rebuild();
       toolbar.appendChild(backBtn);
 
@@ -7156,7 +7161,7 @@ function _stack(ctx, maps, helpBtn){
       const applyBtn = document.createElement("button");
       applyBtn.style.cssText = "font-size:12px;padding:4px 16px;font-weight:600;border-radius:4px;cursor:pointer;" +
         "border:1px solid #52b788;background:#1b4a2e;color:#e2e8f0";
-      applyBtn.textContent = bake ? "Bake & Apply" : "Apply";
+      applyBtn.textContent = bake ? t("Bake & Apply") : t("Apply");
       applyBtn.onclick = () => {
         if (bake && tgtMap.image && tgtMap.image.filename) {
           // A BAKE puts the whole align into the PIXELS, so what is left for
@@ -7198,15 +7203,15 @@ function _stack(ctx, maps, helpBtn){
               })
                 .then((res) => {
                   if(res && res.scale_invalidated){
-                    ctx.toast("Baked, but the map scale could not survive rotation + stretch — re-measure the map.", true);
+                    ctx.toast(t("Baked, but the map scale could not survive rotation + stretch — re-measure the map."), true);
                   } else {
-                    ctx.toast("Baked (" + pairs + " pairs, residual " + resText + ")");
+                    ctx.toast(t("Baked ({n} pairs, residual {res})", { n: pairs, res: resText }));
                   }
                 })
-                .catch(e => ctx.toast("Bake upload failed: " + ctx.helpers.errorText(e), true));
-            } catch (de) { ctx.toast("Bake draw failed: " + de, true); }
+                .catch(e => ctx.toast(t("Bake upload failed: {why}", { why: ctx.helpers.errorText(e) }), true));
+            } catch (de) { ctx.toast(t("Bake draw failed: {why}", { why: String(de) }), true); }
           };
-          bakeImg.onerror = () => ctx.toast("Bake failed — image load error", true);
+          bakeImg.onerror = () => ctx.toast(t("Bake failed — image load error"), true);
           bakeImg.src = _mapUrl(tgtMap);
         } else {
           // ── Compose the solve with the reference's PLACEMENT ──
@@ -7224,7 +7229,7 @@ function _stack(ctx, maps, helpBtn){
           // `stackFieldsFromAffine` existed only to keep those three in step
           // and are all deleted.
           const refP = _placeOf(refMap.id);
-          if (!refP) { ctx.toast("The reference map has no placement — measure it first.", true); return; }
+          if (!refP) { ctx.toast(t("The reference map has no placement — measure it first."), true); return; }
           const toRefFrac = (u, v) => [
             rawM[0]*(u-0.5) + rawM[1]*(v-0.5) + 0.5 + rDx,
             rawM[2]*(u-0.5) + rawM[3]*(v-0.5) + 0.5 + rDy,
@@ -7233,12 +7238,12 @@ function _stack(ctx, maps, helpBtn){
           const o = atM(0, 0), ex = atM(1, 0), ey = atM(0, 1);
           const solved = (o && ex && ey) ? placementFromColumns(
             o, [ex[0]-o[0], ex[1]-o[1]], [ey[0]-o[0], ey[1]-o[1]]) : null;
-          if (!solved) { ctx.toast("That align is singular — the points are collinear.", true); return; }
+          if (!solved) { ctx.toast(t("That align is singular — the points are collinear."), true); return; }
           alignState.place = solved;
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("point_align_applied");
           _close();
           buildStage();
-          ctx.toast("Aligned (" + pairs + " pairs, residual " + resText + ")");
+          ctx.toast(t("Aligned ({n} pairs, residual {res})", { n: pairs, res: resText }));
         }
       };
       toolbar.appendChild(applyBtn);
@@ -7246,7 +7251,7 @@ function _stack(ctx, maps, helpBtn){
       // Discard button
       const discardBtn = document.createElement("button");
       discardBtn.style.cssText = "font-size:11px;padding:3px 10px;color:#f87171;background:#1a0808;border:1px solid #7f1d1d;border-radius:4px;cursor:pointer";
-      discardBtn.textContent = "Discard";
+      discardBtn.textContent = t("Discard");
       discardBtn.onclick = _close;
       toolbar.appendChild(discardBtn);
 
@@ -7269,7 +7274,7 @@ function _stack(ctx, maps, helpBtn){
       }
       const refLabel = document.createElement("div");
       refLabel.style.cssText = "position:absolute;top:4px;left:6px;font-size:10px;color:#52b788;font-weight:700;z-index:3;background:#071008aa;padding:1px 6px;border-radius:3px";
-      refLabel.textContent = "Ref: " + (refMap.name || refMap.id);
+      refLabel.textContent = t("Ref: {name}", { name: refMap.name || refMap.id });
       previewStage.appendChild(refLabel);
 
       // Target map layer — uses THE SAME decomposed CSS as Apply/buildStage
@@ -7287,7 +7292,7 @@ function _stack(ctx, maps, helpBtn){
       }
       const tgtLabel = document.createElement("div");
       tgtLabel.style.cssText = "position:absolute;top:4px;right:6px;font-size:10px;color:#f59e0b;font-weight:700;z-index:3;background:#071008aa;padding:1px 6px;border-radius:3px";
-      tgtLabel.textContent = "Tgt: " + (tgtMap.name || tgtMap.id);
+      tgtLabel.textContent = t("Tgt: {name}", { name: tgtMap.name || tgtMap.id });
       previewStage.appendChild(tgtLabel);
 
       // Diagnostic markers on the FLAT reference layer (no transform on this div)
@@ -7337,7 +7342,7 @@ function _stack(ctx, maps, helpBtn){
       // ALSO wrong, the solver math has a bug.
       const canvasTitle = document.createElement("div");
       canvasTitle.style.cssText = "margin-top:12px;font-size:11px;color:#64748b;text-align:center";
-      canvasTitle.textContent = "Canvas verification (no CSS transforms):";
+      canvasTitle.textContent = t("Canvas verification (no CSS transforms):");
       previewPanel.appendChild(canvasTitle);
 
       const cvs = document.createElement("canvas");
@@ -7409,15 +7414,15 @@ function _stack(ctx, maps, helpBtn){
         b.onclick = fn;
         return b;
       };
-      zoomRow.appendChild(_pvZoomBtn("Zoom \u2212", () => {
+      zoomRow.appendChild(_pvZoomBtn(t("Zoom \u2212"), () => {
         pvMaxW = Math.max(300, pvMaxW - 200);
         previewStage.style.maxWidth = pvMaxW + "px";
       }));
-      zoomRow.appendChild(_pvZoomBtn("Fit", () => {
+      zoomRow.appendChild(_pvZoomBtn(t("Fit"), () => {
         pvMaxW = 500;
         previewStage.style.maxWidth = "500px";
       }));
-      zoomRow.appendChild(_pvZoomBtn("Zoom +", () => {
+      zoomRow.appendChild(_pvZoomBtn(t("Zoom +"), () => {
         pvMaxW = Math.min(3000, pvMaxW + 300);
         previewStage.style.maxWidth = pvMaxW + "px";
       }));
@@ -7441,8 +7446,8 @@ function _stack(ctx, maps, helpBtn){
           const chip = document.createElement("span");
           chip.style.cssText = "font-size:10px;padding:2px 6px;border-radius:3px;font-family:monospace;" +
             "background:" + ppColor + "18;color:" + ppColor + ";border:1px solid " + ppColor + "44";
-          chip.textContent = "Pt " + pp.idx + ": " + pp.m.toFixed(2) + " m";
-          chip.title = "Point pair " + pp.idx + " — " + pp.m.toFixed(2) + " m between the point and where the fit puts it (lower = better fit)";
+          chip.textContent = t("Pt {n}: {m} m", { n: pp.idx, m: pp.m.toFixed(2) });
+          chip.title = t("Point pair {n} — {m} m between the point and where the fit puts it (lower = better fit)", { n: pp.idx, m: pp.m.toFixed(2) });
           ppDiv.appendChild(chip);
         }
         previewPanel.appendChild(ppDiv);
@@ -7454,7 +7459,7 @@ function _stack(ctx, maps, helpBtn){
         if (worstPt.pct > 3) {
           const tip = document.createElement("div");
           tip.style.cssText = "margin-top:4px;font-size:10px;color:#f59e0b;text-align:center";
-          tip.textContent = "Point " + worstPt.idx + " has high error (" + worstPt.m.toFixed(2) + " m). Consider going Back and re-placing it.";
+          tip.textContent = t("Point {n} has high error ({m} m). Consider going Back and re-placing it.", { n: worstPt.idx, m: worstPt.m.toFixed(2) });
           previewPanel.appendChild(tip);
         }
       }
@@ -7468,8 +7473,8 @@ function _stack(ctx, maps, helpBtn){
     guide.setAttribute("data-point-align", "guide");
     guide.style.cssText = "padding:6px 16px;background:#071210;border-bottom:1px solid #12301f;font-size:12px;color:#94a3b8;line-height:1.5;flex-shrink:0";
     guide.textContent = (refMap.floor_id || "") !== (tgtMap.floor_id || "")
-      ? "These plans are of different floors. Click what runs through both: the corners of the stairwell, an elevator or chimney, a plumbing wall, the outside corners of the house. Three or more, spread well apart, fit best; furniture and inside doors don't line up between floors."
-      : "Click the same real spot on each plan: wall corners and door frames. Three or more, spread well apart, fit best.";
+      ? t("These plans are of different floors. Click what runs through both: the corners of the stairwell, an elevator or chimney, a plumbing wall, the outside corners of the house. Three or more, spread well apart, fit best; furniture and inside doors don't line up between floors.")
+      : t("Click the same real spot on each plan: wall corners and door frames. Three or more, spread well apart, fit best.");
 
     // Assemble modal and render
     overlay.appendChild(toolbar);
@@ -7493,28 +7498,28 @@ function _stack(ctx, maps, helpBtn){
   };
 
   // Point Align button — opens the modal overlay
-  const ptAlignBtn = el("button",{class:"btn inline",style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc;font-size:11px;padding:3px 12px", onclick: _openPointAlignModal}, "Point Align");
+  const ptAlignBtn = el("button",{class:"btn inline",style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc;font-size:11px;padding:3px 12px", onclick: _openPointAlignModal}, t("Point Align"));
   alignHdrRow.appendChild(ptAlignBtn);
   // Suggest a fit: where this plan would sit over the Reference plan's floor, worked out from the rooms traced on it
   // (padspan_ha/maps_fit_suggest). Only SHOWN here, like a Point Align: it is saved by Save, or not at all.
-  const fitBtn = el("button",{class:"btn inline","data-stack":"fit",style:"font-size:11px;padding:3px 12px",title:"Works out where this plan sits over the Reference plan's floor from the rooms drawn on both. Check it, then Save.", onclick: async ()=>{
+  const fitBtn = el("button",{class:"btn inline","data-stack":"fit",style:"font-size:11px;padding:3px 12px",title:t("Works out where this plan sits over the Reference plan's floor from the rooms drawn on both. Check it, then Save."), onclick: async ()=>{
     const refId = alignState.refId||refSel.value, tgtId = alignState.targetId||tgtSel.value, cur = alignState.place || _placeOf(tgtId);
     const tele = (w) => { if (ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("fit_suggest:" + w); };
-    if(!refId || !tgtId || refId === tgtId || !cur){ ctx.toast("Choose a Reference plan and a different, measured plan to line up first.", true); return; }
+    if(!refId || !tgtId || refId === tgtId || !cur){ ctx.toast(t("Choose a Reference plan and a different, measured plan to line up first."), true); return; }
     fitBtn.disabled = true;
     let r = null;
     try { r = await ctx.actions.callWS({ type:"padspan_ha/maps_fit_suggest", map_id: tgtId, ref_map_id: refId }); } catch (_e) { r = null; }
     fitBtn.disabled = false;
     if(!r || !r.fit){
       tele("none");
-      ctx.toast("No fit to suggest: it needs two or more rooms drawn on this plan and three or more on the Reference plan's floor, and one clear best place. Use Point Align instead.", true);
+      ctx.toast(t("No fit to suggest: it needs two or more rooms drawn on this plan and three or more on the Reference plan's floor, and one clear best place. Use Point Align instead."), true);
       return;
     }
     tele("shown");
     alignState.place = { ...cur, origin_x_m: r.fit.origin_x_m, origin_y_m: r.fit.origin_y_m, rotation_rad: r.fit.rotation_rad };
     buildStage();
-    ctx.toast("Suggested fit shown: check the walls against the Reference plan, then Save, or Reset to go back.");
-  }}, "Suggest a fit");
+    ctx.toast(t("Suggested fit shown: check the walls against the Reference plan, then Save, or Reset to go back."));
+  }}, t("Suggest a fit"));
   alignHdrRow.appendChild(fitBtn);
 
   // Conflict warning div (created early so save/tie-in closures can reference it)
@@ -7540,9 +7545,9 @@ function _stack(ctx, maps, helpBtn){
   const performSave = async (override) => {
     const tId = alignState.targetId || tgtSel.value;
     const tM  = (ctx.state.maps.list||[]).find(m=>m.id===tId) || maps.find(m=>m.id===tId);
-    if(!tM) throw new Error("No target map selected");
+    if(!tM) throw new Error(t("No target map selected"));
     const place = override || alignState.place;
-    if(!place) throw new Error("This map is not placed yet — press Reset to start it on the reference.");
+    if(!place) throw new Error(t("This map is not placed yet — press Reset to start it on the reference."));
     try {
       await ctx.actions.callWS({
         type: "padspan_ha/fabric_map_reanchor", map_id: tM.id,
@@ -7573,12 +7578,12 @@ function _stack(ctx, maps, helpBtn){
     if(!tieIns2.length) return;
     const allM2 = ctx.state.maps.list||maps;
     const row2 = el("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"});
-    row2.appendChild(el("span",{style:"font-size:11px;color:#64748b;white-space:nowrap"},"Tie-ins:"));
+    row2.appendChild(el("span",{style:"font-size:11px;color:#64748b;white-space:nowrap"},t("Tie-ins:")));
     for(const ti of tieIns2){
       const rM3 = allM2.find(m=>m.id===ti.ref_map_id);
       const rN  = rM3 ? (rM3.name||rM3.id) : (ti.ref_map_id||"?");
       const chip = el("span",{style:"display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#0a2a1a;border:1px solid #2d6a4f;border-radius:12px;font-size:11px;color:#52b788"});
-      chip.appendChild(document.createTextNode("Tied: "+rN));
+      chip.appendChild(document.createTextNode(t("Tied: {name}", { name: rN })));
       const delX = el("button",{style:"background:none;border:none;color:#64748b;cursor:pointer;font-size:11px;padding:0 0 0 4px;line-height:1",
         onclick: async(ev3)=>{
           ev3.stopPropagation();
@@ -7589,9 +7594,9 @@ function _stack(ctx, maps, helpBtn){
           const newStk3 = _stackPatch(tM3.stack, { tie_ins: newTIs });
           try {
             await ctx.actions.mapsUpdateQuiet({ map_id: tM3.id, stack: newStk3 });
-            ctx.toast("Tie-in removed");
+            ctx.toast(t("Tie-in removed"));
             renderTieIns();
-          } catch(e3){ ctx.toast("Failed: "+String(e3), true); }
+          } catch(e3){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e3) }), true); }
         }},"×");
       chip.appendChild(delX);
       row2.appendChild(chip);
@@ -7609,8 +7614,8 @@ function _stack(ctx, maps, helpBtn){
     const btn = ev.currentTarget;
     const tId = alignState.targetId || tgtSel.value;
     const tM  = (ctx.state.maps.list||[]).find(m=>m.id===tId) || maps.find(m=>m.id===tId);
-    if(!tM){ ctx.toast("No target map selected.", true); return; }
-    if(!alignState.place){ ctx.toast("This map is not placed yet — press Reset to start it on the reference.", true); return; }
+    if(!tM){ ctx.toast(t("No target map selected."), true); return; }
+    if(!alignState.place){ ctx.toast(t("This map is not placed yet — press Reset to start it on the reference."), true); return; }
     const allM = ctx.state.maps.list||maps;
     const escN = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
@@ -7621,60 +7626,59 @@ function _stack(ctx, maps, helpBtn){
     );
     const downstreamNames = downstream.map(m => m.name||m.id);
     const _run = async (place, label) => {
-      btn.disabled = true; btn.textContent = "Saving…";
+      btn.disabled = true; btn.textContent = t("Saving…");
       try {
         await performSave(place);
-        ctx.toast(downstreamNames.length
-          ? `Alignment saved ✔${label}\n↳ Downstream maps may need re-checking: ${downstreamNames.join(", ")}`
-          : `Alignment saved ✔${label}`);
+        ctx.toast(t("Alignment saved ✔") + label + (downstreamNames.length
+          ? "\n" + t("↳ Downstream maps may need re-checking: {maps}", { maps: downstreamNames.join(", ") }) : ""));
       }
-      catch(e){ ctx.toast("Save failed: "+ctx.helpers.errorText(e), true); }
-      finally { try{ btn.disabled=false; btn.textContent="Save Alignment"; }catch(_){} }
+      catch(e){ ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+      finally { try{ btn.disabled=false; btn.textContent=t("Save Alignment"); }catch(_){} }
     };
 
     if(!conflicts.length){ await _run(null, ""); return; }
     // Everything within a metre of every tie-in: average silently.
     if(conflicts.every(c=>c.gapM < TIE_MINOR_M)){
       const avg = _averageAlignWithTieIns(alignState.place, (tM?.stack?.tie_ins)||[]);
-      await _run(avg, " (minor variance averaged with tie-ins)");
+      await _run(avg, " " + t("(minor variance averaged with tie-ins)"));
       return;
     }
     const hasModerate = conflicts.some(c=>c.gapM < TIE_MAJOR_M);
-    let html = `<div style="font-weight:600;color:#f59e0b;margin-bottom:8px">⚠ Alignment Conflicts Detected</div>`;
-    html += `<div style="color:#cbd5e1;margin-bottom:8px;font-size:11px">This position differs from stored tie-in relationships for <strong>${escN(tM.name||tM.id)}</strong>:</div>`;
+    let html = `<div style="font-weight:600;color:#f59e0b;margin-bottom:8px">${escN(t("⚠ Alignment Conflicts Detected"))}</div>`;
+    html += `<div style="color:#cbd5e1;margin-bottom:8px;font-size:11px">${escN(t("This position differs from stored tie-in relationships for {map}:", { map: tM.name||tM.id }))}</div>`;
     html += `<ul style="margin:0 0 10px 14px;padding:0;color:#94a3b8;font-size:11px">`;
     for(const c of conflicts){
       const sev = c.gapM >= TIE_MAJOR_M ? "color:#f87171" : "color:#fbbf24";
-      html += `<li style="margin-bottom:3px">Tied to <strong style="color:#e2e8f0">"${escN(c.refName)}"</strong>: `
-        + `<span style="${sev}">${c.gapM.toFixed(2)} m from where that tie-in puts this map</span></li>`;
+      html += `<li style="margin-bottom:3px">${escN(t("Tied to \"{map}\":", { map: c.refName }))} `
+        + `<span style="${sev}">${escN(t("{m} m from where that tie-in puts this map", { m: c.gapM.toFixed(2) }))}</span></li>`;
     }
     html += `</ul>`;
     if(downstreamNames.length){
       html += `<div style="margin-bottom:10px;padding:7px 10px;border-radius:6px;background:#0a1a2a;border:1px solid #2563eb;font-size:11px;color:#93c5fd">`;
-      html += `<strong>↓ Downstream maps tied to "${escN(tM.name||tM.id)}":</strong> `;
+      html += `<strong>${escN(t("↓ Downstream maps tied to \"{map}\":", { map: tM.name||tM.id }))}</strong> `;
       html += downstreamNames.map(n=>`<strong>${escN(n)}</strong>`).join(", ");
-      html += `<div style="color:#64748b;margin-top:3px">Moving this map will invalidate their tie-in constraints. Re-check and update them after saving.</div>`;
+      html += `<div style="color:#64748b;margin-top:3px">${escN(t("Moving this map will invalidate their tie-in constraints. Re-check and update them after saving."))}</div>`;
       html += `</div>`;
     }
     html += `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">`;
-    if(hasModerate) html += `<button id="_wAvgBtn" class="btn inline" style="background:#0a2a1a;border-color:#52b788">Average &amp; Save</button>`;
-    html += `<button id="_wOvrBtn" class="btn inline" style="background:#7f1d1d;border-color:#dc2626">Override &amp; Save</button>`;
-    html += `<button id="_wCxlBtn" class="btn inline">Cancel</button>`;
+    if(hasModerate) html += `<button id="_wAvgBtn" class="btn inline" style="background:#0a2a1a;border-color:#52b788">${escN(t("Average & Save"))}</button>`;
+    html += `<button id="_wOvrBtn" class="btn inline" style="background:#7f1d1d;border-color:#dc2626">${escN(t("Override & Save"))}</button>`;
+    html += `<button id="_wCxlBtn" class="btn inline">${escN(t("Cancel"))}</button>`;
     html += `</div>`;
     warnDiv.innerHTML = html;
     warnDiv.style.display = "block";
     warnDiv.querySelector("#_wOvrBtn").onclick = async()=>{
       warnDiv.style.display="none";
-      await _run(null, " (override)");
+      await _run(null, " " + t("(override)"));
     };
     const avgBtn = warnDiv.querySelector("#_wAvgBtn");
     if(avgBtn) avgBtn.onclick = async()=>{
       warnDiv.style.display="none";
       const avg = _averageAlignWithTieIns(alignState.place, (tM?.stack?.tie_ins)||[]);
-      await _run(avg, " (averaged with tie-ins)");
+      await _run(avg, " " + t("(averaged with tie-ins)"));
     };
     warnDiv.querySelector("#_wCxlBtn").onclick = ()=>{ warnDiv.style.display="none"; };
-  }},"Save Alignment");
+  }},t("Save Alignment"));
   ctrlRow.appendChild(saveAlignBtn);
 
   // ── Add Tie-in Button ──
@@ -7686,8 +7690,8 @@ function _stack(ctx, maps, helpBtn){
     onclick: async()=>{
       const tId = alignState.targetId || tgtSel.value;
       const tM  = (ctx.state.maps.list||[]).find(m=>m.id===tId) || maps.find(m=>m.id===tId);
-      if(!tM){ ctx.toast("No target map selected.", true); return; }
-      if(!alignState.place){ ctx.toast("This map is not placed yet — nothing to tie.", true); return; }
+      if(!tM){ ctx.toast(t("No target map selected."), true); return; }
+      if(!alignState.place){ ctx.toast(t("This map is not placed yet — nothing to tie."), true); return; }
       const rId = alignState.refId || refSel.value;
       const existing = (tM?.stack?.tie_ins)||[];
       // Replace any existing tie-in for the same ref
@@ -7700,10 +7704,10 @@ function _stack(ctx, maps, helpBtn){
       const newStk = _stackPatch(tM.stack, { tie_ins: newTieIns });
       try {
         await ctx.actions.mapsUpdateQuiet({ map_id: tM.id, stack: newStk });
-        ctx.toast("Tie-in added ✔");
+        ctx.toast(t("Tie-in added ✔"));
         renderTieIns();
-      } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
-    }},"+ Tie-in");
+      } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+    }},t("+ Tie-in"));
   ctrlRow.appendChild(addTieInBtn);
 
   card.appendChild(ctrlRow);
@@ -7721,42 +7725,42 @@ function _stack(ctx, maps, helpBtn){
       const plans = _emergencyRecoverTieIns(allM, ctx.state.model);
       if(!plans.length){
         recovDetailPanel.style.display = "none";
-        ctx.toast("No inconsistent tie-ins found — network looks healthy ✔");
+        ctx.toast(t("No inconsistent tie-ins found — network looks healthy ✔"));
         return;
       }
       const escR = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const totalRemoved = plans.reduce((s,p)=>s+p.removedTieIns.length, 0);
-      let html = `<div style="font-weight:600;color:#f87171;margin-bottom:8px">🚑 Emergency Tie-in Recovery</div>`;
-      html += `<div style="color:#cbd5e1;margin-bottom:10px;font-size:11px">Found <strong>${totalRemoved}</strong> inconsistent tie-in${totalRemoved>1?"s":""} across <strong>${plans.length}</strong> map${plans.length>1?"s":""}. Only the most consistent cluster will be kept.</div>`;
+      let html = `<div style="font-weight:600;color:#f87171;margin-bottom:8px">${escR(t("🚑 Emergency Tie-in Recovery"))}</div>`;
+      html += `<div style="color:#cbd5e1;margin-bottom:10px;font-size:11px">${escR(tn(totalRemoved, "Found 1 inconsistent tie-in.", "Found {n} inconsistent tie-ins.") + " " + tn(plans.length, "Maps affected: 1.", "Maps affected: {n}.") + " " + t("Only the most consistent cluster will be kept."))}</div>`;
       html += `<div style="margin-bottom:10px">`;
       for(const p of plans){
         const mapName = escR(p.map.name||p.map.id);
         html += `<div style="padding:7px 0;border-bottom:1px solid #2a1000">`;
         html += `<div style="color:#e2e8f0;font-weight:600">${mapName}</div>`;
-        html += `<div style="color:#94a3b8;font-size:11px;margin-top:2px">${p.reason}</div>`;
+        html += `<div style="color:#94a3b8;font-size:11px;margin-top:2px">${escR(p.reason)}</div>`;
         if(p.removedTieIns.length){
           const rmN = p.removedTieIns.map(ti=>{ const rm=allM.find(x=>x.id===ti.ref_map_id); return `"${escR(rm?rm.name||rm.id:ti.ref_map_id||"?")}"`;});
-          html += `<div style="color:#f87171;font-size:11px;margin-top:2px">✕ Remove: ${rmN.join(", ")}</div>`;
+          html += `<div style="color:#f87171;font-size:11px;margin-top:2px">${escR(t("✕ Remove:"))} ${rmN.join(", ")}</div>`;
         }
         if(p.keptTieIns.length){
           const kpN = p.keptTieIns.map(ti=>{ const km=allM.find(x=>x.id===ti.ref_map_id); return `"${escR(km?km.name||km.id:ti.ref_map_id||"?")}"`;});
-          html += `<div style="color:#52b788;font-size:11px;margin-top:2px">✔ Keep: ${kpN.join(", ")}</div>`;
+          html += `<div style="color:#52b788;font-size:11px;margin-top:2px">${escR(t("✔ Keep:"))} ${kpN.join(", ")}</div>`;
         } else {
-          html += `<div style="color:#f59e0b;font-size:11px;margin-top:2px">All tie-ins removed (all conflict with saved position)</div>`;
+          html += `<div style="color:#f59e0b;font-size:11px;margin-top:2px">${escR(t("All tie-ins removed (all conflict with saved position)"))}</div>`;
         }
         html += `</div>`;
       }
       html += `</div>`;
       html += `<div style="display:flex;gap:8px;align-items:center">`;
-      html += `<button id="_rConfBtn" class="btn inline" style="background:#7f1d1d;border-color:#dc2626">Confirm Recovery</button>`;
-      html += `<button id="_rCxlBtn" class="btn inline">Cancel</button>`;
+      html += `<button id="_rConfBtn" class="btn inline" style="background:#7f1d1d;border-color:#dc2626">${escR(t("Confirm Recovery"))}</button>`;
+      html += `<button id="_rCxlBtn" class="btn inline">${escR(t("Cancel"))}</button>`;
       html += `</div>`;
       recovDetailPanel.innerHTML = html;
       recovDetailPanel.style.display = "block";
       recovDetailPanel.querySelector("#_rCxlBtn").onclick = ()=>{ recovDetailPanel.style.display="none"; };
       recovDetailPanel.querySelector("#_rConfBtn").onclick = async ()=>{
         const confBtn = recovDetailPanel.querySelector("#_rConfBtn");
-        confBtn.disabled=true; confBtn.textContent="Recovering…";
+        confBtn.disabled=true; confBtn.textContent=t("Recovering…");
         try{
           for(const p of plans){
             const freshMap = (ctx.state.maps.list||maps).find(m=>m.id===p.map.id)||p.map;
@@ -7764,26 +7768,26 @@ function _stack(ctx, maps, helpBtn){
           }
           recovDetailPanel.style.display="none";
           renderTieIns();
-          ctx.toast(`Recovery complete ✔ — removed ${totalRemoved} outlier tie-in${totalRemoved>1?"s":""}`);
+          ctx.toast(tn(totalRemoved, "Recovery complete ✔ — removed 1 outlier tie-in", "Recovery complete ✔ — removed {n} outlier tie-ins"));
         } catch(e){
-          ctx.toast("Recovery failed: "+ctx.helpers.errorText(e), true);
-          try{ confBtn.disabled=false; confBtn.textContent="Confirm Recovery"; }catch(_){}
+          ctx.toast(t("Recovery failed: {why}", { why: ctx.helpers.errorText(e) }), true);
+          try{ confBtn.disabled=false; confBtn.textContent=t("Confirm Recovery"); }catch(_){}
         }
       };
-    }}, "🚑 Emergency Recovery");
+    }}, t("🚑 Emergency Recovery"));
   card.appendChild(recovBtn);
   card.appendChild(recovDetailPanel);
 
   // ── Section 3: 3D Isometric Preview ───────────────────────────────────────
-  card.appendChild(el("div",{class:"muted",style:"margin-top:24px;font-size:13px;font-weight:600"},"3D Isometric Preview"));
-  card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},"Shows all uploaded floor plans stacked by their assigned level. Use the slider to focus on one floor."));
+  card.appendChild(el("div",{class:"muted",style:"margin-top:24px;font-size:13px;font-weight:600"},t("3D Isometric Preview")));
+  card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},t("Shows all uploaded floor plans stacked by their assigned level. Use the slider to focus on one floor.")));
 
   // Floor focus slider
   if(ctx.state.maps._stackIsoFocus  === undefined) ctx.state.maps._stackIsoFocus  = ctx.state.settings?.maps_iso_focus  ?? null;
   if(ctx.state.maps._stackFloorGap  === undefined) ctx.state.maps._stackFloorGap  = ctx.state.settings?.maps_iso_floor_gap ?? 200;
   if(ctx.state.maps._stackHorizGap  === undefined) ctx.state.maps._stackHorizGap  = ctx.state.settings?.maps_iso_horiz_gap ?? 0;
   const sortedIsoLevels = [...new Set(maps.map(m=>m.stack?.z_level||0))].sort((a,b)=>a-b);
-  const focusLbl = el("span",{style:"font-size:12px;color:#94a3b8;min-width:80px;display:inline-block"}, "All floors");
+  const focusLbl = el("span",{style:"font-size:12px;color:#94a3b8;min-width:80px;display:inline-block"}, t("All floors"));
   const focusSlider = document.createElement("input");
   focusSlider.type = "range"; focusSlider.min = "0"; focusSlider.max = String(sortedIsoLevels.length);
   focusSlider.style.cssText = "width:130px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
@@ -7817,7 +7821,7 @@ function _stack(ctx, maps, helpBtn){
   });
   focusSlider.addEventListener("input", () => {
     const idx = parseInt(focusSlider.value, 10);
-    if(idx === 0){ ctx.state.maps._stackIsoFocus = null; focusLbl.textContent = "All floors"; }
+    if(idx === 0){ ctx.state.maps._stackIsoFocus = null; focusLbl.textContent = t("All floors"); }
     else {
       const z = sortedIsoLevels[idx-1];
       ctx.state.maps._stackIsoFocus = z;
@@ -7838,7 +7842,7 @@ function _stack(ctx, maps, helpBtn){
     style: ctx.state.maps._persistentPins
       ? "background:#7f1d1d;border-color:#ef4444;color:#fca5a5;font-weight:700"
       : "color:#94a3b8",
-    title: "Show last-seen position of away objects as red target pins on the 3D map",
+    title: t("Show last-seen position of away objects as red target pins on the 3D map"),
     onclick: ()=>{
       ctx.state.maps._persistentPins = !ctx.state.maps._persistentPins;
       persistentBtn.style.cssText = ctx.state.maps._persistentPins
@@ -7847,19 +7851,19 @@ function _stack(ctx, maps, helpBtn){
       rebuildIso();
       rebuildPins();
     }
-  }, ctx.state.maps._persistentPins ? "⊕ Persistent ON" : "⊕ Persistent");
+  }, ctx.state.maps._persistentPins ? t("⊕ Persistent ON") : t("⊕ Persistent"));
 
   if(ctx.state.maps._stackShowRoomList === undefined) ctx.state.maps._stackShowRoomList = false;
 
   const roomListToggle = el("button",{class:"btn inline", style:"margin-left:auto", onclick:()=>{
     ctx.state.maps._stackShowRoomList = !ctx.state.maps._stackShowRoomList;
-    roomListToggle.textContent = ctx.state.maps._stackShowRoomList ? "☰ Hide Room List" : "☰ Room List";
+    roomListToggle.textContent = ctx.state.maps._stackShowRoomList ? t("☰ Hide Room List") : t("☰ Room List");
     roomListPanel.style.display = ctx.state.maps._stackShowRoomList ? "block" : "none";
-  }}, ctx.state.maps._stackShowRoomList ? "☰ Hide Room List" : "☰ Room List");
+  }}, ctx.state.maps._stackShowRoomList ? t("☰ Hide Room List") : t("☰ Room List"));
 
   const isoSaveLbl = el("span",{class:"muted",style:"font-size:11px;min-width:50px"}, "");
   const isoSaveBtn = el("button",{class:"btn inline",style:"padding:2px 10px;font-size:12px",
-    title:"Save these slider positions so the view reopens with the same layout",
+    title:t("Save these slider positions so the view reopens with the same layout"),
     onclick: async ()=>{
       isoSaveBtn.disabled = true;
       try{
@@ -7868,31 +7872,31 @@ function _stack(ctx, maps, helpBtn){
           maps_iso_horiz_gap: ctx.state.maps._stackHorizGap,
           maps_iso_focus:     ctx.state.maps._stackIsoFocus,
         });
-        isoSaveLbl.textContent = "Saved ✓";
+        isoSaveLbl.textContent = t("Saved ✓");
         setTimeout(()=>{ isoSaveLbl.textContent = ""; }, 2000);
-      }catch(e){ isoSaveLbl.textContent = "Error"; }
+      }catch(e){ isoSaveLbl.textContent = t("Error"); }
       isoSaveBtn.disabled = false;
     }
-  }, "Save");
+  }, t("Save"));
   const isoResetBtn = el("button",{class:"btn inline",style:"padding:2px 10px;font-size:12px",
-    title:"Reset sliders to default values and clear the saved layout",
+    title:t("Reset sliders to default values and clear the saved layout"),
     onclick: async ()=>{
       ctx.state.maps._stackFloorGap = 200;
       ctx.state.maps._stackHorizGap = 0;
       ctx.state.maps._stackIsoFocus = null;
       gapSlider.value   = "200"; gapLbl.textContent   = "200";
       horizSlider.value = "0";   horizLbl.textContent = "0";
-      focusSlider.value = "0";   focusLbl.textContent = "All floors";
+      focusSlider.value = "0";   focusLbl.textContent = t("All floors");
       rebuildIso();
       isoResetBtn.disabled = true;
       try{
         await ctx.actions.settingsSet({ maps_iso_floor_gap:200, maps_iso_horiz_gap:0, maps_iso_focus:null });
-        isoSaveLbl.textContent = "Reset ✓";
+        isoSaveLbl.textContent = t("Reset ✓");
         setTimeout(()=>{ isoSaveLbl.textContent = ""; }, 2000);
-      }catch(e){ isoSaveLbl.textContent = "Error"; }
+      }catch(e){ isoSaveLbl.textContent = t("Error"); }
       isoResetBtn.disabled = false;
     }
-  }, "Reset");
+  }, t("Reset"));
   // ── Stale Receivers (read-only) ──
   // A receiver is "stale" if its source MAC / label doesn't match any currently
   // active BLE scanner in HA. This can happen when scanners are removed,
@@ -7935,24 +7939,24 @@ function _stack(ctx, maps, helpBtn){
   const staleBox = staleCount > 0 ? _staleReceiversBox(el, staleList) : null;
   if(staleBox && !ctx.state.maps._staleListOpen) staleBox.style.display = "none";
   const cleanBtn = el("button",{class:"btn inline",style:"padding:2px 10px;font-size:12px" + (staleCount > 0 ? ";color:#ffd54f;border-color:#92400e" : ";opacity:0.5"),
-    title: staleCount > 0 ? `${staleCount} receiver(s) Home Assistant doesn't hear right now — click to see which` : "Home Assistant hears every receiver on your maps",
+    title: staleCount > 0 ? tn(staleCount, "1 receiver Home Assistant doesn't hear right now — click to see which", "{n} receivers Home Assistant doesn't hear right now — click to see which") : t("Home Assistant hears every receiver on your maps"),
     onclick: ()=>{
-      if(!staleCount){ cleanLbl.textContent = "All clean"; setTimeout(()=>{ cleanLbl.textContent = ""; }, 2000); return; }
+      if(!staleCount){ cleanLbl.textContent = t("All clean"); setTimeout(()=>{ cleanLbl.textContent = ""; }, 2000); return; }
       ctx.state.maps._staleListOpen = !ctx.state.maps._staleListOpen;
       staleBox.style.display = ctx.state.maps._staleListOpen ? "" : "none";
       // Opt-in report: the honest list (0.38.170) opened. Never which receivers.
       if (ctx.state.maps._staleListOpen && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("stale_receivers_listed");
     }
-  }, staleCount > 0 ? `${staleCount} stale` : "No stale");
+  }, staleCount > 0 ? t("{n} stale", { n: staleCount }) : t("No stale"));
 
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap"},[
-    el("span",{class:"muted",style:"font-size:12px"},"Floor:"),
+    el("span",{class:"muted",style:"font-size:12px"},t("Floor:")),
     focusSlider,
     focusLbl,
-    el("span",{class:"muted",style:"font-size:12px;margin-left:12px"},"Spacing:"),
+    el("span",{class:"muted",style:"font-size:12px;margin-left:12px"},t("Spacing:")),
     gapSlider,
     gapLbl,
-    el("span",{class:"muted",style:"font-size:12px;margin-left:12px"},"L/R:"),
+    el("span",{class:"muted",style:"font-size:12px;margin-left:12px"},t("L/R:")),
     horizSlider,
     horizLbl,
     isoSaveBtn,
@@ -7985,9 +7989,9 @@ function _stack(ctx, maps, helpBtn){
     tbl.style.cssText = "width:100%;border-collapse:collapse;font-size:13px";
     tbl.innerHTML = `<thead><tr style="border-bottom:1px solid #1b3526">
       <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left;width:24px"></th>
-      <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left">Room</th>
-      <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left">Floor</th>
-      <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left">Map</th>
+      <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left">${esc(t("Room"))}</th>
+      <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left">${esc(t("Floor"))}</th>
+      <th style="padding:5px 8px;color:#94a3b8;font-weight:500;text-align:left">${esc(t("Map"))}</th>
     </tr></thead>`;
     const tbody2 = document.createElement("tbody");
     const roomColorFn = ctx.helpers.roomColor;
@@ -8004,7 +8008,7 @@ function _stack(ctx, maps, helpBtn){
     tbl.appendChild(tbody2);
     roomListPanel.appendChild(tbl);
   } else {
-    roomListPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px"},"No rooms drawn yet. Go to Mapping → Edit to draw room boundaries."));
+    roomListPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px"},t("No rooms drawn yet. Go to Mapping → Edit to draw room boundaries.")));
   }
   card.appendChild(roomListPanel);
 
@@ -8065,7 +8069,7 @@ function _stackMapSVGStr(map, ctx, isTarget, showBg=true){
     }
   } else {
     label(0.5, 0.48, map.name||map.id, "#94a3b8");
-    label(0.5, 0.53, "no room bounds yet", "#4a6052");
+    label(0.5, 0.53, t("no room bounds yet"), "#4a6052");
   }
 
   // Bottom right; the target's above the reference's, which sits in the same corner.
@@ -8199,14 +8203,14 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
 
   let s = `<svg viewBox="0 0 ${W} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-height:${HTOTAL}px;display:block;font-family:system-ui,sans-serif">`;
   s += `<rect width="${W}" height="${HTOTAL}" fill="#071008"/>`;
-  s += `<text x="12" y="20" fill="#52b788" font-size="11" font-weight="600">3D Floor Stack Preview</text>`;
+  s += `<text x="12" y="20" fill="#52b788" font-size="11" font-weight="600">${_escSVG(t("3D Floor Stack Preview"))}</text>`;
 
   if(!maps.length){
-    s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="14">No floor plans uploaded yet.</text>`;
+    s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="14">${_escSVG(t("No floor plans uploaded yet."))}</text>`;
     s += `</svg>`; return s;
   }
   if(!visMaps.length){
-    s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">All layers hidden.</text>`;
+    s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">${_escSVG(t("All layers hidden."))}</text>`;
     s += `</svg>`; return s;
   }
 
@@ -8343,7 +8347,7 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
 
   // Outside overlay label
   if(visMaps.some(m => _isOutsideMap(m))){
-    s += `<text x="${W-10}" y="20" text-anchor="end" fill="#6b8e23" font-size="11" font-weight="500">Outside layer fitted to indoor footprint</text>`;
+    s += `<text x="${W-10}" y="20" text-anchor="end" fill="#6b8e23" font-size="11" font-weight="500">${_escSVG(t("Outside layer fitted to indoor footprint"))}</text>`;
   }
 
   s += `</svg>`;
@@ -8356,7 +8360,7 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
 function _stackLevelName(ctx, levelMaps, levelOptions, z){
   const floors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
   const names = levelMaps.map(m => {
-    if(_isOutsideMap(m)) return "Outside";
+    if(_isOutsideMap(m)) return t("Outside");
     const f = floors.find(x=>String(x.id)===String(m.floor_id));
     return f ? (f.name || f.id) : null;
   }).filter(Boolean);
@@ -8365,6 +8369,7 @@ function _stackLevelName(ctx, levelMaps, levelOptions, z){
   return opt ? opt.label : `L${z}`;
 }
 
+// i18n part: -
 // Escape a string for safe inclusion in SVG text content.
 function _escSVG(s){
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -11802,7 +11807,7 @@ function _overlapNote(ctx, roomsM, hint) {
   const fill = (b, pairs) => {
     if (!pairs.length) return;
     b.setAttribute("style", "margin-top:8px;padding:6px 10px;border-radius:6px;background:#2a1a0a;border:1px solid #d97706;font-size:12px;color:#fbbf24;line-height:1.5");
-    for (const [a, c] of pairs) b.appendChild(el("div", {}, `${a} and ${c} overlap, so the walls between them can't be drawn.`));
+    for (const [a, c] of pairs) b.appendChild(el("div", {}, t("{a} and {b} overlap, so the walls between them can't be drawn.", { a, b: c })));
     b.appendChild(el("div", { style: "color:#94a3b8" }, hint));
   };
   let ask = ms._overlapAsk;
@@ -11816,6 +11821,7 @@ function _overlapNote(ctx, roomsM, hint) {
   return box;
 }
 
+// i18n part: stack
 // ─── Rooms tab — the fabric room-shape editor ─────────────────────────────
 // Edits the FabricStore's per-floor room geometry DIRECTLY, in metres. The
 // uploaded photo is never involved: a floor is built from its maps exactly
@@ -11854,9 +11860,9 @@ export function _roomCornerDropIn(g, i) {
 // with unsaved changes (the merge is saved at once, from the stored shapes).
 export function _roomsMergeable(sel, draft, changed) {
   const rooms = [...sel];
-  if (rooms.length < 2) return { ok: false, why: "Select two or more rooms (Shift-click) to merge them." };
-  if (rooms.some(r => !draft[r] || draft[r].type === "circle")) return { ok: false, why: "Only outlined rooms merge; a circle can't." };
-  if (rooms.some(r => changed(r))) return { ok: false, why: "Save or discard your changes to these rooms first." };
+  if (rooms.length < 2) return { ok: false, why: t("Select two or more rooms (Shift-click) to merge them.") };
+  if (rooms.some(r => !draft[r] || draft[r].type === "circle")) return { ok: false, why: t("Only outlined rooms merge; a circle can't.") };
+  if (rooms.some(r => changed(r))) return { ok: false, why: t("Save or discard your changes to these rooms first.") };
   return { ok: true, why: "" };
 }
 // A merge saved: into the open draft only, as Delete does, so the other unsaved
@@ -11875,12 +11881,12 @@ export function _roomsAfterMerge(draft, orig, keep, others, res) {
 // (lights_map.js la3dCarryOpenings, the one way Mapping reaches them). Read from the file at Save, written in the same
 // Save by house3d_edit (Edit's own save and checks), never removed: one that can't follow, or a write refused, stays
 // where it is and is counted. {text: the words for Save's message ("" when none moved or stayed), bad: a read or write failed}.
-const _OPENING_WORDS = { door: ["door", "doors"], window: ["window", "windows"], doorway: ["doorway", "doorways"] };
+const _OPENING_WORDS = { door: (n) => tn(n, "1 door", "{n} doors"), window: (n) => tn(n, "1 window", "{n} windows"), doorway: (n) => tn(n, "1 doorway", "{n} doorways") };
 function _openingWords(list) {
   const n = {};
   for (const o of list) n[o.kind] = (n[o.kind] || 0) + 1;
-  const parts = Object.keys(_OPENING_WORDS).filter(k => n[k]).map(k => `${n[k]} ${_OPENING_WORDS[k][n[k] === 1 ? 0 : 1]}`);
-  return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0] || "";
+  const parts = Object.keys(_OPENING_WORDS).filter(k => n[k]).map(k => _OPENING_WORDS[k](n[k]));
+  return parts.length > 1 ? t("{list} and {last}", { list: parts.slice(0, -1).join(", "), last: parts[parts.length - 1] }) : parts[0] || "";
 }
 export async function _carryOpenings(ctx, floorId, before, after) {
   const said = (err) => String((err && err.message) || err).replace(/\.$/, "");
@@ -11888,13 +11894,13 @@ export async function _carryOpenings(ctx, floorId, before, after) {
   try {
     res = await la3dCarryOpenings(await ctx.actions.wsCall("padspan_ha/house3d_get"), floorId, before, after);
   } catch (err) {
-    return { text: `Live Aboard's doors and windows on these rooms weren't checked (${said(err)}), so they stay where they were.`, bad: true };
+    return { text: t("Live Aboard's doors and windows on these rooms weren't checked ({why}), so they stay where they were.", { why: said(err) }), bad: true };
   }
   let moved = Object.keys(res.moved).map(id => ({ id, kind: res.moved[id].kind }));
   const left = res.left.slice();
   if (moved.length) {
     try {
-      if (!res.writable) throw new Error("Live Aboard's file was saved by a newer PadSpan");
+      if (!res.writable) throw new Error(t("Live Aboard's file was saved by a newer PadSpan"));
       await ctx.actions.wsCall("padspan_ha/house3d_edit", { openings: res.moved });
       // Every screen showing the 3D file reads it again (as Settings' Remove all furniture does).
       try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
@@ -11903,16 +11909,16 @@ export async function _carryOpenings(ctx, floorId, before, after) {
       moved = [];
     }
   }
-  const WHY = { shared: (one) => `a room that didn't move the same way shares ${one ? "its wall" : "their walls"}`,
-                wall: (one) => `${one ? "its wall is" : "their walls are"} gone or too short now` };
-  const out = moved.length ? [`${_openingWords(moved)} in Live Aboard moved with ${moved.length === 1 ? "its room" : "their rooms"}.`] : [];
+  const WHY = { shared: (one) => one ? t("a room that didn't move the same way shares its wall") : t("a room that didn't move the same way shares their walls"),
+                wall: (one) => one ? t("its wall is gone or too short now") : t("their walls are gone or too short now") };
+  const out = moved.length ? [tn(moved.length, "{what} in Live Aboard moved with its room.", "{what} in Live Aboard moved with their rooms.", { what: _openingWords(moved) })] : [];
   // A refused write first; then those to check in Edit, so "Check them" follows them.
   for (const why of [...new Set(left.map(o => o.why))].sort((a, b) => !!WHY[a] - !!WHY[b])) {
     const these = left.filter(o => o.why === why), one = these.length === 1;
-    out.push(`${_openingWords(these)} in Live Aboard ${one ? "was" : "were"} left where ${one ? "it was" : "they were"}: ${WHY[why] ? WHY[why](one) : why}.`);
+    out.push(tn(these.length, "{what} in Live Aboard was left where it was: {why}.", "{what} in Live Aboard were left where they were: {why}.", { what: _openingWords(these), why: WHY[why] ? WHY[why](one) : why }));
   }
   const fix = left.filter(o => WHY[o.why]).length;
-  if (fix) out.push(`Check ${fix === 1 ? "it" : "them"} in Live Aboard's Edit.`);
+  if (fix) out.push(tn(fix, "Check it in Live Aboard's Edit.", "Check them in Live Aboard's Edit."));
   return { text: out.join(" "), bad: left.some(o => !WHY[o.why]) };
 }
 
@@ -11984,18 +11990,18 @@ function _barriersOnRooms(barDraft, moved, others) {
 // distinct colour, not a null state.
 function _occupancyBadge(r) {
   const count = (r.people || []).length + (r.phones || 0);
-  const sensors = [r.occupancy ? "occupancy sensor" : null, r.motion ? "motion" : null].filter(Boolean).join(" + ") || "none";
-  const who = (r.people || []).join(", ") || (r.phones ? `${r.phones} unclaimed phone${r.phones === 1 ? "" : "s"}` : "nobody");
+  const sensors = [r.occupancy ? t("occupancy sensor") : null, r.motion ? t("motion") : null].filter(Boolean).join(" + ") || t("none");
+  const who = (r.people || []).join(", ") || (r.phones ? tn(r.phones, "1 unclaimed phone", "{n} unclaimed phones") : t("nobody"));
   if (r.agreement === "agree") {
     return { icon: "✓", color: "#52b788", count,
-      title: `BLE and sensors agree — ${who}; sensors: ${sensors}` };
+      title: t("BLE and sensors agree — {who}; sensors: {sensors}", { who, sensors }) };
   }
   if (r.agreement === "sensor_only") {
     return { icon: "📡", color: "#60a5fa", count: 0,
-      title: `Sensor says occupied (${sensors}) but BLE placed nobody here` };
+      title: t("Sensor says occupied ({sensors}) but BLE placed nobody here", { sensors }) };
   }
   return { icon: "📶", color: "#f59e0b", count,
-    title: `BLE places ${who} here, but no occupancy/motion sensor confirms it` };
+    title: t("BLE places {who} here, but no occupancy/motion sensor confirms it", { who }) };
 }
 
 // Vertex-wise blend of the layouts the user trusts. Rooms present in several
@@ -12090,17 +12096,15 @@ function _roomsTab(ctx, maps) {
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-      el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
+      el("div", { style: "font-weight:700;font-size:15px" }, t("Room and receiver layout, in metres")),
       ctx.helpers.helpBtn ? ctx.helpers.helpBtn("maps_layout") : null,
     ]),
-    (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"rooms", title:"Every room's settings on one page", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
+    (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"rooms", title:t("Every room's settings on one page"), onclick:()=>ctx.actions.openRooms()}, t("All rooms")) : null,
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +
-    "plan involved. Green pins are your receivers: drag one to say where it actually is. " +
-    "Compare the saved layout against the other forms of truth (your hand-tuned stack alignment, " +
-    "or each photo's own calibration), refine, and only then commit the best layout. " +
-    "Click a room to select it (Shift-click for a group), drag to move, drag a corner to reshape."));
+    t("The real-world model the positioning engine uses — edited directly, in metres, with no floor plan involved. Green pins are your receivers: drag one to say where it actually is.") + " " +
+    t("Compare the saved layout against the other forms of truth (your hand-tuned stack alignment, or each photo's own calibration), refine, and only then commit the best layout.") + " " +
+    t("Click a room to select it (Shift-click for a group), drag to move, drag a corner to reshape.")));
 
   // ── Floor selector: every HA floor + any floor that has geometry or maps ─
   const haFloors = ctx.state.model?.floors || [];
@@ -12111,13 +12115,13 @@ function _roomsTab(ctx, maps) {
   for (const f of haFloors) addF(String(f.id), f.name || f.id);
   for (const g of Object.values(allGeo)) addF(String(g.floor_id || "main"));
   for (const m of maps) addF(String(m.floor_id || "main"));
-  if (!floorIds.length) addF("main", "Main");
+  if (!floorIds.length) addF("main", t("Main"));
   if (!mapState._roomsFloorId || !seenF.has(mapState._roomsFloorId)) mapState._roomsFloorId = floorIds[0][0];
   const floorId = mapState._roomsFloorId;
   const floorLabel = floorIds.find(([id]) => id === floorId)[1];
 
   const bar = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px" });
-  bar.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Floor:"));
+  bar.appendChild(el("span", { class: "muted", style: "font-size:12px" }, t("Floor:")));
   for (const [fid, label] of floorIds) {
     bar.appendChild(el("button", {
       class: "btn inline" + (fid === floorId ? " primary" : ""),
@@ -12133,7 +12137,7 @@ function _roomsTab(ctx, maps) {
   {
     const addRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px" });
     const nameIn = el("input", {
-      type: "text", placeholder: "New room name",
+      type: "text", placeholder: t("New room name"),
       style: "width:150px;box-sizing:content-box;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 8px;font-size:12px",
     });
     addRow.appendChild(nameIn);
@@ -12141,8 +12145,8 @@ function _roomsTab(ctx, maps) {
       class: "btn inline",
       onclick: async (e) => {
         const name = (nameIn.value || "").trim();
-        if (!name) { ctx.toast("Enter a room name"); return; }
-        if (allGeo[name]) { ctx.toast(`"${name}" already exists`, true); return; }
+        if (!name) { ctx.toast(t("Enter a room name")); return; }
+        if (allGeo[name]) { ctx.toast(t("\"{name}\" already exists", { name }), true); return; }
         const btn = e.currentTarget;
         btn.disabled = true;
         try {
@@ -12162,7 +12166,7 @@ function _roomsTab(ctx, maps) {
               [cx + 1.5, cy + 1.5], [cx - 1.5, cy + 1.5]] },
           });
           nameIn.value = "";
-          ctx.toast(`✔ "${name}" added — drag it into place`);
+          ctx.toast(t("✔ \"{name}\" added — drag it into place", { name }));
           mapState._roomsTruthCache = null;
           await ctx.actions.modelRefresh();
           // Into the open draft, not a fresh copy of the model: re-copying
@@ -12176,13 +12180,13 @@ function _roomsTab(ctx, maps) {
           }
           ctx.actions.renderRooms();
         } catch (err) {
-          ctx.toast("Add failed: " + ctx.helpers.errorText(err), true);
+          ctx.toast(t("Add failed: {why}", { why: ctx.helpers.errorText(err) }), true);
           btn.disabled = false;
         }
       },
-    }, "+ Add room"));
+    }, t("+ Add room")));
     addRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-      "Exists in the layout only — no Home Assistant area or floor plan required."));
+      t("Exists in the layout only — no Home Assistant area or floor plan required.")));
     card.appendChild(addRow);
   }
 
@@ -12204,25 +12208,25 @@ function _roomsTab(ctx, maps) {
     fileInput.type = "file"; fileInput.accept = roomplanOn ? ".sh3d,.json,.usdz" : ".sh3d"; fileInput.style.display = "none";
     const importStatus = el("span", { class: "muted", style: "font-size:11px" }, "");
     const importBtn = el("button", { class: "btn inline" },
-      roomplanOn ? "📐 Import floorplan (.sh3d, RoomPlan .usdz or .json)" : "📐 Import floorplan (.sh3d)");
+      roomplanOn ? t("📐 Import floorplan (.sh3d, RoomPlan .usdz or .json)") : t("📐 Import floorplan (.sh3d)"));
     importBtn.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files && fileInput.files[0];
       fileInput.value = "";
       if (!file) return;
-      importStatus.textContent = "Reading…";
+      importStatus.textContent = t("Reading…");
       try {
         const b64 = await new Promise((res, rej) => {
           const fr = new FileReader();
           fr.onload = () => res(String(fr.result).split(",")[1] || "");
           fr.onerror = rej; fr.readAsDataURL(file);
         });
-        importStatus.textContent = "Parsing…";
+        importStatus.textContent = t("Parsing…");
         const parsed = roomplanOn && /\.(json|usdz)$/i.test(file.name || "")
           ? await ctx.actions.wsCall("padspan_ha/floorplan_import_roomplan", { roomplan_base64: b64 })
           : await ctx.actions.wsCall("padspan_ha/floorplan_import_sh3d", { sh3d_base64: b64 });
         if (!parsed.rooms.length) {
-          ctx.toast("No usable rooms found in that file" + (parsed.warnings.length ? ": " + parsed.warnings[0] : ""), true);
+          ctx.toast(t("No usable rooms found in that file") + (parsed.warnings.length ? ": " + parsed.warnings[0] : ""), true);
           importStatus.textContent = "";
           return;
         }
@@ -12230,18 +12234,18 @@ function _roomsTab(ctx, maps) {
         mapState._roomsImportedLevelId = parsed.levels.length ? parsed.levels[0].id : null;
         mapState._roomsTruth = "imported";
         importStatus.textContent = "";
-        ctx.toast(`Imported ${parsed.rooms.length} room(s)` + (parsed.warnings.length ? ` — ${parsed.warnings.length} note(s) below` : ""));
+        ctx.toast(tn(parsed.rooms.length, "Imported 1 room", "Imported {n} rooms") + (parsed.warnings.length ? " — " + tn(parsed.warnings.length, "1 note below", "{n} notes below") : ""));
         ctx.actions.renderRooms();
       } catch (err) {
         importStatus.textContent = "";
-        ctx.toast("Import failed: " + ctx.helpers.errorText(err), true);
+        ctx.toast(t("Import failed: {why}", { why: ctx.helpers.errorText(err) }), true);
       }
     });
     importRow.appendChild(importBtn);
     importRow.appendChild(fileInput);
     importRow.appendChild(importStatus);
     importRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-      "Rooms come in as a candidate for this floor — review and edit below before committing."));
+      t("Rooms come in as a candidate for this floor — review and edit below before committing.")));
     card.appendChild(importRow);
     // The robot-vacuum import only while its setting is on, and only for an
     // admin (every vacuum_* command is admin-only). A robot already linked
@@ -12252,7 +12256,7 @@ function _roomsTab(ctx, maps) {
     const importedRaw = mapState._roomsImportedRaw;
     if (importedRaw && importedRaw.levels.length > 1) {
       const lvlRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px" });
-      lvlRow.appendChild(el("span", { class: "muted", style: "font-size:11px" }, "File level for this floor:"));
+      lvlRow.appendChild(el("span", { class: "muted", style: "font-size:11px" }, t("File level for this floor:")));
       for (const lvl of importedRaw.levels) {
         lvlRow.appendChild(el("button", {
           class: "btn inline" + (mapState._roomsImportedLevelId === lvl.id ? " primary" : ""),
@@ -12264,7 +12268,7 @@ function _roomsTab(ctx, maps) {
     }
     if (importedRaw && importedRaw.warnings.length) {
       card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-bottom:4px" },
-        "Import notes: " + importedRaw.warnings.join(" · ")));
+        t("Import notes: {notes}", { notes: importedRaw.warnings.join(" · ") })));
     }
   }
 
@@ -12278,7 +12282,7 @@ function _roomsTab(ctx, maps) {
   {
     const whatIfBtn = el("button", {
       class: "btn inline" + (mapState._whatIfGhost ? " primary" : ""),
-    }, mapState._whatIfGhost ? "🔮 What-if scanner: ON" : "🔮 What-if scanner");
+    }, mapState._whatIfGhost ? t("🔮 What-if scanner: ON") : t("🔮 What-if scanner"));
     whatIfBtn.addEventListener("click", () => {
       if (mapState._whatIfGhost) {
         mapState._whatIfGhost = null;
@@ -12295,7 +12299,7 @@ function _roomsTab(ctx, maps) {
     card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px" }, [
       whatIfBtn,
       el("span", { class: "muted", style: "font-size:11px" },
-        "Drag a hypothetical scanner to see how much it would help tell adjacent rooms apart — nothing is placed until you Add it for real."),
+        t("Drag a hypothetical scanner to see how much it would help tell adjacent rooms apart — nothing is placed until you Add it for real.")),
     ]));
     card.appendChild(whatIfScore);
   }
@@ -12309,7 +12313,7 @@ function _roomsTab(ctx, maps) {
   {
     const occBtn = el("button", {
       class: "btn inline" + (mapState._roomsShowOccupancy ? " primary" : ""),
-    }, mapState._roomsShowOccupancy ? "👤 Occupancy: ON" : "👤 Show occupancy");
+    }, mapState._roomsShowOccupancy ? t("👤 Occupancy: ON") : t("👤 Show occupancy"));
     occBtn.addEventListener("click", () => {
       mapState._roomsShowOccupancy = !mapState._roomsShowOccupancy;
       if (mapState._roomsShowOccupancy) ctx.state._occupancyEstimate = undefined;
@@ -12318,7 +12322,7 @@ function _roomsTab(ctx, maps) {
     card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px" }, [
       occBtn,
       el("span", { class: "muted", style: "font-size:11px" },
-        "Per-room person/phone count and whether BLE and Home Assistant's own occupancy/motion sensors agree there is someone there."),
+        t("Per-room person/phone count and whether BLE and Home Assistant's own occupancy/motion sensors agree there is someone there.")),
     ]));
     if (mapState._roomsShowOccupancy && ctx.state._occupancyEstimate === undefined && !ctx.state._occupancyEstimateLoading) {
       ctx.state._occupancyEstimateLoading = true;
@@ -12428,7 +12432,7 @@ function _roomsTab(ctx, maps) {
   // above for why it also stays out of the blend sources below.
   const candidates = {
     transforms: truthCache
-      ? { label: "Map placements", rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
+      ? { label: t("Map placements"), rooms: truthCache.transforms.rooms, stats: truthCache.transforms.stats }
       : null,
   };
   {
@@ -12448,7 +12452,7 @@ function _roomsTab(ctx, maps) {
           importedRooms[name] = { type: "poly", points_m: r.points_m };
         });
         candidates.imported = {
-          label: raw.source === "roomplan" ? "Imported (RoomPlan)" : "Imported (SH3D)", rooms: importedRooms,
+          label: raw.source === "roomplan" ? t("Imported (RoomPlan)") : t("Imported (SH3D)"), rooms: importedRooms,
           stats: { rooms: Object.keys(importedRooms).length, clusters: _roomClusterCount(Object.entries(importedRooms)) },
         };
       }
@@ -12463,15 +12467,15 @@ function _roomsTab(ctx, maps) {
   // are tellable apart when stacked: fabric solid, placements dotted.
   const _blendLabeledSets = () => {
     const sets = [];
-    if (blendSources.fabric && Object.keys(fabricDraft).length) sets.push({ key: "fabric", label: "Saved layout", rooms: fabricDraft, dashKind: null });
-    if (blendSources.transforms && candidates.transforms) sets.push({ key: "transforms", label: "Placements", rooms: candidates.transforms.rooms, dashKind: "dot" });
+    if (blendSources.fabric && Object.keys(fabricDraft).length) sets.push({ key: "fabric", label: t("Saved layout"), rooms: fabricDraft, dashKind: null });
+    if (blendSources.transforms && candidates.transforms) sets.push({ key: "transforms", label: t("Placements"), rooms: candidates.transforms.rooms, dashKind: "dot" });
     return sets;
   };
   const blendKey = JSON.stringify(blendSources);
   if (_blendLabeledSets().length) {
     const blended = _blendLayouts(_blendLabeledSets().map(s => s.rooms));
     candidates.blended = {
-      label: "Blended", rooms: blended,
+      label: t("Blended"), rooms: blended,
       stats: { rooms: Object.keys(blended).length, clusters: _roomClusterCount(Object.entries(blended)) },
     };
   }
@@ -12524,14 +12528,14 @@ function _roomsTab(ctx, maps) {
   // on its own).
   if (floorMapsAll.length || candidates.imported) {
     const selRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px" });
-    selRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Layout:"));
+    selRow.appendChild(el("span", { class: "muted", style: "font-size:12px" }, t("Layout:")));
     const statLbl = (stats) => stats
-      ? ` · ${stats.rooms} rooms · ${stats.clusters > 1 ? "⚠" + stats.clusters : "✓" + (stats.clusters || 0)}`
+      ? " · " + tn(stats.rooms, "1 room", "{n} rooms") + ` · ${stats.clusters > 1 ? "⚠" + stats.clusters : "✓" + (stats.clusters || 0)}`
       : "";
     const fabricStats = { rooms: Object.keys(fabricDraft).length, clusters: _roomClusterCount(Object.entries(fabricDraft)) };
-    const options = [["fabric", "Saved layout", fabricStats]];
-    if (candidates.transforms) options.push(["transforms", "Map placements", candidates.transforms.stats]);
-    if (candidates.blended) options.push(["blended", "Blended", candidates.blended.stats]);
+    const options = [["fabric", t("Saved layout"), fabricStats]];
+    if (candidates.transforms) options.push(["transforms", t("Map placements"), candidates.transforms.stats]);
+    if (candidates.blended) options.push(["blended", t("Blended"), candidates.blended.stats]);
     if (candidates.imported) options.push(["imported", candidates.imported.label, candidates.imported.stats]);
     for (const [key, label, stats] of options) {
       selRow.appendChild(el("button", {
@@ -12548,9 +12552,9 @@ function _roomsTab(ctx, maps) {
     if (truth === "blended") {
       // Which layouts feed the average — the user decides what's credible.
       const srcRow = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-left:8px" });
-      srcRow.appendChild(el("span", {}, "averaging:"));
-      const srcs = [["fabric", "Saved layout", Object.keys(fabricDraft).length > 0],
-                    ["transforms", "Placements", !!candidates.transforms]];
+      srcRow.appendChild(el("span", {}, t("averaging:")));
+      const srcs = [["fabric", t("Saved layout"), Object.keys(fabricDraft).length > 0],
+                    ["transforms", t("Placements"), !!candidates.transforms]];
       for (const [key, label, avail] of srcs) {
         const lbl = el("label", { style: `display:flex;gap:4px;align-items:center;cursor:pointer;${avail ? "" : "opacity:0.4"}` });
         const cb = document.createElement("input");
@@ -12570,10 +12574,10 @@ function _roomsTab(ctx, maps) {
     }
     if (truthCache && truthCache.no_world_frame_reason) {
       selRow.appendChild(el("span", { class: "muted", style: "font-size:10px;color:#f87171" },
-        "no world frame — " + truthCache.no_world_frame_reason));
+        t("no world frame — {why}", { why: truthCache.no_world_frame_reason })));
     }
     if (!truthCache && mapState._roomsTruthLoading) {
-      selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" }, "loading candidates…"));
+      selRow.appendChild(el("span", { class: "muted", style: "font-size:10px" }, t("loading candidates…")));
     }
     card.appendChild(selRow);
 
@@ -12586,29 +12590,29 @@ function _roomsTab(ctx, maps) {
     if (_recon.length) {
       const rRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:8px 10px;background:rgba(245,158,11,.06);border:1px solid #f59e0b33;border-radius:8px" });
       rRow.appendChild(el("span", { style: "font-size:11px;color:#f59e0b" },
-        `⚠ ${_recon.length} room${_recon.length !== 1 ? "s" : ""} built from a map whose placement has since changed: ${_recon.map(r => r.room).join(", ")}`));
+        tn(_recon.length, "⚠ 1 room built from a map whose placement has since changed: {rooms}", "⚠ {n} rooms built from a map whose placement has since changed: {rooms}", { rooms: _recon.map(r => r.room).join(", ") })));
       rRow.appendChild(el("button", {
         class: "btn inline",
         style: "font-size:11px",
         onclick: async (e) => {
           const btn = e.currentTarget;
-          btn.disabled = true; btn.textContent = "Updating…";
+          btn.disabled = true; btn.textContent = t("Updating…");
           try {
             const res = await ctx.actions.wsCall("padspan_ha/fabric_rooms_reconcile", { floor_id: floorId });
-            const failed = (res.failed || []).length;
+            const failed = (res.failed || []).length, fixedN = (res.fixed || []).length;
             ctx.toast(failed
-              ? `Updated ${(res.fixed || []).length}, failed ${failed}: ${res.failed.map(f => f.room).join(", ")}`
-              : `✔ ${(res.fixed || []).length} room(s) updated from their map`, !!failed);
+              ? t("Updated {ok}, failed {bad}: {rooms}", { ok: (res.fixed || []).length, bad: failed, rooms: res.failed.map(f => f.room).join(", ") })
+              : tn(fixedN, "✔ 1 room updated from its map", "✔ {n} rooms updated from their map"), !!failed);
           } catch (err) {
-            ctx.toast("Update failed: " + ctx.helpers.errorText(err), true);
+            ctx.toast(t("Update failed: {why}", { why: ctx.helpers.errorText(err) }), true);
           }
           mapState._roomsDraftFloorId = null;
           mapState._roomsTruthCache = null;
           await ctx.actions.modelRefresh();
         },
-      }, "↻ Update from map"));
+      }, t("↻ Update from map")));
       rRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
-        "Rooms you've hand-corrected are never touched by this."));
+        t("Rooms you've hand-corrected are never touched by this.")));
       card.appendChild(rRow);
     }
 
@@ -12621,10 +12625,10 @@ function _roomsTab(ctx, maps) {
       const dRow = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:8px 10px;background:rgba(245,158,11,.06);border:1px solid #f59e0b33;border-radius:8px" });
       for (const d of _dvg) {
         dRow.appendChild(el("span", { style: "font-size:11px;color:#f59e0b" },
-          `⚠ “${d.map_name}”: its trace and the saved rooms differ by one shared factor (×${d.ratio_x} across, ×${d.ratio_y} down) — one of the two predates a map change.`));
+          t("⚠ “{map}”: its trace and the saved rooms differ by one shared factor (×{x} across, ×{y} down) — one of the two predates a map change.", { map: d.map_name, x: d.ratio_x, y: d.ratio_y })));
       }
       dRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
-        "Compare “Saved layout” and “Map placements” over the photo; commit whichever matches the picture. Health → Auto Diagnostics has the full note."));
+        t("Compare “Saved layout” and “Map placements” over the photo; commit whichever matches the picture. Health → Auto Diagnostics has the full note.")));
       card.appendChild(dRow);
     }
   }
@@ -12657,39 +12661,39 @@ function _roomsTab(ctx, maps) {
     }]),
     ...barDraft.map((b, i) => ["__bar" + i, { type: "poly", points_m: b.points_m }]),
   ]);
-  const clusters = _roomClusterCount(geoms);
+  const clusters = _roomClusterCount(geoms), rxCount = Object.keys(scanDraft).length;
   const readout = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:12px" });
   if (previewing) {
     readout.appendChild(el("span", {
       class: "pill", style: "background:#1e2a4a;color:#93b4f8;font-weight:700",
     }, blendStacked
-      ? `◫ Stacked comparison (${_blendLabeledSets().map(s => s.label).join(" + ")}) — solid/dashed/dotted per layout`
-      : `👁 ${candidates[truth].label} — editable; nothing saved until you commit`));
+      ? t("◫ Stacked comparison ({layouts}) — solid/dashed/dotted per layout", { layouts: _blendLabeledSets().map(s => s.label).join(" + ") })
+      : t("👁 {layout} — editable; nothing saved until you commit", { layout: candidates[truth].label })));
   }
   readout.appendChild(el("span", {
     class: "pill",
     style: committed ? "background:#14331f;color:#52b788;font-weight:700" : "background:#332714;color:#f59e0b;font-weight:700",
-  }, committed ? "🔒 Committed" : "Not committed"));
+  }, committed ? t("🔒 Committed") : t("Not committed")));
   readout.appendChild(el("span", { class: "mono", style: "color:#94a3b8" },
-    `${geoms.length} rooms · ${Object.keys(scanDraft).length} receivers · footprint ${(bbox.width).toFixed(1)}m × ${(bbox.height).toFixed(1)}m`));
+    tn(geoms.length, "1 room", "{n} rooms") + " · " + tn(rxCount, "1 receiver", "{n} receivers") + " · " + t("footprint {w}m × {h}m", { w: (bbox.width).toFixed(1), h: (bbox.height).toFixed(1) })));
   const movedCount = movedScanners.length + movedBeacons.length + movedBarriers.length;
   if (movedCount) {
     readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" },
-      `${movedCount} moved`));
+      t("{n} moved", { n: movedCount })));
   }
   if (geoms.length) {
     readout.appendChild(el("span", {
       class: "mono",
       style: clusters > 1 ? "color:#f87171;font-weight:700" : "color:#52b788",
-    }, clusters > 1 ? `⚠ ${clusters} disconnected clusters` : "✓ 1 connected cluster"));
+    }, clusters > 1 ? t("⚠ {n} disconnected clusters", { n: clusters }) : t("✓ 1 connected cluster")));
   }
-  if (sel.size) readout.appendChild(el("span", { class: "mono", style: "color:#e879f9" }, `${sel.size} selected`));
-  if (changedRooms.length) readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" }, `${changedRooms.length} unsaved`));
+  if (sel.size) readout.appendChild(el("span", { class: "mono", style: "color:#e879f9" }, t("{n} selected", { n: sel.size })));
+  if (changedRooms.length) readout.appendChild(el("span", { class: "mono", style: "color:#fbbf24" }, t("{n} unsaved", { n: changedRooms.length })));
   card.appendChild(readout);
   // Rooms of this floor drawn over each other, as they stand in the draft on screen (the report's own check).
   if (!blendStacked) {
     card.appendChild(_overlapNote(ctx, Object.fromEntries(geoms.filter(([, g]) => g && g.type === "poly" && Array.isArray(g.points_m) && g.points_m.length >= 3)
-      .map(([rn, g]) => [rn, g.points_m])), "Drag a corner so the two only meet at the wall."));
+      .map(([rn, g]) => [rn, g.points_m])), t("Drag a corner so the two only meet at the wall.")));
   }
 
   // ── Canvas ──────────────────────────────────────────────────────────────
@@ -12721,7 +12725,7 @@ function _roomsTab(ctx, maps) {
       class: "btn inline",
       style: "position:absolute;right:8px;top:8px;z-index:5;font-size:11px;padding:3px 8px;opacity:0.85",
       onclick: () => panZoom.reset(),
-    }, "Reset View");
+    }, t("Reset View"));
     stage.appendChild(resetBtn);
     const panZoom = attachPanZoom(stage, inner, { slot: "maps-rooms" });
 
@@ -13000,11 +13004,11 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
         whatIfScore.appendChild(el("div", {
           style: "font-size:12px;padding:8px;background:#0a150e;border:1px solid #2d5a3d;border-radius:8px",
         }, [
-          el("span", { style: "color:#94a3b8" }, "Room-discrimination score: "),
+          el("span", { style: "color:#94a3b8" }, t("Room-discrimination score: ")),
           el("span", {}, `${res.baseline} dB → ${res.withGhost} dB `),
           el("span", { style: `color:${color};font-weight:700` }, `(${sign}${res.delta} dB)`),
           !res.pairs.length ? el("div", { class: "muted", style: "font-size:11px;margin-top:2px" },
-            "No adjacent-room pairs on this floor to score.") : null,
+            t("No adjacent-room pairs on this floor to score.")) : null,
         ].filter(Boolean)));
       };
       paintScore();
@@ -13012,7 +13016,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       const gx = ((ghost.x_m - bbox.minX) / bbox.width * 100).toFixed(3);
       const gy = ((ghost.y_m - bbox.minY) / bbox.height * 100).toFixed(3);
       const ghostPin = el("div", {
-        title: `What-if scanner\n${ghost.x_m.toFixed(2)}, ${ghost.y_m.toFixed(2)} m — drag to test a position`,
+        title: t("What-if scanner") + "\n" + t("{x}, {y} m — drag to test a position", { x: ghost.x_m.toFixed(2), y: ghost.y_m.toFixed(2) }),
         style: `position:absolute;left:${gx}%;top:${gy}%;transform:translate(-50%,-50%);` +
           `width:18px;height:18px;border-radius:50%;background:transparent;` +
           `border:2px dashed #c084fc;box-shadow:0 0 8px #c084fc99;` +
@@ -13049,7 +13053,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       for (let vi = 0; vi < bar.points_m.length; vi++) {
         const startPt = [bar.points_m[vi][0], bar.points_m[vi][1]];
         const h = el("div", {
-          title: `${bar.name || "Barrier"} — drag to reshape`,
+          title: t("{wall} — drag to reshape", { wall: bar.name || t("Barrier") }),
           style: `position:absolute;left:${((startPt[0] - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
             `top:${((startPt[1] - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
             `transform:translate(-50%,-50%);width:12px;height:12px;border-radius:2px;` +
@@ -13070,7 +13074,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       // Delete handle at the wall's first vertex.
       const p0 = bar.points_m[0];
       const del = el("div", {
-        title: `Delete "${bar.name || "barrier"}"`,
+        title: t("Delete \"{wall}\"", { wall: bar.name || t("barrier") }),
         style: `position:absolute;left:${((p0[0] - bbox.minX) / bbox.width * 100).toFixed(3)}%;` +
           `top:${((p0[1] - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
           `transform:translate(-50%,-18px);color:#f87171;font-size:11px;font-weight:700;` +
@@ -13078,12 +13082,12 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
           `text-shadow:0 1px 2px rgba(0,0,0,.9)`,
         onclick: async (ev) => {
           ev.stopPropagation();
-          if (!confirm(`Delete wall "${bar.name || "barrier"}"?`)) return;
+          if (!confirm(t("Delete wall \"{wall}\"?", { wall: bar.name || t("barrier") }))) return;
           try {
             await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_remove", { barrier_id: bar.id });
             mapState._roomsBarrierDraft = null;
             await ctx.actions.modelRefresh();
-          } catch (err) { ctx.toast("Delete failed: " + ctx.helpers.errorText(err), true); }
+          } catch (err) { ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(err) }), true); }
         },
       }, "✕");
       pinLayer.appendChild(del);
@@ -13157,18 +13161,18 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         handleEls.push({ room, idx, elDiv: h });
       };
       if (g && g.type === "poly") {
-        g.points_m.forEach((p, i) => mkHandle(i, p[0], p[1], `${room} corner ${i + 1}${g.points_m.length > 3 ? " (double-click to remove it)" : ""}`));
+        g.points_m.forEach((p, i) => mkHandle(i, p[0], p[1], t("{room} corner {n}", { room, n: i + 1 }) + (g.points_m.length > 3 ? " " + t("(double-click to remove it)") : "")));
         // Double-click a corner: it goes (a room keeps three). A "+" halfway along each side: a corner added there, to drag.
         handleEls.filter(h => h.room === room && typeof h.idx === "number").forEach(({ idx, elDiv }) => elDiv.addEventListener("dblclick", (ev) => {
           ev.stopPropagation();
-          if (g.points_m.length <= 3) { ctx.toast("A room keeps three corners at least"); return; }
+          if (g.points_m.length <= 3) { ctx.toast(t("A room keeps three corners at least")); return; }
           _roomCornerDropIn(g, idx);
           ctx.actions.renderRooms();
         }));
         g.points_m.forEach((a, i) => {
           const b = g.points_m[(i + 1) % g.points_m.length], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
           const add = document.createElement("div");
-          add.title = `${room}: add a corner here`;
+          add.title = t("{room}: add a corner here", { room });
           add.textContent = "+";
           add.setAttribute("data-room-corner-add", String(i));
           add.style.cssText = `position:absolute;left:${((mx - bbox.minX) / bbox.width * 100).toFixed(3)}%;top:${((my - bbox.minY) / bbox.height * 100).toFixed(3)}%;` +
@@ -13183,7 +13187,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           pinLayer.appendChild(add);
         });
       }
-      else if (g && g.type === "circle") { mkHandle("c", g.cx_m, g.cy_m, `${room} centre`); mkHandle("r", g.cx_m + g.r_m, g.cy_m, `${room} radius`); }
+      else if (g && g.type === "circle") { mkHandle("c", g.cx_m, g.cy_m, t("{room} centre", { room })); mkHandle("r", g.cx_m + g.r_m, g.cy_m, t("{room} radius", { room })); }
     }
 
     card.appendChild(stage);
@@ -13192,19 +13196,19 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
     // floor placed a degree or two turned is straightened to itself, not bent level); a corner rooms share moves for all.
     if (!blendStacked) {
       card.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#94a3b8" }, [
-        el("button", { class: "btn inline", "data-room-straighten": "layout", title: "Make every edge that is less than 5 cm out of square with this floor's walls straight", onclick: () => {
+        el("button", { class: "btn inline", "data-room-straighten": "layout", title: t("Make every edge that is less than 5 cm out of square with this floor's walls straight"), onclick: () => {
           const polys = Object.fromEntries(Object.entries(draft).filter(([, o]) => o && o.type === "poly" && Array.isArray(o.points_m) && o.points_m.length >= 3)
             .map(([rn, o]) => [rn, o.points_m]));
           const res = SNAP.straightenRooms(polys, { angle: SNAP.floorDirection(Object.values(polys)) });
-          if (!res.fixed) { ctx.toast("Nothing to straighten: no edge is less than 5 cm off."); return; }
+          if (!res.fixed) { ctx.toast(t("Nothing to straighten: no edge is less than 5 cm off.")); return; }
           for (const [rn, pts] of Object.entries(res.rooms)) {
             const was = polys[rn], same = (p, i) => p[0] === was[i][0] && p[1] === was[i][1];
             if (!pts.every(same)) draft[rn].points_m = pts.map((p, i) => same(p, i) ? was[i] : [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]);
           }
-          ctx.toast(`Straightened ${res.fixed} edge${res.fixed === 1 ? "" : "s"}. ` + (previewing ? "Commit this layout keeps it." : "Save corrections keeps it; Discard changes takes it back."));
+          ctx.toast(tn(res.fixed, "Straightened 1 edge.", "Straightened {n} edges.") + " " + (previewing ? t("Commit this layout keeps it.") : t("Save corrections keeps it; Discard changes takes it back.")));
           ctx.actions.renderRooms();
-        } }, "Straighten edges"),
-        el("span", {}, "A corner you drag near another room's corner or edge lands on it. Hold Alt to place it freely."),
+        } }, t("Straighten edges")),
+        el("span", {}, t("A corner you drag near another room's corner or edge lands on it. Hold Alt to place it freely.")),
       ]));
     }
 
@@ -13213,7 +13217,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
     // scale to fix — per-vertex dragging can't realistically resize 5 rooms.
     if (sel.size) {
       const tools = el("div", { style: "display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#0a150e;border-radius:6px;margin-top:8px;font-size:12px" });
-      tools.appendChild(el("span", { style: "color:#94a3b8" }, `Group of ${sel.size}:`));
+      tools.appendChild(el("span", { style: "color:#94a3b8" }, t("Group of {n}:", { n: sel.size })));
       const selCentroid = () => {
         let sx = 0, sy = 0, n = 0;
         for (const rn of sel) { const [cx, cy] = _geomCentroid(draft[rn]); sx += cx; sy += cy; n++; }
@@ -13230,47 +13234,48 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       };
       const scaleIn = el("input", { type: "number", value: "1.0", step: "0.05", min: "0.05", max: "20",
         style: "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
-      tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Scale ×", scaleIn]));
+      tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, [t("Scale ×"), scaleIn]));
       tools.appendChild(el("button", { class: "btn inline", onclick: () => {
         const k = parseFloat(scaleIn.value);
-        if (!isFinite(k) || k <= 0) { ctx.toast("Enter a valid scale factor"); return; }
+        if (!isFinite(k) || k <= 0) { ctx.toast(t("Enter a valid scale factor")); return; }
         applyXform((x, y) => [x * k, y * k], (r) => r * k);
-      } }, "Apply"));
+      } }, t("Apply")));
       const rotIn = el("input", { type: "number", value: "0", step: "1", min: "-359", max: "359",
         style: "width:64px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
-      tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Rotate °", rotIn]));
+      tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, [t("Rotate °"), rotIn]));
       tools.appendChild(el("button", { class: "btn inline", onclick: () => {
         const deg = parseFloat(rotIn.value);
-        if (!isFinite(deg)) { ctx.toast("Enter a valid angle"); return; }
+        if (!isFinite(deg)) { ctx.toast(t("Enter a valid angle")); return; }
         const th = deg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
         applyXform((x, y) => [x * c - y * s, x * s + y * c]);
-      } }, "Apply"));
-      tools.appendChild(el("button", { class: "btn inline", onclick: () => { mapState._roomsSel = []; ctx.actions.renderRooms(); } }, "Deselect"));
+      } }, t("Apply")));
+      tools.appendChild(el("button", { class: "btn inline", onclick: () => { mapState._roomsSel = []; ctx.actions.renderRooms(); } }, t("Deselect")));
       // Merge into one (2026-11-10): one clean outline round the selected rooms, worked out on the server by the
       // same function Rooms from plans merges with (padspan_ha/fabric_rooms_merge); the room picked keeps its
       // name, the others are deleted as Delete deletes them. Asked first, a safety backup taken; saved at once.
       if (sel.size >= 2 && !previewing) {
         const m = _roomsMergeable(sel, draft, _changed);
-        const keepSel = el("select", { "data-rooms-merge-keep": "", title: "The room that keeps its name",
+        const keepSel = el("select", { "data-rooms-merge-keep": "", title: t("The room that keeps its name"),
           style: "background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" },
           [...sel].map(r => el("option", { value: r }, r)));
-        tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Merge into", keepSel]));
-        const mb = el("button", { class: "btn inline", "data-rooms-merge": "", title: m.ok ? "One outline round them all; the others are deleted" : m.why, onclick: async (e) => {
+        tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, [t("Merge into"), keepSel]));
+        const mb = el("button", { class: "btn inline", "data-rooms-merge": "", title: m.ok ? t("One outline round them all; the others are deleted") : m.why, onclick: async (e) => {
           if (!m.ok) { ctx.toast(m.why, true); return; }
           const keep = keepSel.value, others = [...sel].filter(r => r !== keep);
-          if (!confirm(`Merge ${others.map(r => `"${r}"`).join(", ")} into "${keep}"? "${keep}" gets one outline round them all; ${others.length === 1 ? "the other room is" : "the others are"} deleted with ${others.length === 1 ? "its" : "their"} adjacency and receiver assignments. A safety backup is taken first.`)) return;
+          if (!confirm(tn(others.length, "Merge {rooms} into \"{keep}\"? \"{keep}\" gets one outline round them all; the other room is deleted with its adjacency and receiver assignments. A safety backup is taken first.",
+            "Merge {rooms} into \"{keep}\"? \"{keep}\" gets one outline round them all; the others are deleted with their adjacency and receiver assignments. A safety backup is taken first.", { rooms: others.map(r => `"${r}"`).join(", "), keep }))) return;
           const btn = e.currentTarget; btn.disabled = true;
           try {
             const res = await ctx.actions.wsCall("padspan_ha/fabric_rooms_merge", { floor_id: floorId, keep, rooms: others }) || {};
             if (res.ok === false && res.message) ctx.toast(res.message, true);
-            else ctx.toast(`✔ Merged into "${keep}"`);
+            else ctx.toast(t("✔ Merged into \"{room}\"", { room: keep }));
             mapState._roomsSel = [keep];
             _roomsAfterMerge(mapState._roomsDraft, mapState._roomsOrig, keep, others, res);
             mapState._roomsTruthCache = null;
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
-          } catch (err) { ctx.toast("Merge failed: " + ctx.helpers.errorText(err), true); btn.disabled = false; }
-        } }, "Merge into one");
+          } catch (err) { ctx.toast(t("Merge failed: {why}", { why: ctx.helpers.errorText(err) }), true); btn.disabled = false; }
+        } }, t("Merge into one"));
         if (!m.ok) mb.style.opacity = ".5";
         tools.appendChild(mb);
       }
@@ -13284,53 +13289,53 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         const flH = Number(flRec?.floor_to_floor_m) || 2.8;
         const curH = ctx.state.model?.room_meta?.[only]?.height_m;
         const hIn = el("input", { type: "number", min: "1.5", max: "30", step: "0.1", value: curH != null ? String(curH) : "",
-          placeholder: `floor's, ${flH}`, title: "For a room taller than its floor (a double-height living room, a hall under a mezzanine): floor to roof for this room only. A height at or below the floor's is drawn as the floor's. Blank = the floor's height (Floor Heights).",
+          placeholder: t("floor's, {m}", { m: flH }), title: t("For a room taller than its floor (a double-height living room, a hall under a mezzanine): floor to roof for this room only. A height at or below the floor's is drawn as the floor's. Blank = the floor's height (Floor Heights)."),
           style: "width:84px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
-        tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Rises to (m)", hIn]));
+        tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, [t("Rises to (m)"), hIn]));
         tools.appendChild(el("button", { class: "btn inline", onclick: async () => {
           const raw = String(hIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
-          if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 30)) { ctx.toast("Enter a height in metres (1.5 to 30), or leave it blank for the floor's", true); return; }
+          if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 30)) { ctx.toast(t("Enter a height in metres (1.5 to 30), or leave it blank for the floor's"), true); return; }
           try {
             await ctx.actions.wsCall("padspan_ha/room_height_set", { room: only, height_m: v });
-            ctx.toast(v === null ? `"${only}" is as high as its floor`
-              : v <= flH ? `"${only}" is set to ${v} m, no taller than its floor (${flH} m), so it is drawn at the floor's height. Rises to is for a room taller than its floor.`
-              : `"${only}" rises to ${v} m`);
+            ctx.toast(v === null ? t("\"{room}\" is as high as its floor", { room: only })
+              : v <= flH ? t("\"{room}\" is set to {m} m, no taller than its floor ({floor} m), so it is drawn at the floor's height. Rises to is for a room taller than its floor.", { room: only, m: v, floor: flH })
+              : t("\"{room}\" rises to {m} m", { room: only, m: v }));
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
-          } catch (err) { ctx.toast("Height not saved: " + ctx.helpers.errorText(err), true); }
-        } }, "Set height"));
+          } catch (err) { ctx.toast(t("Height not saved: {why}", { why: ctx.helpers.errorText(err) }), true); }
+        } }, t("Set height")));
         // A split level (Live Aboard, 0.38.190): this room's floor higher than
         // its floor's, for a house whose upstairs is not one level (or lower:
         // a step-down living room). Most houses
         // never need it, so it stays behind a quiet link until it is used.
         const curR = ctx.state.model?.room_meta?.[only]?.floor_raise_m;
         const rIn = el("input", { type: "number", min: "-1.5", max: "3", step: "0.05", value: curR != null ? String(curR) : "", placeholder: "0",
-          title: "For a split level: how far this room's floor sits above the rest of its floor (an office up a longer flight than the bedrooms beside it), or below it with a minus (a step-down living room). Live Aboard draws the room that much higher or lower, and stairs reaching it climb that much further. Blank or 0: level with its floor.",
+          title: t("For a split level: how far this room's floor sits above the rest of its floor (an office up a longer flight than the bedrooms beside it), or below it with a minus (a step-down living room). Live Aboard draws the room that much higher or lower, and stairs reaching it climb that much further. Blank or 0: level with its floor."),
           style: "width:72px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
         const rSet = el("button", { class: "btn inline", onclick: async () => {
           const raw = String(rIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
-          if (v !== null && !(isFinite(v) && v >= -1.5 && v <= 3)) { ctx.toast("Enter how far up in metres (up to 3, or down to -1.5), or leave it blank", true); return; }
+          if (v !== null && !(isFinite(v) && v >= -1.5 && v <= 3)) { ctx.toast(t("Enter how far up in metres (up to 3, or down to -1.5), or leave it blank"), true); return; }
           const off = v !== null && Math.abs(v) >= 0.05;
           try {
             await ctx.actions.wsCall("padspan_ha/room_height_set", { room: only, floor_raise_m: off ? v : null });
-            ctx.toast(off ? `"${only}" sits ${Math.abs(v)} m ${v > 0 ? "above" : "below"} the rest of its floor` : `"${only}" is level with its floor`);
+            ctx.toast(off ? (v > 0 ? t("\"{room}\" sits {m} m above the rest of its floor", { room: only, m: Math.abs(v) }) : t("\"{room}\" sits {m} m below the rest of its floor", { room: only, m: Math.abs(v) })) : t("\"{room}\" is level with its floor", { room: only }));
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
-          } catch (err) { ctx.toast("Not saved: " + ctx.helpers.errorText(err), true); }
-        } }, "Set");
-        const rRow = el("label", { style: `display:${curR ? "flex" : "none"};gap:6px;align-items:center;color:#94a3b8` }, ["Floor up (+) or down (−), m", rIn, rSet]);
-        const rLink = el("button", { class: "btn inline", title: "Only for a split-level house: this room's floor higher or lower than the rest of its floor",
+          } catch (err) { ctx.toast(t("Not saved: {why}", { why: ctx.helpers.errorText(err) }), true); }
+        } }, t("Set"));
+        const rRow = el("label", { style: `display:${curR ? "flex" : "none"};gap:6px;align-items:center;color:#94a3b8` }, [t("Floor up (+) or down (−), m"), rIn, rSet]);
+        const rLink = el("button", { class: "btn inline", title: t("Only for a split-level house: this room's floor higher or lower than the rest of its floor"),
           style: `display:${curR ? "none" : ""};background:none;border:none;color:#64748b;font-size:11px;padding:2px 4px;text-decoration:underline`,
-          onclick: () => { rRow.style.display = "flex"; rLink.style.display = "none"; } }, "Split level…");
+          onclick: () => { rRow.style.display = "flex"; rLink.style.display = "none"; } }, t("Split level…"));
         tools.appendChild(rLink);
         tools.appendChild(rRow);
         tools.appendChild(el("button", {
           class: "btn inline", style: "color:#f87171;border-color:#f8717140",
           onclick: async () => {
-            if (!confirm(`Delete room "${only}" from the layout? Its shape, adjacency and receiver assignments go with it.`)) return;
+            if (!confirm(t("Delete room \"{room}\" from the layout? Its shape, adjacency and receiver assignments go with it.", { room: only }))) return;
             try {
               await ctx.actions.wsCall("padspan_ha/fabric_room_remove", { room: only });
-              ctx.toast(`Deleted "${only}"`);
+              ctx.toast(t("Deleted \"{room}\"", { room: only }));
               mapState._roomsSel = [];
               // Out of the open draft only; the other unsaved edits stay.
               if (mapState._roomsDraft) delete mapState._roomsDraft[only];
@@ -13338,9 +13343,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               mapState._roomsTruthCache = null;
               await ctx.actions.modelRefresh();
               ctx.actions.renderRooms();
-            } catch (err) { ctx.toast("Delete failed: " + ctx.helpers.errorText(err), true); }
+            } catch (err) { ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(err) }), true); }
           },
-        }, `Delete "${only}"`));
+        }, t("Delete \"{wall}\"", { wall: only })));
       }
       card.appendChild(tools);
     }
@@ -13351,9 +13356,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       const saveBtn = el("button", {
         class: "btn inline primary",
         onclick: async (e) => {
-          if (!changedRooms.length && !movedCount) { ctx.toast("No changes to save"); return; }
+          if (!changedRooms.length && !movedCount) { ctx.toast(t("No changes to save")); return; }
           const btn = e.currentTarget;
-          btn.disabled = true; btn.textContent = "Saving…";
+          btn.disabled = true; btn.textContent = t("Saving…");
           mapState._roomsCarryNote = null;
           let ok = 0, fail = 0;
           const saved = {};
@@ -13403,7 +13408,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_rf_barrier_set failed", b.name, err); }
           }
-          ctx.toast((fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} layout correction${ok !== 1 ? "s" : ""} saved`)
+          ctx.toast((fail ? t("Saved {ok}, failed {bad}", { ok, bad: fail }) : tn(ok, "✔ 1 layout correction saved", "✔ {n} layout corrections saved"))
             + (carried.text ? `. ${carried.text}` : ""), !!fail || carried.bad);
           mapState._roomsCarryNote = carried.text || null;   // stays under Save until the next Save or another floor
           mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
@@ -13413,7 +13418,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           mapState._roomsBarrierDraft = null;
           await ctx.actions.modelRefresh();
         },
-      }, `💾 Save corrections${(changedRooms.length + movedCount) ? ` (${changedRooms.length + movedCount})` : ""}`);
+      }, t("💾 Save corrections") + ((changedRooms.length + movedCount) ? ` (${changedRooms.length + movedCount})` : ""));
       saveRow.appendChild(saveBtn);
       if (changedRooms.length || movedCount) {
         saveRow.appendChild(el("button", { class: "btn inline", onclick: () => {
@@ -13422,7 +13427,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           mapState._roomsBeaconDraft = null;
           mapState._roomsBarrierDraft = null;
           ctx.actions.renderRooms();
-        } }, "Discard changes"));
+        } }, t("Discard changes")));
       }
       card.appendChild(saveRow);
       if (mapState._roomsCarryNote) card.appendChild(el("div", { class: "muted", "data-layout-openings": "", style: "font-size:11px;margin-top:6px" }, mapState._roomsCarryNote));
@@ -13433,9 +13438,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       pRow.appendChild(el("button", {
         class: "btn inline primary",
         onclick: () => { mapState._roomsBlendAveraged = true; mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
-      }, `⌀ Average ${sets.length === 1 ? "this layout" : `these ${sets.length} layouts`}`));
+      }, tn(sets.length, "⌀ Average this layout", "⌀ Average these {n} layouts")));
       pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-        "Each checked layout is stacked on the canvas — same room, one line style per layout. Averaging makes an editable draft; nothing is saved until you commit it."));
+        t("Each checked layout is stacked on the canvas — same room, one line style per layout. Averaging makes an editable draft; nothing is saved until you commit it.")));
       card.appendChild(pRow);
     } else {
       // ── Candidate actions: refine here, then commit the layout ──────────
@@ -13445,17 +13450,19 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         pRow.appendChild(el("button", {
           class: "btn inline",
           onclick: () => { mapState._roomsBlendAveraged = false; mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
-        }, "◫ Back to stacked view"));
+        }, t("◫ Back to stacked view")));
       }
       pRow.appendChild(el("button", {
         class: "btn inline primary",
         onclick: async (e) => {
           const rooms = Object.keys(draft);
           const fabricCount = Object.keys(fabricDraft).length;
-          const edited = changedRooms.length ? ` (incl. your ${changedRooms.length} edit${changedRooms.length !== 1 ? "s" : ""})` : "";
-          if (!confirm(`Commit this ${cand.label} layout${edited} to the saved layout for "${floorLabel}"? ${rooms.length} rooms will be written; ${fabricCount > rooms.length ? (fabricCount - rooms.length) + " layout-only room(s) stay untouched." : "existing shapes with the same names are replaced."}`)) return;
+          const edited = changedRooms.length ? " " + tn(changedRooms.length, "(incl. your 1 edit)", "(incl. your {n} edits)") : "";
+          if (!confirm(t("Commit this {layout} layout{edited} to the saved layout for \"{floor}\"?", { layout: cand.label, edited, floor: floorLabel }) + " "
+            + tn(rooms.length, "1 room will be written;", "{n} rooms will be written;") + " "
+            + (fabricCount > rooms.length ? tn(fabricCount - rooms.length, "1 layout-only room stays untouched.", "{n} layout-only rooms stay untouched.") : t("existing shapes with the same names are replaced.")))) return;
           const btn = e.currentTarget;
-          btn.disabled = true; btn.textContent = "Committing…";
+          btn.disabled = true; btn.textContent = t("Committing…");
           let ok = 0, fail = 0;
           for (const room of rooms) {
             try {
@@ -13472,19 +13479,19 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
           }
-          ctx.toast(fail ? `Committed ${ok}, failed ${fail}` : `✔ ${cand.label} committed to the layout (${ok} rooms)`, !!fail);
+          ctx.toast(fail ? t("Committed {ok}, failed {bad}", { ok, bad: fail }) : t("✔ {layout} committed to the layout ({n} rooms)", { layout: cand.label, n: ok }), !!fail);
           mapState._roomsDraftFloorId = null;
           mapState._roomsCandDraft = null;
           mapState._roomsTruthCache = null;
           mapState._roomsTruth = "fabric";
           await ctx.actions.modelRefresh();
         },
-      }, `💾 Commit this layout${changedRooms.length ? ` (${changedRooms.length} edited)` : ""}`));
+      }, t("💾 Commit this layout") + (changedRooms.length ? " " + t("({n} edited)", { n: changedRooms.length }) : "")));
       if (changedRooms.length) {
         pRow.appendChild(el("button", {
           class: "btn inline",
           onclick: () => { mapState._roomsCandDraft = null; ctx.actions.renderRooms(); },
-        }, "Reset to computed layout"));
+        }, t("Reset to computed layout")));
       }
       pRow.appendChild(el("button", {
         class: "btn inline",
@@ -13500,19 +13507,19 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           mapState._roomsDraft = merged;
           mapState._roomsTruth = "fabric";
           mapState._roomsSel = [];
-          ctx.toast(`${cand.label} loaded into the layout editor — refine, then Save corrections`);
+          ctx.toast(t("{layout} loaded into the layout editor — refine, then Save corrections", { layout: cand.label }));
           ctx.actions.renderRooms();
         },
-      }, "✏ Load into the layout editor"));
+      }, t("✏ Load into the layout editor")));
       pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-        "Drag/reshape rooms right here — nothing reaches the saved layout until you commit."));
+        t("Drag/reshape rooms right here — nothing reaches the saved layout until you commit.")));
       card.appendChild(pRow);
     }
   } else {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin:8px 0" },
       floorMapsAll.length
-        ? "No room shapes saved for this floor yet. Switch Layout above to Map placements, then Commit this layout or Load into the layout editor."
-        : "Nothing on this floor yet. Receivers appear here as soon as Home Assistant sees them — drag one to place it in metres. Room shapes are optional; trace them on a photo in the Edit tab if you want them."));
+        ? t("No room shapes saved for this floor yet. Switch Layout above to Map placements, then Commit this layout or Load into the layout editor.")
+        : t("Nothing on this floor yet. Receivers appear here as soon as Home Assistant sees them — drag one to place it in metres. Room shapes are optional; trace them on a photo in the Edit tab if you want them.")));
   }
 
   // ── Finalize controls ───────────────────────────────────────────────────
@@ -13529,30 +13536,30 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         class: "btn inline",
         style: "border-color:#52b788;color:#52b788",
         onclick: async () => {
-          if (!confirm(`Finalize "${floorLabel}"? The floor's room shapes become locked ground truth: bulk rebuilds from maps are refused (individual corrections stay possible).`)) return;
+          if (!confirm(t("Finalize \"{floor}\"? The floor's room shapes become locked ground truth: bulk rebuilds from maps are refused (individual corrections stay possible).", { floor: floorLabel }))) return;
           try {
             await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: true });
-            ctx.toast(`🔒 Floor "${floorLabel}" finalized`);
+            ctx.toast(t("🔒 Floor \"{floor}\" finalized", { floor: floorLabel }));
             await refreshAfter();
-          } catch (err) { ctx.toast("Finalize failed: " + ctx.helpers.errorText(err), true); }
+          } catch (err) { ctx.toast(t("Finalize failed: {why}", { why: ctx.helpers.errorText(err) }), true); }
         },
-      }, "🔒 Finalize floor"));
+      }, t("🔒 Finalize floor")));
     }
   } else {
     admin.appendChild(el("span", { class: "muted", style: "font-size:12px" },
-      `Committed ${floorInfo.committed_at ? new Date(floorInfo.committed_at).toLocaleDateString() : ""} — shapes are locked ground truth. Corrections above still work.`));
+      t("Committed {date} — shapes are locked ground truth. Corrections above still work.", { date: floorInfo.committed_at ? new Date(floorInfo.committed_at).toLocaleDateString() : "" })));
     admin.appendChild(el("button", {
       class: "btn inline",
       style: "font-size:11px",
       onclick: async () => {
-        if (!confirm(`Unlock "${floorLabel}"? This re-allows bulk rebuilds from maps. Only needed if you intend to rebuild the whole floor.`)) return;
+        if (!confirm(t("Unlock \"{floor}\"? This re-allows bulk rebuilds from maps. Only needed if you intend to rebuild the whole floor.", { floor: floorLabel }))) return;
         try {
           await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: false });
-          ctx.toast(`Floor "${floorLabel}" unlocked`);
+          ctx.toast(t("Floor \"{floor}\" unlocked", { floor: floorLabel }));
           await refreshAfter();
-        } catch (err) { ctx.toast("Unlock failed: " + ctx.helpers.errorText(err), true); }
+        } catch (err) { ctx.toast(t("Unlock failed: {why}", { why: ctx.helpers.errorText(err) }), true); }
       },
-    }, "Unlock…"));
+    }, t("Unlock…")));
   }
   card.appendChild(admin);
 
@@ -13568,9 +13575,9 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
   if (placeRows.length) {
     const aCard = el("div", { style: "margin-top:10px;padding:10px;background:#0a150e;border-radius:6px" });
     aCard.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px" },
-      "Map placements"));
+      t("Map placements")));
     const tbl = el("div", { style: "display:grid;grid-template-columns:1fr auto auto auto;gap:3px 12px;font-size:11px;align-items:center" });
-    for (const h of ["Map", "Placed at", "", ""]) {
+    for (const h of [t("Map"), t("Placed at"), "", ""]) {
       tbl.appendChild(el("div", { style: "font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase" }, h));
     }
     const fmt = (t) => t && t.scale_x_m != null
@@ -13585,20 +13592,20 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       tbl.appendChild(el("button", {
         class: "btn inline" + (showing ? " primary" : ""),
         style: "font-size:10px;padding:2px 8px",
-        title: "Draw this map's placement on the canvas",
+        title: t("Draw this map's placement on the canvas"),
         onclick: () => {
           mapState._roomsAlignPreview = showing ? null : a.map_id;
           ctx.actions.renderRooms();
         },
-      }, showing ? "👁 Hide" : "👁 Show"));
+      }, showing ? t("👁 Hide") : t("👁 Show")));
       // The three faults a single record can still have. None of them has a
       // repair the panel can perform on the owner's behalf — each is either
       // "measure this map" or "this record is damaged" — so the row says what
       // is wrong and the Health tab says what to do about it.
       tbl.appendChild(fault
         ? el("div", { style: "color:#f87171;font-size:10px" },
-            (fault.terms || []).includes("unreadable") ? "⚠ unreadable record"
-            : (fault.terms || []).includes("unplaced") ? "not placed"
+            (fault.terms || []).includes("unreadable") ? t("⚠ unreadable record")
+            : (fault.terms || []).includes("unplaced") ? t("not placed")
             : "⚠ " + (fault.terms || []).join(", "))
         : el("div", { style: "color:#52b788;font-size:10px" }, "✓"));
     }

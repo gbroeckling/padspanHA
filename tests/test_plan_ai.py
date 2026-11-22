@@ -266,7 +266,7 @@ def test_only_mapping_hands_edit_so_walls_and_basic_never_load_the_plans_tool():
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert not re.search(r"(edit|plans):\s", panel[panel.index("house3d: this.state._house3d ? {"):])
     maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
-    assert '[["library","Library"],["upload","Upload"]]' in maps                                # Basic's tabs
+    assert '[["library",t("Library")],["upload",t("Upload")]]' in maps                                # Basic's tabs
     # The list's own way in: Furnish, with no 3D here, under the same gates, loaded on its own click.
     furnish = maps[maps.index("Add data via plans (experimental): the vetting map lives in the 3D editor"):]
     assert "S.ai_plans_enabled === true" in furnish and "la3dCannotHere()" in furnish and 'is_admin !== false' in furnish

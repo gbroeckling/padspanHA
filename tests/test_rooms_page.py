@@ -87,10 +87,11 @@ def test_the_other_screens_link_to_all_rooms() -> None:
     # like "All receivers" is tab:receivers; left out where the build has
     # no Rooms page (Bright has one since 2026-10-30: tests/test_rooms_bright.py).
     link = 'onclick:()=>ctx.actions.openRooms()}, "All rooms")'
+    link_t = 'onclick:()=>ctx.actions.openRooms()}, t("All rooms"))'      # Mapping asks for its words through t() (phase 3)
     shown = '(!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el('
     settings, maps = _read("views/settings.js"), _read("views/maps.js")
     assert settings.count(link) == 1 and settings.count(shown) == 1, "Settings → Appearance's Rooms card"
-    assert maps.count(link) == 2 and maps.count(shown) == 2, "Mapping → Edit's Rooms tool and Mapping → Rooms"
+    assert maps.count(link_t) == 2 and maps.count(shown) == 2, "Mapping → Edit's Rooms tool and Mapping → Rooms"
     assert '"data-all-rooms":"settings"' in settings and '"data-all-rooms":"edit"' in maps and '"data-all-rooms":"rooms"' in maps
     assert 'ctx.state.view = "rooms"' not in settings + maps
     panel = _read("panel.js")

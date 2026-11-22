@@ -22,25 +22,26 @@ const PM = await import(`./plan_measure.js${V}`);
 const { isOutdoorFloorId } = await import(`./iso_lights.js${V}`);
 const { planHasScale } = await import(`./setup_status.js${V}`);
 const { btn, P, MUTED, row } = PM;
+// Its words in the panel's language (views/i18n.js; English is the key): each fixed sentence below is a function.
+const { t } = await import(`./i18n.js${V}`);
 
-export const TITLE = "Set this plan's scale now";
-export const WHY = "PadSpan needs its real size before rooms, receivers or anything in metres can go on it.";
-export const SECOND = "Add a length the other way";
-export const SECOND_WHY = "Optional: a second length, running the other way, checks that the plan picture isn't stretched.";
-export const ONE_ONLY = "Use only the first length";
+export const TITLE = () => t("Set this plan's scale now");
+export const WHY = () => t("PadSpan needs its real size before rooms, receivers or anything in metres can go on it.");
+export const SECOND = () => t("Add a length the other way");
+export const SECOND_WHY = () => t("Optional: a second length, running the other way, checks that the plan picture isn't stretched.");
+export const ONE_ONLY = () => t("Use only the first length");
 // A picture that is not to scale (2026-11-16). Every picture is taken for a proper plan unless the person says otherwise:
 // by ticking "my own sketch" at upload (map.kind), or here, once two lengths disagree.
-export const SKETCH_SAYS = "You said this picture is your own sketch. Room-by-room presence comes from calibration, so it works on a sketch; "
-  + "distances in metres will be as rough as the drawing. Measure one length across and one down, and each direction gets its own scale.";
-export const SECOND_WHY_SKETCH = "A sketch is rarely in proportion: with a second length running the other way, each direction gets its own scale.";
-export const NOT_TO_SCALE = "This picture isn't to scale";
-export const NOT_TO_SCALE_WHY = "For your own sketch or a stretched scan: each length then sets the scale for its own direction, in place of the average.";
-export const PER_AXIS_SAYS = "Each direction has its own scale: both lengths come out right.";
-export const SAME_WAY_SAYS = "Your two lengths run nearly the same way, so they can't give each direction its own scale. Measure the second one the other way.";
-export const SAVE_SAYS = "Saved as Mapping → Edit → Measure saves a scale. You can measure again there at any time.";
+export const SKETCH_SAYS = () => t("You said this picture is your own sketch. Room-by-room presence comes from calibration, so it works on a sketch; distances in metres will be as rough as the drawing. Measure one length across and one down, and each direction gets its own scale.");
+export const SECOND_WHY_SKETCH = () => t("A sketch is rarely in proportion: with a second length running the other way, each direction gets its own scale.");
+export const NOT_TO_SCALE = () => t("This picture isn't to scale");
+export const NOT_TO_SCALE_WHY = () => t("For your own sketch or a stretched scan: each length then sets the scale for its own direction, in place of the average.");
+export const PER_AXIS_SAYS = () => t("Each direction has its own scale: both lengths come out right.");
+export const SAME_WAY_SAYS = () => t("Your two lengths run nearly the same way, so they can't give each direction its own scale. Measure the second one the other way.");
+export const SAVE_SAYS = () => t("Saved as Mapping → Edit → Measure saves a scale. You can measure again there at any time.");
 // Basic has no Edit tab (review 2026-11-13, break 7): the way back to measuring there is Setup's scale step.
-export const SAVE_SAYS_BASIC = "You can measure it again at any time in Setup's Set the scale step.";
-export const REMINDER = "No scale yet";
+export const SAVE_SAYS_BASIC = () => t("You can measure it again at any time in Setup's Set the scale step.");
+export const REMINDER = () => t("No scale yet");
 export const DIFFER_PCT = 5;
 // The doors a first scale comes through, counted at Save (scale_nudge:via_<door>; telemetry.SCALE_NUDGE_WORDS).
 export const DOORS = Object.freeze(["upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack"]);      // two lengths this far apart are said, never refused (Save takes their average, as Measure does)
@@ -48,9 +49,9 @@ export const DOORS = Object.freeze(["upload", "setup", "getting_started", "wizar
 /** The two lengths' agreement in plain words (the server's differ_pct: how far apart the scales they give are). */
 export function differWords(pct) {
   return pct > DIFFER_PCT
-    ? `Your two lengths don't agree: they give scales ${Math.round(pct)} % apart. The plan picture may be stretched, or an end is off. ` +
-      "Check both ends and both lengths; Save uses the average of the two."
-    : `Your two lengths agree (${Number(pct).toFixed(1)} % apart): the plan isn't stretched.`;
+    ? t("Your two lengths don't agree: they give scales {pct} % apart. The plan picture may be stretched, or an end is off.", { pct: Math.round(pct) }) + " " +
+      t("Check both ends and both lengths; Save uses the average of the two.")
+    : t("Your two lengths agree ({pct} % apart): the plan isn't stretched.", { pct: Number(pct).toFixed(1) });
 }
 
 const tel = (ctx, w) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("scale_nudge:" + w); };
@@ -98,7 +99,7 @@ async function preview(ctx, d) {
     d.pv = pv; d.pvFor = a; d.msg = "";
   } catch (e) {
     if (seq !== d.seq || ctx.state._scaleNudge !== d) return;
-    d.msg = (e && e.message) || "That didn't work. Try again in a moment.";
+    d.msg = (e && e.message) || t("That didn't work. Try again in a moment.");
   }
   if (d.paint) d.paint();
 }
@@ -136,7 +137,7 @@ async function save(ctx, map, d, opts = {}) {
   d.busy = false;
   if (!r || r.ok === false) {
     if (first(map, "refused")) tel(ctx, "refused");
-    d.msg = (r && r.message) || "The scale couldn't be saved. Try again in a moment.";
+    d.msg = (r && r.message) || t("The scale couldn't be saved. Try again in a moment.");
     redraw(ctx);
     return;
   }
@@ -145,7 +146,7 @@ async function save(ctx, map, d, opts = {}) {
   if (DOORS.includes(opts.door)) tel(ctx, "via_" + opts.door);
   map.scale_nudge = false;
   ctx.state._scaleNudge = null;
-  if (ctx.toast) ctx.toast(`Scale saved: the plan is ${PM.lengthText(r.scale_x_m, PM.feetOn(ctx))} across and ${PM.lengthText(r.scale_y_m, PM.feetOn(ctx))} down.`);
+  if (ctx.toast) ctx.toast(t("Scale saved: the plan is {w} across and {h} down.", { w: PM.lengthText(r.scale_x_m, PM.feetOn(ctx)), h: PM.lengthText(r.scale_y_m, PM.feetOn(ctx)) }));
   if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
   if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
   if (opts.onSaved) opts.onSaved(map);
@@ -172,18 +173,18 @@ function paint(ctx, d, said, sized, saveBtn) {
     if (d.first && typeof pv.differ_pct === "number") {
       const off = pv.differ_pct > DIFFER_PCT, own = d.sketch || d.nts;
       if (pv.per_axis) {
-        lines.push(el("div", { "data-nudge": "per-axis", style: "font-size:12px;line-height:1.5;margin:4px 0;color:#a7f3d0" }, PER_AXIS_SAYS));
+        lines.push(el("div", { "data-nudge": "per-axis", style: "font-size:12px;line-height:1.5;margin:4px 0;color:#a7f3d0" }, PER_AXIS_SAYS()));
       } else if (own) {
-        lines.push(el("div", { "data-nudge": "same-way", style: "font-size:12px;line-height:1.5;margin:4px 0;color:#f59e0b" }, SAME_WAY_SAYS));
+        lines.push(el("div", { "data-nudge": "same-way", style: "font-size:12px;line-height:1.5;margin:4px 0;color:#f59e0b" }, SAME_WAY_SAYS()));
       } else {
         lines.push(el("div", { "data-nudge": off ? "differs" : "agrees", style: `font-size:12px;line-height:1.5;margin:4px 0;color:${off ? "#f59e0b" : "#a7f3d0"}` },
           differWords(pv.differ_pct)));
         // Said by the person, never assumed: a proper plan's two lengths that disagree are far more often a slipped end.
-        if (off) lines.push(row(ctx, [btn(ctx, NOT_TO_SCALE, () => { tel(ctx, "not_to_scale"); d.nts = true; d.pv = null; preview(ctx, d); },
-          { attrs: { "data-nudge": "not-to-scale" } }), MUTED(ctx, NOT_TO_SCALE_WHY)]));
+        if (off) lines.push(row(ctx, [btn(ctx, NOT_TO_SCALE(), () => { tel(ctx, "not_to_scale"); d.nts = true; d.pv = null; preview(ctx, d); },
+          { attrs: { "data-nudge": "not-to-scale" } }), MUTED(ctx, NOT_TO_SCALE_WHY())]));
       }
     }
-    if (!d.first) lines.push(row(ctx, [btn(ctx, SECOND, () => second(ctx, d), { attrs: { "data-nudge": "second" } }), MUTED(ctx, d.sketch ? SECOND_WHY_SKETCH : SECOND_WHY)]));
+    if (!d.first) lines.push(row(ctx, [btn(ctx, SECOND(), () => second(ctx, d), { attrs: { "data-nudge": "second" } }), MUTED(ctx, d.sketch ? SECOND_WHY_SKETCH() : SECOND_WHY())]));
   }
   if (d.msg) lines.push(P(ctx, d.msg, "color:#f59e0b"));
   sized.replaceChildren(...lines);
@@ -196,11 +197,11 @@ export function render(ctx, map, opts = {}) {
   const { el } = ctx.helpers, d = draft(ctx, map), tap = PM.tapWord();
   if (!_shown.has(map.id)) { _shown.add(map.id); tel(ctx, "shown"); }
   const card = el("div", { class: "card", "data-nudge": "card" });
-  card.appendChild(el("div", { class: "h2" }, TITLE));
-  card.appendChild(P(ctx, `${map.name || "Your plan"} ${opts.door === "upload" ? "is uploaded" : "has no scale yet"}. ${WHY}`));
+  card.appendChild(el("div", { class: "h2" }, TITLE()));
+  card.appendChild(P(ctx, (opts.door === "upload" ? t("{plan} is uploaded.", { plan: map.name || t("Your plan") }) : t("{plan} has no scale yet.", { plan: map.name || t("Your plan") })) + " " + WHY()));
   card.appendChild(P(ctx, PM.measureHow(tap)));
   d.sketch = map.kind === "sketch";
-  if (d.sketch) card.appendChild(el("div", { "data-nudge": "sketch", style: "font-size:12px;line-height:1.5;margin:6px 0;color:#a7f3d0" }, SKETCH_SAYS));
+  if (d.sketch) card.appendChild(el("div", { "data-nudge": "sketch", style: "font-size:12px;line-height:1.5;margin:6px 0;color:#a7f3d0" }, SKETCH_SAYS()));
   const cols = el("div", { style: "display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" });
   const side = el("div", { style: "flex:0 1 240px;min-width:220px" });
   const ends = () => {
@@ -213,20 +214,20 @@ export function render(ctx, map, opts = {}) {
   cols.appendChild(side);
   card.appendChild(cols);
   if (d.first) {
-    side.appendChild(MUTED(ctx, `First length: ${d.first.text} (the dashed line). Now the second one, running the other way.`));
-    side.appendChild(btn(ctx, ONE_ONLY, () => oneOnly(ctx, d), { disabled: d.busy, attrs: { "data-nudge": "one-only" } }));
+    side.appendChild(MUTED(ctx, t("First length: {len} (the dashed line). Now the second one, running the other way.", { len: d.first.text })));
+    side.appendChild(btn(ctx, ONE_ONLY(), () => oneOnly(ctx, d), { disabled: d.busy, attrs: { "data-nudge": "one-only" } }));
   }
   const { said } = PM.lengthField(ctx, side, d.text, { busy: d.busy, onInput: (t) => { d.text = t; if (String(t).trim() && first(map, "typed")) tel(ctx, "typed"); previewSoon(ctx, d); },
-    key: d.first ? "scale-length-2" : "scale-length", label: d.first ? "The second length:" : "Its length:" });
+    key: d.first ? "scale-length-2" : "scale-length", label: d.first ? t("The second length:") : t("Its length:") });
   const sized = el("div", { "data-nudge": "size" });
   side.appendChild(sized);
-  const saveBtn = btn(ctx, d.busy ? "Saving…" : "Save the scale", () => { if (ready(d)) save(ctx, map, d, opts); }, { primary: true, attrs: { "data-nudge": "save" } });
-  const laterBtn = opts.later === false ? null : btn(ctx, "Later", () => later(ctx, map, opts), { disabled: d.busy, attrs: { "data-nudge": "later" } });
+  const saveBtn = btn(ctx, d.busy ? t("Saving…") : t("Save the scale"), () => { if (ready(d)) save(ctx, map, d, opts); }, { primary: true, attrs: { "data-nudge": "save" } });
+  const laterBtn = opts.later === false ? null : btn(ctx, t("Later"), () => later(ctx, map, opts), { disabled: d.busy, attrs: { "data-nudge": "later" } });
   // On a phone the picture and the length stack: a bar held at the bottom of the screen would lie over the picture, where
   // the two ends are tapped. There it comes after the length, as an ordinary row (real-panel run 2026-11-12, 390 px).
   const stacked = typeof matchMedia === "function" && matchMedia("(max-width: 600px)").matches;
   card.appendChild(el("div", { "data-nudge": "bar", style: stacked ? PM.STICKY_BAR.replace("position:sticky;bottom:0;", "") : PM.STICKY_BAR }, [row(ctx, [saveBtn, laterBtn].filter(Boolean), "margin:0"),
-    el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, ctx.state.complexity === "basic" ? SAVE_SAYS_BASIC : SAVE_SAYS)]));
+    el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4" }, ctx.state.complexity === "basic" ? SAVE_SAYS_BASIC() : SAVE_SAYS())]));
   d.paint = () => paint(ctx, d, said, sized, saveBtn);
   d.paint();
   return card;
@@ -238,6 +239,6 @@ export function reminderLine(ctx, map, onMeasure, name = "") {
   if (!offered(ctx, map)) return null;
   const { el } = ctx.helpers;
   return el("div", { "data-nudge": "reminder", style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#94a3b8;margin-top:2px" }, [
-    el("span", {}, name ? `${REMINDER}: ${name}` : `${REMINDER}:`),
-    btn(ctx, "Measure", () => { tel(ctx, "reminder_measure"); onMeasure(); }, { attrs: { "data-nudge": "reminder-measure" } })]);
+    el("span", {}, name ? `${REMINDER()}: ${name}` : `${REMINDER()}:`),
+    btn(ctx, t("Measure"), () => { tel(ctx, "reminder_measure"); onMeasure(); }, { attrs: { "data-nudge": "reminder-measure" } })]);
 }

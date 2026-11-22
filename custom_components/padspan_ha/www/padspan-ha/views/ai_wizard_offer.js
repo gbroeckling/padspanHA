@@ -19,6 +19,8 @@ export const SURFACES = Object.freeze(["overview", "getting_started", "setup", "
 // Getting started's row sits beside Draw the rooms, so it follows the pull rule as Setup's line does (owner's D8,
 // 2026-11-13: "Same as Setup: tried and stopped"); the Overview card keeps the push rule's week and cautions.
 const RULE = { overview: "push", getting_started: "pull", setup: "pull", maps_wizard: "pull", plans_tool: "pull" };
+// The offers' and the undo's words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 // Why Claude can't be used here, in plain words (plan_build_info's unlock.why), one copy: the helper's
 // Connect Claude screen (views/ai_wizard.js) and Settings → AI's line where Build from plans is hidden.
@@ -57,9 +59,10 @@ export function claudeWhyWords(c) {
 }
 
 export const CHIP_TEXT = "EXPERIMENTAL";
+const chipText = () => t("EXPERIMENTAL");
 /** The amber chip every one of the helper's screens and offers carries. */
 export function chip(el) {
-  return el("span", { "data-aiw": "chip", style: "background:#f59e0b;color:#000;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle" }, CHIP_TEXT);
+  return el("span", { "data-aiw": "chip", style: "background:#f59e0b;color:#000;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle" }, chipText());
 }
 
 // The rule's answer, per rule, once a page (cleared by a mark or a save).
@@ -166,14 +169,14 @@ export function lineWords(ctx, surface, done = false) {
   const st = st0.map_id && !((ctx.state.maps && ctx.state.maps.list) || []).some(m => m && m.id === st0.map_id) ? {} : st0;
   const fl = (((ctx.state.model && ctx.state.model.floors) || []).find(f => f && (f.floor_id || f.id) === st.floor_id) || {}).name;
   const rescale = st.map_id && (((infoFor(ctx, surface) || {}).wizard || {}).rescale || {})[st.map_id];
-  const text = MEASURING.has(st.at) && rescale ? `You were checking the scale of the rooms Claude already found${fl ? ` on ${fl}` : ""} (experimental).`
-    : READING.has(st.at) ? "Claude is part-way through drawing your rooms (experimental)."
-    : MEASURING.has(st.at) ? `You started measuring your plan${fl ? ` on ${fl}` : ""} for Claude to draw its rooms (experimental).`
-      : st.at === "floor_pick" ? "You were choosing which floor your plan shows, for Claude to draw its rooms (experimental)."
+  const text = MEASURING.has(st.at) && rescale ? (fl ? t("You were checking the scale of the rooms Claude already found on {floor} (experimental).", { floor: fl }) : t("You were checking the scale of the rooms Claude already found (experimental)."))
+    : READING.has(st.at) ? t("Claude is part-way through drawing your rooms (experimental).")
+    : MEASURING.has(st.at) ? (fl ? t("You started measuring your plan on {floor} for Claude to draw its rooms (experimental).", { floor: fl }) : t("You started measuring your plan for Claude to draw its rooms (experimental)."))
+      : st.at === "floor_pick" ? t("You were choosing which floor your plan shows, for Claude to draw its rooms (experimental).")
         : null;
-  if (text) return { back: true, text, go: "Carry on →" };
-  return { back: false, go: "Try it →", text: done ? "Claude can draw the rooms on another of your floor plans too (experimental)."
-    : "Stuck? Claude can read your plan and draw the rooms for you (experimental)." };
+  if (text) return { back: true, text, go: t("Carry on →") };
+  return { back: false, go: t("Try it →"), text: done ? t("Claude can draw the rooms on another of your floor plans too (experimental).")
+    : t("Stuck? Claude can read your plan and draw the rooms for you (experimental).") };
 }
 
 // ── the later undo of the rooms the helper saved: one copy for its Done screen, Setup's Draw the rooms row and Settings →
@@ -181,16 +184,20 @@ export function lineWords(ctx, surface, done = false) {
 // scale_undo's own rule; unknown on the Done screen: asked, and a refusal said). A scale measured again by hand is the
 // person's: neither warned about nor taken back. `u`: {session, map_id, items, floor_name, scale}.
 export const UNDO_TITLE = "Undo the rooms Claude drew (experimental)";
-export const undoWhat = (u) => `The last rooms Let Claude draw your rooms saved on ${u.floor_name || "a floor"}${u.when || ""}: ${u.items} room${u.items === 1 ? "" : "s"}. ` +
-  "Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is. " +
-  (u.scale === "goes" ? "It also removes this plan's scale, which was set in the helper: the plan will need measuring again." :
-    u.scale === "changed_since" ? "The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale), and it is placed by that scale." : "");
-export const undoSure = (u) => u.scale === "goes" ? "Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Setup's Set the scale step)."
-  : "Take back the rooms Let Claude draw your rooms saved?";
+/** UNDO_TITLE in the panel's language (Setup's button; Settings, still English, keeps UNDO_TITLE). */
+export const undoTitle = () => t("Undo the rooms Claude drew (experimental)");
+export const undoWhat = (u) => tn(u.items, "The last rooms Let Claude draw your rooms saved on {floor}{when}: 1 room.", "The last rooms Let Claude draw your rooms saved on {floor}{when}: {n} rooms.",
+    { floor: u.floor_name || t("a floor"), when: u.when || "" }) + " " +
+  t("Undo takes them back out; a backup is taken first, and a room you changed since, or put a receiver in, is left as it is.") + " " +
+  (u.scale === "goes" ? t("It also removes this plan's scale, which was set in the helper: the plan will need measuring again.") :
+    u.scale === "changed_since" ? t("The plan's scale set in the helper stays: something placed in metres was added or changed since (rooms, walls, zones, receivers, calibration points, the 3D house or another plan's scale), and it is placed by that scale.") : "");
+export const undoSure = (u) => u.scale === "goes" ? t("Take back the rooms Let Claude draw your rooms saved, and remove this plan's scale that was set in the helper? The plan will need measuring again (Setup's Set the scale step).")
+  : t("Take back the rooms Let Claude draw your rooms saved?");
 /** After it: the rooms' count, then what happened to the scale. */
-export const undoDone = (out) => `${out.n} taken back${out.skipped ? `; ${out.skipped} changed since left as ${out.skipped === 1 ? "it is" : "they are"}` : ""}.` +
-  (out.scale === "back" ? " The plan's scale was removed too: measure it again in Setup's Set the scale step."
-    : out.scale === "kept" ? (out.scaleWords ? ` The plan's scale stays: ${out.scaleWords}` : " The plan's scale stays.") : "");
+export const undoDone = (out) => (out.skipped ? tn(out.skipped, "{taken} taken back; 1 changed since left as it is.", "{taken} taken back; {n} changed since left as they are.", { taken: out.n })
+    : t("{taken} taken back.", { taken: out.n })) +
+  (out.scale === "back" ? " " + t("The plan's scale was removed too: measure it again in Setup's Set the scale step.")
+    : out.scale === "kept" ? (out.scaleWords ? " " + t("The plan's scale stays: {why}", { why: out.scaleWords }) : " " + t("The plan's scale stays.")) : "");
 
 /** Run it: {ok, n, skipped, scale: "back" | "kept" | null, scaleWords} or {ok: false, message}. */
 export async function undoHelperRooms(ctx, u) {
@@ -203,7 +210,7 @@ export async function undoHelperRooms(ctx, u) {
   else if (u.map_id && (u.scale === "goes" || u.scale === undefined)) {
     const sv = await call("padspan_ha/plan_build_scale_undo", { map_id: u.map_id, via: "wizard" }).catch((e) => ({ ok: false, message: e && e.message }));
     if (sv && sv.ok) out.scale = "back";
-    else if (!(sv && sv.code === "nothing_to_undo")) { out.scale = "kept"; out.scaleWords = String((sv && sv.message) || "it couldn't be taken back."); }
+    else if (!(sv && sv.code === "nothing_to_undo")) { out.scale = "kept"; out.scaleWords = String((sv && sv.message) || t("it couldn't be taken back.")); }
   }
   return out;
 }
@@ -233,7 +240,7 @@ export function gettingStartedRow(ctx) {
   const { el } = ctx.helpers;
   const row = el("div", { "data-aiw": "gs-row", style: "display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;background:#0f2a1a;margin-left:22px" }, [
     el("span", { style: "font-size:14px" }, "✨"),
-    el("span", { style: "color:#8ee5b4" }, "Or let Claude draw the rooms from your plan (experimental) →"),
+    el("span", { style: "color:#8ee5b4" }, t("Or let Claude draw the rooms from your plan (experimental) →")),
   ]);
   row.addEventListener("click", () => openWizard(ctx, "getting_started"));
   return row;
@@ -247,15 +254,15 @@ export function overviewCard(ctx) {
   const back = w.started && ["rooms_read", "rooms_check"].includes(w.started.at);
   const card = el("div", { "data-aiw": "card", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788" },
-    [back ? "Pick up where you left off with Claude and your plan." : "Your floor plan is in. Want Claude to draw the rooms?", chip(el)]));
+    [back ? t("Pick up where you left off with Claude and your plan.") : t("Your floor plan is in. Want Claude to draw the rooms?"), chip(el)]));
   card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin:4px 0 8px" }, back
-    ? "Carry on to see the rooms Claude found, check them and press Save. One button takes it all back."
-    : "Claude can read your plan, find its rooms and their names, and draw them for you. You check each one before anything is saved, and one button takes it all back."));
-  const show = el("button", { class: "btn inline primary", "data-aiw": "show", style: "font-size:12px" }, back ? "Carry on" : "Show me");
+    ? t("Carry on to see the rooms Claude found, check them and press Save. One button takes it all back.")
+    : t("Claude can read your plan, find its rooms and their names, and draw them for you. You check each one before anything is saved, and one button takes it all back.")));
+  const show = el("button", { class: "btn inline primary", "data-aiw": "show", style: "font-size:12px" }, back ? t("Carry on") : t("Show me"));
   show.addEventListener("click", () => openWizard(ctx, "overview"));
-  const later = el("button", { class: "btn inline", "data-aiw": "snooze", style: "font-size:12px" }, "Not now");
+  const later = el("button", { class: "btn inline", "data-aiw": "snooze", style: "font-size:12px" }, t("Not now"));
   later.addEventListener("click", () => _mark(ctx, "snoozed"));
-  const never = el("button", { class: "btn inline", "data-aiw": "dismiss", style: "font-size:12px;color:#94a3b8" }, "Don't ask again");
+  const never = el("button", { class: "btn inline", "data-aiw": "dismiss", style: "font-size:12px;color:#94a3b8" }, t("Don't ask again"));
   never.addEventListener("click", () => _mark(ctx, "dismissed"));
   card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [show, later, never]));
   return card;
