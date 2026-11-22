@@ -75,8 +75,8 @@ PadSpan uses these kinds. You can mix them.
 | **Tasmota** on an ESP32 (experimental) | Over MQTT too: Home Assistant's MQTT integration, and **Manage → HA Entities → Tasmota BLE → Read Tasmota BLE over MQTT**. In each Tasmota's console, type `TelePeriod 10`, `BLEMaxAge 30` and `BLEAddrFilter 1`. Without them, Tasmota reports too slowly for rooms, and never reports phones and tags that change address. |
 
 **Shellys and other passive receivers on Home Assistant 2026.4 or newer:** if they show no signal
-during calibration, switch on **Settings → Tracking → Receivers → Bluetooth refresh interval →
-Refresh every 5 s for passive proxy scanners**.
+during calibration, switch on **Refresh every 5 s for passive proxy scanners**, in
+**Settings → Tracking → Receivers → Bluetooth refresh interval**.
 
 **Already running Bermuda?** Keep it. PadSpan uses the same proxies and leaves Bermuda as it is:
 [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/).
