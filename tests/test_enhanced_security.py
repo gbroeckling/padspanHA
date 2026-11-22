@@ -79,6 +79,7 @@ setup_tips rooms_overlap setup_phones
 # Everyday use, open to everyone as Home Assistant's own controls are.
 EVERYDAY = {"emergency_test", "emergency_force_off", "emergency_member", "flood_reset", "wled_power",
             "wled_identify", "wled_live", "notify_test", "telemetry_event",
+            "power_team_sleep",  # a team's "Sleep in 30 min": a light switched, as its light's own controls are
             "radio_area_set"}    # the owner's standing rule: Assign stays open to non-admins
 
 

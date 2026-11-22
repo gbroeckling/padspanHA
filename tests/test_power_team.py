@@ -901,7 +901,7 @@ def test_the_wake_up_runs_once_a_day_across_a_restart(monkeypatch) -> None:
         c.close()
 
 
-# ── 2026-11-22: the day's cycle (Garry: "go build the six lighting items") ────────────────────────
+# ── 2026-11-22: the day's cycle (the owner: "go build the six lighting items") ────────────────────────
 def test_a_change_by_hand_hands_back_to_the_day_after_the_teams_resume_minutes() -> None:
     h = House(boot=0.0)
     t = P.Team({**CFG, "resume": 90}, h.io)
