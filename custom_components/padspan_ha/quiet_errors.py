@@ -284,6 +284,7 @@ plan_ai_write:invalidate
 plan_carry:carry_apply
 power_team:call
 power_team:power_teams_set
+power_team:team_tick
 power_team:tick
 presence:beacon_cal_add_point
 presence:beacon_cal_settings
@@ -368,6 +369,7 @@ setup:entry_first_fetch
 setup:entry_flood_latch
 setup:entry_forensics
 setup:entry_house3d_people
+setup:entry_rain_wet
 setup:entry_update_check
 setup:entry_vacation
 setup:entry_wled_exact
@@ -390,6 +392,7 @@ setup:unload_object_history
 setup:unload_panel
 setup:unload_power_teams
 setup:unload_presence
+setup:unload_rain_wet
 setup:unload_tags
 setup:unload_tasmota
 setup:unload_traceback

@@ -192,6 +192,23 @@ await tryCase("decision: a rain sensor that stopped reporting does not rain here
     fresh === "rain" && stale === "off" && fromForecast === "rain" && sent.includes("weather_note:sensor_stale"), { fresh, stale, fromForecast, sent });
   w.dispose();
 });
+await tryCase("decision: a rain sensor stuck on wet does not rain here either", async () => {
+  const { host } = bare();
+  const w = W.createWeather(THREE, host);
+  const now = Date.parse("2026-11-21T19:00:00Z");
+  const reg = { "binary_sensor.rain": { platform: "mqtt", device_id: "d1", name: "Rain" } };
+  const states = (cond) => ({ ...wxState(cond), "binary_sensor.rain": { state: "on", attributes: {} } });
+  const sent = [];
+  AW._resetWeatherCountsForTests();
+  const step = (hours, cond) => { w.update({ settings: SET({ atlas_weather_rain_entity: "binary_sensor.rain", atlas_weather_rain_wet_since: now / 1000 - hours * 3600 }),
+    states: states(cond), entities: reg, profile: "low", house: HOUSE_P(), nowMs: now, colour: "#ffffff", telemetry: (n) => sent.push(n) }); return w.shown.kind; };
+  const fresh = step(2, "cloudy");
+  const stuck = step(30, "cloudy");
+  const fromForecast = step(30, "rainy");
+  check("decision: a rain sensor stuck on wet does not rain here either",
+    fresh === "rain" && stuck === "off" && fromForecast === "rain" && sent.includes("weather_note:sensor_stuck"), { fresh, stuck, fromForecast, sent });
+  w.dispose();
+});
 await tryCase("decision: the flat Atlas's own, through holdVisual", async () => {
   const { scene, host } = bare();
   const w = W.createWeather(THREE, host);

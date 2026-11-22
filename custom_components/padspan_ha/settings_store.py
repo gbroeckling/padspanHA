@@ -192,6 +192,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "traceback_house_focus": 0,          # Traceback's Full house activity: the Atlas floor index it opens on (its own key — overview_iso_focus indexes photo floors)
     "wled_teams": [],                     # backend-only (padspan_ha/wled_teams_set): WLED devices that act as one light — see ws_wled.py
     "power_teams": [],                    # backend-only (padspan_ha/power_teams_set): a wall dimmer or switch and the smart bulbs it feeds, as one light — see power_team.py
+    "power_teams_slept": {},              # backend-only: {team id: "YYYY-MM-DD"} each team's last bedtime, so a restart never runs it twice
     "power_teams_woke": {},               # backend-only: {team id: "YYYY-MM-DD"} each team's last wake-up, so a restart never wakes it twice
     "overview_atlas": False,              # Pro: Overview shows the Atlas; Pure Live gets a switch to the classic Overview (Settings → Atlas → Overview — the Atlas as your main map)
     "atlas_live_colours": False,          # the working Atlas draws a lit light in the colour it reports (Settings → Atlas → Atlas — Mapped Light Control); off: amber, as ever
@@ -205,6 +206,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_weather_condition_entity": "", # weather.* for the fallback trigger and rain vs snow; "" = the first weather.*
     "atlas_weather_warning_entity": "",   # a weather-warning sensor; "" = detect (env_canada, meteoalarm, dwd, nina, meteo_france, weatheralerts, nws_alerts)
     "atlas_weather_strength": 1.0,        # 0.5-1.5 x opacity
+    "atlas_weather_rain_wet_since": 0,    # backend-only: epoch s the rain sensor turned wet, 0 = dry or not known (rain_wet.py); a stuck one is ignored
     # Wall screens (the sidebar Atlas on ?kiosk=1, lights_panel.js _wallOn): how
     # big to draw for the room. wall_screen_in 0 = size from the screen's
     # resolution; otherwise its diagonal (inches) and how far people stand

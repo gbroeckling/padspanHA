@@ -4,6 +4,23 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.278 — Beacon Tune pins a beacon only when you say so; Power teams: brightness and colour apart, bedtime, a night light, and more for the wake-up; It no longer rains on the Atlas because of a rain sensor stuck on wet (2026-11-22)
+
+### New
+- **Dimming keeps the colour on the day.** A brightness set by hand (at the wall dimmer, on the card or at a bulb) stops the day leading the brightness only; the colour goes on following the day. A colour set by hand does the same the other way round. The card says which is set by hand.
+- **Back to the day by itself.** Each team can hand a change by hand back to the day after a time you choose (30 minutes to 8 hours), as well as at the next turn-on. A wake-up's light goes back to the day a set time after its full light (an hour unless you change it).
+- **Bedtime.** On the days and at the time you choose, a team that is on fades to Sleep, warmer as it dims, then turns off or stays in Sleep. The card also has **Sleep in 30 min** for tonight only.
+- **Night light.** Between the hours you choose, a team switched on (at the wall, with a tap, or by an automation) comes on dim and warm instead of at the day's light. A brightness asked for is still given.
+- **Wake-up:** skip the next morning with one press, a different time on Saturday and Sunday, and it now wakes a room left on in Sleep, from there.
+- **The day's curve:** an earliest and latest sunrise and sunset, so a summer dawn at five does not light a bedroom before half past six.
+
+### Fixed
+- **Placing a beacon no longer pins it.** Calibration → Beacon Tune pinned every beacon you placed or dragged there, unless PadSpan knew it moved. A pinned beacon is always shown in its pinned room, and auto-calibration adds points at its spot, so a car key, a tag or a car could end up pinned without anyone deciding it. Now a beacon is pinned only when you tick **Pin here: it never moves** on its row in the Placed Beacons list. Beacons already pinned stay pinned and still move when you drag them; to unpin one, delete it from Beacon Tune.
+- **A rain sensor stuck on wet no longer makes it rain.** A rain sensor can stay wet long after the rain has stopped, dirty or with water caught on it, while still reporting as normal. If an on/off rain sensor has said wet for more than 3 hours and your weather entity says it isn't raining or snowing, PadSpan now ignores it until it dries. A shower your forecast missed still shows for its first 3 hours, and once the weather entity says it's raining the sensor is believed again. PadSpan counts the hours itself and keeps them across Home Assistant restarts, because a Zigbee2MQTT sensor looks freshly changed after every restart. A rain gauge, a rain-rate sensor, or an on/off sensor a helper makes from one works as before.
+- **Settings tells you.** Under the rain sensor it now says "The rain sensor has said wet for over 3 hours while the forecast says dry, so it is ignored until it dries. It may need cleaning." The opt-in usage report counts it (`weather_note:sensor_stuck`): a name only, never which sensor.
+
+---
+
 ## 0.38.277 — PadSpan's own words match what it does; PadSpan's own words match what it does, round 3; Every website guide in German too; The help says what Alert pulse watches, and where a receiver's room is set; A leave alert's title says "left"; Guides and labels say what the panel says; The PadSpan HA Manual: start, the map, calibration, every day; The PadSpan HA Manual is complete: receivers, phones, tags, lights, the 3D house, running it; Sentences with a name in them, in German, French and Dutch; The everyday screens in German, French and Dutch; Settings' Appearance, Scanner Map and Tracking in German, French and Dutch; Setup's tools and Calibration in German, French and Dutch (2026-11-22)
 
 ### New

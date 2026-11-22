@@ -61,7 +61,7 @@ def test_every_case_in_the_harness_passes(harness) -> None:
 
 @pytest.mark.parametrize("prefix,least", [
     ("table:", 12), ("fallback:", 3), ("no signal:", 3), ("warnings:", 6), ("mask:", 4),
-    ("contract:", 1), ("overlay:", 9), ("errors:", 2), ("telemetry:", 3), ("stale:", 7),
+    ("contract:", 1), ("overlay:", 9), ("errors:", 2), ("telemetry:", 4), ("stale:", 7), ("stuck:", 9),
 ])
 def test_the_harness_covers_each_part(harness, prefix, least) -> None:
     got = [k for k in harness["cases"] if k.startswith(prefix)]
@@ -83,7 +83,7 @@ def test_the_report_words_are_the_frontends(harness) -> None:
     assert set(lists["events"]) == set(T.WEATHER_EVENTS)
     assert set(T.WEATHER_ERROR_KINDS) == {"mask_build", "mask_unsupported", "tiles", "decision", "mount", "source"}
     assert set(T.WEATHER_SHOWN_STATES) == {"light_rain", "heavy_rain", "light_snow", "heavy_snow", "still"}
-    assert set(T.WEATHER_NOTE_KINDS) == {"sensor_overruled", "warning_ignored", "sensor_stale"}
+    assert set(T.WEATHER_NOTE_KINDS) == {"sensor_overruled", "warning_ignored", "sensor_stale", "sensor_stuck"}
     assert {"rain_sensor", "condition", "none", "warning:env_canada", "warning:meteoalarm",
             "warning:dwd_weather_warnings", "warning:nina", "warning:meteo_france",
             "warning:weatheralerts", "warning:nws_alerts", "warning:other"} == set(T.WEATHER_SOURCES)
@@ -169,7 +169,8 @@ def test_the_summary_has_an_atlas_weather_section(tmp_path) -> None:
     a = {"install_id": "11111111-1111-4111-8111-111111111111", "version": "0.38.91",
          "usage": {"weather_error:mask_unsupported": 1, "weather_shown:light_rain": 2,
                    "weather_source:condition": 2, "weather_source:warning:meteoalarm": 1,
-                   "weather_note:sensor_overruled": 2, "weather_note:sensor_stale": 1, "tab:maps": 4}}
+                   "weather_note:sensor_overruled": 2, "weather_note:sensor_stale": 1, "weather_note:sensor_stuck": 1,
+                   "tab:maps": 4}}
     b = {"install_id": "22222222-2222-4222-8222-222222222222", "version": "0.38.91",
          "usage": {"weather_shown:light_rain": 1, "weather_shown:still": 1, "weather_source:condition": 1}}
     day = date.today().isoformat()
@@ -186,6 +187,7 @@ def test_the_summary_has_an_atlas_weather_section(tmp_path) -> None:
     assert re.search(r"warning:meteoalarm\s+1\s+1 installs", s), s
     assert re.search(r"set aside.*\n\s+sensor_overruled\s+2\s+1 installs", s), s
     assert re.search(r"sensor_stale\s+1\s+1 installs", s), s
+    assert re.search(r"sensor_stuck\s+1\s+1 installs", s), s
     usage_block = out.stdout[out.stdout.index("Usage (events"):out.stdout.index("Atlas weather")]
     assert "weather_" not in usage_block, "listed twice"
     # Nothing reported: the section says so rather than vanishing.
@@ -247,8 +249,9 @@ def test_the_atlas_reads_every_setting_and_waits_for_them() -> None:
     lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     load = lp[lp.index("async _loadSettings("):lp.index("// ── Emergency lighting test")]
     assert "if (s.atlas_weather_enabled !== undefined) {" in load, "a failed fetch must keep the last answer"
+    # and when the rain sensor turned wet (rain_wet.py): without it the stuck rule never applies.
     for k in ("atlas_weather_enabled", "atlas_weather_rain_entity", "atlas_weather_condition_entity",
-              "atlas_weather_warning_entity", "atlas_weather_strength"):
+              "atlas_weather_warning_entity", "atlas_weather_strength", "atlas_weather_rain_wet_since"):
         assert f"{k}: s.{k}" in load, k
 
 
@@ -276,7 +279,7 @@ def test_settings_warns_of_a_rain_sensor_that_stopped_reporting() -> None:
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     out = json.loads(lines[-1])
     assert not out["failures"], json.dumps(out["failures"][:6], indent=2, ensure_ascii=False)
-    assert len(out["cases"]) >= 3
+    assert len(out["cases"]) >= 11
 
 
 def test_the_settings_card_offers_each_setting_saved_on_its_own() -> None:

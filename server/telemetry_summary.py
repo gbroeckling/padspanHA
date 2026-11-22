@@ -745,9 +745,11 @@ def plans_section(latest: dict[str, dict]) -> list[str]:
 # team or not, the house's colour bulbs by brand and integration, which is who could use a team. Then the team card's
 # buttons over the window (telemetry.TEAM_CARD_EVENTS, held equal by tests/test_telemetry_power_teams.py).
 _TEAM_CARD = tuple(f"team_card:{w}" for w in ("opened", "power_cut", "power_on", "day", "sleep", "retry",
-                                              "wake_saved", "curve_saved", "off_mode_saved")) + ("team_tap",)
+                                              "wake_saved", "curve_saved", "off_mode_saved", "sleep_now", "wake_skip",
+                                              "bedtime_saved", "night_saved")) + ("team_tap",)
 _TEAM_COUNTS = (("with_power", "with a wall control"), ("adaptive", "follow the day"), ("curve_changed", "own curve"),
-                ("sun_shifted", "sun times moved"), ("wake_on", "wake-up on"))
+                ("sun_shifted", "sun times moved"), ("wake_on", "wake-up on"), ("wake_weekend", "weekend wake time"),
+                ("bedtime_on", "bedtime on"), ("night_on", "night light on"), ("resume_set", "hand-back timed"))
 _TEAM_WORDS = (("power_domain", "wall control is a"), ("power_platform", "wall control run by"), ("off", "turned off by"),
                ("team_size", "bulbs per team"), ("wake_fade", "wake-up fade (minutes)"), ("bulb_brand", "team bulbs by brand"),
                ("bulb_platform", "team bulbs run by"), ("colour_bulbs_by_brand", "every colour bulb by brand"),
@@ -909,13 +911,14 @@ def main() -> int:
     # the sources say whether the fallbacks work outside Canada. Notes
     # (0.38.142+): a wet rain sensor overruled by a clear sky (dew, not rain);
     # a leak detector chosen as the warning entity, ignored; a rain sensor
-    # that has stopped reporting.
+    # that has stopped reporting; one stuck on wet (wet for hours while the
+    # weather entity says it is not).
     print("Atlas weather (page loads; installs)")
     any_wx = False
     for prefix, title in (("weather_error:", "errors, per kind (no weather drawn; source: a chosen entity is gone)"),
                           ("weather_shown:", "shown, per state"),
                           ("weather_source:", "decided by, per source"),
-                          ("weather_note:", "set aside (sensor_overruled: wet sensor, clear sky; warning_ignored: a leak detector; sensor_stale: a rain sensor stopped reporting)")):
+                          ("weather_note:", "set aside (sensor_overruled: wet sensor, clear sky; warning_ignored: a leak detector; sensor_stale: a rain sensor stopped reporting; sensor_stuck: a rain sensor wet for hours, forecast dry)")):
         rows = sorted(((k, v) for k, v in usage.items() if k.startswith(prefix)),
                       key=lambda kv: (-len(usage_installs[kv[0]]), -kv[1], kv[0]))
         if not rows:

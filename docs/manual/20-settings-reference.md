@@ -336,9 +336,11 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `pro_invite` | empty |  | An invite to free Pro, and your answer. |
 | `server_offers` | empty |  | Which free-Pro offers the update check last said are on. |
 | `flood_latches` | empty |  | Leak alarms the Atlas keeps showing until cleared. |
+| `atlas_weather_rain_wet_since` | 0 |  | When the Outdoor weather rain sensor last turned wet, so one stuck on wet for hours is ignored. |
 | `lights_showcase_seen` | off |  | Showcase has been on here. |
 | `wled_teams` | empty |  | WLED devices that act as one light. |
 | `power_teams_woke` | empty |  | Each power team's last wake-up day, so a restart never wakes it twice. |
+| `power_teams_slept` | empty |  | Each power team's last bedtime day, so a restart never runs it twice. |
 | `room_speed_v1_applied` | off |  | The November 2026 room-speed defaults were applied once. |
 | `atlas_default_v1_applied` | off |  | The Atlas's sidebar entry was switched on once, by default. |
 | `server_checked_at` | 0 |  | When the update check and licence check last ran. |
