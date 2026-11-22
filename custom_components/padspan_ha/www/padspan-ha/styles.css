@@ -1429,9 +1429,9 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 /* A phone (the owner, 2026-11-21: the house was a thumbnail beside a column of
    buttons): the rail is a row along the top of the card, so the map, its key
-   and the 3D house take the card's whole width, and a drawer opens under the
-   row. The card itself runs edge to edge (lights_panel.js). Wider screens and
-   a wall keep the column. */
+   and the 3D house (in the 3D view's own sheet) take the card's whole
+   width, and a drawer opens under the row. The card itself runs edge to edge
+   (lights_panel.js). Wider screens and a wall keep the column. */
 @media(max-width:600px){
   .lv-mapcard.lv-display:not(.lv-wall) > .lv-rail:not(.hidden){position:relative;width:auto;height:44px;box-sizing:border-box;
     flex-direction:row;padding:0 8px;border-right:none;border-bottom:1px solid rgba(120,190,155,.18)}
@@ -1439,7 +1439,6 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   .lv-mapcard.lv-display:not(.lv-wall) > .lv-stage{width:100%;margin-left:0;padding:4px}
   .lv-mapcard.lv-display:not(.lv-wall) > .lv-legend{margin-left:0}
   .lv-mapcard.lv-display:not(.lv-wall) > .lv-drawer{left:0;top:44px}
-  .lv-mapcard.lv-display:not(.lv-wall) > .lv-rail:not(.hidden) ~ .la3d{width:100%;margin-left:0;height:calc(100vh - 219px)}
 }
 
 /* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────

@@ -285,6 +285,7 @@ const CSS = `
 .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
 @media (max-width:900px){.lv-mapcard.lv-display .la3d{height:calc(100vh - 130px)}}
 @media (max-width:600px){.lv-mapcard.lv-display .la3d{height:calc(100vh - 175px)}}
+@media (max-width:600px){.lv-mapcard.lv-display:not(.lv-wall) > .lv-rail:not(.hidden) ~ .la3d{width:100%;margin-left:0;height:calc(100vh - 219px)}}
 .la3d canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
 .la3d-bar{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:8px;
   justify-content:space-between;align-items:flex-end;pointer-events:none}
