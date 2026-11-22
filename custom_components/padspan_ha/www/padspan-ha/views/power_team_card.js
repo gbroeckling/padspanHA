@@ -296,13 +296,12 @@ export function teamSection(teamEid, o){
       change(t);
       const back = await hass.callWS({ type: "padspan_ha/power_teams_set", teams });
       track(word);
-      // Drawn again from what was saved (the next wake-up, a skip, the folds' titles).
+      // Its own section drawn again from what was saved (the next wake-up, a skip, its title), and the live part
+      // (it says how long a change by hand is kept).
       stored = ((back && back.teams) || teams).find(x => x.id === tid) || stored;
       if (back && back.live && back.live[tid]) nextWake = back.live[tid].next_wake || null;
-      // The folds that were open stay open.
-      const open = new Set(Array.from(settings.children || []).filter(d => d.open === true || (d.getAttribute && d.getAttribute("open") !== null))
-        .map(d => d.getAttribute && d.getAttribute("data-team-fold")).filter(Boolean));
-      drawSettings(open);
+      redraw(word.includes("wake") ? "wake" : word.includes("bedtime") ? "bedtime" : word.includes("night") ? "night" : "advanced");
+      drawLive();
       say.style.color = "#8ee5b4"; say.textContent = done;
     } catch (e) { say.style.color = "#fca5a5"; say.textContent = "Could not save: " + errorText(e); }
   }
@@ -341,11 +340,13 @@ export function teamSection(teamEid, o){
   const note = (text) => el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.45" }, text);
   const dayName = (iso) => { const d = new Date(`${iso}T12:00:00`); return isNaN(d) ? iso : DAYS[(d.getDay() + 6) % 7]; };
 
-  function drawSettings(openFolds){
-    while (settings.firstChild) settings.removeChild(settings.firstChild);
-    if (!stored) return;
-    const ro = !admin;
-    const keepOpen = (d) => { if (openFolds && openFolds.has(d.getAttribute("data-team-fold"))) d.setAttribute("open", ""); return d; };
+  // Each section is built by itself, so a save draws again only its own: what was typed and not yet saved in another
+  // stays as it is.
+  const ro = !admin;
+  const keepOpen = (d) => d;
+  const nodes = {};
+  const isOpen = (d) => !!d && (d.open === true || (d.getAttribute && d.getAttribute("open") !== null));
+  function buildWake(){
 
     // The morning alarm: on its days, a team that is off comes on at its dimmest and warmest `minutes` before the time
     // and fades to the brightness and colour by then. A team already on is left alone (someone is up).
@@ -388,11 +389,12 @@ export function teamSection(teamEid, o){
         }, skipped ? `Don't skip ${dayName(nextWake[0])}` : `Skip ${dayName(nextWake[0])} ${nextWake[1]}`));
       }
     }
-    settings.appendChild(wake);
-
+    return wake;
+  }
+  function buildBedtime(){
+    if (stored.adaptive === false) return null;
     // Bedtime: on its days at its time, a lit team fades to Sleep (warming as it dims), then off or stays in Sleep.
     // Only with the day's curve (Sleep is one of its looks).
-    if (stored.adaptive !== false) {
       const b = { ...(bedDefault || {}), ...(stored.bedtime || {}) };
       const bed = keepOpen(fold(b.on ? `Bedtime: ${b.time}, ${(b.days || []).map(d => DAYS[d]).join(" ") || "no days"}` : "Bedtime: off", "bedtime"));
       const bOn = el("input", { type: "checkbox", "data-bed": "on" }); bOn.checked = !!b.on;
@@ -416,8 +418,10 @@ export function teamSection(teamEid, o){
           }, "team_card:bedtime_saved", bOn.checked ? `Saved: bedtime at ${bTime.value || "22:30"}` : "Saved: no bedtime"),
         }, "Save the bedtime"));
       }
-      settings.appendChild(bed);
-
+      return bed;
+  }
+  function buildNight(){
+    if (stored.adaptive === false) return null;
       // The night light: switched on between these hours (the wall, a tap, an automation), it comes on in Sleep.
       const n = { ...(nightDefault || {}), ...(stored.night || {}) };
       const night = keepOpen(fold(n.on ? `Night light: ${n.from} to ${n.to}` : "Night light: off", "night"));
@@ -435,13 +439,13 @@ export function teamSection(teamEid, o){
             "team_card:night_saved", nOn.checked ? `Saved: night light ${nFrom.value || "23:00"} to ${nTo.value || "06:00"}` : "Saved: no night light"),
         }, "Save the night light"));
       }
-      settings.appendChild(night);
-    }
-
+      return night;
+  }
+  function buildAdvanced(){
+    if (!(stored.adaptive !== false || stored.power)) return null;
     // The day's curve (adapted from Adaptive Lighting, with credit: THIRD_PARTY_NOTICES.md): its brightness and colour
     // at noon, at the horizon and at midnight, sleep's, and when this light's day starts and ends (the sun's sunrise
     // and sunset moved by minutes, or fixed times). And what a tap's off does.
-    if (stored.adaptive !== false || stored.power) {
       const adv = keepOpen(fold("Advanced: the day's curve" + (stored.power ? " and the power" : ""), "advanced"));
       const c = stored.curve || {};
       const inputs = {}, times = {};
@@ -494,10 +498,28 @@ export function teamSection(teamEid, o){
           }, offSel && offSel.value !== stored.off ? "team_card:off_mode_saved" : "team_card:curve_saved", "Saved"),
         }, "Save"));
       }
-      settings.appendChild(adv);
+      return adv;
+  }
+  const BUILD = [["wake", buildWake], ["bedtime", buildBedtime], ["night", buildNight], ["advanced", buildAdvanced]];
+  function drawSettings(){
+    while (settings.firstChild) settings.removeChild(settings.firstChild);
+    if (!stored) return;
+    for (const [k, build] of BUILD) {
+      const n = build();
+      if (n) { nodes[k] = n; settings.appendChild(n); } else delete nodes[k];
     }
     if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up, the bedtime, the night light and the curve."));
     settings.appendChild(say);
+  }
+  /** Draw one section again from what was saved, open if it was open. */
+  function redraw(key){
+    const old = nodes[key], build = (BUILD.find(([k]) => k === key) || [])[1];
+    if (!old || !build || old.parentNode !== settings) { drawSettings(); return; }
+    const n = build();
+    if (!n) return;
+    if (isOpen(old)) n.setAttribute("open", "");
+    settings.replaceChild(n, old);
+    nodes[key] = n;
   }
   if (tid) Promise.resolve().then(load).then(() => { drawSettings(); drawLive(); }, () => { /* no teams read: the card works without its settings */ });
 

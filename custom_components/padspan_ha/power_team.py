@@ -243,14 +243,14 @@ def bedtime_due(bed: dict, now: datetime) -> tuple[str, float] | None:
     b = clean_bedtime(bed)
     if not b["on"]:
         return None
-    day = now.date()
-    if day.weekday() not in b["days"]:
-        return None
     hh, mm = (int(x) for x in b["time"].split(":"))
-    start = datetime.combine(day, datetime.min.time(), now.tzinfo).replace(hour=hh, minute=mm)
-    end = start + timedelta(minutes=b["minutes"])
-    if start <= now < end:
-        return day.isoformat(), (end - now).total_seconds()
+    for day in (now.date(), now.date() - timedelta(days=1)):    # 23:50 for 30 minutes is still the evening's at 00:05
+        if day.weekday() not in b["days"]:
+            continue
+        start = datetime.combine(day, datetime.min.time(), now.tzinfo).replace(hour=hh, minute=mm)
+        end = start + timedelta(minutes=b["minutes"])
+        if start <= now < end:
+            return day.isoformat(), (end - now).total_seconds()
     return None
 
 
@@ -307,6 +307,7 @@ class Team:
         self._was_fading = False       # so the light is written again when a long fade ends
         self.woke_day: str | None = None   # the day the last wake-up ran, so it runs once
         self.slept_day: str | None = None  # the day the last bedtime ran, so it runs once
+        self.bed_ran_here: str | None = None   # ... and in this run of Home Assistant (a restart mid-bedtime runs it again)
         self._back_at: float | None = None # when a wake-up's light hands back to the day
         self._off_at: float | None = None  # when a bedtime (or Sleep in N min) that ends off turns the team off
         self._dim_seen: tuple[int, float] | None = None
@@ -431,12 +432,20 @@ class Team:
                       transition: float | None = None) -> None:
         was_on = self.is_on
         powered = self._powered()
+        chosen = brightness is not None or kelvin is not None or hs is not None
+        if was_on and not chosen and effect is None and transition is None:
+            # On already, and nothing asked for (a presence rule, Try again): what it shows is sent again, a fade
+            # running goes on over what is left of it, and a bedtime's off or a wake-up's hand-back still comes.
+            if self._follows() and not self.fading:
+                self.want = self._merged()
+            left = self._quiet_until - QUIET_S - self.io.now() if self.fading else 0
+            await self._run(boot=not powered, fade=left if left > 1 else None)
+            return
         self.waking, self._back_at, self._off_at = False, None, None
         if effect == EFFECT_SLEEP:
             self.sleep, self.manual = True, False
         elif effect == EFFECT_ADAPTIVE:
             self.sleep, self.manual = False, False
-        chosen = brightness is not None or kelvin is not None or hs is not None
         if not was_on and not chosen and effect is None and self._night():
             self.sleep, self.manual = True, False       # the night light: Sleep, not the day's light
         if chosen:
@@ -486,7 +495,7 @@ class Team:
     async def go_to_sleep(self, minutes: float, end: str = "off") -> bool:
         """Bedtime: a team that is on fades over `minutes` to Sleep (dim and warm: it warms as it dims), then stays
         there (`end` "sleep") or goes off as its own off does. A team that is off is left off. True when it ran."""
-        if not self.is_on:
+        if not self.is_on or not self.adaptive:
             return False
         self.sleep, self.manual, self.waking, self._back_at = True, False, False, None
         self.want = self._target()
@@ -498,6 +507,7 @@ class Team:
     async def turn_off(self, transition: float | None = None) -> None:
         self._gen += 1
         self.manual = False
+        self.sleep = False                             # Sleep is for now: the next turn-on is the day's (or the night light's)
         self.waking, self._back_at, self._off_at = False, None, None
         self.phase, self.missing = "off", []
         self._quiet_until = -1e9
@@ -547,7 +557,7 @@ class Team:
             d["transition"] = fade
         return d
 
-    def _answered(self, eid: str) -> bool:
+    def _answered(self, eid: str, follow_only: bool = False) -> bool:
         """Does the bulb show what is wanted? (Its brightness; its colour temperature where it reports one.) While
         a long fade runs, on is all it can show: it is partway there."""
         st = self.io.state(eid)
@@ -557,11 +567,12 @@ class Team:
             return True
         a = st.attributes or {}
         bri, want = _num(a.get("brightness")), self.want.get("brightness", 255)
-        # What was set by hand is the bulb's own: never what it is measured against.
-        if not self.manual_bri and (bri is None or abs(bri - want) > (4 if want < 64 else 8)):   # dim lights told apart more finely
+        # What was sent is what is checked. Only the minute's look (`follow_only`) leaves alone what was set by hand,
+        # perhaps at the bulb itself, which the team never sent.
+        if not (follow_only and self.manual_bri) and (bri is None or abs(bri - want) > (4 if want < 64 else 8)):   # dim lights told apart more finely
             return False
         k, wk = _num(a.get("color_temp_kelvin")), self.want.get("kelvin")
-        return self.manual_colour or not (wk is not None and self.want.get("hs") is None and k is not None and abs(k - wk) > 150)
+        return (follow_only and self.manual_colour) or not (wk is not None and self.want.get("hs") is None and k is not None and abs(k - wk) > 150)
 
     async def _run(self, boot: bool, fade: float | None = None) -> None:
         """The power on and full, then the bulbs sent what is wanted until each answers. A fade longer than the
@@ -630,7 +641,7 @@ class Team:
         if new.state != "on":
             if self.phase != "off":
                 self._gen += 1
-                self.phase, self.missing, self.manual = "off", [], False
+                self.phase, self.missing, self.manual, self.sleep = "off", [], False, False
                 self.io.changed()
             return
         if was != "on":
@@ -662,7 +673,7 @@ class Team:
             return
         self._dim_seen = None
         self.want["brightness"] = max(3, int(level))
-        self.sleep = False
+        self.sleep, self._off_at = False, None
         if self.adaptive:
             self._hand(bri=True)                       # the brightness only: the colour goes on following the day
         await self._run(boot=True)                     # under-fed bulbs may have dropped out: as after a power-on
@@ -732,7 +743,7 @@ class Team:
             self._off_at = None
             if self.is_on and self.sleep:
                 await self.turn_off()                  # a bedtime that ends off: as the team's own off does
-                return
+                return                                 # (the Manager runs each team's tick on its own: nothing waits)
         if self.waking and self._back_at is not None and now >= self._back_at:
             self.waking, self.manual, self._back_at = False, False, None   # the wake-up's light hands back to the day
             self.io.changed()
@@ -763,7 +774,7 @@ class Team:
                 def off(b: str) -> bool:
                     st = self.io.state(b)
                     return bool(self.by_bulbs and st and st.state == "off")
-                stray = [b for b in self.cfg["bulbs"] if (self._bulb_on(b) and not self._answered(b)) or off(b)]
+                stray = [b for b in self.cfg["bulbs"] if (self._bulb_on(b) and not self._answered(b, follow_only=True)) or off(b)]
                 if stray:
                     self._sent_at = self.io.now()      # before the sends: what they change is ours as it happens
                 for b in stray:
@@ -888,16 +899,27 @@ class Manager:
                         hass.async_create_task(self._keep_woke())   # and across a restart: never woken twice
                         if not t.is_on or t.sleep:         # off, or left in Sleep: wake it
                             hass.async_create_task(t.wake(due[1]))   # its fade runs for minutes: never held up by the tick
-                    bed = bedtime_due(t.cfg.get("bedtime") or {}, local)
-                    if bed and t.slept_day != bed[0]:
+                    bed = bedtime_due(t.cfg.get("bedtime") or {}, local) if t.adaptive else None
+                    if bed and t.bed_ran_here != bed[0]:
+                        t.bed_ran_here = bed[0]
+                        first = t.slept_day != bed[0]
                         t.slept_day = bed[0]               # once a day; a team that is off is left off
                         hass.async_create_task(self._keep_woke())
-                        if t.is_on:
+                        # Home Assistant restarted mid-bedtime (the day is kept, its fade and off were not): a lit team
+                        # not yet in Sleep is put to sleep over what is left.
+                        if t.is_on and (first or not t.sleep):
                             hass.async_create_task(t.go_to_sleep(bed[1] / 60, clean_bedtime(t.cfg.get("bedtime"))["end"]))
-                    await t.tick()
+                    hass.async_create_task(_safe_tick(t))   # each team on its own: one slow off never holds up another
                 except Exception as err:  # noqa: BLE001 - one team's trouble never stops the others
                     _quiet_error("power_team:tick")
                     _LOGGER.debug("Power team tick failed: %s", err)
+
+        async def _safe_tick(t: Team) -> None:
+            try:
+                await t.tick()
+            except Exception as err:  # noqa: BLE001 - one team's trouble never stops the others
+                _quiet_error("power_team:team_tick")
+                _LOGGER.debug("Power team tick failed: %s", err)
         from datetime import timedelta  # noqa: PLC0415
         self._unsub = [async_track_state_change_event(hass, [*by_power, *by_bulb], seen),
                        async_track_time_interval(hass, tick, timedelta(seconds=ADAPT_EVERY_S))]

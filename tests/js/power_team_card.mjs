@@ -299,6 +299,14 @@ try {
       as && as.curve.min_sunrise_time === "06:30" && as.curve.max_sunset_time === "" && as.resume === 120
       && as.wake.skip === "2026-11-23" && as.bedtime.time === "22:45" && as.night.from === "22:00", as);
 
+    // A save draws again only its own section: a bedtime typed and not yet saved survives a skip pressed meanwhile.
+    const bt = find(find(card, "data-team-fold", "bedtime")[0], "data-bed", "time")[0];
+    bt.value = "23:15";
+    find(find(card, "data-team-fold", "wake")[0], "data-wake-skip")[0].click(); await settle(); await settle();
+    const bt2 = find(find(card, "data-team-fold", "bedtime")[0], "data-bed", "time")[0];
+    check("a save draws only its own section: an unsaved bedtime survives a skip",
+      bt2 === bt && bt2.value === "23:15" && find(find(card, "data-team-fold", "wake")[0], "data-wake-skip", "skip").length === 1, bt2 && bt2.value);
+
     const live = h.subs.filter(s => s.live).length;
     document.body._all().find(n => n.tagName === "BUTTON" && n.textContent === "✕").click();
     check("closed: it stops following Home Assistant", live === 1 && h.subs.every(s => !s.live), h.subs.length);

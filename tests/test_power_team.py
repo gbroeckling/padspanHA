@@ -115,8 +115,12 @@ class House:
         if eid in self.dead or self.powered_at is None or self.t - self.powered_at < self.boot:
             return                                         # not on the network yet: nothing changes
         if service == "turn_on":
-            self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": data.get("brightness"), "color_temp_kelvin": data.get("color_temp_kelvin"),
-                                                                    "hs_color": data.get("hs_color")})
+            # Like Home Assistant: a light that is on keeps what a command does not name (a colour-only send keeps the
+            # brightness); one coming on takes what it was sent.
+            was = self.states[eid].attributes if self.states[eid].state == "on" else {}
+            keep = lambda k: data[k] if k in data else was.get(k)    # noqa: E731
+            self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": keep("brightness"), "color_temp_kelvin": keep("color_temp_kelvin"),
+                                                                    "hs_color": keep("hs_color")})
         else:
             self.states[eid] = SimpleNamespace(state="off", attributes={})
 
@@ -238,8 +242,7 @@ def test_a_dimmer_held_to_a_level_at_the_wall_is_how_bright_the_bulbs_go_and_the
     h.calls.clear()
     run(t.tick())
     assert [d for _, s, d in h.to("light.b1")] == [{"color_temp_kelvin": 3000, "transition": P.ADAPT_FADE_S}]
-    assert h.states["light.b1"].attributes["color_temp_kelvin"] == 3000
-    h.states["light.b1"] = SimpleNamespace(state="on", attributes={"brightness": 102, "color_temp_kelvin": 3000})
+    assert h.states["light.b1"].attributes == {"brightness": 102, "color_temp_kelvin": 3000, "hs_color": None}   # its brightness kept
     # A level that does not hold (a ramp passing through) is nothing.
     h.t += 60
     h.calls.clear()
@@ -1055,3 +1058,132 @@ def test_the_suns_times_can_be_held_between_an_earliest_and_a_latest() -> None:
     assert C.shift_days(winter, {"min_sunrise_time": "06:30"}, at) == winter         # inside its limits: the sun's
     assert C.shift_days(summer, {"sunrise_time": "05:45", "min_sunrise_time": "06:30"}, at)[1][0] == 5.75 * H   # a fixed time wins
     assert C.clean({"min_sunset_time": "7pm"})["min_sunset_time"] == ""
+
+
+# ── the review of the day's cycle (2026-11-22) ─────────────────────────────
+def test_sleep_from_the_night_light_or_a_bedtime_ends_with_the_off_so_the_morning_is_the_days() -> None:
+    from datetime import datetime
+    clock = {"now": datetime(2026, 11, 22, 2, 0)}
+    h = House(boot=0.0)
+    h.io.local = lambda: clock["now"]
+    t = P.Team({**BCFG, "night": {"on": True, "from": "23:00", "to": "06:00"}}, h.io)
+    run(t.turn_on())
+    assert t.sleep
+    run(t.turn_off())
+    clock["now"] = datetime(2026, 11, 22, 9, 0)
+    run(t.turn_on())
+    assert not t.sleep and h.states["light.b1"].attributes["brightness"] == 200
+    # A bedtime that ends off: the same.
+    h2 = House(boot=0.0)
+    t2 = P.Team(dict(BCFG), h2.io)
+    run(t2.turn_on())
+    run(t2.go_to_sleep(5, "off"))
+    h2.t += 400
+    run(t2.tick())
+    assert not t2.is_on and not t2.sleep
+    run(t2.turn_on())
+    assert h2.states["light.b1"].attributes["brightness"] == 200
+
+
+def test_a_brightness_sent_through_the_team_is_sent_again_to_a_bulb_that_dropped_it() -> None:
+    h = Strings()
+    t = P.Team(dict(SCFG), h.io)
+    run(t.turn_on())
+    h.drop["light.b2"] = 2
+    run(t.turn_on(brightness=40))
+    assert t.manual_bri and h.states["light.b2"].attributes["brightness"] == 40 and len(h.to("light.b2")) >= 4
+    assert t.phase == "ready"
+
+
+def test_a_bare_turn_on_of_a_lit_team_leaves_its_bedtime_and_its_wake_up_hand_back_alone() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.go_to_sleep(30, "off"))
+    h.t += 600
+    h.calls.clear()
+    run(t.turn_on())                                                       # a presence rule, or Try again, mid-fade
+    assert t.sleep and t._off_at is not None and t.fading
+    sent = [d for _, s, d in h.to("light.b1") if s == "turn_on"]
+    assert sent and 1100 < sent[0]["transition"] < 1300                   # on over what is left of the fade, no jump
+    h.t += 1300
+    run(t.tick())
+    assert not t.is_on                                                     # and still off at its end
+    h2 = House(boot=0.0)
+    t2 = P.Team({**BCFG, "wake": {"on": True, "minutes": 10, "back_after": 20}}, h2.io)
+    run(t2.wake())
+    h2.t += 700
+    run(t2.turn_on())
+    assert t2.waking and t2._back_at is not None
+    h2.t += 20 * 60
+    run(t2.tick())
+    assert not t2.waking and not t2.manual
+
+
+def test_bedtime_is_only_for_a_team_that_follows_the_day_and_a_hold_at_the_wall_ends_it() -> None:
+    h = House(boot=0.0)
+    t = P.Team({**CFG, "adaptive": False}, h.io)
+    run(t.turn_on())
+    assert run(t.go_to_sleep(30)) is False and not t.sleep
+    h2 = House(boot=0.0)
+    t2 = P.Team(dict(CFG), h2.io)
+    run(t2.turn_on())
+    run(t2.go_to_sleep(30, "off"))
+    h2.t += 120
+    new, old = h2.wall(True, level=150)
+    run(t2.on_power(new, old))
+    assert t2._off_at is None and not t2.sleep and t2.manual_bri
+    h2.t += 3600
+    run(t2.tick())
+    assert t2.is_on
+
+
+def test_a_bedtime_past_midnight_is_still_due_after_it() -> None:
+    from datetime import datetime
+    b = {"on": True, "time": "23:50", "days": [4], "minutes": 30}
+    assert P.bedtime_due(b, datetime(2026, 11, 27, 23, 55)) == ("2026-11-27", 1500.0)   # a Friday
+    assert P.bedtime_due(b, datetime(2026, 11, 28, 0, 5)) == ("2026-11-27", 900.0)      # Saturday 00:05: Friday's
+    assert P.bedtime_due(b, datetime(2026, 11, 28, 0, 25)) is None
+
+
+def test_a_restart_mid_bedtime_puts_a_lit_team_to_sleep_again_once(monkeypatch) -> None:
+    import sys
+    import types
+    from datetime import datetime
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ticks: list = []
+    ev.async_track_state_change_event = lambda *a, **k: (lambda: None)
+    ev.async_track_time_interval = lambda hass, fn, every: (ticks.append(fn), (lambda: None))[1]
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    dtu = types.ModuleType("homeassistant.util.dt")
+    dtu.now = lambda: datetime(2026, 11, 22, 22, 40)
+    monkeypatch.setitem(sys.modules, "homeassistant.util.dt", dtu)
+    import homeassistant.util as hu
+    monkeypatch.setattr(hu, "dt", dtu, raising=False)
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+
+    class St:
+        data = {"power_teams_slept": {CFG["id"]: "2026-11-22"}}            # it ran before the restart
+
+        async def async_set(self, **kw):
+            self.data = {**self.data, **kw}
+    tasks: list = []
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: St()}}, async_create_task=tasks.append, states=SimpleNamespace(get=lambda e: None))
+    cfg = {**BCFG, "bedtime": {"on": True, "time": "22:30", "days": [6], "minutes": 30}}
+    m = P.Manager(hass)
+    m.reload([cfg])
+    house = House(boot=0.0)
+    t = m.teams[cfg["id"]]
+    t.io = house.io
+    run(t.turn_on())                                                       # lit, following the day after the restart
+    run(ticks[-1](None))
+    sleeps = [c for c in tasks if getattr(c, "__name__", "") == "go_to_sleep"]
+    assert len(sleeps) == 1
+    for c in tasks:
+        run(c)
+    assert t.sleep and t._off_at is not None
+    tasks.clear()
+    run(ticks[-1](None))                                                   # the next minute: not again
+    assert not [c for c in tasks if getattr(c, "__name__", "") == "go_to_sleep"]
+    for c in tasks:
+        run(c)
