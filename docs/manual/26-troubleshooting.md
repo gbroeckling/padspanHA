@@ -40,8 +40,8 @@ Likely causes, most common first:
 
 Then, if it still flickers on a boundary:
 
-- Raise **Room Change Delay** (Settings → Tracking → Rooms and timing; 20 seconds unless you changed
-  it). 20 to 60 seconds steadies most boundaries; a longer delay is steadier and slower.
+- Raise **Room Change Delay** (Settings → Tracking → Rooms and timing; 40 seconds unless you changed
+  it). 40 to 60 seconds steadies most boundaries; a longer delay is steadier and slower.
 - Turn on **Why This Room (Sensor Attribute)** in the same section. The area sensor then says, in its
   `room_reason` attribute, how many polls voted for the room and why a move was held or kept
   ([chapter 14](14-home-assistant-reference.md)).

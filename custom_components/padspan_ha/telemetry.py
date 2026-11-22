@@ -442,13 +442,14 @@ def heard_ask_due(data: Any) -> dict[str, str]:
 # read is_outdoor_floor). Sent only where one of them applies.
 PRESENCE_CFG_WORDS: dict[str, tuple[str, ...]] = {
     "poll": ("1_4", "6_9", "10", "11_60"),
-    "delay": ("0", "1_19", "21_60", "gt60"),
+    # "20": the default until November 2026, kept by a person who saved it.
+    "delay": ("0", "1_19", "20", "21_60", "gt60"),
     "outdoor": ("ha",),
 }
 
 
 def presence_cfg_words(settings: dict, ha_floor_ids: Any = ()) -> dict[str, str]:
-    from .presence_rules import is_outdoor_floor, room_change_delay_s  # noqa: PLC0415
+    from .presence_rules import ROOM_CHANGE_DELAY_DEFAULT_S, is_outdoor_floor, room_change_delay_s  # noqa: PLC0415
     from .const import OUTSIDE_FLOOR_ID  # noqa: PLC0415
     out: dict[str, str] = {}
     try:
@@ -458,8 +459,9 @@ def presence_cfg_words(settings: dict, ha_floor_ids: Any = ()) -> dict[str, str]
     if poll != 5:
         out["poll"] = "1_4" if poll < 5 else "6_9" if poll < 10 else "10" if poll == 10 else "11_60"
     d = room_change_delay_s(settings)
-    if d != 20.0:
-        out["delay"] = "0" if d == 0 else "1_19" if d < 20 else "21_60" if d <= 60 else "gt60"
+    if d != ROOM_CHANGE_DELAY_DEFAULT_S:
+        out["delay"] = ("0" if d == 0 else "1_19" if d < 20 else "20" if d == 20
+                        else "21_60" if d <= 60 else "gt60")
     if any(f != OUTSIDE_FLOOR_ID and is_outdoor_floor(f) for f in (ha_floor_ids or ())):
         out["outdoor"] = "ha"
     return out

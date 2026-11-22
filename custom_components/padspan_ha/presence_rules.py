@@ -523,15 +523,25 @@ def coverage_window_polls(poll_interval_s: float | None) -> int:
 COVERAGE_WINDOW_POLLS = 6
 
 
+# Room Change Delay when none is saved. 20 s until November 2026; 40 s cut room
+# changes by about a third and back-and-forth by about half on two recordings
+# of a real house, for a real move showing about 10 s later. The key is not in
+# DEFAULT_SETTINGS on purpose: only the Settings card writes it, so a saved
+# value (20 included) is a person's choice and stays, and an install that never
+# saved one takes this default.
+ROOM_CHANGE_DELAY_DEFAULT_S = 40.0
+
+
 def room_change_delay_s(settings: dict[str, Any]) -> float:
-    """Room Change Delay in seconds, 0-300. Unset is the default 20 s; 0 is
-    0 — "switch on the first poll that agrees", as the panel says. It used to
-    read `or 20.0`, so a delay of 0 still waited 20 s."""
+    """Room Change Delay in seconds, 0-300. Unset is the default
+    (ROOM_CHANGE_DELAY_DEFAULT_S); 0 is 0 — "switch on the first poll that
+    agrees", as the panel says. It used to read `or 20.0`, so a delay of 0
+    still waited 20 s."""
     v = (settings or {}).get("room_change_delay_s")
     try:
-        d = 20.0 if v is None or v == "" else float(v)
+        d = ROOM_CHANGE_DELAY_DEFAULT_S if v is None or v == "" else float(v)
     except (TypeError, ValueError):
-        d = 20.0
+        d = ROOM_CHANGE_DELAY_DEFAULT_S
     return max(0.0, min(300.0, d))
 
 

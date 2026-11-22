@@ -25,7 +25,7 @@
       "_kalman_addr_key": "C0:FF:EE:00:00:01",
       "_room_votes": {
        "__deque__": [],
-       "maxlen": 4
+       "maxlen": 8
       },
       "_confirmed_room": null,
       "_room_confidence": 0.0,
@@ -104,9 +104,9 @@
       "name": "phone",
       "identified": true,
       "age_s": 0.457596,
-      "room": "Lounge",
+      "room": "Hall",
       "_smoothed": true,
-      "room_confidence": 0.75,
+      "room_confidence": 0.5,
       "rssi_margin_confidence": 1.0,
       "_source_rssi": {
        "AA:00:00:00:00:03": -86.3145423,
@@ -128,12 +128,13 @@
       "_away_miss": 0,
       "_kalman_addr_key": "C0:FF:EE:00:00:01",
       "_room_votes": {
-       "__deque__": ["Hall", "Lounge", "Lounge", "Lounge"],
-       "maxlen": 4
+       "__deque__": ["Lounge", "Hall", "Hall", "Hall", "Hall", "Lounge", "Lounge", "Lounge"],
+       "maxlen": 8
       },
-      "_confirmed_room": "Lounge",
-      "_room_confidence": 0.75,
+      "_confirmed_room": "Hall",
+      "_room_confidence": 0.5,
       "_rssi_margin_confidence": 1.0,
+      "_clear_run": ["Lounge", 3],
       "_spatial_debug": "disabled:metres=False,pos=0,model=False",
       "_outside_by_cov": false,
       "_coverage_hist": [-82.9243175, -82.2521626, -82.5133786, -65.537164, -63.6571837, -62.2830979],
@@ -149,8 +150,8 @@
         ["Hall", -86.3145423]
        ]
       },
-      "_last_room_change_mono": 10995.2405,
-      "_room_dwell_start": 10995.2405,
+      "_last_room_change_mono": 10985.2405,
+      "_room_dwell_start": 10985.2405,
       "_ema_rssi": {
        "AA:00:00:00:00:03": -86.3145423,
        "AA:00:00:00:00:05": -87.6852531,

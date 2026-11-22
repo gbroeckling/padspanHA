@@ -49,7 +49,7 @@ folding heading on that tab.
 
 | Card: control | Default | Range or choices | What it does | Key |
 |---|---|---|---|---|
-| Room Change Delay | 20 | 0 to 300 | Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half. | `room_change_delay_s` |
+| Room Change Delay | 40 | 0 to 300 | Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half. | `room_change_delay_s` |
 | Hold Room Through Short Gaps: Hold last room | 0 | 0 (off), or 1 to 600 | Seconds a device's room stays shown through a signal gap. Display only: rooms are decided as before. | `hold_last_room_s` |
 | Why This Room (Sensor Attribute): Add a room_reason attribute to each area sensor | off | on or off | Adds `room_reason` to each area sensor ([chapter 14](14-home-assistant-reference.md)). | `room_reason_attribute` |
 | Home/Away Timeout: Away timeout | 5 | 1 to 1440 | Minutes a device goes unheard before its tracker and area sensor read `not_home`. | `away_timeout_m` |
