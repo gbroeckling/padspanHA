@@ -307,8 +307,8 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `espresense_room_map` | empty | a mapping | ESPresense room names matched to Home Assistant areas. |
 | `atlas_3d_showcase` | off | on or off | An older Live Aboard look switch, kept so old backups load; Look decides now. |
 | `emergency_entities` | empty |  | The lights the Atlas's emergency lighting test switches. Empty: Home Assistant's emergency groups, or PadSpan's own rule. |
-| `auto_offset_mode` | not set | `off`, `partial`, `full` | Accepted but nothing reads it: only the manual receiver trims are applied. |
-| `signal_loss_linger_s` | not set | 10 to 300 | Retired in 0.20.16: accepted, read by nothing. |
+| `occupancy_multiplier` | 1.5 | 0.5 to 10 | Devices per person for the occupancy estimate, as Health's fabric check shows it; nothing else reads it yet. |
+| `occupancy_dwell_min` | not set | 0 to 60 | Minutes for the occupancy estimate's dwell; nothing reads it yet. |
 | `rssi_capture_retention_days` | 14 | `1`, `3`, `7`, `14`, `30` | Days RSSI recordings are kept (RSSI Vector Capture). |
 
 ### Kept by PadSpan itself
