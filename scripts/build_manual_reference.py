@@ -903,7 +903,7 @@ def _tabs_calibration() -> list[str]:
 
 
 def _tabs_manage() -> list[str]:
-    return re.findall(r'^\s*\["[a-z_]+","([^"]+)"\],?$', _js_block(_views_src("manage.js"), "const TABS = ["), re.M)
+    return re.findall(r'^\s*\["[a-z_]+",(?:t\()?"([^"]+)"\)?\],?$', _js_block(_views_src("manage.js"), "const TABS = ["), re.M)   # the name in t() or not
 
 
 def _tabs_bluetooth() -> list[str]:

@@ -61,12 +61,12 @@ def test_manage_deletes_confirm_twice_naming_the_object_and_its_owner():
     # Entity: the owner comes from HA's registry (hass.entities[...].platform);
     # PadSpan's own entities keep the inline Yes, delete.
     assert "ctx.hass.entities[o.entity_id]" in m and 'if(platform !== "padspan_ha"){' in m
-    assert "if(!confirm(`Delete ${o.entity_id}? ${owner}; deleting it removes it from Home Assistant.`)) return;" in m
-    assert "`It belongs to ${" in m and ", not PadSpan`" in m
-    assert "if(!confirm(`Are you sure? ${o.entity_id} will be deleted from Home Assistant." in m
+    assert 'if(!confirm(t("Delete {id}? {owner}; deleting it removes it from Home Assistant.", { id: o.entity_id, owner }))) return;' in m
+    assert 't("It belongs to {name}, not PadSpan", { name: String(platform)' in m
+    assert 'if(!confirm(t("Are you sure? {id} will be deleted from Home Assistant.' in m
     # Area: both confirms name it, before the delete is sent.
-    a = m.index('if(!confirm(`Delete the area "${area.name}"?')
-    b = m.index('if(!confirm(`Are you sure? "${area.name}" will be deleted from Home Assistant.`)) return;')
+    a = m.index('if(!confirm(t("Delete the area \\"{name}\\"?')
+    b = m.index('if(!confirm(t("Are you sure? \\"{name}\\" will be deleted from Home Assistant.", { name: area.name }))) return;')
     assert a < b < m.index("await ctx.actions.areaDelete(area.id);")
 
 

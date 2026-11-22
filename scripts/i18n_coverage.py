@@ -70,6 +70,8 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "features": ("views/settings.js#features",),
     "ai": ("views/settings.js#ai",),
     "atlas": ("views/settings.js#atlas",),
+    "manage": ("views/manage.js",),
+    "manage2": ("views/manage.js#manage2",),
 }
 SERVER = "server"
 

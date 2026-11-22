@@ -25,6 +25,8 @@
 
 // Basic's links (views/focus.js): which lead out to an expert screen.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 export function render(ctx){
   const { el } = ctx.helpers;
@@ -34,16 +36,16 @@ export function render(ctx){
   // Default to the Data sub-tab on first visit
   if(!ctx.state.manageTab) ctx.state.manageTab = "data";
   const mTab = ctx.state.manageTab;
-  const setTab = (t) => { ctx.state.manageTab = t; ctx.actions.renderRooms(); };
+  const setTab = (tab) => { ctx.state.manageTab = tab; ctx.actions.renderRooms(); };
 
   const TABS = [
-    ["data","Data"],
-    ["ha_entities","HA Entities"],
-    ["beacon_chars","Beacon Characteristics"],
-    ["history","History"],
-    ["events","Events"],
-    ["logs","Logs"],
-    ["factory_reset","Factory Reset"],
+    ["data",t("Data")],
+    ["ha_entities",t("HA Entities")],
+    ["beacon_chars",t("Beacon Characteristics")],
+    ["history",t("History")],
+    ["events",t("Events")],
+    ["logs",t("Logs")],
+    ["factory_reset",t("Factory Reset")],
   ];
 
   const tabBar = el("div",{class:"tabs tabs-rows",style:"margin-bottom:12px;flex-wrap:wrap;gap:4px"});
@@ -72,14 +74,14 @@ export function render(ctx){
   // In sample mode, an extra line tells the user to switch to Live.
   root.appendChild(el("div",{style:"background:#3d0c0c;border:2px solid #dc2626;border-radius:12px;padding:16px;margin-bottom:12px"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
-      el("div",{style:"font-weight:800;font-size:15px;color:#fca5a5"},"⚠  Danger Zone — Read before proceeding"),
+      el("div",{style:"font-weight:800;font-size:15px;color:#fca5a5"},t("⚠  Danger Zone — Read before proceeding")),
       ctx.helpers.helpBtn("manage_data"),
     ]),
     el("div",{style:"font-size:13px;color:#fcd5d5;line-height:1.6"},
-      "Actions here directly modify Home Assistant. Deleting areas, entities, or BLE labels cannot be undone. Only proceed if you understand what you are changing."
+      t("Actions here directly modify Home Assistant. Deleting areas, entities, or BLE labels cannot be undone. Only proceed if you understand what you are changing.")
     ),
     dataMode !== "live"
-      ? el("div",{style:"margin-top:10px;font-weight:700;color:#fbbf24"},"⚡ Switch to Live mode to enable management actions.")
+      ? el("div",{style:"margin-top:10px;font-weight:700;color:#fbbf24"},t("⚡ Switch to Live mode to enable management actions."))
       : null,
   ].filter(Boolean)));
 
@@ -114,11 +116,11 @@ export function render(ctx){
     if(orphans.length){
       const orphCard = el("div",{class:"card",style:"border-color:#f59e0b"});
       orphCard.appendChild(el("div",{class:"row",style:"margin-bottom:6px"},[
-        el("div",{style:"font-weight:700;font-size:14px"},"Orphan Room Polygons"),
-        el("span",{class:"badge warn",style:"margin-left:8px"},`${orphans.length} found`),
+        el("div",{style:"font-weight:700;font-size:14px"},t("Orphan Room Polygons")),
+        el("span",{class:"badge warn",style:"margin-left:8px"},tn(orphans.length, "{n} found", "{n} found")),
       ]));
       orphCard.appendChild(el("div",{style:"font-size:12px;color:#f59e0b;margin-bottom:10px"},
-        "These room polygons are in your map data but the room name does not exist in your HA area registry. They are likely ghost entries from sample mode."
+        t("These room polygons are in your map data but the room name does not exist in your HA area registry. They are likely ghost entries from sample mode.")
       ));
 
       const tbody = el("tbody");
@@ -129,15 +131,15 @@ export function render(ctx){
       // map's room_bounds without the orphan key and push the whole map back
       // via mapsUpdate (the API expects the full room_bounds dict).
       const makeBtn = ()=>{
-          const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")},"Delete");
+          const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")},t("Delete"));
           if(disabled) btn.disabled = true;
           btn.addEventListener("click", ()=>{
             bw.innerHTML = "";
-            const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},"Yes, delete");
-            const no  = el("button",{class:"btn tiny"},"No");
+            const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},t("Yes, delete"));
+            const no  = el("button",{class:"btn tiny"},t("No"));
             yes.addEventListener("click", async()=>{
               bw.innerHTML = "";
-              bw.appendChild(el("span",{class:"muted",style:"font-size:11px"},"Deleting…"));
+              bw.appendChild(el("span",{class:"muted",style:"font-size:11px"},t("Deleting…")));
               try {
                 // Re-fetch before rebuilding: this payload round-trips the
                 // whole receivers list and room_bounds dict, and a tab left
@@ -147,7 +149,7 @@ export function render(ctx){
                 // guard first (issue #67); the geometry gets it now.
                 await ctx.actions.mapsRefreshQuiet();
                 const fresh = (ctx.state.maps?.list || []).find(x => x.id === map.id);
-                if(!fresh){ throw new Error("map no longer exists"); }
+                if(!fresh){ throw new Error(t("map no longer exists")); }
                 const newBounds = Object.fromEntries(
                   Object.entries(fresh.room_bounds || {}).filter(([r]) => r !== room)
                 );
@@ -166,9 +168,9 @@ export function render(ctx){
                   // whatever the server holds.
                 });
                 await ctx.actions.mapsRefresh();
-                ctx.toast(`Deleted orphan "${room}" from ${map.name||map.id}`);
+                ctx.toast(t("Deleted orphan \"{room}\" from {map}", { room, map: map.name||map.id }));
                 ctx.actions.renderRooms();
-              } catch(e){ bw.innerHTML = ""; bw.appendChild(makeBtn()); ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
+              } catch(e){ bw.innerHTML = ""; bw.appendChild(makeBtn()); ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
             });
             no.addEventListener("click", ()=>{ bw.innerHTML = ""; bw.appendChild(makeBtn()); });
             bw.appendChild(yes); bw.appendChild(no);
@@ -179,12 +181,12 @@ export function render(ctx){
         tbody.appendChild(el("tr",{},[
           el("td",{style:"font-weight:600;color:#f59e0b"},room),
           el("td",{class:"muted",style:"font-size:11px"},map.name||map.id),
-          el("td",{class:"muted",style:"font-size:11px"},`${(b.points||[]).length} pts`),
+          el("td",{class:"muted",style:"font-size:11px"},t("{n} pts", { n: (b.points||[]).length })),
           el("td",{},bw),
         ]));
       }
       orphCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
-        el("thead",{},el("tr",{},[el("th",{},"Orphan room"),el("th",{},"Map"),el("th",{},"Points"),el("th",{},"")])),
+        el("thead",{},el("tr",{},[el("th",{},t("Orphan room")),el("th",{},t("Map")),el("th",{},t("Points")),el("th",{},"")])),
         tbody,
       ])));
 
@@ -193,21 +195,21 @@ export function render(ctx){
     if(orphans.length > 1){
         const delAllWrap = el("div",{style:"margin-top:10px;display:flex;gap:8px;align-items:center"});
         const makeDelAll = ()=>{
-          const b = el("button",{class:"btn"+(disabled?" disabled":"")},"Delete ALL orphans");
+          const b = el("button",{class:"btn"+(disabled?" disabled":"")},t("Delete ALL orphans"));
           if(disabled) b.disabled = true;
           b.addEventListener("click", ()=>{
             delAllWrap.innerHTML = "";
-            const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},`Yes, delete all ${orphans.length}`);
-            const no  = el("button",{class:"btn inline"},"Cancel");
+            const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},t("Yes, delete all {n}", { n: orphans.length }));
+            const no  = el("button",{class:"btn inline"},t("Cancel"));
             yes.addEventListener("click", async()=>{
               delAllWrap.innerHTML = "";
-              delAllWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},"Cleaning up…"));
+              delAllWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},t("Cleaning up…")));
               // Same stale-tab guard as the single delete: rebuild every
               // payload from a fresh fetch, never from this tab's copy. A
               // failed fetch says so and puts the button back (it sat at
               // "Cleaning up…" for good).
               try { await ctx.actions.mapsRefreshQuiet(); }
-              catch(e){ ctx.toast("Couldn't load the maps: " + ctx.helpers.errorText(e), true); delAllWrap.innerHTML = ""; delAllWrap.appendChild(makeDelAll()); return; }
+              catch(e){ ctx.toast(t("Couldn't load the maps: {why}", { why: ctx.helpers.errorText(e) }), true); delAllWrap.innerHTML = ""; delAllWrap.appendChild(makeDelAll()); return; }
               const freshList = ctx.state.maps?.list || [];
               // Group by map so we do one update per map
               const byMap = new Map();
@@ -240,7 +242,7 @@ export function render(ctx){
                 } catch(e){ fail++; }
               }
               await ctx.actions.mapsRefresh();
-              ctx.toast(`Removed ${orphans.length} orphan polygon${orphans.length===1?"":"s"}${fail?` (${fail} maps failed)`:""}.`);
+              ctx.toast(tn(orphans.length, "Removed {n} orphan polygon", "Removed {n} orphan polygons") + (fail ? " " + tn(fail, "({n} map failed)", "({n} maps failed)") : "") + ".");
               ctx.actions.renderRooms();
             });
             no.addEventListener("click", ()=>{ delAllWrap.innerHTML = ""; delAllWrap.appendChild(makeDelAll()); });
@@ -264,33 +266,33 @@ export function render(ctx){
   const taggedObjs = allObjs.filter(o => o.kind === "ble" && o.user_label);
   const tagsCard  = el("div",{class:"card"});
   tagsCard.appendChild(el("div",{class:"row",style:"margin-bottom:8px"},[
-    el("div",{style:"font-weight:700;font-size:14px"},"BLE Device Labels"),
-    el("span",{class:"badge",style:"margin-left:8px"},`${taggedObjs.length} tagged`),
+    el("div",{style:"font-weight:700;font-size:14px"},t("BLE Device Labels")),
+    el("span",{class:"badge",style:"margin-left:8px"},tn(taggedObjs.length, "{n} tagged", "{n} tagged")),
   ]));
   tagsCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-    "Remove user-assigned labels from BLE devices. The device stays in the snapshot — it just loses its friendly name."
+    t("Remove user-assigned labels from BLE devices. The device stays in the snapshot — it just loses its friendly name.")
   ));
   if(taggedObjs.length){
     const tbody = el("tbody");
     for(const o of taggedObjs){
       const addr = o.address || "";
-      const ageTxt = o.age_s != null ? `${Math.round(o.age_s)}s ago` : "—";
+      const ageTxt = o.age_s != null ? t("{n}s ago", { n: Math.round(o.age_s) }) : "—";
       const untagBtnWrap = el("div",{style:"display:flex;gap:4px"});
       const makeUntagBtn = ()=>{
-        const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")}, "Untag");
+        const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")}, t("Untag"));
         if(disabled) b.disabled = true;
         b.addEventListener("click", ()=>{
           untagBtnWrap.innerHTML = "";
-          const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626"},"Yes");
-          const no  = el("button",{class:"btn tiny"},"No");
+          const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626"},t("Yes"));
+          const no  = el("button",{class:"btn tiny"},t("No"));
           yes.addEventListener("click", async()=>{
             untagBtnWrap.innerHTML = "";
             try {
               await ctx.actions.objectLabelDelete(addr);
-              ctx.toast("Label removed.");
+              ctx.toast(t("Label removed."));
               await ctx.actions.refreshSnapshot();
               ctx.actions.renderRooms();
-            } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); untagBtnWrap.appendChild(makeUntagBtn()); }
+            } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); untagBtnWrap.appendChild(makeUntagBtn()); }
           });
           no.addEventListener("click", ()=>{ untagBtnWrap.innerHTML = ""; untagBtnWrap.appendChild(makeUntagBtn()); });
           untagBtnWrap.appendChild(yes); untagBtnWrap.appendChild(no);
@@ -307,17 +309,17 @@ export function render(ctx){
     }
     const clearAllWrap = el("div",{style:"margin-top:10px;display:flex;gap:8px;align-items:center"});
     const makeClearAllBtn = ()=>{
-      const b = el("button",{class:"btn"+(disabled?" disabled":"")},"Remove all labels");
+      const b = el("button",{class:"btn"+(disabled?" disabled":"")},t("Remove all labels"));
       if(disabled) b.disabled = true;
       b.addEventListener("click", ()=>{
         clearAllWrap.innerHTML = "";
-        const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},`Yes, remove all ${taggedObjs.length}`);
-        const no  = el("button",{class:"btn inline"},"Cancel");
+        const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},t("Yes, remove all {n}", { n: taggedObjs.length }));
+        const no  = el("button",{class:"btn inline"},t("Cancel"));
         yes.addEventListener("click", async()=>{
           clearAllWrap.innerHTML = "";
           let ok=0, fail=0;
           for(const o of taggedObjs){ try { await ctx.actions.objectLabelDelete(o.address); ok++; } catch(e){ fail++; } }
-          ctx.toast(`Removed ${ok} labels${fail?` (${fail} failed)`:""}.`);
+          ctx.toast(tn(ok, "Removed {n} label", "Removed {n} labels") + (fail ? " " + t("({n} failed)", { n: fail }) : "") + ".");
           await ctx.actions.refreshSnapshot();
           ctx.actions.renderRooms();
         });
@@ -328,12 +330,12 @@ export function render(ctx){
     };
     clearAllWrap.appendChild(makeClearAllBtn());
     tagsCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
-      el("thead",{},el("tr",{},[el("th",{},"Address"),el("th",{},"Label"),el("th",{},"Last seen"),el("th",{},"")])),
+      el("thead",{},el("tr",{},[el("th",{},t("Address")),el("th",{},t("Label")),el("th",{},t("Last seen")),el("th",{},"")])),
       tbody,
     ])));
     tagsCard.appendChild(clearAllWrap);
   } else {
-    tagsCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No BLE devices have been tagged yet."));
+    tagsCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},t("No BLE devices have been tagged yet.")));
   }
   root.appendChild(tagsCard);
 
@@ -349,14 +351,14 @@ export function render(ctx){
   if(phantomObjs.length){
     const phantomCard = el("div",{class:"card",style:"border-color:#f59e0b"});
     phantomCard.appendChild(el("div",{class:"row",style:"margin-bottom:6px"},[
-      el("div",{style:"font-weight:700;font-size:14px"},"Phantom Room Entries"),
-      el("span",{class:"badge warn",style:"margin-left:8px"},`${phantomObjs.length} found`),
+      el("div",{style:"font-weight:700;font-size:14px"},t("Phantom Room Entries")),
+      el("span",{class:"badge warn",style:"margin-left:8px"},tn(phantomObjs.length, "{n} found", "{n} found")),
     ]));
     phantomCard.appendChild(el("div",{style:"font-size:12px;color:#f59e0b;margin-bottom:4px"},
-      "These entity IDs appear in PadSpan's room map but do not exist in Home Assistant. They are typically leftover sample data or stale entries from a previous install."
+      t("These entity IDs appear in PadSpan's room map but do not exist in Home Assistant. They are typically leftover sample data or stale entries from a previous install.")
     ));
     phantomCard.appendChild(el("div",{style:"font-size:11px;color:#78909c;margin-bottom:10px;padding:6px 8px;background:#0a150e;border-radius:6px;border:1px solid #2a1f00"},
-      "Removing them clears the phantom entries from PadSpan's room tracking — no HA entities are modified or deleted."
+      t("Removing them clears the phantom entries from PadSpan's room tracking — no HA entities are modified or deleted.")
     ));
 
     const phantomList = el("div",{style:"display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto;margin-bottom:10px"});
@@ -370,22 +372,22 @@ export function render(ctx){
 
     const purgeWrap = el("div",{style:"display:flex;gap:8px;align-items:center"});
     const makePurgeBtn = ()=>{
-      const b = el("button",{class:"btn"+(disabled?" disabled":"")},"Clear phantom room data");
+      const b = el("button",{class:"btn"+(disabled?" disabled":"")},t("Clear phantom room data"));
       if(disabled) b.disabled = true;
       b.addEventListener("click", ()=>{
         purgeWrap.innerHTML = "";
-        const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},`Yes, remove ${phantomObjs.length} phantom entr${phantomObjs.length===1?"y":"ies"}`);
-        const no  = el("button",{class:"btn inline"},"Cancel");
+        const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},tn(phantomObjs.length, "Yes, remove {n} phantom entry", "Yes, remove {n} phantom entries"));
+        const no  = el("button",{class:"btn inline"},t("Cancel"));
         yes.addEventListener("click", async()=>{
           purgeWrap.innerHTML = "";
-          purgeWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},"Clearing…"));
+          purgeWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},t("Clearing…")));
           try {
             const result = await ctx.actions.roomTagPurgeMissing();
             await ctx.actions.refreshSnapshot();
-            ctx.toast(`Cleared ${result?.removed ?? phantomObjs.length} phantom entr${(result?.removed??0)===1?"y":"ies"} from room map.`);
+            ctx.toast(tn(result?.removed ?? phantomObjs.length, "Cleared {n} phantom entry from room map.", "Cleared {n} phantom entries from room map."));
             ctx.actions.renderRooms();
           } catch(e){
-            ctx.toast("Failed: "+ctx.helpers.errorText(e), true);
+            ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true);
             purgeWrap.innerHTML = ""; purgeWrap.appendChild(makePurgeBtn());
           }
         });
@@ -404,18 +406,18 @@ export function render(ctx){
   // on the next poll, so the user is warned about that.
   const entCard = el("div",{class:"card"});
   entCard.appendChild(el("div",{class:"row",style:"margin-bottom:8px"},[
-    el("div",{style:"font-weight:700;font-size:14px"},"HA Entities"),
-    el("span",{class:"badge warn",style:"margin-left:8px"},"Destructive"),
-    el("span",{class:"badge",style:"margin-left:4px"},`${realObjs.length} found`),
+    el("div",{style:"font-weight:700;font-size:14px"},t("HA Entities")),
+    el("span",{class:"badge warn",style:"margin-left:8px"},t("Destructive")),
+    el("span",{class:"badge",style:"margin-left:4px"},tn(realObjs.length, "{n} found", "{n} found")),
   ]));
   entCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"},
-    "Permanently remove entities from Home Assistant's entity registry. Use this to clean up stale or duplicate tracker entities. Automations that reference removed entities will break."
+    t("Permanently remove entities from Home Assistant's entity registry. Use this to clean up stale or duplicate tracker entities. Automations that reference removed entities will break.")
   ));
   entCard.appendChild(el("div",{style:"font-size:11px;color:#78909c;margin-bottom:10px;padding:6px 8px;background:#0a150e;border-radius:6px;border:1px solid #1b3526"},
-    "⚠ Entities managed by active integrations (e.g. Bermuda) will be recreated on the next integration poll. To remove permanently, disable the device or integration in HA."
+    t("⚠ Entities managed by active integrations (e.g. Bermuda) will be recreated on the next integration poll. To remove permanently, disable the device or integration in HA.")
   ));
   if(realObjs.length){
-    const entSearch = el("input",{type:"text",placeholder:"Filter entities…",style:"margin-bottom:8px;width:100%;box-sizing:border-box"});
+    const entSearch = el("input",{type:"text",placeholder:t("Filter entities…"),style:"margin-bottom:8px;width:100%;box-sizing:border-box"});
     const entList   = el("div",{style:"display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto"});
     const renderEntList = (filter) => {
       entList.innerHTML = "";
@@ -427,11 +429,11 @@ export function render(ctx){
 
         const doDelete = async ()=>{
           btnWrap.innerHTML = "";
-          btnWrap.appendChild(el("span",{class:"muted",style:"font-size:11px"},"Deleting…"));
+          btnWrap.appendChild(el("span",{class:"muted",style:"font-size:11px"},t("Deleting…")));
           try {
             await ctx.actions.entityDelete(o.entity_id);
             if(row){ row.style.opacity = "0.35"; row.style.transition = "opacity 0.4s"; }
-            statusDiv.textContent = "✓ Removed from HA registry";
+            statusDiv.textContent = t("✓ Removed from HA registry");
             statusDiv.style.color = "#52b788";
             statusDiv.style.display = "";
             btnWrap.innerHTML = "";
@@ -443,12 +445,12 @@ export function render(ctx){
             statusDiv.style.display = "";
             btnWrap.innerHTML = "";
             btnWrap.appendChild(makeDelBtn());
-            ctx.toast(`Delete failed: ${o.entity_id}`, true);
+            ctx.toast(t("Delete failed: {why}", { why: o.entity_id }), true);
           }
         };
 
         const makeDelBtn = ()=>{
-          const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")},"Delete");
+          const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")},t("Delete"));
           if(disabled) btn.disabled = true;
           btn.addEventListener("click", ()=>{
             // Another integration's entity: the two-step confirm of the
@@ -457,16 +459,16 @@ export function render(ctx){
             const platform = reg && reg.platform;
             if(platform !== "padspan_ha"){
               const owner = platform
-                ? `It belongs to ${String(platform).split("_").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")}, not PadSpan`
-                : "PadSpan can't tell which integration it belongs to";
-              if(!confirm(`Delete ${o.entity_id}? ${owner}; deleting it removes it from Home Assistant.`)) return;
-              if(!confirm(`Are you sure? ${o.entity_id} will be deleted from Home Assistant. Automations that use it will break.`)) return;
+                ? t("It belongs to {name}, not PadSpan", { name: String(platform).split("_").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ") })
+                : t("PadSpan can't tell which integration it belongs to");
+              if(!confirm(t("Delete {id}? {owner}; deleting it removes it from Home Assistant.", { id: o.entity_id, owner }))) return;
+              if(!confirm(t("Are you sure? {id} will be deleted from Home Assistant. Automations that use it will break.", { id: o.entity_id }))) return;
               doDelete();
               return;
             }
             btnWrap.innerHTML = "";
-            const yesBtn = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},"Yes, delete");
-            const noBtn  = el("button",{class:"btn tiny"},"Cancel");
+            const yesBtn = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},t("Yes, delete"));
+            const noBtn  = el("button",{class:"btn tiny"},t("Cancel"));
             yesBtn.addEventListener("click", doDelete);
             noBtn.addEventListener("click", ()=>{ btnWrap.innerHTML = ""; btnWrap.appendChild(makeDelBtn()); });
             btnWrap.appendChild(yesBtn);
@@ -480,21 +482,21 @@ export function render(ctx){
           el("div",{style:"flex:1;min-width:0"},[
             el("div",{style:"font-size:12px;font-family:monospace;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"},o.entity_id),
             o.name ? el("div",{style:"font-size:11px;color:#e2e8f0"},o.name) : null,
-            o.room ? el("div",{style:"font-size:11px;color:#52b788"},`room: ${o.room}`) : null,
+            o.room ? el("div",{style:"font-size:11px;color:#52b788"},t("room: {room}", { room: o.room })) : null,
             statusDiv,
           ].filter(Boolean)),
           btnWrap,
         ]);
         entList.appendChild(row);
       }
-      if(!filtered.length) entList.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No entities match."));
+      if(!filtered.length) entList.appendChild(el("div",{class:"muted",style:"font-size:12px"},t("No entities match.")));
     };
     entSearch.addEventListener("input",()=>renderEntList(entSearch.value));
     renderEntList("");
     entCard.appendChild(entSearch);
     entCard.appendChild(entList);
   } else {
-    entCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},ctx.state.dataMode === "sample" ? "No HA entities found in snapshot. Switch to Live mode to see real entities." : "No HA entities found in snapshot."));
+    entCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},ctx.state.dataMode === "sample" ? t("No HA entities found in snapshot. Switch to Live mode to see real entities.") : t("No HA entities found in snapshot.")));
   }
   root.appendChild(entCard);
 
@@ -504,12 +506,12 @@ export function render(ctx){
   // also lost. HA is the source of truth for areas — PadSpan just reads them.
   const areasCard = el("div",{class:"card"});
   areasCard.appendChild(el("div",{class:"row",style:"margin-bottom:8px"},[
-    el("div",{style:"font-weight:700;font-size:14px"},"HA Areas (Rooms)"),
-    el("span",{class:"badge warn",style:"margin-left:8px"},"Destructive"),
-    el("span",{class:"badge",style:"margin-left:4px"},`${haAreas.length} areas`),
+    el("div",{style:"font-weight:700;font-size:14px"},t("HA Areas (Rooms)")),
+    el("span",{class:"badge warn",style:"margin-left:8px"},t("Destructive")),
+    el("span",{class:"badge",style:"margin-left:4px"},tn(haAreas.length, "{n} area", "{n} areas")),
   ]));
   areasCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-    "Delete areas from the HA Area Registry. All devices assigned to a deleted area will become unassigned. Room color settings for the area are also removed."
+    t("Delete areas from the HA Area Registry. All devices assigned to a deleted area will become unassigned. Room color settings for the area are also removed.")
   ));
   if(haAreas.length){
     const tbody = el("tbody");
@@ -518,20 +520,20 @@ export function render(ctx){
       const floorLabel = floor ? floor.name : (area.floor_id||"—");
       const areaBtnWrap = el("div",{style:"display:flex;gap:4px"});
       const makeAreaDelBtn = ()=>{
-        const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")},"Delete");
+        const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")},t("Delete"));
         if(disabled) b.disabled = true;
         b.addEventListener("click", async()=>{
           // The two-step confirm of the Private BLE delete (issue #57).
-          if(!confirm(`Delete the area "${area.name}"? This deletes it from Home Assistant itself, not just PadSpan: every device and entity in it becomes unassigned.`)) return;
-          if(!confirm(`Are you sure? "${area.name}" will be deleted from Home Assistant.`)) return;
+          if(!confirm(t("Delete the area \"{name}\"? This deletes it from Home Assistant itself, not just PadSpan: every device and entity in it becomes unassigned.", { name: area.name }))) return;
+          if(!confirm(t("Are you sure? \"{name}\" will be deleted from Home Assistant.", { name: area.name }))) return;
           areaBtnWrap.innerHTML = "";
-          areaBtnWrap.appendChild(el("span",{class:"muted",style:"font-size:11px"},"Deleting…"));
+          areaBtnWrap.appendChild(el("span",{class:"muted",style:"font-size:11px"},t("Deleting…")));
           try {
             await ctx.actions.areaDelete(area.id);
             await ctx.actions.modelRefresh();
-            ctx.toast(`Area "${area.name}" deleted.`);
+            ctx.toast(t("Area \"{name}\" deleted.", { name: area.name }));
             ctx.actions.renderRooms();
-          } catch(e){ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
+          } catch(e){ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
         });
         return b;
       };
@@ -548,11 +550,11 @@ export function render(ctx){
     }
     // min-width:0: on a phone a long ID wraps instead of pushing Delete off the edge.
     areasCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table",style:"min-width:0"},[
-      el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"Floor"),el("th",{},"ID"),el("th",{},"")])),
+      el("thead",{},el("tr",{},[el("th",{},t("Name")),el("th",{},t("Floor")),el("th",{},t("ID")),el("th",{},"")])),
       tbody,
     ])));
   } else {
-    areasCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No areas found."));
+    areasCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},t("No areas found.")));
   }
   root.appendChild(areasCard);
 
@@ -565,25 +567,25 @@ export function render(ctx){
   if(maps.length){
     const mapsCard = el("div",{class:"card"});
     mapsCard.appendChild(el("div",{class:"row",style:"margin-bottom:8px"},[
-      el("div",{style:"font-weight:700;font-size:14px"},"Uploaded Maps"),
-      el("span",{class:"badge warn",style:"margin-left:8px"},"Destructive"),
-      el("span",{class:"badge",style:"margin-left:4px"},`${maps.length} maps`),
+      el("div",{style:"font-weight:700;font-size:14px"},t("Uploaded Maps")),
+      el("span",{class:"badge warn",style:"margin-left:8px"},t("Destructive")),
+      el("span",{class:"badge",style:"margin-left:4px"},tn(maps.length, "{n} map", "{n} maps")),
     ]));
-    mapsCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},"Permanently delete uploaded floor plan images."));
+    mapsCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},t("Permanently delete uploaded floor plan images.")));
     const tbody = el("tbody");
     for(const m of maps){
       const mapBtnWrap = el("div",{style:"display:flex;gap:4px"});
       const makeMapDelBtn = ()=>{
-        const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")},"Delete");
+        const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")},t("Delete"));
         if(disabled) b.disabled = true;
         b.addEventListener("click", ()=>{
           mapBtnWrap.innerHTML = "";
-          const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},"Yes, delete");
-          const no  = el("button",{class:"btn tiny"},"No");
+          const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},t("Yes, delete"));
+          const no  = el("button",{class:"btn tiny"},t("No"));
           yes.addEventListener("click", async()=>{
             mapBtnWrap.innerHTML = "";
-            try { await ctx.actions.mapsDelete(m.id); ctx.toast(`Map "${m.name}" deleted.`); }
-            catch(e){ mapBtnWrap.appendChild(makeMapDelBtn()); ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
+            try { await ctx.actions.mapsDelete(m.id); ctx.toast(t("Map \"{name}\" deleted.", { name: m.name })); }
+            catch(e){ mapBtnWrap.appendChild(makeMapDelBtn()); ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
           });
           no.addEventListener("click", ()=>{ mapBtnWrap.innerHTML = ""; mapBtnWrap.appendChild(makeMapDelBtn()); });
           mapBtnWrap.appendChild(yes); mapBtnWrap.appendChild(no);
@@ -598,7 +600,7 @@ export function render(ctx){
       ]));
     }
     mapsCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
-      el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"File"),el("th",{},"")])),
+      el("thead",{},el("tr",{},[el("th",{},t("Name")),el("th",{},t("File")),el("th",{},"")])),
       tbody,
     ])));
     root.appendChild(mapsCard);
@@ -620,9 +622,9 @@ export function render(ctx){
   // just calibration data without overwriting their settings, for example.
   {
     const bkCard = el("div",{class:"card"});
-    bkCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;margin-bottom:4px"},"Backup & Restore"));
+    bkCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;margin-bottom:4px"},t("Backup & Restore")));
     bkCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:14px"},
-      "Create snapshots of all PadSpan™ data stores and map images. Restore selectively."
+      t("Create snapshots of all PadSpan™ data stores and map images. Restore selectively.")
     ));
 
     const bkListWrap = el("div",{style:"margin-bottom:12px"});
@@ -632,16 +634,16 @@ export function render(ctx){
     // These appear as checkbox labels in the selective-restore dialog.
     const _storeLabel = (k) => {
       const map = {
-        "padspan_ha.settings": "Settings",
-        "padspan_ha.calibration": "Calibration",
-        "padspan_ha.adaptive": "Adaptive Model",
-        "padspan_ha.objects": "Objects",
-        "padspan_ha.maps": "Maps Config",
-        "padspan_ha.model": "Model",
-        "padspan_ha.follow_alerts": "Alerts",
-        "padspan_ha.movement_history": "Movement",
-        "padspan_ha.traceback": "Traceback",
-        "padspan_ha.object_history": "Object History",
+        "padspan_ha.settings": t("Settings"),
+        "padspan_ha.calibration": t("Calibration"),
+        "padspan_ha.adaptive": t("Adaptive Model"),
+        "padspan_ha.objects": t("Objects"),
+        "padspan_ha.maps": t("Maps Config"),
+        "padspan_ha.model": t("Model"),
+        "padspan_ha.follow_alerts": t("Alerts"),
+        "padspan_ha.movement_history": t("Movement"),
+        "padspan_ha.traceback": t("Traceback"),
+        "padspan_ha.object_history": t("Object History"),
         "padspan_ha.house3d": "Live Aboard",
       };
       return map[k] || k.replace("padspan_ha.", "");
@@ -655,19 +657,19 @@ export function render(ctx){
         const res = await ctx.actions.wsCall("padspan_ha/store_backup_list");
         const backups = res?.backups || [];
         if(!backups.length){
-          bkListWrap.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No backups yet."));
+          bkListWrap.appendChild(el("div",{class:"muted",style:"font-size:12px"},t("No backups yet.")));
           return;
         }
         for(const bk of backups.reverse()){
           const bkRow = el("div",{style:"padding:10px 12px;border:1px solid #333;border-radius:8px;margin-bottom:8px;background:#0d1117"});
           const hdr = el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"});
           hdr.appendChild(el("div",{style:"font-weight:600;font-size:13px"},
-            (bk.note || "Backup") + (bk.version ? ` — v${bk.version}` : "")));
+            (bk.note || t("Backup")) + (bk.version ? ` — v${bk.version}` : "")));
           hdr.appendChild(el("div",{class:"muted",style:"font-size:11px"},
             new Date(bk.created_at).toLocaleString()));
           bkRow.appendChild(hdr);
           bkRow.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},
-            `${bk.store_count} stores` + (bk.map_image_count ? `, ${bk.map_image_count} map images` : "")));
+            tn(bk.store_count, "{n} store", "{n} stores") + (bk.map_image_count ? ", " + tn(bk.map_image_count, "{n} map image", "{n} map images") : "")));
 
           // Action buttons row
           const actRow = el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"});
@@ -678,12 +680,12 @@ export function render(ctx){
           // "Select all / none" convenience buttons are provided.
           const restoreWrap = el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"});
           const makeRestoreBtn = () => {
-            const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")}, "Restore…");
+            const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")}, t("Restore…"));
             if(disabled) btn.disabled = true;
             btn.addEventListener("click", () => {
               restoreWrap.innerHTML = "";
               const dialog = el("div",{style:"padding:10px 12px;border:1px solid #1e4976;border-radius:8px;background:#0a1a2a;margin-top:6px"});
-              dialog.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:8px;color:#7dd3fc"},"Choose items to restore:"));
+              dialog.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:8px;color:#7dd3fc"},t("Choose items to restore:")));
               const checkboxes = [];
               const storeKeys = bk.store_keys || [];
               for(const sk of storeKeys){
@@ -716,8 +718,7 @@ export function render(ctx){
                     c.addEventListener("change", () => {
                       for(const o of _pair) o.checked = c.checked;
                     });
-                    c.title = "Maps and Model are restored together — a map's "
-                            + "placement in metres lives in Model, keyed by map id.";
+                    c.title = t("Maps and Model are restored together — a map's placement in metres lives in Model, keyed by map id.");
                   }
                 }
               }
@@ -728,45 +729,46 @@ export function render(ctx){
                 cb.type = "checkbox"; cb.checked = true; cb.value = "__map_images__";
                 cb.style.cssText = "width:14px;height:14px;accent-color:#52b788;cursor:pointer";
                 lbl.appendChild(cb);
-                lbl.appendChild(document.createTextNode(`Map Images (${bk.map_image_count} files)`));
+                lbl.appendChild(document.createTextNode(tn(bk.map_image_count, "Map Images ({n} file)", "Map Images ({n} files)")));
                 dialog.appendChild(lbl);
                 checkboxes.push(cb);
               }
               // Select all / none
               const selRow = el("div",{style:"display:flex;gap:8px;margin:8px 0 4px"});
-              selRow.appendChild(el("button",{class:"btn tiny",style:"font-size:10px", onclick:()=>{ checkboxes.forEach(c=>c.checked=true); }},"Select all"));
-              selRow.appendChild(el("button",{class:"btn tiny",style:"font-size:10px", onclick:()=>{ checkboxes.forEach(c=>c.checked=false); }},"Select none"));
+              selRow.appendChild(el("button",{class:"btn tiny",style:"font-size:10px", onclick:()=>{ checkboxes.forEach(c=>c.checked=true); }},t("Select all")));
+              selRow.appendChild(el("button",{class:"btn tiny",style:"font-size:10px", onclick:()=>{ checkboxes.forEach(c=>c.checked=false); }},t("Select none")));
               dialog.appendChild(selRow);
               // Confirm / cancel
               const btnRow = el("div",{style:"display:flex;gap:8px;margin-top:10px"});
-              const confirmBtn = el("button",{class:"btn",style:"background:#1b4a2e;border-color:#52b788;font-size:12px"},"Restore selected");
+              const confirmBtn = el("button",{class:"btn",style:"background:#1b4a2e;border-color:#52b788;font-size:12px"},t("Restore selected"));
               confirmBtn.addEventListener("click", async()=>{
                 // Split selections: real store keys vs the synthetic __map_images__ key
                 const selected = checkboxes.filter(c=>c.checked).map(c=>c.value);
                 const storeKeysToRestore = selected.filter(s=>s!=="__map_images__");
                 const restoreImages = selected.includes("__map_images__");
                 if(!storeKeysToRestore.length && !restoreImages){
-                  ctx.toast("Nothing selected to restore.", true);
+                  ctx.toast(t("Nothing selected to restore."), true);
                   return;
                 }
-                confirmBtn.disabled = true; confirmBtn.textContent = "Restoring…";
+                confirmBtn.disabled = true; confirmBtn.textContent = t("Restoring…");
                 try {
                   const payload = { backup_id: bk.id };
                   if(storeKeysToRestore.length) payload.store_keys = storeKeysToRestore;
                   else payload.store_keys = [];
                   if(restoreImages) payload.restore_map_images = true;
                   const r = await ctx.actions.wsCall("padspan_ha/store_backup_restore", payload);
-                  ctx.toast(`Restored ${r.restored} store(s)` + (r.images_restored ? ` + ${r.images_restored} map image(s)` : "") + ". Reload integration for full effect.");
+                  ctx.toast(tn(r.restored, "Restored {n} store", "Restored {n} stores") + (r.images_restored ? " + " + tn(r.images_restored, "{n} map image", "{n} map images") : "") +
+                    ". " + t("Reload integration for full effect."));
                   restoreWrap.innerHTML = ""; restoreWrap.appendChild(makeRestoreBtn());
                 } catch(e){
-                  ctx.toast("Restore failed: "+ctx.helpers.errorText(e), true);
+                  ctx.toast(t("Restore failed: {why}", { why: ctx.helpers.errorText(e) }), true);
                   restoreWrap.innerHTML = ""; restoreWrap.appendChild(makeRestoreBtn());
                 }
               });
               btnRow.appendChild(confirmBtn);
               btnRow.appendChild(el("button",{class:"btn inline",style:"font-size:12px", onclick:()=>{
                 restoreWrap.innerHTML = ""; restoreWrap.appendChild(makeRestoreBtn());
-              }},"Cancel"));
+              }},t("Cancel")));
               dialog.appendChild(btnRow);
               restoreWrap.appendChild(dialog);
             });
@@ -778,19 +780,19 @@ export function render(ctx){
           // Delete button
           const delWrap = el("div",{style:"display:flex;gap:8px;align-items:center"});
           const makeDelBtn = () => {
-            const btn = el("button",{class:"btn tiny",style:"color:#f87171;border-color:#7f1d1d"+(disabled?" ;opacity:0.4":"")}, "Delete");
+            const btn = el("button",{class:"btn tiny",style:"color:#f87171;border-color:#7f1d1d"+(disabled?" ;opacity:0.4":"")}, t("Delete"));
             if(disabled) btn.disabled = true;
             btn.addEventListener("click", () => {
               delWrap.innerHTML = "";
-              const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626"},"Yes, delete");
-              const no = el("button",{class:"btn tiny"},"No");
+              const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626"},t("Yes, delete"));
+              const no = el("button",{class:"btn tiny"},t("No"));
               yes.addEventListener("click", async()=>{
                 delWrap.innerHTML = "";
                 try {
                   await ctx.actions.wsCall("padspan_ha/store_backup_delete", {backup_id: bk.id});
-                  ctx.toast("Backup deleted.");
+                  ctx.toast(t("Backup deleted."));
                   _renderBkList();
-                } catch(e){ ctx.toast("Delete failed: "+ctx.helpers.errorText(e), true); delWrap.innerHTML=""; delWrap.appendChild(makeDelBtn()); }
+                } catch(e){ ctx.toast(t("Delete failed: {why}", { why: ctx.helpers.errorText(e) }), true); delWrap.innerHTML=""; delWrap.appendChild(makeDelBtn()); }
               });
               no.addEventListener("click", ()=>{ delWrap.innerHTML=""; delWrap.appendChild(makeDelBtn()); });
               delWrap.appendChild(yes); delWrap.appendChild(no);
@@ -804,22 +806,22 @@ export function render(ctx){
           bkListWrap.appendChild(bkRow);
         }
       } catch(e){
-        bkListWrap.appendChild(el("div",{style:"color:#f87171;font-size:12px"},"Failed to load backups: "+String(e)));
+        bkListWrap.appendChild(el("div",{style:"color:#f87171;font-size:12px"},t("Failed to load backups: {why}", { why: String(e) })));
       }
     };
 
     // Create backup button — snapshots all stores + map images in one call
     const createWrap = el("div",{style:"display:flex;gap:8px;align-items:center"});
     const makeCreateBtn = () => {
-      const btn = el("button",{class:"btn"+(disabled?" disabled":"")}, "Create Backup");
+      const btn = el("button",{class:"btn"+(disabled?" disabled":"")}, t("Create Backup"));
       if(disabled) btn.disabled = true;
       btn.addEventListener("click", async () => {
-        btn.disabled = true; btn.textContent = "Creating…";
+        btn.disabled = true; btn.textContent = t("Creating…");
         try {
           const r = await ctx.actions.wsCall("padspan_ha/store_backup_create", {note: "Manual backup"});
-          ctx.toast(`Backup created (${r.store_count} stores).`);
+          ctx.toast(tn(r.store_count, "Backup created ({n} store).", "Backup created ({n} stores)."));
           _renderBkList();
-        } catch(e){ ctx.toast("Backup failed: "+ctx.helpers.errorText(e), true); }
+        } catch(e){ ctx.toast(t("Backup failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
         createWrap.innerHTML = ""; createWrap.appendChild(makeCreateBtn());
       });
       return btn;
@@ -837,22 +839,22 @@ export function render(ctx){
   // Reset colors: wipes room_meta (custom room color picks) so colors regenerate
   //               from the hash-based room name algorithm.
   const ctrlCard = el("div",{class:"card"});
-  ctrlCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;margin-bottom:8px"},"Integration Controls"));
-  ctrlCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:14px"},"Low-level control over the PadSpan™ HA integration."));
+  ctrlCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;margin-bottom:8px"},t("Integration Controls")));
+  ctrlCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:14px"},t("Low-level control over the PadSpan™ HA integration.")));
   const ctrlGrid = el("div",{style:"display:flex;flex-direction:column;gap:10px"});
 
   const reloadWrap = el("div",{style:"display:flex;gap:8px;align-items:center"});
   const makeReloadBtn = ()=>{
-    const b = el("button",{class:"btn"},"Reload PadSpan™ HA integration");
+    const b = el("button",{class:"btn"},t("Reload PadSpan™ HA integration"));
     b.addEventListener("click", ()=>{
       reloadWrap.innerHTML = "";
-      const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},"Yes, reload");
-      const no  = el("button",{class:"btn inline"},"Cancel");
+      const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},t("Yes, reload"));
+      const no  = el("button",{class:"btn inline"},t("Cancel"));
       yes.addEventListener("click", async()=>{
         reloadWrap.innerHTML = "";
-        reloadWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},"Reloading…"));
-        try { const res = await ctx.actions.integrationReload(); ctx.toast(`Integration reloaded (${res?.reloaded??0} entries).`); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
-        catch(e){ ctx.toast("Reload failed: "+ctx.helpers.errorText(e), true); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
+        reloadWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},t("Reloading…")));
+        try { const res = await ctx.actions.integrationReload(); ctx.toast(tn(res?.reloaded??0, "Integration reloaded ({n} entry).", "Integration reloaded ({n} entries).")); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
+        catch(e){ ctx.toast(t("Reload failed: {why}", { why: ctx.helpers.errorText(e) }), true); reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); }
       });
       no.addEventListener("click", ()=>{ reloadWrap.innerHTML = ""; reloadWrap.appendChild(makeReloadBtn()); });
       reloadWrap.appendChild(yes); reloadWrap.appendChild(no);
@@ -861,22 +863,22 @@ export function render(ctx){
   };
   reloadWrap.appendChild(makeReloadBtn());
   ctrlGrid.appendChild(el("div",{},[
-    el("div",{style:"font-weight:600;margin-bottom:4px"},"Reload integration"),
-    el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},"Forces HA to reinitialize PadSpan™ HA without a full HA restart. Useful after config changes."),
+    el("div",{style:"font-weight:600;margin-bottom:4px"},t("Reload integration")),
+    el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},t("Forces HA to reinitialize PadSpan™ HA without a full HA restart. Useful after config changes.")),
     reloadWrap,
   ]));
 
   const resetColorsWrap = el("div",{style:"display:flex;gap:8px;align-items:center"});
   const makeResetColorsBtn = ()=>{
-    const b = el("button",{class:"btn"},"Reset room color settings");
+    const b = el("button",{class:"btn"},t("Reset room color settings"));
     b.addEventListener("click", ()=>{
       resetColorsWrap.innerHTML = "";
-      const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},"Yes, reset colors");
-      const no  = el("button",{class:"btn inline"},"Cancel");
+      const yes = el("button",{class:"btn",style:"background:#7f1d1d;border-color:#dc2626"},t("Yes, reset colors"));
+      const no  = el("button",{class:"btn inline"},t("Cancel"));
       yes.addEventListener("click", async()=>{
         resetColorsWrap.innerHTML = ""; resetColorsWrap.appendChild(makeResetColorsBtn());
-        try { await ctx.actions.modelUpdate({room_meta:{}}); ctx.toast("Room color settings cleared."); ctx.actions.renderRooms(); }
-        catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
+        try { await ctx.actions.modelUpdate({room_meta:{}}); ctx.toast(t("Room color settings cleared.")); ctx.actions.renderRooms(); }
+        catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
       });
       no.addEventListener("click", ()=>{ resetColorsWrap.innerHTML = ""; resetColorsWrap.appendChild(makeResetColorsBtn()); });
       resetColorsWrap.appendChild(yes); resetColorsWrap.appendChild(no);
@@ -885,8 +887,8 @@ export function render(ctx){
   };
   resetColorsWrap.appendChild(makeResetColorsBtn());
   ctrlGrid.appendChild(el("div",{},[
-    el("div",{style:"font-weight:600;margin-bottom:4px"},"Reset room colors"),
-    el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},"Clears all custom room color picks. Colors regenerate from room names."),
+    el("div",{style:"font-weight:600;margin-bottom:4px"},t("Reset room colors")),
+    el("div",{class:"muted",style:"font-size:12px;margin-bottom:6px"},t("Clears all custom room color picks. Colors regenerate from room names.")),
     resetColorsWrap,
   ]));
 
@@ -904,6 +906,7 @@ export function render(ctx){
 //   4. Library        — reference cards for each entity type with YAML examples
 //   5. MQTT           — experimental MQTT publishing toggle + topic docs
 // ══════════════════════════════════════════════════════════════════════════════
+// i18n part: manage2
 function _haEntities(ctx, el){
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
   const settings = ctx.state.settings || {};
@@ -930,16 +933,15 @@ function _haBleReseedSection(ctx, el, settings){
   const card = el("div",{class:"card",style:"border-color:#26c6da"});
 
   const header = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"});
-  header.appendChild(el("span",{style:"font-weight:700;font-size:14px"},"BLE Proxy Compatibility"));
+  header.appendChild(el("span",{style:"font-weight:700;font-size:14px"},t("BLE Proxy Compatibility")));
   header.appendChild(el("span",{style:"font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid #26c6da;color:#26c6da"},"HA 2026.4+"));
   card.appendChild(header);
 
   card.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:10px"},
-    "Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. " +
-    "This increases the BLE data reseed frequency from every 30 seconds to every 5 seconds, working around a deduplication change in HA 2026.4."
+    t("Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. This increases the BLE data reseed frequency from every 30 seconds to every 5 seconds, working around a deduplication change in HA 2026.4.")
   ));
 
-  const go = el("button",{class:"btn inline","data-goto":"settings-receivers"},"Open Settings");
+  const go = el("button",{class:"btn inline","data-goto":"settings-receivers"},t("Open Settings"));
   go.addEventListener("click", ()=>{
     ctx.state.view = "settings";
     ctx.state._settingsTab = "presence";
@@ -948,8 +950,8 @@ function _haBleReseedSection(ctx, el, settings){
     ctx.actions.renderRooms();
   });
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px"},[
-    el("span",{style:"color:#e2e8f0"}, settings.aggressive_ble_reseed === true ? "Aggressive BLE reseed is on." : "Aggressive BLE reseed is off."),
-    el("span",{style:"color:#94a3b8"},"Set it in Settings → Tracking → Receivers (Bluetooth refresh interval)."),
+    el("span",{style:"color:#e2e8f0"}, settings.aggressive_ble_reseed === true ? t("Aggressive BLE reseed is on.") : t("Aggressive BLE reseed is off.")),
+    el("span",{style:"color:#94a3b8"},t("Set it in Settings → Tracking → Receivers (Bluetooth refresh interval).")),
     // The Bluetooth refresh interval is receiver tuning, Advanced's: Basic
     // has no Tracking tab to open, so no button (views/focus.js).
     FOCUS.expertLinks(ctx.state) ? go : null,
@@ -957,7 +959,7 @@ function _haBleReseedSection(ctx, el, settings){
 
   if(settings.aggressive_ble_reseed){
     card.appendChild(el("div",{style:"font-size:11px;color:#26c6da;margin-top:6px"},
-      "Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh."
+      t("Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh.")
     ));
   }
 
@@ -968,14 +970,14 @@ function _haBleReseedSection(ctx, el, settings){
 function _haEntitiesIntro(el, helpBtn){
   return el("div",{class:"card",style:"border-color:#1b4a2e"},[
     el("div",{style:"display:flex;align-items:center;gap:8px"},[
-      el("div",{style:"font-weight:800;font-size:15px;color:#5eead4;margin-bottom:6px"},"PadSpan HA — Entity Reference"),
+      el("div",{style:"font-weight:800;font-size:15px;color:#5eead4;margin-bottom:6px"},t("PadSpan HA — Entity Reference")),
       helpBtn ? helpBtn("manage_entities") : null,
     ]),
     el("div",{style:"font-size:13px;color:#94a3b8;line-height:1.6"},
-      "PadSpan creates up to four HA entities for every labelled BLE device. This reference documents each entity type, its state values, attributes, and provides ready-to-paste automation examples."
+      t("PadSpan creates up to four HA entities for every labelled BLE device. This reference documents each entity type, its state values, attributes, and provides ready-to-paste automation examples.")
     ),
     el("div",{style:"font-size:12px;color:#64748b;margin-top:6px"},
-      "Tip: PadSpan's room_confidence and rssi_margin_confidence attributes let you build flicker-free automations that competing integrations cannot match."
+      t("Tip: PadSpan's room_confidence and rssi_margin_confidence attributes let you build flicker-free automations that competing integrations cannot match.")
     ),
   ]);
 }
@@ -987,34 +989,34 @@ function _haEntitiesIntro(el, helpBtn){
  */
 function _haEntityControls(ctx, el, settings){
   const card = el("div",{class:"card"});
-  card.appendChild(el("div",{style:"font-weight:700;font-size:14px;margin-bottom:4px"},"Entity Publishing Controls"));
+  card.appendChild(el("div",{style:"font-weight:700;font-size:14px;margin-bottom:4px"},t("Entity Publishing Controls")));
   card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:12px"},
-    "Disable entity types you don't need. Existing entities will be disabled in the HA registry. New devices won't create disabled types. Re-enabling restores them. Requires integration reload for new devices."
+    t("Disable entity types you don't need. Existing entities will be disabled in the HA registry. New devices won't create disabled types. Re-enabling restores them. Requires integration reload for new devices.")
   ));
 
   const types = [
-    {key:"ha_entity_tracker_enabled", label:"device_tracker.{label}", desc:"Person-linkable tracker (home/room state)"},
-    {key:"ha_entity_area_enabled", label:"sensor.{label}_area", desc:"Primary room sensor with confidence attributes"},
-    {key:"ha_entity_distance_enabled", label:"sensor.{label}_distance", desc:"Distance to nearest scanner (metres)"},
-    {key:"ha_entity_scanner_distance_enabled", label:"sensor.{label}_distance_{scanner}", desc:"Per-scanner distance for hyper-local triggers"},
-    {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy_occupancy", desc:"Building occupancy estimate (min/estimate/max) — requires integration reload"},
-    {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:"Sub-zones: a bed, couch or desk drawn with the Sub-zones tool in Mapping → Edit; each gets an occupied and a who sensor (off: they go unavailable)"},
+    {key:"ha_entity_tracker_enabled", label:"device_tracker.{label}", desc:t("Person-linkable tracker (home/room state)")},
+    {key:"ha_entity_area_enabled", label:"sensor.{label}_area", desc:t("Primary room sensor with confidence attributes")},
+    {key:"ha_entity_distance_enabled", label:"sensor.{label}_distance", desc:t("Distance to nearest scanner (metres)")},
+    {key:"ha_entity_scanner_distance_enabled", label:"sensor.{label}_distance_{scanner}", desc:t("Per-scanner distance for hyper-local triggers")},
+    {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy_occupancy", desc:t("Building occupancy estimate (min/estimate/max) — requires integration reload")},
+    {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:t("Sub-zones: a bed, couch or desk drawn with the Sub-zones tool in Mapping → Edit; each gets an occupied and a who sensor (off: they go unavailable)")},
   ];
 
-  for(const t of types){
+  for(const typ of types){
     const row = el("div",{style:"display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #1b3526"});
     const chk = el("input",{type:"checkbox"});
-    chk.checked = settings[t.key] !== false;
+    chk.checked = settings[typ.key] !== false;
     chk.addEventListener("change", async()=>{
       try {
-        await ctx.actions.settingsSet({[t.key]: chk.checked});
-        ctx.toast(chk.checked ? `${t.label} enabled — reload integration for new devices.` : `${t.label} disabled. Existing entities disabled in HA registry.`);
-      } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); chk.checked = !chk.checked; }
+        await ctx.actions.settingsSet({[typ.key]: chk.checked});
+        ctx.toast(chk.checked ? t("{name} enabled — reload integration for new devices.", { name: typ.label }) : t("{name} disabled. Existing entities disabled in HA registry.", { name: typ.label }));
+      } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); chk.checked = !chk.checked; }
     });
     row.appendChild(chk);
     row.appendChild(el("div",{style:"flex:1"},[
-      el("div",{style:"font-family:monospace;font-size:12px;color:#5eead4"},t.label),
-      el("div",{class:"muted",style:"font-size:11px"},t.desc),
+      el("div",{style:"font-family:monospace;font-size:12px;color:#5eead4"},typ.label),
+      el("div",{class:"muted",style:"font-size:11px"},typ.desc),
     ]));
     card.appendChild(row);
   }
@@ -1031,15 +1033,15 @@ function _haEntityControls(ctx, el, settings){
 function _haEntityAudit(ctx, el){
   const card = el("div",{class:"card"});
   const header = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"});
-  header.appendChild(el("span",{style:"font-weight:700;font-size:14px"},"Live Entity Inventory"));
+  header.appendChild(el("span",{style:"font-weight:700;font-size:14px"},t("Live Entity Inventory")));
   card.appendChild(header);
   card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:12px"},
-    "All PadSpan entities registered in Home Assistant with current state, health, and automation usage."
+    t("All PadSpan entities registered in Home Assistant with current state, health, and automation usage.")
   ));
 
   // Placeholder that gets filled async
   const body = el("div",{});
-  const loading = el("div",{class:"muted",style:"font-size:12px;padding:12px 0"},"Loading entity data…");
+  const loading = el("div",{class:"muted",style:"font-size:12px;padding:12px 0"},t("Loading entity data…"));
   body.appendChild(loading);
   card.appendChild(body);
 
@@ -1049,8 +1051,8 @@ function _haEntityAudit(ctx, el){
     if(!res || !res.entities || !res.entities.length){
       body.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
         ctx.state.dataMode === "sample"
-          ? "No PadSpan entities found. Name a BLE device in Devices → By Room and switch to Live mode."
-          : "No PadSpan entities found. Name a BLE device in Devices → By Room."
+          ? t("No PadSpan entities found. Name a BLE device in Devices → By Room and switch to Live mode.")
+          : t("No PadSpan entities found. Name a BLE device in Devices → By Room.")
       ));
       return;
     }
@@ -1063,55 +1065,55 @@ function _haEntityAudit(ctx, el){
       el("span",{style:"color:#94a3b8"},label),
     ]);
     const bh = res.by_health || {};
-    summary.appendChild(_pill("total", res.total, "#5eead4"));
-    if(bh.good)        summary.appendChild(_pill("healthy", bh.good, "#52b788"));
-    if(bh.stale)       summary.appendChild(_pill("stale", bh.stale, "#f59e0b"));
-    if(bh.unavailable) summary.appendChild(_pill("unavailable", bh.unavailable, "#f87171"));
-    if(bh.unknown)     summary.appendChild(_pill("unknown", bh.unknown, "#94a3b8"));
-    if(bh.disabled)    summary.appendChild(_pill("disabled", bh.disabled, "#64748b"));
-    summary.appendChild(_pill("used in automations", res.total_used_in_automations, "#8b5cf6"));
+    summary.appendChild(_pill(t("total"), res.total, "#5eead4"));
+    if(bh.good)        summary.appendChild(_pill(t("healthy"), bh.good, "#52b788"));
+    if(bh.stale)       summary.appendChild(_pill(t("stale"), bh.stale, "#f59e0b"));
+    if(bh.unavailable) summary.appendChild(_pill(t("unavailable"), bh.unavailable, "#f87171"));
+    if(bh.unknown)     summary.appendChild(_pill(t("unknown"), bh.unknown, "#94a3b8"));
+    if(bh.disabled)    summary.appendChild(_pill(t("disabled"), bh.disabled, "#64748b"));
+    summary.appendChild(_pill(t("used in automations"), res.total_used_in_automations, "#8b5cf6"));
     body.appendChild(summary);
 
     // ── Type breakdown ──────────────────────────────────────────────────
     const bt = res.by_type || {};
     const typeBar = el("div",{style:"display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"});
     const _typeColors = {tracker:"#8b5cf6", area:"#10b981", distance:"#f59e0b", scanner_distance:"#06b6d4"};
-    const _typeLabels = {tracker:"device_tracker", area:"area sensor", distance:"distance sensor", scanner_distance:"scanner distance"};
-    for(const [t, c] of Object.entries(bt)){
-      typeBar.appendChild(el("div",{style:`font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${_typeColors[t]||"#64748b"};color:${_typeColors[t]||"#64748b"}`},
-        `${c} ${_typeLabels[t]||t}`
+    const _typeLabels = {tracker:"device_tracker", area:t("area sensor"), distance:t("distance sensor"), scanner_distance:t("scanner distance")};
+    for(const [ty, c] of Object.entries(bt)){
+      typeBar.appendChild(el("div",{style:`font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${_typeColors[ty]||"#64748b"};color:${_typeColors[ty]||"#64748b"}`},
+        `${c} ${_typeLabels[ty]||ty}`
       ));
     }
     body.appendChild(typeBar);
 
     // ── Entity table ─────────────────────────────────────────────────────
     const _healthIcon = (h) => {
-      if(h === "good")        return {dot:"#52b788", label:"Healthy"};
-      if(h === "stale")       return {dot:"#f59e0b", label:"Stale"};
-      if(h === "unavailable") return {dot:"#f87171", label:"Unavailable"};
-      if(h === "disabled")    return {dot:"#64748b", label:"Disabled"};
-      if(h === "unknown")     return {dot:"#94a3b8", label:"Unknown"};
+      if(h === "good")        return {dot:"#52b788", label:t("Healthy")};
+      if(h === "stale")       return {dot:"#f59e0b", label:t("Stale")};
+      if(h === "unavailable") return {dot:"#f87171", label:t("Unavailable")};
+      if(h === "disabled")    return {dot:"#64748b", label:t("Disabled")};
+      if(h === "unknown")     return {dot:"#94a3b8", label:t("Unknown")};
       return {dot:"#64748b", label:h};
     };
     const _ago = (iso) => {
       if(!iso) return "—";
       const d = new Date(iso);
       const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-      if(sec < 0) return "just now";
-      if(sec < 60) return `${sec}s ago`;
-      if(sec < 3600) return `${Math.floor(sec/60)}m ago`;
-      if(sec < 86400) return `${Math.floor(sec/3600)}h ago`;
-      return `${Math.floor(sec/86400)}d ago`;
+      if(sec < 0) return t("just now");
+      if(sec < 60) return t("{n}s ago", { n: sec });
+      if(sec < 3600) return t("{n}m ago", { n: Math.floor(sec/60) });
+      if(sec < 86400) return t("{n}h ago", { n: Math.floor(sec/3600) });
+      return t("{n}d ago", { n: Math.floor(sec/86400) });
     };
 
     const thead = el("thead",{},el("tr",{},[
-      el("th",{style:"text-align:left"},"Health"),
-      el("th",{style:"text-align:left"},"Entity"),
-      el("th",{style:"text-align:left"},"Type"),
-      el("th",{style:"text-align:left"},"State"),
-      el("th",{style:"text-align:left"},"Last Changed"),
-      el("th",{style:"text-align:left"},"Used By"),
-      el("th",{style:"text-align:left"},"Hint"),
+      el("th",{style:"text-align:left"},t("Health")),
+      el("th",{style:"text-align:left"},t("Entity")),
+      el("th",{style:"text-align:left"},t("Type")),
+      el("th",{style:"text-align:left"},t("State")),
+      el("th",{style:"text-align:left"},t("Last Changed")),
+      el("th",{style:"text-align:left"},t("Used By")),
+      el("th",{style:"text-align:left"},t("Hint")),
     ]));
     const tbody = el("tbody");
 
@@ -1145,7 +1147,7 @@ function _haEntityAudit(ctx, el){
                          "color:#e2e8f0";
       const stateCell = el("td",{},[
         el("div",{style:`font-size:12px;font-weight:600;${stateStyle};max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap`},ent.state || "—"),
-        ent.room_confidence != null ? el("div",{style:"font-size:10px;color:#64748b"},`conf: ${Math.round(ent.room_confidence * 100)}%`) : null,
+        ent.room_confidence != null ? el("div",{style:"font-size:10px;color:#64748b"},t("conf: {pct}%", { pct: Math.round(ent.room_confidence * 100) })) : null,
       ].filter(Boolean));
 
       // Last changed
@@ -1157,17 +1159,17 @@ function _haEntityAudit(ctx, el){
       // Used by automations/scripts
       const usedParts = [];
       if(ent.automations.length){
-        usedParts.push(el("div",{style:"font-size:10px;color:#8b5cf6"},`${ent.automations.length} automation${ent.automations.length>1?"s":""}`));
+        usedParts.push(el("div",{style:"font-size:10px;color:#8b5cf6"},tn(ent.automations.length, "{n} automation", "{n} automations")));
         for(const a of ent.automations.slice(0,2)){
           usedParts.push(el("div",{style:"font-size:10px;color:#64748b;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"},a));
         }
-        if(ent.automations.length > 2) usedParts.push(el("div",{style:"font-size:10px;color:#64748b;padding-left:6px"},`+${ent.automations.length-2} more`));
+        if(ent.automations.length > 2) usedParts.push(el("div",{style:"font-size:10px;color:#64748b;padding-left:6px"},t("+{n} more", { n: ent.automations.length-2 })));
       }
       if(ent.scripts.length){
-        usedParts.push(el("div",{style:"font-size:10px;color:#06b6d4"},`${ent.scripts.length} script${ent.scripts.length>1?"s":""}`));
+        usedParts.push(el("div",{style:"font-size:10px;color:#06b6d4"},tn(ent.scripts.length, "{n} script", "{n} scripts")));
       }
       if(!usedParts.length){
-        usedParts.push(el("div",{style:"font-size:10px;color:#64748b;font-style:italic"},"unused"));
+        usedParts.push(el("div",{style:"font-size:10px;color:#64748b;font-style:italic"},t("unused")));
       }
       const usedCell = el("td",{},usedParts);
 
@@ -1194,28 +1196,28 @@ function _haEntityAudit(ctx, el){
     const unavailCount = bh.unavailable || 0;
 
     if(unusedCount > 0 && unusedCount === entities.filter(e => e.health !== "disabled").length){
-      insights.push({color:"#fbbf24", text:`None of your ${unusedCount} entities are used in automations yet. Scroll down to the Entity Type Library for ready-to-paste examples.`});
+      insights.push({color:"#fbbf24", text:t("None of your {n} entities are used in automations yet. Scroll down to the Entity Type Library for ready-to-paste examples.", { n: unusedCount })});
     } else if(unusedCount > 0){
-      insights.push({color:"#fbbf24", text:`${unusedCount} entit${unusedCount===1?"y is":"ies are"} not used in any automation or script. Check the hints column for ideas.`});
+      insights.push({color:"#fbbf24", text:tn(unusedCount, "{n} entity is not used in any automation or script. Check the hints column for ideas.", "{n} entities are not used in any automation or script. Check the hints column for ideas.")});
     }
     if(staleCount > 0){
-      insights.push({color:"#f59e0b", text:`${staleCount} entit${staleCount===1?"y hasn't":"ies haven't"} changed state in 24+ hours — likely away or out of scanner range.`});
+      insights.push({color:"#f59e0b", text:tn(staleCount, "{n} entity hasn't changed state in 24+ hours — likely away or out of scanner range.", "{n} entities haven't changed state in 24+ hours — likely away or out of scanner range.")});
     }
     if(unavailCount > 0){
-      insights.push({color:"#f87171", text:`${unavailCount} entit${unavailCount===1?"y is":"ies are"} unavailable. Try reloading the integration from the Data tab.`});
+      insights.push({color:"#f87171", text:tn(unavailCount, "{n} entity is unavailable. Try reloading the integration from the Data tab.", "{n} entities are unavailable. Try reloading the integration from the Data tab.")});
     }
     const areaCount = (bt.area || 0);
     const trackerCount = (bt.tracker || 0);
     if(areaCount > 0 && trackerCount === 0){
-      insights.push({color:"#8b5cf6", text:"You have area sensors but no device trackers. Enable device_tracker above to link devices to Person entities."});
+      insights.push({color:"#8b5cf6", text:t("You have area sensors but no device trackers. Enable device_tracker above to link devices to Person entities.")});
     }
     if(res.total_used_in_automations > 0){
-      insights.push({color:"#52b788", text:`${res.total_used_in_automations} entit${res.total_used_in_automations===1?"y is":"ies are"} actively used in automations — nice!`});
+      insights.push({color:"#52b788", text:tn(res.total_used_in_automations, "{n} entity is actively used in automations — nice!", "{n} entities are actively used in automations — nice!")});
     }
 
     if(insights.length){
       const insightWrap = el("div",{style:"margin-top:10px;display:flex;flex-direction:column;gap:6px"});
-      insightWrap.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:2px"},"Tips"));
+      insightWrap.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:2px"},t("Tips")));
       for(const ins of insights){
         insightWrap.appendChild(el("div",{style:`font-size:11px;color:${ins.color};padding:4px 8px;background:#0a150e;border:1px solid #1b3526;border-radius:6px;line-height:1.4`},ins.text));
       }
@@ -1225,7 +1227,7 @@ function _haEntityAudit(ctx, el){
   }).catch(err => {
     body.innerHTML = "";
     body.appendChild(el("div",{style:"font-size:12px;color:#f87171;padding:8px 0"},
-      "Failed to load entity data: " + String(err?.message || err)
+      t("Failed to load entity data: {why}", { why: String(err?.message || err) })
     ));
   });
 
@@ -1852,6 +1854,7 @@ function _haEspresenseSection(ctx, el, settings){
 // 2026-10-30: one place for it. The tab id stays so a remembered Manage tab
 // still lands here.
 // ══════════════════════════════════════════════════════════════════════════════
+// i18n part: -
 function _history(ctx, el){
   const open = () => {
     ctx.state._historyTab = "movement";
