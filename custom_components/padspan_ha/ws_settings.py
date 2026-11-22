@@ -1114,6 +1114,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         for _wkey, _wdoms in _WEATHER_ENTITY_DOMAINS.items():
             if _wkey in msg:
                 payload[_wkey] = _weather_entity(msg[_wkey], _wdoms)
+        # Another rain sensor chosen: its wet time starts again, from now if it
+        # reads wet (rain_wet.py: one wet for hours under a dry forecast is
+        # stuck, and the old sensor's time says nothing about this one).
+        if ("atlas_weather_rain_entity" in payload
+                and payload["atlas_weather_rain_entity"] != st.data.get("atlas_weather_rain_entity")):
+            from .rain_wet import KEY as _RAIN_WET, wet_since_for  # noqa: PLC0415
+            payload[_RAIN_WET] = wet_since_for(hass, payload["atlas_weather_rain_entity"])
         if "atlas_weather_strength" in msg:
             payload["atlas_weather_strength"] = _weather_strength(msg["atlas_weather_strength"])
         # Wall screens (settings_store: wall_*): kept to what a real wall can be.

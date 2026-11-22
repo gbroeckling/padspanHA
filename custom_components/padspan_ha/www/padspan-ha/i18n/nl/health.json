@@ -119,7 +119,7 @@
 "Resyncing…": "Synchroniseren…",
 "Resync: removed {removed}, added {added}, pruned {pruned} → {n} scanners": "Synchronisatie: {removed} verwijderd, {added} toegevoegd, {pruned} opgeschoond → {n} scanners",
 "Reset Spatial Model": "Ruimtelijk model resetten",
-"Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.": "Alle posities van scanners en bakens en alle barrières wissen? Eerst wordt een back-up gemaakt (Beheren → Backup & Restore). Kamervormen, lampen, kaartplaatsingen en kalibratiepunten blijven ONAANGEROERD.",
+"Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.": "Alle posities van scanners en bakens en alle barrières wissen? Eerst wordt een back-up gemaakt (Beheren → Back-up en herstel). Kamervormen, lampen, kaartplaatsingen en kalibratiepunten blijven ONAANGEROERD.",
 "Resetting…": "Resetten…",
 "Reset: {n} scanner/beacon positions and barriers cleared (backup taken first)": "Gereset: {n} scanner-/bakenposities en barrières gewist (eerst back-up gemaakt)",
 "Nothing to reset: no scanner/beacon positions or barriers": "Niets te resetten: geen scanner-/bakenposities of barrières",

@@ -77,7 +77,7 @@
 "Find:": "Trouver :",
 "No tracked objects currently have a room — nothing to locate yet.": "Aucun objet suivi n’a de pièce pour l’instant — rien à localiser.",
 "Pick which device is yours": "Choisissez l’appareil qui est le vôtre",
-"Locate needs to know where you are, the same way it knows where everything else is — from a tracked BLE device, not GPS or a compass. If your own phone isn't tracked yet, set it up from Settings → Features → Phone Setup Wizard, then pick it above.": "Localiser doit savoir où vous êtes, comme il sait où est tout le reste : grâce à un appareil BLE suivi, pas au GPS ni à une boussole. Si votre téléphone n’est pas encore suivi, configurez-le dans Paramètres → Fonctions → Phone Setup Wizard, puis choisissez-le ci-dessus.",
+"Locate needs to know where you are, the same way it knows where everything else is — from a tracked BLE device, not GPS or a compass. If your own phone isn't tracked yet, set it up from Settings → Features → Phone Setup Wizard, then pick it above.": "Localiser doit savoir où vous êtes, comme il sait où est tout le reste : grâce à un appareil BLE suivi, pas au GPS ni à une boussole. Si votre téléphone n’est pas encore suivi, configurez-le dans Paramètres → Fonctions → Assistant de configuration du téléphone, puis choisissez-le ci-dessus.",
 "Pick a device or person to find, above.": "Choisissez ci-dessus un appareil ou une personne à trouver.",
 "You're following your own device. Follow another tag to locate it.": "Vous suivez votre propre appareil. Suivez une autre balise pour la localiser.",
 "The device set as \"you\" isn't currently reporting a room — it may be out of range.": "L’appareil défini comme « vous » n’indique pas de pièce pour l’instant — il est peut-être hors de portée.",

@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-266 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+267 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence) |
 |---|---|---|---|---|
@@ -318,6 +318,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/plan_carry_dismiss` | `map_id` | always | `plan_carry.py` | They are right where they are: the plan is no longer listed, and nothing is moved. |
 | `padspan_ha/plan_carry_list` | – | always | `plan_carry.py` |  |
 | `padspan_ha/positioning_diag` | – | – | `ws_diagnostics.py` | Return detailed positioning diagnostics for all labelled devices. |
+| `padspan_ha/power_team_sleep` | `entity_id`, `minutes` (optional), `end` (optional) | – | `power_team.py` | The card's "Sleep in 30 min": the team fades to Sleep over the minutes, then goes off (or stays). |
 | `padspan_ha/power_teams_get` | – | – | `power_team.py` |  |
 | `padspan_ha/power_teams_set` | `teams` | always | `power_team.py` |  |
 | `padspan_ha/private_ble_add_irk` | `irk`, `name` (optional) | always | `ws_irk.py` | Add a Private BLE Device IRK via PadSpan UI (creates HA config entry). |

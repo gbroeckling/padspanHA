@@ -115,8 +115,12 @@ class House:
         if eid in self.dead or self.powered_at is None or self.t - self.powered_at < self.boot:
             return                                         # not on the network yet: nothing changes
         if service == "turn_on":
-            self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": data.get("brightness"), "color_temp_kelvin": data.get("color_temp_kelvin"),
-                                                                    "hs_color": data.get("hs_color")})
+            # Like Home Assistant: a light that is on keeps what a command does not name (a colour-only send keeps the
+            # brightness); one coming on takes what it was sent.
+            was = self.states[eid].attributes if self.states[eid].state == "on" else {}
+            keep = lambda k: data[k] if k in data else was.get(k)    # noqa: E731
+            self.states[eid] = SimpleNamespace(state="on", attributes={"brightness": keep("brightness"), "color_temp_kelvin": keep("color_temp_kelvin"),
+                                                                    "hs_color": keep("hs_color")})
         else:
             self.states[eid] = SimpleNamespace(state="off", attributes={})
 
@@ -231,7 +235,14 @@ def test_a_dimmer_held_to_a_level_at_the_wall_is_how_bright_the_bulbs_go_and_the
     run(t.on_power(new, old))
     assert h.to("light.dimmer") == [(h.to("light.dimmer")[0][0], "turn_on", {"brightness": 255})]
     assert h.states["light.b1"].attributes["brightness"] == 102 and h.states["light.b1"].attributes["color_temp_kelvin"] == 4000
-    assert t.manual is True and t.effect is None                            # chosen by hand: the day stops leading
+    # 2026-11-22: a hold at the wall is a brightness: the day goes on leading the colour (only the brightness stays).
+    assert t.manual_bri and not t.manual_colour and t.effect == P.EFFECT_ADAPTIVE and not t.brightness_follows
+    h.now_target = {"brightness": 200, "kelvin": 3000}
+    h.t += 60
+    h.calls.clear()
+    run(t.tick())
+    assert [d for _, s, d in h.to("light.b1")] == [{"color_temp_kelvin": 3000, "transition": P.ADAPT_FADE_S}]
+    assert h.states["light.b1"].attributes == {"brightness": 102, "color_temp_kelvin": 3000, "hs_color": None}   # its brightness kept
     # A level that does not hold (a ramp passing through) is nothing.
     h.t += 60
     h.calls.clear()
@@ -257,26 +268,35 @@ def test_the_day_moves_the_light_with_a_slow_fade_until_someone_chooses_and_agai
     h.t += 60
     run(t.tick())
     assert [d for _, s, d in h.to("light.b1")] == [{"brightness": 150, "color_temp_kelvin": 3200, "transition": P.ADAPT_FADE_S}]
-    # A colour chosen through the team: the day stops leading.
+    # A colour chosen through the team: the day stops leading the colour, and goes on leading the brightness.
     run(t.turn_on(hs=(30.0, 80.0)))
-    assert t.manual and t.effect is None and h.states["light.b1"].attributes["hs_color"] == [30.0, 80.0]
+    assert t.manual_colour and not t.manual_bri and t.effect is None and t.brightness_follows
+    assert h.states["light.b1"].attributes["hs_color"] == [30.0, 80.0]
     h.calls.clear()
     h.now_target = {"brightness": 90, "kelvin": 2500}
+    h.t += 60
+    run(t.tick())
+    assert [d for _, s, d in h.to("light.b1")] == [{"brightness": 90, "transition": P.ADAPT_FADE_S}]   # the colour left as chosen
+    # Both chosen: the day leads nothing until it is handed back.
+    run(t.turn_on(brightness=60))
+    h.calls.clear()
+    h.now_target = {"brightness": 200, "kelvin": 4500}
+    h.t += 60
     run(t.tick())
     assert h.calls == []
-    # A bulb changed directly, long after anything PadSpan sent: the same.
+    # A brightness changed at the bulb, long after anything PadSpan sent: the brightness only, and kept.
     t.manual = False
     t.want = {"brightness": 150, "kelvin": 3200}
     h.t += 600
     run(t.on_bulb("light.b1", SimpleNamespace(state="on", attributes={"brightness": 40, "color_temp_kelvin": 3200}), h.states["light.b1"]))
-    assert t.manual is True
+    assert t.manual_bri and not t.manual_colour and t.want["brightness"] == 40
     # "Adaptive" hands it back; so does off and on.
     run(t.turn_on(effect=P.EFFECT_ADAPTIVE))
-    assert not t.manual and t.want == {"brightness": 90, "kelvin": 2500}
+    assert not t.manual and t.want == {"brightness": 200, "kelvin": 4500}
     run(t.turn_on(brightness=20))
     run(t.turn_off())
     run(t.turn_on())
-    assert not t.manual and t.want == {"brightness": 90, "kelvin": 2500}
+    assert not t.manual and t.want == {"brightness": 200, "kelvin": 4500}
 
 
 def test_sleep_is_one_fixed_dim_warm_setting_until_adaptive_is_chosen_again() -> None:
@@ -445,11 +465,13 @@ def test_a_colour_chosen_on_one_string_by_hand_stops_the_day_leading_the_team() 
     h.t += 600
     new, old = h.outside("light.b1", True, brightness=200, rgb_color=[0, 0, 255])
     run(t.on_bulb("light.b1", new, old))
-    assert t.manual and t.effect is None
+    assert t.manual_colour and not t.manual_bri and t.effect is None
     h.now_target = {"brightness": 100, "kelvin": 2500}
     h.calls.clear()
+    h.t += 60
     run(t.tick())
-    assert h.calls == []                                                   # left as chosen
+    sent = [d for _, e, s, d in h.calls if s == "turn_on"]
+    assert sent and all("color_temp_kelvin" not in d and "hs_color" not in d and d["brightness"] == 100 for d in sent)   # its colour left as chosen
 
 
 def test_it_is_wired_in_off_until_a_team_is_made() -> None:
@@ -617,7 +639,8 @@ def test_the_wake_up_is_due_on_its_days_its_minutes_before_its_time_once() -> No
     late = {"on": True, "time": "00:10", "days": [1], "minutes": 30}      # Tuesday 00:10 starts Monday 23:40
     assert P.wake_due(late, datetime(2026, 11, 23, 23, 40)) == ("2026-11-24", 1800.0)
     c = P.clean_wake({"time": "25:00", "days": [1, 9, "x", True, 1], "minutes": 500, "brightness": 0, "kelvin": 99999})
-    assert c == {"on": False, "time": "06:30", "days": [1], "minutes": 90, "brightness": 1, "kelvin": 9000}
+    assert c == {"on": False, "time": "06:30", "days": [1], "minutes": 90, "brightness": 1, "kelvin": 9000,
+                 "weekend_time": "", "skip": "", "back_after": 60}
     assert P.sanitize_teams([{"name": "A", "power": "light.d", "bulbs": ["light.b"]}])[0]["wake"] == P.WAKE_DEFAULT
 
 
@@ -876,3 +899,291 @@ def test_the_wake_up_runs_once_a_day_across_a_restart(monkeypatch) -> None:
     assert not [c for c in tasks if getattr(c, "__name__", "") == "wake"]
     for c in tasks:
         c.close()
+
+
+# ── 2026-11-22: the day's cycle (the owner: "go build the six lighting items") ────────────────────────
+def test_a_change_by_hand_hands_back_to_the_day_after_the_teams_resume_minutes() -> None:
+    h = House(boot=0.0)
+    t = P.Team({**CFG, "resume": 90}, h.io)
+    run(t.turn_on())
+    run(t.turn_on(brightness=40))
+    assert t.manual_bri and not t.brightness_follows
+    h.t += 60 * 60                                                          # an hour: still the hand's
+    run(t.tick())
+    assert t.manual_bri
+    run(t.turn_on(brightness=50))                                          # a new change starts the count again
+    h.t += 60 * 60
+    run(t.tick())
+    assert t.manual_bri
+    h.t += 31 * 60
+    h.calls.clear()
+    run(t.tick())
+    assert not t.manual and t.brightness_follows and h.states["light.b1"].attributes["brightness"] == 200
+    # 0: until the next turn-on, as before.
+    t2 = P.Team(dict(CFG), House(boot=0.0).io)
+    run(t2.turn_on(brightness=40))
+    t2.io.now = lambda: 10 ** 7
+    run(t2.tick())
+    assert t2.manual_bri
+    assert P.sanitize_teams([{**CFG, "resume": 99999}])[0]["resume"] == P.RESUME_MAX_MIN
+
+
+def test_a_wake_up_hands_back_to_the_day_after_its_back_after_minutes_and_a_room_left_in_sleep_is_woken() -> None:
+    h = House(boot=0.0)
+    cfg = {**BCFG, "wake": {"on": True, "time": "06:30", "days": [0], "minutes": 20, "brightness": 80, "kelvin": 4200, "back_after": 30}}
+    t = P.Team(cfg, h.io)
+    run(t.turn_on(effect=P.EFFECT_SLEEP))                                  # left on in Sleep overnight
+    assert t.sleep and t.is_on
+    h.calls.clear()
+    assert run(t.wake()) is True
+    sends = [d for _, s, d in h.to("light.b1") if s == "turn_on"]
+    assert sends == [{"brightness": 204, "color_temp_kelvin": 4200, "transition": 1200.0}]   # from Sleep, no dark start
+    assert t.waking and not t.sleep
+    h.t += 1200 + 29 * 60
+    run(t.tick())
+    assert t.waking
+    h.t += 2 * 60
+    run(t.tick())
+    assert not t.waking and not t.manual and t.effect == P.EFFECT_ADAPTIVE   # back to the day
+    # back_after 0: kept until turned off, as before.
+    h2 = House(boot=0.0)
+    t2 = P.Team({**BCFG, "wake": {"on": True, "back_after": 0}}, h2.io)
+    run(t2.wake())
+    h2.t += 10 ** 6
+    run(t2.tick())
+    assert t2.waking and t2.manual
+
+
+def test_bedtime_fades_a_lit_team_to_sleep_then_off_or_keeps_it_in_sleep_and_leaves_a_dark_room_alone() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    assert run(t.go_to_sleep(30)) is False and h.calls == []               # off: nothing to put to sleep
+    run(t.turn_on())
+    h.calls.clear()
+    assert run(t.go_to_sleep(30, "off")) is True
+    assert [d for _, s, d in h.to("light.b1")] == [{"brightness": 13, "color_temp_kelvin": 2000, "transition": 1800.0}]
+    assert t.sleep and t.effect == P.EFFECT_SLEEP and t.fading
+    h.t += 29 * 60
+    run(t.tick())
+    assert t.is_on
+    h.t += 2 * 60
+    run(t.tick())
+    assert not t.is_on and h.states["light.dimmer"].state == "on"           # off as the team's own off: the bulbs, power left on
+    # Ending in Sleep: it stays there.
+    h2 = House(boot=0.0)
+    t2 = P.Team(dict(BCFG), h2.io)
+    run(t2.turn_on())
+    run(t2.go_to_sleep(10, "sleep"))
+    h2.t += 3600
+    run(t2.tick())
+    assert t2.is_on and t2.sleep
+    # Turned on by hand mid-fade: no off follows.
+    h3 = House(boot=0.0)
+    t3 = P.Team(dict(BCFG), h3.io)
+    run(t3.turn_on())
+    run(t3.go_to_sleep(30, "off"))
+    run(t3.turn_on(effect=P.EFFECT_ADAPTIVE))
+    h3.t += 3600
+    run(t3.tick())
+    assert t3.is_on
+
+
+def test_bedtime_is_due_on_its_days_from_its_time_for_its_minutes() -> None:
+    from datetime import datetime
+    b = {"on": True, "time": "22:30", "days": [4, 5], "minutes": 30, "end": "sleep"}
+    fri = datetime(2026, 11, 27, 22, 30)
+    assert P.bedtime_due(b, fri) == ("2026-11-27", 1800.0)
+    assert P.bedtime_due(b, fri.replace(minute=50)) == ("2026-11-27", 600.0)
+    assert P.bedtime_due(b, fri.replace(hour=23, minute=0)) is None and P.bedtime_due(b, fri.replace(minute=29)) is None
+    assert P.bedtime_due(b, datetime(2026, 11, 26, 22, 31)) is None         # Thursday is not one of its days
+    assert P.bedtime_due({**b, "on": False}, fri) is None
+    assert P.clean_bedtime({"minutes": 999, "end": "x", "days": "x"}) == {**P.BEDTIME_DEFAULT, "minutes": 120}
+
+
+def test_the_night_light_turns_a_team_on_in_sleep_between_its_hours() -> None:
+    from datetime import datetime
+    night = {"on": True, "from": "23:00", "to": "06:00"}
+    assert P.night_active(night, datetime(2026, 11, 22, 2, 0)) and P.night_active(night, datetime(2026, 11, 22, 23, 30))
+    assert not P.night_active(night, datetime(2026, 11, 22, 6, 0)) and not P.night_active(night, datetime(2026, 11, 22, 12, 0))
+    assert P.night_active({"on": True, "from": "13:00", "to": "15:00"}, datetime(2026, 11, 22, 14, 0))
+    assert not P.night_active({**night, "on": False}, datetime(2026, 11, 22, 2, 0))
+    # The team: at 02:00 a turn-on (a tap, an automation) and the wall both give Sleep; at noon, the day.
+    for how in ("turn_on", "wall"):
+        h = House(boot=0.0)
+        h.io.local = lambda: datetime(2026, 11, 22, 2, 0)
+        t = P.Team({**CFG, "night": night}, h.io)
+        if how == "turn_on":
+            run(t.turn_on())
+        else:
+            new, old = h.wall(True)
+            run(t.on_power(new, old))
+        assert t.sleep and h.states["light.b1"].attributes["brightness"] == 13, how
+    h = House(boot=0.0)
+    h.io.local = lambda: datetime(2026, 11, 22, 12, 0)
+    t = P.Team({**CFG, "night": night}, h.io)
+    run(t.turn_on())
+    assert not t.sleep and h.states["light.b1"].attributes["brightness"] == 200
+    # A brightness asked for is what is given, night or not.
+    h2 = House(boot=0.0)
+    h2.io.local = lambda: datetime(2026, 11, 22, 2, 0)
+    t2 = P.Team({**CFG, "night": night}, h2.io)
+    run(t2.turn_on(brightness=120))
+    assert not t2.sleep and h2.states["light.b1"].attributes["brightness"] == 120
+
+
+def test_a_wake_up_can_skip_a_morning_and_keep_a_weekend_time_of_its_own() -> None:
+    from datetime import datetime
+    w = {"on": True, "time": "06:30", "weekend_time": "08:00", "days": [0, 1, 2, 3, 4, 5, 6], "minutes": 30}
+    sat = datetime(2026, 11, 28, 7, 30)
+    assert P.wake_due(w, sat) == ("2026-11-28", 1800.0) and P.wake_due(w, sat.replace(hour=6, minute=0)) is None
+    mon = datetime(2026, 11, 23, 6, 0)
+    assert P.wake_due(w, mon) == ("2026-11-23", 1800.0)
+    assert P.wake_due({**w, "skip": "2026-11-23"}, mon) is None             # skipped: that morning only
+    assert P.wake_due({**w, "skip": "2026-11-23"}, datetime(2026, 11, 24, 6, 0)) == ("2026-11-24", 1800.0)
+    assert P.wake_next(w, datetime(2026, 11, 22, 21, 0)) == ("2026-11-23", "06:30")   # Sunday evening: Monday's
+    assert P.wake_next(w, datetime(2026, 11, 27, 21, 0)) == ("2026-11-28", "08:00")   # Friday evening: Saturday's, later
+    assert P.wake_next({**w, "on": False}, mon) is None
+    c = P.clean_wake({"weekend_time": "8:00", "skip": "tomorrow", "back_after": 9999})
+    assert c["weekend_time"] == "" and c["skip"] == "" and c["back_after"] == 720
+
+
+def test_the_suns_times_can_be_held_between_an_earliest_and_a_latest() -> None:
+    at = lambda i, hhmm: (i - 1) * DAY + int(hhmm[:2]) * H + int(hhmm[3:]) * 60    # noqa: E731
+    summer = [(d * DAY + 5 * H, d * DAY + 21.5 * H) for d in (-1, 0, 1)]           # 05:00 and 21:30
+    held = C.shift_days(summer, {"min_sunrise_time": "06:30", "max_sunset_time": "20:00"}, at)
+    assert held[1] == (6.5 * H, 20 * H)
+    winter = [(d * DAY + 8 * H, d * DAY + 16.5 * H) for d in (-1, 0, 1)]            # 08:00 and 16:30
+    held = C.shift_days(winter, {"max_sunrise_time": "07:00", "min_sunset_time": "18:00"}, at)
+    assert held[1] == (7 * H, 18 * H)
+    assert C.shift_days(winter, {"min_sunrise_time": "06:30"}, at) == winter         # inside its limits: the sun's
+    assert C.shift_days(summer, {"sunrise_time": "05:45", "min_sunrise_time": "06:30"}, at)[1][0] == 5.75 * H   # a fixed time wins
+    assert C.clean({"min_sunset_time": "7pm"})["min_sunset_time"] == ""
+
+
+# ── the review of the day's cycle (2026-11-22) ─────────────────────────────
+def test_sleep_from_the_night_light_or_a_bedtime_ends_with_the_off_so_the_morning_is_the_days() -> None:
+    from datetime import datetime
+    clock = {"now": datetime(2026, 11, 22, 2, 0)}
+    h = House(boot=0.0)
+    h.io.local = lambda: clock["now"]
+    t = P.Team({**BCFG, "night": {"on": True, "from": "23:00", "to": "06:00"}}, h.io)
+    run(t.turn_on())
+    assert t.sleep
+    run(t.turn_off())
+    clock["now"] = datetime(2026, 11, 22, 9, 0)
+    run(t.turn_on())
+    assert not t.sleep and h.states["light.b1"].attributes["brightness"] == 200
+    # A bedtime that ends off: the same.
+    h2 = House(boot=0.0)
+    t2 = P.Team(dict(BCFG), h2.io)
+    run(t2.turn_on())
+    run(t2.go_to_sleep(5, "off"))
+    h2.t += 400
+    run(t2.tick())
+    assert not t2.is_on and not t2.sleep
+    run(t2.turn_on())
+    assert h2.states["light.b1"].attributes["brightness"] == 200
+
+
+def test_a_brightness_sent_through_the_team_is_sent_again_to_a_bulb_that_dropped_it() -> None:
+    h = Strings()
+    t = P.Team(dict(SCFG), h.io)
+    run(t.turn_on())
+    h.drop["light.b2"] = 2
+    run(t.turn_on(brightness=40))
+    assert t.manual_bri and h.states["light.b2"].attributes["brightness"] == 40 and len(h.to("light.b2")) >= 4
+    assert t.phase == "ready"
+
+
+def test_a_bare_turn_on_of_a_lit_team_leaves_its_bedtime_and_its_wake_up_hand_back_alone() -> None:
+    h = House(boot=0.0)
+    t = P.Team(dict(BCFG), h.io)
+    run(t.turn_on())
+    run(t.go_to_sleep(30, "off"))
+    h.t += 600
+    h.calls.clear()
+    run(t.turn_on())                                                       # a presence rule, or Try again, mid-fade
+    assert t.sleep and t._off_at is not None and t.fading
+    sent = [d for _, s, d in h.to("light.b1") if s == "turn_on"]
+    assert sent and 1100 < sent[0]["transition"] < 1300                   # on over what is left of the fade, no jump
+    h.t += 1300
+    run(t.tick())
+    assert not t.is_on                                                     # and still off at its end
+    h2 = House(boot=0.0)
+    t2 = P.Team({**BCFG, "wake": {"on": True, "minutes": 10, "back_after": 20}}, h2.io)
+    run(t2.wake())
+    h2.t += 700
+    run(t2.turn_on())
+    assert t2.waking and t2._back_at is not None
+    h2.t += 20 * 60
+    run(t2.tick())
+    assert not t2.waking and not t2.manual
+
+
+def test_bedtime_is_only_for_a_team_that_follows_the_day_and_a_hold_at_the_wall_ends_it() -> None:
+    h = House(boot=0.0)
+    t = P.Team({**CFG, "adaptive": False}, h.io)
+    run(t.turn_on())
+    assert run(t.go_to_sleep(30)) is False and not t.sleep
+    h2 = House(boot=0.0)
+    t2 = P.Team(dict(CFG), h2.io)
+    run(t2.turn_on())
+    run(t2.go_to_sleep(30, "off"))
+    h2.t += 120
+    new, old = h2.wall(True, level=150)
+    run(t2.on_power(new, old))
+    assert t2._off_at is None and not t2.sleep and t2.manual_bri
+    h2.t += 3600
+    run(t2.tick())
+    assert t2.is_on
+
+
+def test_a_bedtime_past_midnight_is_still_due_after_it() -> None:
+    from datetime import datetime
+    b = {"on": True, "time": "23:50", "days": [4], "minutes": 30}
+    assert P.bedtime_due(b, datetime(2026, 11, 27, 23, 55)) == ("2026-11-27", 1500.0)   # a Friday
+    assert P.bedtime_due(b, datetime(2026, 11, 28, 0, 5)) == ("2026-11-27", 900.0)      # Saturday 00:05: Friday's
+    assert P.bedtime_due(b, datetime(2026, 11, 28, 0, 25)) is None
+
+
+def test_a_restart_mid_bedtime_puts_a_lit_team_to_sleep_again_once(monkeypatch) -> None:
+    import sys
+    import types
+    from datetime import datetime
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ticks: list = []
+    ev.async_track_state_change_event = lambda *a, **k: (lambda: None)
+    ev.async_track_time_interval = lambda hass, fn, every: (ticks.append(fn), (lambda: None))[1]
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    dtu = types.ModuleType("homeassistant.util.dt")
+    dtu.now = lambda: datetime(2026, 11, 22, 22, 40)
+    monkeypatch.setitem(sys.modules, "homeassistant.util.dt", dtu)
+    import homeassistant.util as hu
+    monkeypatch.setattr(hu, "dt", dtu, raising=False)
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+
+    class St:
+        data = {"power_teams_slept": {CFG["id"]: "2026-11-22"}}            # it ran before the restart
+
+        async def async_set(self, **kw):
+            self.data = {**self.data, **kw}
+    tasks: list = []
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: St()}}, async_create_task=tasks.append, states=SimpleNamespace(get=lambda e: None))
+    cfg = {**BCFG, "bedtime": {"on": True, "time": "22:30", "days": [6], "minutes": 30}}
+    m = P.Manager(hass)
+    m.reload([cfg])
+    house = House(boot=0.0)
+    t = m.teams[cfg["id"]]
+    t.io = house.io
+    run(t.turn_on())                                                       # lit, following the day after the restart
+    run(ticks[-1](None))
+    sleeps = [c for c in tasks if getattr(c, "__name__", "") == "go_to_sleep"]
+    assert len(sleeps) == 1
+    for c in tasks:
+        run(c)
+    assert t.sleep and t._off_at is not None
+    tasks.clear()
+    run(ticks[-1](None))                                                   # the next minute: not again
+    assert not [c for c in tasks if getattr(c, "__name__", "") == "go_to_sleep"]
+    for c in tasks:
+        run(c)

@@ -43,13 +43,20 @@ DEFAULTS: dict[str, Any] = {
     "sunset_offset": 0,
     "sunrise_time": "",
     "sunset_time": "",
+    # The sun's own times held between an earliest and a latest (Adaptive Lighting's min/max_sunrise_time and
+    # min/max_sunset_time): a summer dawn at 05:10 need not light a bedroom before 06:30, and a winter dusk at 16:20
+    # need not dim it early. "" is no limit.
+    "min_sunrise_time": "",
+    "max_sunrise_time": "",
+    "min_sunset_time": "",
+    "max_sunset_time": "",
 }
 LIMITS: dict[str, tuple[int, int]] = {
     "min_brightness": (1, 100), "max_brightness": (1, 100), "sleep_brightness": (1, 100),
     "min_kelvin": (1500, 9000), "max_kelvin": (1500, 9000), "sleep_kelvin": (1500, 9000),
     "sunrise_offset": (-180, 180), "sunset_offset": (-180, 180),
 }
-TIMES = ("sunrise_time", "sunset_time")
+TIMES = ("sunrise_time", "sunset_time", "min_sunrise_time", "max_sunrise_time", "min_sunset_time", "max_sunset_time")
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _HALF_DAY = 43200.0
 
@@ -73,13 +80,20 @@ def clean(cfg: dict | None) -> dict[str, Any]:
 def shift_days(days: list[tuple[float, float]], cfg: dict | None,
                at: Callable[[int, str], float]) -> list[tuple[float, float]]:
     """Each (sunrise, sunset) as this light's day has it: a fixed time where one is set (`at(i, "HH:MM")` is that
-    time on the i-th day, as a timestamp), else the sun's own moved by its offset. A day that would end before it
-    starts is left as the sun has it."""
+    time on the i-th day, as a timestamp), else the sun's own moved by its offset and held between its earliest and
+    latest. A day that would end before it starts is left as the sun has it."""
     c = clean(cfg)
+
+    def held(i: int, t: float, lo: str, hi: str) -> float:
+        if c[lo]:
+            t = max(t, at(i, c[lo]))
+        if c[hi]:
+            t = min(t, at(i, c[hi]))
+        return t
     out: list[tuple[float, float]] = []
     for i, (rise, set_) in enumerate(days):
-        r = at(i, c["sunrise_time"]) if c["sunrise_time"] else rise + c["sunrise_offset"] * 60
-        s = at(i, c["sunset_time"]) if c["sunset_time"] else set_ + c["sunset_offset"] * 60
+        r = at(i, c["sunrise_time"]) if c["sunrise_time"] else held(i, rise + c["sunrise_offset"] * 60, "min_sunrise_time", "max_sunrise_time")
+        s = at(i, c["sunset_time"]) if c["sunset_time"] else held(i, set_ + c["sunset_offset"] * 60, "min_sunset_time", "max_sunset_time")
         out.append((r, s) if r < s else (rise, set_))
     return out
 

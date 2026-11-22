@@ -239,6 +239,8 @@ read them.
 | `turns_off` | `power` (off cuts the power) or `bulbs` (off turns the bulbs off and leaves the power on). | yes |
 | `waking` | `true` while the light is the team's wake-up: its slow fade, then its brightness and colour. | yes |
 | `fading` | `true` while a wake-up's slow fade is still running. | yes |
+| `brightness_follows` | `true` while the day leads its brightness (`false` once a brightness was set by hand, or in Sleep). | yes |
+| `going_off` | `true` while a bedtime (or Sleep in 30 min) is fading it to Sleep and will turn it off at the end. | yes |
 <!-- /generated:entities -->
 
 ## Services

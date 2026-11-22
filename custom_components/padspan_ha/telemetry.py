@@ -638,7 +638,9 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 #                            clear sky (dew or frost, not rain); warning_ignored
 #                            — the chosen warning entity is a leak detector;
 #                            sensor_stale — a rain sensor whose device has
-#                            stopped reporting.
+#                            stopped reporting; sensor_stuck — an on/off rain
+#                            sensor wet for over 3 hours while the weather
+#                            entity says it is not wet.
 # Words only: never an entity id, never alert text.
 WEATHER_WARNING_PLATFORMS: tuple[str, ...] = ("env_canada", "meteoalarm", "dwd_weather_warnings", "nina",
                                               "meteo_france", "weatheralerts", "nws_alerts")
@@ -646,7 +648,7 @@ WEATHER_ERROR_KINDS: tuple[str, ...] = ("mask_build", "mask_unsupported", "tiles
 WEATHER_SHOWN_STATES: tuple[str, ...] = ("light_rain", "heavy_rain", "light_snow", "heavy_snow", "still")
 WEATHER_SOURCES: tuple[str, ...] = ("rain_sensor", "condition", "none",
                                     *(f"warning:{p}" for p in WEATHER_WARNING_PLATFORMS), "warning:other")
-WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored", "sensor_stale")
+WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored", "sensor_stale", "sensor_stuck")
 WEATHER_EVENTS: frozenset[str] = frozenset(
     {f"weather_error:{k}" for k in WEATHER_ERROR_KINDS}
     | {f"weather_shown:{k}" for k in WEATHER_SHOWN_STATES}
@@ -1150,7 +1152,10 @@ TEAM_PLATFORMS: tuple[str, ...] = (
 TEAM_SIZE_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "7_16")       # bulbs in one team (power_team.MAX_BULBS is 16)
 WAKE_FADE_BANDS: tuple[str, ...] = ("lt10", "10_20", "21_40", "gt40")    # a wake-up's fade, in minutes
 # env.power_teams' keys: these are counts ...
-POWER_TEAM_COUNTS: tuple[str, ...] = ("n", "with_power", "adaptive", "curve_changed", "sun_shifted", "wake_on", "bulbs")
+POWER_TEAM_COUNTS: tuple[str, ...] = ("n", "with_power", "adaptive", "curve_changed", "sun_shifted", "wake_on", "bulbs",
+                                       # 2026-11-22: the day's cycle (power_team.py): a bedtime on, a night light on, a
+                                       # change by hand handed back after a time, a wake-up with a weekend time of its own
+                                       "bedtime_on", "night_on", "resume_set", "wake_weekend")
 # ... and these are {word: count}, each word from its list.
 POWER_TEAM_WORDS: dict[str, tuple[str, ...]] = {
     "power_domain": ("light", "switch"),
@@ -1224,11 +1229,20 @@ def power_teams_report(hass: HomeAssistant, teams: Any) -> dict[str, Any]:
             c = _curve.clean(curve)
             if any(c[k] != _curve.DEFAULTS[k] for k in _CURVE_NUMBERS):
                 count("curve_changed")
-            if any(curve.get(k) not in (None, 0, "") for k in ("sunrise_offset", "sunset_offset", "sunrise_time", "sunset_time")):
+            if any(curve.get(k) not in (None, 0, "") for k in ("sunrise_offset", "sunset_offset", "sunrise_time", "sunset_time",
+                                                                 "min_sunrise_time", "max_sunrise_time", "min_sunset_time", "max_sunset_time")):
                 count("sun_shifted")
+            if isinstance(t.get("bedtime"), dict) and t["bedtime"].get("on") is True:
+                count("bedtime_on")
+            if isinstance(t.get("night"), dict) and t["night"].get("on") is True:
+                count("night_on")
+            if _num_or(t.get("resume"), 0) > 0:
+                count("resume_set")
         wake = t.get("wake")
         if isinstance(wake, dict) and wake.get("on") is True:
             count("wake_on")
+            if wake.get("weekend_time"):
+                count("wake_weekend")
             m = _num_or(wake.get("minutes"), 0)
             add("wake_fade", "lt10" if m < 10 else "10_20" if m <= 20 else "21_40" if m <= 40 else "gt40")
         bulbs = [b for b in (t.get("bulbs") or []) if isinstance(b, str)] if isinstance(t.get("bulbs"), list) else []
@@ -1260,7 +1274,9 @@ def power_teams_report(hass: HomeAssistant, teams: Any) -> dict[str, Any]:
 # bulbs did not answer; a wake-up, the day's curve or the way the team turns off saved. And team_tap: a tap on the map
 # that switched a team. Counts only, never which team.
 TEAM_CARD_WORDS: tuple[str, ...] = ("opened", "power_cut", "power_on", "day", "sleep", "retry",
-                                    "wake_saved", "curve_saved", "off_mode_saved")
+                                    "wake_saved", "curve_saved", "off_mode_saved",
+                                    # 2026-11-22: Sleep in 30 min, a morning skipped, a bedtime or a night light saved
+                                    "sleep_now", "wake_skip", "bedtime_saved", "night_saved")
 TEAM_CARD_EVENTS: frozenset[str] = frozenset({f"team_card:{w}" for w in TEAM_CARD_WORDS} | {"team_tap"})
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.

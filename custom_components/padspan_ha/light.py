@@ -157,7 +157,8 @@ class PadSpanTeamLight(LightEntity):
         # (the power left on). waking: the wake-up's light (fading, or faded and kept). The map's team card reads these.
         return {"padspan_power_team": True, "team_id": t.cfg.get("id"), "power": t.cfg.get("power") or None, "bulbs": list(t.cfg["bulbs"]),
                 "phase": t.phase, "missing": list(t.missing), "follows_the_day": t.effect == EFFECT_ADAPTIVE,
-                "turns_off": t.cfg.get("off") or "power", "waking": t.waking, "fading": t.fading}
+                "turns_off": t.cfg.get("off") or "power", "waking": t.waking, "fading": t.fading,
+                "brightness_follows": t.brightness_follows, "going_off": t._off_at is not None}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         t = self._team

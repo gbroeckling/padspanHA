@@ -3936,6 +3936,12 @@ function _atlasWeatherSection(ctx, el, settings){
     box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
       t("This sensor hasn't reported since {date}. Using the weather forecast instead.", { date: new Date(rainSince).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) })));
   }
+  // One that has said wet for hours under a dry forecast is stuck (atlas_weather.js).
+  const stuck = WX && rainSince === null ? WX.rainSensorStuckSince(WX.weatherSettingsFrom(settings), states, entities, Date.now()) : null;
+  if (stuck !== null) {
+    box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
+      t("The rain sensor has said wet for over {hours} hours while the forecast says dry, so it is ignored until it dries. It may need cleaning.", { hours: WX.STUCK_H })));
+  }
   picker(t("Weather entity"), "atlas_weather_condition_entity",
     firstWx ? t("Automatic — {name}", { name: nameOf(firstWx) }) : t("Automatic — none found (no weather shows)"), ids.filter(eid => eid.startsWith("weather.")));
   picker(t("Weather warnings"), "atlas_weather_warning_entity",

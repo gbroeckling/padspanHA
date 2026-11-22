@@ -21,6 +21,7 @@
 //   rain sensor set, reading dry                  -> off
 //   on/off rain sensor wet under a clear sky      -> off (dew or frost)
 //   rain sensor stopped reporting (last seen > 3 h) -> no reading from it (2026-11-02: "it's showing its raining, and it's not")
+//   on/off rain sensor wet > 3 h, weather not wet -> off: stuck (2026-11-21: "why is the wall computer showing the atlas with rain, it is not raining?")
 //   no rain sensor (or no reading from it)        -> wet = weather condition
 //   wet, alone                                    -> light rain
 //   wet + rainfall warning, or condition pouring  -> heavy rain
@@ -38,6 +39,15 @@
 // went silent while wet stays "on", and Zigbee2MQTT's retained state replays
 // that after every restart, so it never goes unavailable and its last_changed
 // looks recent. Only its device's last-seen sensor tells.
+// An on/off rain sensor that has said wet for more than 3 hours while the
+// weather entity does not say it is raining or snowing is stuck, not rain
+// (2026-11-21: a solar rain sensor on for 30 hours, still reporting every
+// minute; rain on the wall screen as soon as the sky turned cloudy). How
+// long it has been wet comes from the backend (rain_wet.py): last_changed
+// cannot tell, as Zigbee2MQTT's replay after a restart resets it. A shower
+// the forecast missed still shows for its first 3 hours, and once the
+// weather entity says it is wet the sensor is believed again. A gauge, and
+// an on/off sensor a helper makes, keep their rules: what they caught fell.
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
 export const WET_CONDITIONS = ["rainy", "pouring", "snowy", "snowy-rainy", "hail", "lightning-rainy"];
@@ -63,8 +73,8 @@ export const WEATHER_SOURCES = ["rain_sensor", "condition", "none",
   ...WARNING_PLATFORMS.map(p => `warning:${p}`), "warning:other"];
 // What the decision set aside on purpose: a wet rain sensor overruled by a
 // clear sky; a chosen warning entity that is a leak detector, ignored; a rain
-// sensor that has stopped reporting.
-export const WEATHER_NOTE_KINDS = ["sensor_overruled", "warning_ignored", "sensor_stale"];
+// sensor that has stopped reporting; one stuck on wet.
+export const WEATHER_NOTE_KINDS = ["sensor_overruled", "warning_ignored", "sensor_stale", "sensor_stuck"];
 export const WEATHER_EVENTS = [
   ...WEATHER_ERROR_KINDS.map(k => `weather_error:${k}`),
   ...WEATHER_SHOWN_STATES.map(k => `weather_shown:${k}`),
@@ -83,18 +93,23 @@ export function countWeatherOnce(name, send){
 export function _resetWeatherCountsForTests(){ _counted.clear(); }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
-// The five keys (settings_store.py). A setting that never arrived is not
-// "off": the host only builds this once settings_get has answered.
+// The five keys (settings_store.py), and when the rain sensor turned wet
+// (atlas_weather_rain_wet_since, epoch seconds, kept by rain_wet.py; 0 or
+// missing is not known, and then the stuck rule never applies). A setting
+// that never arrived is not "off": the host only builds this once
+// settings_get has answered.
 export function weatherSettingsFrom(s){
   const src = s || {};
   const id = (v) => (typeof v === "string" ? v.trim() : "");
   const k = Number(src.atlas_weather_strength);
+  const wet = typeof src.atlas_weather_rain_wet_since === "number" ? src.atlas_weather_rain_wet_since : NaN;
   return {
     enabled: src.atlas_weather_enabled !== false,
     rainEntity: id(src.atlas_weather_rain_entity),
     conditionEntity: id(src.atlas_weather_condition_entity),
     warningEntity: id(src.atlas_weather_warning_entity),
     strength: Math.max(STRENGTH_MIN, Math.min(STRENGTH_MAX, Number.isFinite(k) ? k : 1)),
+    rainWetSinceMs: Number.isFinite(wet) && wet > 0 ? wet * 1000 : null,
   };
 }
 
@@ -336,13 +351,53 @@ export const CLEAR_SKY = ["sunny", "clear-night", "partlycloudy"];
 // What makes an on/off sensor out of something else (a gauge's rate, as a
 // rule): its rain fell, so a clear sky never overrules it.
 export const MADE_BY = ["template", "threshold", "bayesian"];
+// An on/off rain sensor wet for longer than this, while the weather entity
+// does not say it is wet, is stuck (rain_wet.py keeps when it turned wet).
+export const STUCK_H = 3;
+export const RAIN_STUCK_MS = STUCK_H * 60 * 60 * 1000;
+
+/** A wet surface: an on/off rain sensor that no helper makes (MADE_BY), and
+ *  not one the loaded registry does not know (a YAML template has no
+ *  unique_id). Only these are overruled by a clear sky, or called stuck. */
+function wetSurface(eid, entities){
+  if (!String(eid || "").startsWith("binary_sensor.")) return false;
+  const reg = entities && typeof entities === "object" ? entities : null;
+  if (!reg) return true;
+  const r = reg[eid];
+  return r ? !MADE_BY.includes(r.platform) : Object.keys(reg).length === 0;
+}
+
+/** The weather entity's condition in lower case, or null: the chosen one,
+ *  else the first (firstWeatherEntity). */
+function conditionNow(cfg, states){
+  const eid = (cfg && cfg.conditionEntity) || firstWeatherEntity(states);
+  const v = reading(eid && states ? states[eid] : null);
+  return v === null ? null : v.toLowerCase();
+}
+
+/** When the rain sensor turned wet (ms), if the Atlas ignores it as stuck,
+ *  else null: a wet surface (wetSurface) reading wet, wet for more than
+ *  RAIN_STUCK_MS by the backend's clock (cfg.rainWetSinceMs), while a weather
+ *  entity has a reading that is neither wet (WET_CONDITIONS) nor a clear sky
+ *  (CLEAR_SKY: that is dew, overruled already). With no weather entity, or no
+ *  time from the backend, it is never stuck: the sensor is believed. */
+export function rainSensorStuckSince(cfg, states, entities, nowMs){
+  const s = cfg || {}, st = states || {};
+  const since = s.rainWetSinceMs;
+  if (!s.rainEntity || !wetSurface(s.rainEntity, entities)) return null;
+  if (!Number.isFinite(since) || since <= 0 || !Number.isFinite(nowMs) || nowMs - since <= RAIN_STUCK_MS) return null;
+  if (rainReading(st[s.rainEntity]) !== true) return null;
+  const cond = conditionNow(s, st);
+  if (cond === null || WET_CONDITIONS.includes(cond) || CLEAR_SKY.includes(cond)) return null;
+  return since;
+}
 
 // ── THE decision (pure: settings + hass.states [+ hass.entities] + the time) ─
 // {kind:"off"|"rain"|"snow", heavy, rim, source, warning, why, missing[], notes[]}
 //   source   what made it wet (rain_sensor | condition), or none; when a
 //            clear sky overruled the rain sensor, condition
 //   warning  "warning:<platform>" when a warning made it heavy, else null
-//   why      disabled | dry | overruled | no_source | wet
+//   why      disabled | dry | overruled | stuck | no_source | wet
 //   missing  configured entities that are missing or unavailable, or a rain
 //            sensor that has stopped reporting (the warning one only while
 //            wet: warnings are read only then)
@@ -373,15 +428,14 @@ export function decideAtlasWeather(cfg, states, entities, nowMs){
   // number) is never overruled: what it caught fell. Nor is an on/off one
   // made from something else (MADE_BY), or one the loaded registry does not
   // know (a YAML template has no unique_id).
-  const made = (eid) => {
-    const reg = entities && typeof entities === "object" ? entities : null;
-    if (!reg) return false;
-    const r = reg[eid];
-    return r ? MADE_BY.includes(r.platform) : Object.keys(reg).length > 0;
-  };
-  if (source === "rain_sensor" && s.rainEntity.startsWith("binary_sensor.") && CLEAR_SKY.includes(cond) && !made(s.rainEntity)) {
+  if (source === "rain_sensor" && CLEAR_SKY.includes(cond) && wetSurface(s.rainEntity, entities)) {
     notes.push("sensor_overruled");
     return off("overruled", "condition");
+  }
+  // Wet for hours while the weather entity says it is not: stuck, not rain.
+  if (source === "rain_sensor" && rainSensorStuckSince(s, st, entities, nowMs) !== null) {
+    notes.push("sensor_stuck");
+    return off("stuck", "condition");
   }
   // A warning only ever makes it heavier, so warnings are read only while it
   // is wet — not a scan of every sensor on every dry poll.
