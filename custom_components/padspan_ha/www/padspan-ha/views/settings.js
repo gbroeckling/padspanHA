@@ -1169,21 +1169,18 @@ function _settingsPresence(ctx, el){
     tg.addEventListener("change", async () => {
       try {
         await ctx.actions.settingsSet({ calibration_room_walk: tg.checked });
-        ctx.toast(`Walk a room: ${tg.checked ? "on" : "off"}`);
-      } catch (e) { ctx.toast("Failed to save", true); }
+        ctx.toast(t("Walk a room: {state}", { state: tg.checked ? t("on") : t("off") }));
+      } catch (e) { ctx.toast(t("Failed to save"), true); }
     });
     put("positioning", el("div", { class: "card", "data-focus-part": "room_walk" }, [
-      el("div", { class: "h2" }, "Walk a Room (Calibration)"),
+      el("div", { class: "h2" }, t("Walk a Room (Calibration)")),
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
         tg,
         el("label", { for: id, style: "font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600" },
-          "Add a \"Walk a room\" tab to Calibration"),
+          t("Add a \"Walk a room\" tab to Calibration")),
       ]),
       el("div", { class: "muted", style: "font-size:12px" },
-        "Pick a room, then walk slowly around it for 90 seconds with your phone or tag. PadSpan shows what it heard and " +
-        "how different the room looks from the others, and saves the walk as calibration points only when you say so. " +
-        "Walks can be replaced or removed room by room without touching any other calibration. " +
-        "Turning this off hides the tab but keeps saved walks in positioning; to take one out, use Remove on that room's walk. Off by default."),
+        t("Pick a room, then walk slowly around it for 90 seconds with your phone or tag. PadSpan shows what it heard and how different the room looks from the others, and saves the walk as calibration points only when you say so. Walks can be replaced or removed room by room without touching any other calibration. Turning this off hides the tab but keeps saved walks in positioning; to take one out, use Remove on that room's walk. Off by default.")),
     ]));
   }
 
@@ -1192,35 +1189,32 @@ function _settingsPresence(ctx, el){
   const pollInp = el("input", {
     type: "number", min: "1", max: "60", step: "1", value: String(currentPoll), style: inpStyle,
   });
-  const pollSaveBtn = el("button", { class: "btn" }, "Save");
+  const pollSaveBtn = el("button", { class: "btn" }, t("Save"));
   pollSaveBtn.addEventListener("click", async () => {
     const v = Math.max(1, Math.min(60, parseInt(pollInp.value) || 5));
     try {
       await ctx.actions.settingsSet({ presence_poll_interval_s: v });
-      ctx.toast(`Poll interval set to ${v}s`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Poll interval set to {seconds}s", { seconds: v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("performance", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Presence Poll Interval"),
+    el("div", { class: "h2" }, t("Presence Poll Interval")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "How often the smoothing pipeline runs to update room assignments. " +
-      "Lower values give faster room transitions but use more CPU. " +
-      "Higher values reduce load on low-end hardware."
+      t("How often the smoothing pipeline runs to update room assignments. Lower values give faster room transitions but use more CPU. Higher values reduce load on low-end hardware.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Poll interval"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Poll interval")),
       pollInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("seconds")),
       pollSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentPoll}s. Default: 5s. Range: 1–60s.`
+      t("Current: {seconds}s. Default: 5s. Range: 1–60s.", { seconds: currentPoll })
     ),
     // Installs from before 0.21 kept the old 10 s default (it was never
     // changed for them: 10 s may also be someone's choice). Say so, once.
     currentPoll === 10 ? el("div", { class: "muted", style: "font-size:11px;margin-top:6px;color:#fbbf24" },
-      "10 s was the default before PadSpan 0.21. At 5 s a room change needs half the wait for the same Room Change Delay. " +
-      "Keep 10 s if you chose it for a slow machine.") : null,
+      t("10 s was the default before PadSpan 0.21. At 5 s a room change needs half the wait for the same Room Change Delay. Keep 10 s if you chose it for a slow machine.")) : null,
   ]));
 
   // ── CPU Mode ───────────────────────────────────────────────────────────────
@@ -1229,10 +1223,10 @@ function _settingsPresence(ctx, el){
   const cpuSel = el("select", { style:
     "font-size:13px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:4px;padding:5px 8px" });
   const cpuOpts = [
-    ["shared", "Shared — fastest updates, competes with HA"],
-    ["single", "Single core — capped at one core, HA stays responsive"],
+    ["shared", t("Shared — fastest updates, competes with HA")],
+    ["single", t("Single core — capped at one core, HA stays responsive")],
   ];
-  if (pinOk) cpuOpts.push(["dedicated", "Dedicated core — own pinned core, zero contention"]);
+  if (pinOk) cpuOpts.push(["dedicated", t("Dedicated core — own pinned core, zero contention")]);
   for (const [val, label] of cpuOpts) {
     const opt = el("option", { value: val }, label);
     if (val === cpuMode) opt.selected = true;
@@ -1241,24 +1235,22 @@ function _settingsPresence(ctx, el){
   cpuSel.addEventListener("change", async () => {
     try {
       await ctx.actions.settingsSet({ cpu_mode: cpuSel.value });
-      ctx.toast(`CPU mode: ${cpuSel.value}`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("CPU mode: {mode}", { mode: cpuSel.value }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("performance", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "CPU Mode"),
+    el("div", { class: "h2" }, t("CPU Mode")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Where the presence-smoothing computation runs. Shared runs it on Home Assistant's " +
-      "main loop (fastest, but can slow HA on low-core hardware like a Pi). Single core moves " +
-      "it to a background worker capped at one core so HA stays responsive." +
-      (pinOk ? " Dedicated core additionally pins that worker to its own CPU core." : "")
+      t("Where the presence-smoothing computation runs. Shared runs it on Home Assistant's main loop (fastest, but can slow HA on low-core hardware like a Pi). Single core moves it to a background worker capped at one core so HA stays responsive.") +
+      (pinOk ? " " + t("Dedicated core additionally pins that worker to its own CPU core.") : "")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "CPU mode"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("CPU mode")),
       cpuSel,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      "Applies from the next poll cycle — no restart needed." +
-      (pinOk ? "" : " (Dedicated core is unavailable on this platform.)")
+      t("Applies from the next poll cycle — no restart needed.") +
+      (pinOk ? "" : " " + t("(Dedicated core is unavailable on this platform.)"))
     ),
   ]));
 
@@ -1267,38 +1259,32 @@ function _settingsPresence(ctx, el){
   // again in the confirm, so nobody switches it on without reading it.
   const lowMemOn = !!settings.low_memory_mode;
   const lowMemLimits =
-    "• Passing Bluetooth devices nobody has identified are kept for 15 minutes on the air " +
-    "(not up to 4 hours) and at most 2,000 of them.\n" +
-    "• The device list keeps at most 2,000 unidentified devices, for 1 day at most.\n" +
-    "• The Monitor's advertisement list shows at most 2,000.\n" +
-    "Your tagged, labelled and followed devices, positioning, the Atlas and Live Aboard are not affected.";
+    t("• Passing Bluetooth devices nobody has identified are kept for 15 minutes on the air (not up to 4 hours) and at most 2,000 of them.\n• The device list keeps at most 2,000 unidentified devices, for 1 day at most.\n• The Monitor's advertisement list shows at most 2,000.\nYour tagged, labelled and followed devices, positioning, the Atlas and Live Aboard are not affected.");
   const lowMemBtn = el("button", { class: "btn inline", style: lowMemOn
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, lowMemOn ? "On" : "Off");
+    : "color:#94a3b8" }, lowMemOn ? t("On") : t("Off"));
   lowMemBtn.addEventListener("click", async () => {
-    if (!lowMemOn && !confirm("Turn on low-memory mode?\n\n" + lowMemLimits)) return;
+    if (!lowMemOn && !confirm(t("Turn on low-memory mode?") + "\n\n" + lowMemLimits)) return;
     try {
       await ctx.actions.settingsSet({ low_memory_mode: !lowMemOn });
-      ctx.toast(`Low-memory mode ${!lowMemOn ? "on" : "off"}`);
+      ctx.toast(!lowMemOn ? t("Low-memory mode on") : t("Low-memory mode off"));
       ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("performance", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Low-memory mode"),
+    el("div", { class: "h2" }, t("Low-memory mode")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-      "For a Home Assistant machine with 2 GB of RAM. Next to a busy street PadSpan hears " +
-      "thousands of passing devices, and holding them all can run a 2 GB machine out of memory. " +
-      "This caps how many it holds."
+      t("For a Home Assistant machine with 2 GB of RAM. Next to a busy street PadSpan hears thousands of passing devices, and holding them all can run a 2 GB machine out of memory. This caps how many it holds.")
     ),
     el("div", { style: "font-size:12px;white-space:pre-line;margin-bottom:12px;padding:8px 10px;" +
       "border:1px solid #b45309;border-radius:6px;background:rgba(180,83,9,.12);color:#fcd34d" },
-      "What it turns off:\n" + lowMemLimits),
+      t("What it turns off:") + "\n" + lowMemLimits),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Low-memory mode"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Low-memory mode")),
       lowMemBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      "Applies from the next update — no restart needed."
+      t("Applies from the next update — no restart needed.")
     ),
   ]));
 
@@ -1307,36 +1293,31 @@ function _settingsPresence(ctx, el){
   // from it, and the Overview then shows only the devices it can draw.
   const scaleOn = !!settings.optimize_for_scale;
   const scaleWhat =
-    "• The Overview and the Atlas's 3D people ask for a slim update: the people, tags and devices it can draw, " +
-    "with the counts, instead of every passing Bluetooth device (about 2 MB a screen every 5 seconds in a busy house).\n" +
-    "• Screens polling close together share one update (within 4.5 s instead of 2 s), so Home Assistant builds it about once per poll however many screens are on.\n" +
-    "• A screen whose page is hidden (display off, tab in the background) asks for nothing until it is shown again.\n" +
-    "Monitor, Devices, Bluetooth and every other view still get everything. On the Overview, the list behind the objects count shows only what the slim update carries.";
+    t("• The Overview and the Atlas's 3D people ask for a slim update: the people, tags and devices it can draw, with the counts, instead of every passing Bluetooth device (about 2 MB a screen every 5 seconds in a busy house).\n• Screens polling close together share one update (within 4.5 s instead of 2 s), so Home Assistant builds it about once per poll however many screens are on.\n• A screen whose page is hidden (display off, tab in the background) asks for nothing until it is shown again.\nMonitor, Devices, Bluetooth and every other view still get everything. On the Overview, the list behind the objects count shows only what the slim update carries.");
   const scaleBtn = el("button", { class: "btn inline", style: scaleOn
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, scaleOn ? "On" : "Off");
+    : "color:#94a3b8" }, scaleOn ? t("On") : t("Off"));
   scaleBtn.addEventListener("click", async () => {
     try {
       await ctx.actions.settingsSet({ optimize_for_scale: !scaleOn });
-      ctx.toast(`Optimize for scale ${!scaleOn ? "on" : "off"}`);
+      ctx.toast(!scaleOn ? t("Optimize for scale on") : t("Optimize for scale off"));
       ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("performance", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Optimize for scale"),
+    el("div", { class: "h2" }, t("Optimize for scale")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-      "For houses with several wall screens or tablets showing PadSpan at once. It cuts what each screen asks Home Assistant for, " +
-      "which matters most in a busy house or on a small machine (a Raspberry Pi)."
+      t("For houses with several wall screens or tablets showing PadSpan at once. It cuts what each screen asks Home Assistant for, which matters most in a busy house or on a small machine (a Raspberry Pi).")
     ),
     el("div", { style: "font-size:12px;white-space:pre-line;margin-bottom:12px;padding:8px 10px;" +
       "border:1px solid #2d4a38;border-radius:6px;background:rgba(82,183,136,.06);color:#b0c4b1" },
-      "What it does:\n" + scaleWhat),
+      t("What it does:") + "\n" + scaleWhat),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Optimize for scale"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Optimize for scale")),
       scaleBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      "Applies from the next update — no restart needed. Each screen picks it up within 30 seconds."
+      t("Applies from the next update — no restart needed. Each screen picks it up within 30 seconds.")
     ),
   ]));
 
@@ -1344,25 +1325,21 @@ function _settingsPresence(ctx, el){
   const updChkOn = settings.update_check_enabled !== false;
   const updChkBtn = el("button", { class: "btn inline", style: updChkOn
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, updChkOn ? "Enabled" : "Disabled");
+    : "color:#94a3b8" }, updChkOn ? t("Enabled") : t("Disabled"));
   updChkBtn.addEventListener("click", async () => {
     try {
       await ctx.actions.settingsSet({ update_check_enabled: !updChkOn });
-      ctx.toast(`Update check ${!updChkOn ? "enabled" : "disabled"}`);
+      ctx.toast(!updChkOn ? t("Update check enabled") : t("Update check disabled"));
       ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("privacy", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Update Check"),
+    el("div", { class: "h2" }, t("Update Check")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Once a day PadSpan asks padspan.traks.ca whether a newer version exists and " +
-      "notifies you when one is available. The request contains only your installed " +
-      "version number; the server sees your IP address (as any web request does) and " +
-      "stores nothing else about you. Turning it off stops this check. If you've entered " +
-      "a licence key, it is still checked with traks.ca once a day, so a refunded key stops working."
+      t("Once a day PadSpan asks padspan.traks.ca whether a newer version exists and notifies you when one is available. The request contains only your installed version number; the server sees your IP address (as any web request does) and stores nothing else about you. Turning it off stops this check. If you've entered a licence key, it is still checked with traks.ca once a day, so a refunded key stops working.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Update check"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Update check")),
       updChkBtn,
     ]),
   ]));
@@ -1370,13 +1347,9 @@ function _settingsPresence(ctx, el){
   // ── Device makers ──────────────────────────────────────────────────────────
   // Nothing to switch: nothing is sent (ble_enrichment.py, device_tables.py).
   put("privacy", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Device makers"),
+    el("div", { class: "h2" }, t("Device makers")),
     el("div", { class: "muted", style: "font-size:12px" },
-      "PadSpan names a device's maker from what the device itself broadcasts and from lists built into PadSpan " +
-      "(Bluetooth's official company and service numbers, and IEEE's list of address makers). Nothing is sent anywhere for this. " +
-      "The address list counts as fact only for an address a Bluetooth receiver has confirmed is fixed and maker-assigned " +
-      "(ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it). " +
-      "Shelly, ESPresense and Tasmota don't say, so there a match reads \"Probably\". An address a receiver reports as random is never looked up."
+      t("PadSpan names a device's maker from what the device itself broadcasts and from lists built into PadSpan (Bluetooth's official company and service numbers, and IEEE's list of address makers). Nothing is sent anywhere for this. The address list counts as fact only for an address a Bluetooth receiver has confirmed is fixed and maker-assigned (ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it). Shelly, ESPresense and Tasmota don't say, so there a match reads \"Probably\". An address a receiver reports as random is never looked up.")
     ),
   ]));
 
@@ -1389,46 +1362,40 @@ function _settingsPresence(ctx, el){
   const secAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   const secBtn = el("button", { class: "btn inline", style: secOn
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, secOn ? "On" : "Off");
-  if (!secAdmin) { secBtn.disabled = true; secBtn.title = "Only an administrator can change this"; }
+    : "color:#94a3b8" }, secOn ? t("On") : t("Off"));
+  if (!secAdmin) { secBtn.disabled = true; secBtn.title = t("Only an administrator can change this"); }
   secBtn.addEventListener("click", async () => {
     try {
       await ctx.actions.settingsSet({ enhanced_security: !secOn });
-      ctx.toast(`Enhanced security ${!secOn ? "on" : "off"}`);
+      ctx.toast(!secOn ? t("Enhanced security on") : t("Enhanced security off"));
       ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting: " + ctx.helpers.errorText(e), true); }
+    } catch(e) { ctx.toast(t("Failed to save setting: {error}", { error: ctx.helpers.errorText(e) }), true); }
   });
   const secCovers = [
     "Devices: merging, deleting, renaming and labelling them",
-    "Calibration points and the calibration model",
-    "The house layout: rooms, scanners, lights, beacons, walls, floor heights and map details",
-    "Scanner offsets and turning radios off or marking them lost",
-    "Follow alerts, phones added for tracking, and Find My links",
-    "Clearing history, forgetting lost items and suspending learning",
-    "Live Aboard edits, sharing to its library and its photo reader",
-    "PadSpan's log",
-    "Settings that apply to the whole home (the update check, positioning and the rest)",
+    t("Calibration points and the calibration model"),
+    t("The house layout: rooms, scanners, lights, beacons, walls, floor heights and map details"),
+    t("Scanner offsets and turning radios off or marking them lost"),
+    t("Follow alerts, phones added for tracking, and Find My links"),
+    t("Clearing history, forgetting lost items and suspending learning"),
+    t("Live Aboard edits, sharing to its library and its photo reader"),
+    t("PadSpan's log"),
+    t("Settings that apply to the whole home (the update check, positioning and the rest)"),
   ];
   put("privacy", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Enhanced security"),
+    el("div", { class: "h2" }, t("Enhanced security")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
-      "When this is on, only a Home Assistant administrator can change how PadSpan is set up for this home. " +
-      "Everyone else in the household can still view and use PadSpan: the maps, Follow, lights, the emergency " +
-      "lighting test, the theme, the choices kept in their own browser (Map or 3D, what the Atlas shows, how much " +
-      "of the menu they see), and assigning a Bluetooth radio to a room. Display settings that change every screen " +
-      "in the home (Quiet mode, the Atlas as Overview, the Atlas layout and its showcase theme) need an admin while it is on. " +
-      "If they try to change something else, PadSpan tells them it needs an admin. " +
-      "More protections will be added here over time."
+      t("When this is on, only a Home Assistant administrator can change how PadSpan is set up for this home. Everyone else in the household can still view and use PadSpan: the maps, Follow, lights, the emergency lighting test, the theme, the choices kept in their own browser (Map or 3D, what the Atlas shows, how much of the menu they see), and assigning a Bluetooth radio to a room. Display settings that change every screen in the home (Quiet mode, the Atlas as Overview, the Atlas layout and its showcase theme) need an admin while it is on. If they try to change something else, PadSpan tells them it needs an admin. More protections will be added here over time.")
     ),
-    el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:4px" }, "What it covers now:"),
+    el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:4px" }, t("What it covers now:")),
     el("ul", { style: "font-size:12px;color:#94a3b8;margin:0 0 12px 18px;padding:0;line-height:1.55" },
-      secCovers.map(t => el("li", {}, t))),
+      secCovers.map(c => el("li", {}, c))),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Enhanced security"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Enhanced security")),
       secBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      secAdmin ? "On for a new install; a home set up before November 2026 keeps it as it was. Takes effect at once, no restart needed." : "Only an administrator can change this."
+      secAdmin ? t("On for a new install; a home set up before November 2026 keeps it as it was. Takes effect at once, no restart needed.") : t("Only an administrator can change this.")
     ),
   ]));
 
@@ -1443,7 +1410,7 @@ function _settingsPresence(ctx, el){
   const telLocked = telOn && !!settings.report_locked;
   const telBtn = el("button", { class: "btn inline", style: telOn
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8", title: telLocked ? "On for your free trial" : "" }, telOn ? "Opted in" : "Not sharing");
+    : "color:#94a3b8", title: telLocked ? t("On for your free trial") : "" }, telOn ? t("Opted in") : t("Not sharing"));
   if (telLocked) telBtn.disabled = true;
   telBtn.addEventListener("click", async () => {
     if (telLocked) return;
@@ -1452,26 +1419,26 @@ function _settingsPresence(ctx, el){
     if (offWarn && !confirm(offWarn)) return;
     try {
       await ctx.actions.settingsSet({ telemetry_enabled: !telOn });
-      ctx.toast(!telOn ? "Thank you — usage report on. Preview shows exactly what goes." : "Usage report off");
+      ctx.toast(!telOn ? t("Thank you — usage report on. Preview shows exactly what goes.") : t("Usage report off"));
       ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   // Where they heard about PadSpan: their own answer, optional, sent as one
   // word with the report (telemetry.HEARD_WORDS; the opt-in card asks it once).
   const heardSel = el("select", { class: "select", style: "width:auto", "data-setting": "telemetry_heard" });
-  for (const [v, t] of [["", "Not said"], ["reddit", "Reddit"], ["youtube", "YouTube"], ["ha_forum", "Home Assistant forum"], ["forum", "Another forum"],
-                        ["marketplace", "Marketplace or HACS"], ["github", "GitHub"], ["discord", "Discord"], ["search", "A web search"],
-                        ["friend", "A friend"], ["other", "Somewhere else"]]) heardSel.appendChild(el("option", { value: v }, t));
+  for (const [v, lab] of [["", t("Not said")], ["reddit", "Reddit"], ["youtube", "YouTube"], ["ha_forum", t("Home Assistant forum")], ["forum", t("Another forum")],
+                        ["marketplace", t("Marketplace or HACS")], ["github", "GitHub"], ["discord", "Discord"], ["search", t("A web search")],
+                        ["friend", t("A friend")], ["other", t("Somewhere else")]]) heardSel.appendChild(el("option", { value: v }, lab));
   heardSel.value = String(settings.telemetry_heard || "");
   heardSel.addEventListener("change", async () => {
     try {
       await ctx.actions.settingsSet({ telemetry_heard: heardSel.value });
-      ctx.toast(heardSel.value ? "Thank you." : "Cleared: it is no longer sent.");
-    } catch(e) { ctx.toast("Failed to save setting", true); heardSel.value = String(settings.telemetry_heard || ""); }
+      ctx.toast(heardSel.value ? t("Thank you.") : t("Cleared: it is no longer sent."));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); heardSel.value = String(settings.telemetry_heard || ""); }
   });
   const telOut = el("pre", { class: "pre", style: "display:none;margin-top:10px;max-height:360px;overflow:auto;font-size:11px" });
   const telStatus = el("span", { class: "muted", style: "font-size:11px;margin-left:8px" }, "");
-  const previewBtn = el("button", { class: "btn inline" }, "Preview what would be sent");
+  const previewBtn = el("button", { class: "btn inline" }, t("Preview what would be sent"));
   previewBtn.addEventListener("click", async () => {
     previewBtn.disabled = true;
     try {
@@ -1479,30 +1446,30 @@ function _settingsPresence(ctx, el){
       telOut.textContent = JSON.stringify(r.payload, null, 2);
       telOut.style.display = "block";
       telStatus.textContent = r.problem
-        ? "Would be REFUSED before sending: " + r.problem
-        : `${JSON.stringify(r.payload).length} bytes \u2192 ${r.url}`;
+        ? t("Would be REFUSED before sending: {problem}", { problem: r.problem })
+        : t("{size} bytes → {url}", { size: JSON.stringify(r.payload).length, url: r.url });
       telStatus.style.color = r.problem ? "#f87171" : "";
-    } catch(e) { ctx.toast("Preview failed: " + ctx.helpers.errorText(e), true); }
+    } catch(e) { ctx.toast(t("Preview failed: {error}", { error: ctx.helpers.errorText(e) }), true); }
     previewBtn.disabled = false;
   });
   const sendBtn = el("button", { class: "btn inline", disabled: telOn ? undefined : "disabled",
-    title: telOn ? "Send one report now" : "Opt in first" }, "Send a report now");
+    title: telOn ? t("Send one report now") : t("Opt in first") }, t("Send a report now"));
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
     try {
       const r = await ctx.actions.wsCall("padspan_ha/telemetry_send_now");
-      ctx.toast(r.sent ? `Report sent (${r.bytes} bytes)` : "Not sent: " + (r.reason || "unknown"), !r.sent);
-    } catch(e) { ctx.toast("Send failed: " + ctx.helpers.errorText(e), true); }
+      ctx.toast(r.sent ? t("Report sent ({size} bytes)", { size: r.bytes }) : t("Not sent: {reason}", { reason: r.reason || t("unknown") }), !r.sent);
+    } catch(e) { ctx.toast(t("Send failed: {error}", { error: ctx.helpers.errorText(e) }), true); }
     sendBtn.disabled = false;
   });
-  const idBtn = el("button", { class: "btn inline", title: "Replace the anonymous install id with a new random one" }, "New anonymous ID");
+  const idBtn = el("button", { class: "btn inline", title: t("Replace the anonymous install id with a new random one") }, t("New anonymous ID"));
   idBtn.addEventListener("click", async () => {
     idBtn.disabled = true;
     try {
       await ctx.actions.wsCall("padspan_ha/telemetry_reset_id");
-      ctx.toast("New anonymous ID minted");
+      ctx.toast(t("New anonymous ID minted"));
       await ctx.actions.settingsSet({});   // reloads settings into ctx.state
-    } catch(e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
+    } catch(e) { ctx.toast(t("Failed: {error}", { error: ctx.helpers.errorText(e) }), true); }
     idBtn.disabled = false;
     ctx.actions.renderRooms();
   });
@@ -1512,16 +1479,16 @@ function _settingsPresence(ctx, el){
   // wall screen, which could open a tab it can never close.
   if (newTabOk(ctx.state.kioskMode)) {
     const link = (href, label) => el("a", { class: "btn inline", href, target: "_blank", rel: "noopener", style: "text-decoration:none;font-size:13.333px;padding:7px 10px" }, label);
-    const post = link(IDEAS_NEW_URL, "Post an idea");
+    const post = link(IDEAS_NEW_URL, t("Post an idea"));
     post.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_posted"); });
-    const browse = link(IDEAS_URL, "See and vote on ideas");
+    const browse = link(IDEAS_URL, t("See and vote on ideas"));
     browse.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_browsed"); });
-    const mail = link(IDEAS_MAIL, "Email an idea");
+    const mail = link(IDEAS_MAIL, t("Email an idea"));
     mail.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_mail"); });
     put("privacy", el("div", { class: "card" }, [
-      el("div", { class: "h2" }, "💡 Suggest an idea"),
+      el("div", { class: "h2" }, t("💡 Suggest an idea")),
       el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
-        "Something PadSpan should do, or do better? Post it where other people can vote on it, or vote on ideas already there. No GitHub account? Email it instead."),
+        t("Something PadSpan should do, or do better? Post it where other people can vote on it, or vote on ideas already there. No GitHub account? Email it instead.")),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [
         post, browse, mail,
       ]),

@@ -283,7 +283,7 @@ def test_the_panel_shows_the_refusal_politely_and_keeps_it_up():
 def test_the_settings_card_is_there_and_only_an_admin_can_press_it():
     src = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     card = src[src.index("// ── Enhanced security"):src.index("// ── Help improve PadSpan")]
-    assert 'el("div", { class: "h2" }, "Enhanced security")' in card
+    assert 'el("div", { class: "h2" }, t("Enhanced security"))' in card
     assert "settings.enhanced_security === true" in card, "off unless it is really on"
     assert "if (!secAdmin) { secBtn.disabled = true;" in card
     assert "settingsSet({ enhanced_security: !secOn })" in card

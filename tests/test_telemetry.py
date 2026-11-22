@@ -1900,8 +1900,8 @@ def test_the_heard_question_is_wired_the_same_everywhere():
     ask = panel[panel.index('if (st && st.telemetry_enabled && st.telemetry_heard_ask === "due" && !st.telemetry_heard) {'):panel.index("// Settings not loaded yet ({} at start)")]
     assert tuple(re.findall(r'\["([a-z_]+)", (?:"[^"]+"|t\("[^"]+"\))\]', ask)) == T.HEARD_WORDS   # labels through t()
     sel = settings[settings.index('const heardSel = el("select"'):settings.index("heardSel.value = ")]
-    assert tuple(re.findall(r'\["([a-z_]+)", "[^"]+"\]', sel)) == T.HEARD_WORDS
-    assert '["", "Not said"]' in sel
+    assert tuple(re.findall(r'\["([a-z_]+)", (?:"[^"]+"|t\("[^"]+"\))\]', sel)) == T.HEARD_WORDS   # labels through t()
+    assert '["", t("Not said")]' in sel
     # due only by the backend's say-so, never on a wall screen or for someone who cannot answer
     assert "if (this.state.kioskMode || !(this._hass && this._hass.user && this._hass.user.is_admin)) return null;" in ask
     assert 'word ? { telemetry_heard: word } : { telemetry_heard_ask: "done" }' in ask
