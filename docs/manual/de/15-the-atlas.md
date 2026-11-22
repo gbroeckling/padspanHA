@@ -1,0 +1,246 @@
+# 15. Der Atlas
+
+[Inhalt](README.md)
+
+Der Atlas ist PadSpans Gerätekarte: deine Etagen und Räume als Plan gezeichnet, mit Lichtern,
+Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo sie wirklich sind, und jedes davon mit
+einem Tippen schaltbar. Er hieß „Lights“, bis er über die Beleuchtung hinauswuchs; der Filter-Chip
+für Leuchten heißt immer noch **Lights**.
+
+## Kostenlos und Pro
+
+- **Kostenlos**: Etagen, Räume und eine Markierung pro Licht. Tipp auf eine Markierung oder ihre
+  Zeile, um es zu schalten.
+- **PadSpan Pro**: echte Platzierung, Formen und Größen, Sensoren, Automorph, Showcase, die
+  Advanced-Steuerung für WLED, Whole House Presets, Vacation Mode und Öffner aus Relais.
+
+**Einstellungen → Funktionen → PadSpan licence** hat einen einmaligen kostenlosen Testzeitraum von
+90 Tagen ([Kapitel 25](25-padspan-pro.md)). PadSpan Bright ist derselbe Atlas für sich allein, ohne
+Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel.
+
+## So kommst du hin
+
+- **Karten → Atlas-Editor**: wo du Geräte platzierst und bearbeitest.
+- **Die Seite Atlas in der Seitenleiste von Home Assistant**: eine leichtere Ansicht derselben Karte,
+  ohne den Rest von PadSpan. Sie ist ab Werk an; **Einstellungen → Atlas → Show the Atlas in the Home
+  Assistant sidebar** schaltet sie aus.
+- **Auf einem Wandbildschirm**: [Kapitel 18](18-wall-screens-and-kiosks.md).
+
+Die Karte braucht zuerst deine Grundrisse und Räume: [Kapitel 9](09-setup-the-map.md).
+
+## Geräte platzieren (Pro)
+
+1. Such das Gerät in **Karten → Atlas-Editor** in der Zeilenliste. **Queue all unplaced** reiht
+   mehrere auf einmal ein.
+2. Zieh seinen pulsierenden Pin auf die Etage, oder wähl **+ Place** und tipp auf die Stelle der
+   Karte, an die es gehört.
+3. Stell im Inspektor seine Form, Größe und seinen Winkel ein: Ein Licht kann eine Pendelleuchte,
+   eine Wandleuchte, ein Streifen oder ein Kronleuchter sein, in echten Zentimetern.
+
+Lichter, Ventilatoren, Schlösser sowie Bewegungs-, Temperatur-, Feuchtigkeits-, Luftqualitäts- und
+Wassermelder werden alle auf dieselbe Art platziert.
+
+- Eine **Temperatur**-Markierung ist nach ihrem Messwert getönt: blau unter 20°, rot ab 20°,
+  leuchtend orange über 34°. Ein **Feuchtigkeits**-Messwert erscheint als Prozentzahl.
+- **Bewegung** sieht bei jedem Sensor gleich aus: ein kurzes Aufblitzen, dann ein Verblassen, je
+  länger es ruhig war. Nach einem Neustart von Home Assistant bleibt Bewegung ein paar Minuten ruhig.
+- **Geräte draußen** (alles, dessen Bereich auf einer Outside-Etage liegt: ein Schuppen, der Garten,
+  die Einfahrt) haben auf der flachen Karte keine eigene Etage. Platzier sie auf einer Etagenplatte,
+  außerhalb des Raums, neben dem sie stehen.
+
+**Höhen.** Jedes platzierte Gerät hat eine Höhe über seiner Etage, die das 3D-Haus nutzt. Wähl ein
+Gerät und nimm seine Zeile **Height**: eine der Stellen, die für seine Art angeboten werden (ein
+Bewegungsmelder: Corner, Ceiling, High on the wall; ein Wassermelder: Floor), Zentimeter, oder
+**Default**. Die Liste **Heights** zeigt jedes platzierte Gerät; hak mehrere an, um sie auf einmal
+einzustellen.
+
+## Die Karte benutzen
+
+- **Ein Tippen schaltet** ein Gerät. **Halten** (ein goldener Ring füllt sich, während du hältst),
+  oder Shift oder Alt mit einem Klick, **wählt** es zum Bearbeiten **aus**. Ziehen verschiebt es.
+- **Geräte übereinander**: Fahr mit der Maus darüber, oder halte den Finger darauf, und das Feld oben
+  links nennt alles, was dort übereinanderliegt. **Alt+Klick** geht sie der Reihe nach durch.
+- **Das Blatt eines Raums**: Tipp auf den Namen des Raums für jedes Gerät darin, **All lights on /
+  off**, seine Ventilatoren und einen Knopf für jede Szene und jedes Skript des Raums in Home
+  Assistant (bis zu sechs). Tipp auf das Abzeichen einer Etage für das Blatt der Etage.
+- **Find active** scrollt zum ersten Gerät, das gerade etwas tut (ein Licht an, Bewegung), und zeigt
+  darauf.
+- Auf einem Touchscreen zoomen zwei Finger die Karte, und ein Verschieben übersteht das
+  Aktualisieren der Karte.
+
+## Türen, Fenster und Schlösser
+
+Eine Tür oder ein Fenster, auf einer Wand markiert
+([Kapitel 10](10-walls-and-signal-loss.md#türen-und-fenster-die-aufgehen)), zeigt nach seinem Sensor
+offen oder zu. **Umkehren**, neben **Löschen** in der Wandliste, dreht einen Sensor um, der verkehrt
+herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte
+schließt mit einem Tippen ab und auf und zeigt seinen Zustand.
+
+## Alarme und das Notfall-Banner
+
+Wasser-, Rauch-, Gas- und Kohlenmonoxidmelder werden als Pfütze oder als runder Melder gezeichnet
+und zeigen **WET**, **SMOKE**, **GAS** oder **CO**, **ALARM**, solange der Alarm gehalten wird, und
+**DRY** oder **CLEAR**, wenn sie ruhig sind. Geht einer los, läuft ein roter Ring durch seinen Raum,
+und er bleibt 2 Tage lang im Alarm oder bis ihn jemand zurücksetzt, auch wenn der Sensor ruhig wird.
+Ein Banner zeigt ihn auf jedem Bildschirm von PadSpan, mit eigenem **Zurücksetzen**. Zurücksetzen
+löscht PadSpans Erinnerung an den Alarm, nicht den Sensor. Mehr in [Kapitel 13](13-alerts.md).
+
+## Power-Teams
+
+Smarte Farbbirnen in Fassungen, die an einem Wanddimmer oder Wandschalter hängen (zum Beispiel
+Zigbee-Birnen an einem Control4-Dimmer), werden dunkel, wenn jemand an der Wand ausschaltet, und
+kommen in der falschen Farbe zurück. Ein Power-Team macht den Dimmer und seine Birnen in Home
+Assistant zu einem Licht.
+
+**Eins anlegen**: **Einstellungen → Atlas → Power teams**, **+ Add a team**. Gib ihm einen Namen
+(„Schlafzimmerlicht“), wähl **Power from** (den Wanddimmer oder Wandschalter, oder **None: these
+lights always have power** für Farblichter mit eigener Stromversorgung, etwa LED-Lichterketten), hak
+**Its bulbs** an und wähl **Save**. Ein Administrator legt Teams an und ändert sie. Jedes Team ist
+dann ein Licht in Home Assistant unter seinem Namen (`light.<team>`,
+[Kapitel 14](14-home-assistant-reference.md)): Gib ihm dort seinen Raum und platzier es dann auf
+der Karte.
+
+**Was es tut**
+
+- **Einschalten** schaltet den Strom voll ein, schickt den Birnen ihre Helligkeit und Farbe noch
+  einmal, während sie starten, und sagt, welche Birne nie geantwortet hat.
+- **Ausschalten** tut, was du für das Team gewählt hast: **Turns the bulbs off, power stays on**
+  (sie kommen sofort wieder, in der richtigen Farbe; neue Teams starten damit) oder
+  **Cuts the power**.
+- **Der Schalter an der Wand funktioniert weiter.** PadSpan sieht den Strom kommen und stellt die
+  Birnen ein. Ein Dimmer, der an der Wand niedrig gehalten wird, legt fest, wie hell die Birnen
+  werden, während der Dimmer selbst zurück auf voll geht: Smarte Birnen brauchen die ganze Welle.
+- **Follow the day**: kühl und hell am Mittag, warm bei Sonnenaufgang und Sonnenuntergang, gedimmt
+  und wärmer durch die Nacht, jede Minute mit einem langsamen Übergang nachgeführt. Wählst du selbst
+  eine Farbe oder Helligkeit, hört es auf, bis das Team das nächste Mal eingeschaltet wird oder bis du
+  wieder **Follow the day** wählst. **Sleep** ist eine gedimmte, warme Einstellung. Die Zahlen der
+  Kurve (**Brightest, by day**, **Dimmest, at midnight**, **Coolest, at noon**,
+  **Warmest, at sunrise and sunset**, **Sleep: brightness**, **Sleep: colour**) kannst du ändern.
+- **Ein langsames Überblenden** von bis zu 100 Minuten, aus einer Automation: Solange es läuft,
+  verändert der Tag das Licht nicht.
+
+**Auf der Karte** ist ein Power-Team ein einziges Ding: Platzier den Dimmer, eine seiner Birnen oder
+das Licht des Teams. Ein Tippen schaltet das Team, Ziehen dimmt es, und Halten öffnet seine Karte.
+Ein Dimmer, der an ist, während seine Birnen aus sind, erscheint dunkel, so wie der Raum es ist.
+**Show power teams** auf der Karte in den Einstellungen zeigt sie in der Liste.
+
+**Die Karte des Teams** sagt, was das Team gerade tut (zum Beispiel **Off · the power is on, so it
+comes on at once**, **Power on: the bulbs are starting**, **On · set by hand**, **Waking up: fading
+in**), mit:
+
+- **Follow the day** und **Sleep**;
+- dem **Power** des Wanddimmers, mit **Cut power** und **Power on**;
+- jeder Birne, mit **Try again** für eine, die nicht geantwortet hat;
+- **A tap's off**: was ein Tippen auf der Karte tut, wenn das Team an ist;
+- **The day's light**: wann der Tag dieses Lichts beginnt und endet: **Sunrise moved by** und
+  **Sunset moved by** einige Minuten, oder **Day starts at a fixed time** und **Day ends at a fixed
+  time** (ein Schlafzimmer, dessen Tag das ganze Jahr um 6:30 beginnt);
+- einem Wecken (**wake-up**): An den Tagen und zu der Uhrzeit, die du wählst (**Full light at**,
+  **Fading in over**), geht ein Team, das aus ist, auf seiner dunkelsten und wärmsten Stufe an und
+  wird bis dahin voll hell. Ein Team, das schon an ist, bleibt, wie es ist. **Save the wake-up**;
+- **Advanced: the day's curve**.
+
+Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adaptive Lighting
+übernommen.
+
+## Showcase, Automorph und Presets (Pro)
+
+- **Showcase**: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
+  zusammen). Wähl eines in der Werkzeugleiste des Atlas unter **Presentation**.
+- **Automorph**: ein weicher Schein von einer Leuchte hinaus in ihren Raum, in verschiedenen Stilen
+  zur Wahl (Werkzeugleiste → Automorph).
+- **Die Presets-Leiste** speichert einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
+  Etage, Abstand und Anordnung) unter einem Namen, und **Apply** holt ihn zurück.
+- **Whole House Presets** merkt sich das Haus selbst: **Set** hält den Zustand jedes Lichts und
+  Ventilators fest (an oder aus, Helligkeit, Farbe, Effekt, Ventilatorstufe), und **Apply** stellt
+  das ganze Haus wieder so her, nachdem es gefragt hat. Schlösser sind nie dabei.
+
+## Vacation Mode (Pro)
+
+Der erste Eintrag in der Liste Whole House Presets. Er lernt den Tagesablauf deines Hauses aus dem
+Verlauf von Home Assistant (jedes Licht, jeder Wochentag) und schaltet weiter Lichter passend dazu,
+mit etwas Zufall, damit es nicht nach einer Zeitschaltuhr aussieht, bis du ihn ausschaltest. Solange
+er läuft, sitzt ein Banner in der Mitte des Atlas, mit einem Schieber **Energy saving** (100 % folgt
+dem ganzen Tagesablauf; weniger schaltet weniger Lichter auf einmal ein). Ihn ein- oder
+auszuschalten braucht einen Administrator.
+
+- **Das Ausschalten fragt zuerst.** Home Assistant zeigt dann, wer ihn ausgeschaltet hat, wann und
+  von wo, und dieselbe Nachricht geht an die Ziele deiner Alarme in Folgen.
+- **Innerhalb von 3 Wochen nach einer Reise wieder eingeschaltet**, macht er mit dem Tagesablauf
+  dieser Reise weiter, statt aus den Tagen zu lernen, an denen das Haus leer stand.
+- **Optionen**, jede aus, bis du sie einstellst: **Only after dark**, **Ends** (ein Datum und eine
+  Uhrzeit; er schaltet sich selbst aus und sagt es dir), **Pause while someone is home**,
+  **Bedtime** (Lichter gehen ab etwa dieser Zeit bis 5 Uhr morgens aus, jede Nacht um bis zu 20
+  Minuten verschoben), **Longest on**.
+- `binary_sensor.padspan_vacation_mode` und das Ereignis `padspan_ha_vacation_mode` stehen in
+  [Kapitel 14](14-home-assistant-reference.md). Eine PadSpan-Sicherung wiederherzustellen lässt ihn,
+  wie er ist.
+
+## Wetter draußen
+
+Wenn es regnet oder schneit, fällt auf dem Atlas zarter Regen oder Schnee rund um das Haus, nie über
+einem Raum. Pro animiert das Wetter; die kostenlose Karte zeigt es unbewegt. Richte es ein unter
+**Einstellungen → Atlas → Atlas — Mapped Light Control → Outdoor weather** (Modus Erweitert): der
+Schalter (ab Werk an), ein Regensensor (freiwillig), die Wetter-Entität, der Warnungssensor (wird
+von selbst gefunden) und **Strength** (0,5× bis 1,5×).
+
+- **Leichter Regen**, wenn es nass ist: Ein Regensensor entscheidet, wenn du einen gewählt hast,
+  sonst die Wetter-Entität.
+- **Nichts**, wenn ein Ein/Aus-Regensensor nass meldet, die Wetter-Entität aber sonnig, klare Nacht
+  oder teilweise bewölkt sagt: Tau und Reif machen einen Regensensor an klaren Morgen nass.
+- **Die Antwort der Wetter-Entität**, wenn der Regensensor seit über 3 Stunden nichts gemeldet hat.
+- **Starker Regen** nur bei einer Regenwarnung, oder wenn die Wetter-Entität Starkregen sagt.
+- **Schnee**, wenn die Wetter-Entität Schnee sagt, oder bei 1 °C oder kälter. **Starker Schnee** nur
+  bei einer Schneefallwarnung.
+
+Warnungen werden von selbst gefunden, von Environment Canada, MeteoAlarm, DWD und NINA sowie
+Météo-France. In den USA fügen die Custom-Integrationen weatheralerts oder nws_alerts sie hinzu.
+
+## Test der Notbeleuchtung
+
+Ein runder roter Knopf **Test emergency lighting** oben rechts auf der Karte, nur da, wenn PadSpan
+Notlichter findet: eine Home-Assistant-Gruppe mit „emergency“ im Namen (auch verschachtelte
+Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.
+
+- **Tipp auf die rote Mitte**: Jedes Notlicht geht an, und es zeigt **Test on — tap to end**.
+  Lichter, die schon an waren, bleiben an, wenn er endet.
+- **Tipp auf den Ring** für die Liste der Notlichter.
+- **Force off** schaltet jedes Notlicht aus, auch die, die vorher an waren; es verlangt ein zweites
+  Tippen.
+- Solange eine Home-Assistant-Automation mit „emergency“ im Namen läuft (ein echter Notfall),
+  schaltet der Test diese Lichter nicht unter ihr aus.
+- Um den Knopf auf einem Bildschirm auszublenden, den jeder antippen kann:
+  **Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
+  the Atlas**.
+
+## WLED: Advanced und Exact look (Pro)
+
+Die Karte eines WLED-Lichts hat **Controls | Advanced**. Advanced ist eine ganze WLED-Werkbank in
+Reitern: **Layout**, **Effect**, **Presets & playlists**, **LEDs**, **Sync & team**, **Exact look**,
+**Settings**, **Backup** und **Info**.
+
+**Exact look** sorgt dafür, dass ein WLED-Licht jedes Mal gleich aussieht, wenn es angeht:
+
+1. Stell das Licht ein, wie du es magst, und wähl dann auf **Exact look** **Remember this look**
+   (oder **Remember team look** für jedes Licht in seinem WLED-Sync-Team).
+2. Wähl auf **Sync & team** unter **Who gives this light its instructions**
+   **PadSpan (exact look)** statt **WLED sync**. WLEDs eigener Sync wird auf diesem Gerät
+   abgeschaltet und wieder eingeschaltet, wenn du zurückwechselst.
+
+Nur ein Administrator kann ändern, wer ein Licht steuert.
+
+## Öffner, Schlösser und Lichter aus Relais (Pro)
+
+Ein Garagentor, ein Fensteröffner, ein Türöffner oder ein Licht an einfachen Relais?
+**Öffner, Schloss oder Licht aus Relais bauen** (**+ Build an opener, lock, or light from relays**
+in der Liste des Atlas-Editors) macht daraus eine richtige Abdeckung, ein Schloss oder ein Licht in
+Home Assistant.
+
+- **Öffner**: die Relais für Öffnen und Schließen (zwei verschiedene), die Laufzeit für ganz auf
+  oder ganz zu, und ein Stellungssensor, wenn du einen hast (**Sensor umkehren**, wenn er verkehrt
+  herum meldet). Ohne Sensor wird die Stellung aus den Befehlen gemerkt.
+- **Schloss**: das Relais, der Entriegel-Impuls und die Zeit bis zum automatischen
+  Wiederverriegeln, in Sekunden.
+- **Licht**: das Relais und sein Impuls.
+
+**Aufbauen** legt das Skript, die Automation und die Entität an; **Entfernen** nimmt sie wieder weg.
