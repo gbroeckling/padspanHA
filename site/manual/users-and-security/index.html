@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>21. Users and Enhanced security | PadSpan HA Manual</title>
+<meta name="description" content="PadSpan uses Home Assistant&#x27;s own users. There are no PadSpan accounts or passwords: what someone may do in PadSpan follows from whether their Home…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/users-and-security/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="21. Users and Enhanced security">
+<meta property="og:description" content="PadSpan uses Home Assistant&#x27;s own users. There are no PadSpan accounts or passwords: what someone may do in PadSpan follows from whether their Home…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/users-and-security/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="21-users-and-enhanced-security">21. Users and Enhanced security</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>PadSpan uses Home Assistant's own users. There are no PadSpan accounts or passwords: what someone
+may do in PadSpan follows from whether their Home Assistant user is an <b>administrator</b>.</p>
+<h2 id="who-can-open-padspan">Who can open PadSpan</h2>
+<p>Every Home Assistant user can open PadSpan and the sidebar Atlas, and see everything on them.
+Household members can always use the lights, the emergency lighting test and Follow's test
+notification, change the theme, and change the choices kept in their own browser (Map or 3D, what the
+Atlas shows, Basic or Advanced).</p>
+<h2 id="what-always-needs-an-administrator">What always needs an administrator</h2>
+<p>Whatever the settings, only an administrator can:</p>
+<ul>
+<li>make, restore and delete backups, and factory reset;</li>
+<li>add, remove, test or look for IRKs (phone keys);</li>
+<li>upload or delete floor plans;</li>
+<li>turn the usage report on or off, and sign up as a tester;</li>
+<li>turn on the Live Aboard switches that let data leave the house (the shared furniture library), and
+pick the AI Task;</li>
+<li>turn guest tags on, lend a tag and end a stay;</li>
+<li>make and change power teams;</li>
+<li>turn Vacation Mode on or off;</li>
+<li>change who runs a WLED light;</li>
+<li>turn Enhanced security on or off.</li>
+</ul>
+<p>Someone who isn't an administrator is told so when they try.</p>
+<h2 id="enhanced-security">Enhanced security</h2>
+<p>For homes where other people have Home Assistant accounts.
+<b>Settings → Tracking → Privacy, updates and feedback → Enhanced security.</b> A new install starts with
+it on; a home set up before November 2026 keeps it off until an administrator turns it on.</p>
+<p>While it is on, only an administrator can change how PadSpan is set up for the home:</p>
+<ul>
+<li>devices: merging, deleting, renaming and labelling them;</li>
+<li>calibration points and the calibration model;</li>
+<li>the house layout: rooms, receivers, lights, beacons, walls, floor heights and map details;</li>
+<li>receiver signal adjustments, and turning receivers off or marking them lost;</li>
+<li>Follow alerts, phones added for tracking, and Find My links;</li>
+<li>clearing history, forgetting lost items and suspending learning;</li>
+<li>Live Aboard edits, sharing to its library and its photo reader;</li>
+<li>PadSpan's log;</li>
+<li>settings that apply to the whole home (the update check, positioning and the rest), and display
+settings that change every screen (quiet mode, the Atlas as Overview, the Atlas layout and its
+Showcase theme).</li>
+</ul>
+<p>Household members can still view and use everything as above, and give a receiver its room
+(<b>Set room</b> on the Overview's <b>Who's where now</b>, or <b>Assign</b> under <b>Bluetooth radios</b>), which
+stays open to everyone on purpose. When they try anything on the list, PadSpan says
+<b>"Only an admin can change this while Enhanced security is on"</b>. With it on, only an administrator
+sees <b>Track</b> beside a phone in <b>Who's where now</b>.</p>
+<p>More protections may be added to the same switch later; the card on the Settings tab always lists
+what it covers today.</p>
+<h2 id="a-wall-screen-or-a-shared-tablet">A wall screen or a shared tablet</h2>
+<p>A screen in a hall or kitchen is logged in to Home Assistant as somebody. Give it its own Home
+Assistant user that is <b>not</b> an administrator, and turn Enhanced security on. Then anyone passing
+can use the lights and look at the map, but can't change the setup, make a backup or reset PadSpan.
+Hide the emergency lighting test button too, if it shouldn't be pressed by just anyone
+(<a href="/manual/the-atlas/#emergency-lighting-test">chapter 15</a>). Setting up the screen:
+<a href="/manual/wall-screens-and-kiosks/">chapter 18</a>.</p>
+<h2 id="what-else-padspan-does-to-stay-safe">What else PadSpan does to stay safe</h2>
+<ul>
+<li>Names from devices, receivers, rooms and users are always shown as plain text in the panel, so a
+device named like a piece of code can't run in it.</li>
+<li>Map uploads and imports are size-limited, and the floor-plan importer refuses unsafe files.</li>
+<li>Follow alerts and the Test button send only to notification targets, and the Test sends as the
+person who pressed it.</li>
+<li>Phone keys (IRKs) stay in your Home Assistant and never leave it. The licence key never goes to the
+browser with the settings.</li>
+</ul>
+<p><b>Found a security problem?</b> Don't open a public issue: report it privately as
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/SECURITY.md">SECURITY.md</a> says, through GitHub's Security Advisories or by email.</p>
+<div class="pager"><span><a href="/manual/settings-reference/">← 20. Settings reference</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/backup-restore-moving/">22. Backup, restore, factory reset, moving to a new Home Assistant →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

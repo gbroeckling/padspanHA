@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appendix D. For developers | PadSpan HA Manual</title>
+<meta name="description" content="How PadSpan is put together, the rules its code keeps, and every websocket command it registers. For contributing: the README&#x27;s Development section. The…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/for-developers/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Appendix D. For developers">
+<meta property="og:description" content="How PadSpan is put together, the rules its code keeps, and every websocket command it registers. For contributing: the README&#x27;s Development section. The…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/for-developers/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="appendix-d-for-developers">Appendix D. For developers</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>How PadSpan is put together, the rules its code keeps, and every websocket command it registers.
+For contributing: the README's <a href="https://github.com/gbroeckling/padspanHA/blob/main/README.md#development">Development</a> section. The longer design
+notes are in <code>docs/</code> and are linked from each part.</p>
+<h2 id="the-shape-of-it">The shape of it</h2>
+<p>PadSpan HA is one Home Assistant custom integration, <code>custom_components/padspan_ha/</code>:</p>
+<ul>
+<li><b>The backend</b> (Python): reads Home Assistant's Bluetooth data, ESPresense and Tasmota over MQTT,
+and the area, floor, device and entity registries; works out rooms and positions every poll
+(<code>presence_coordinator.py</code>); keeps its data in <code>.storage/padspan_ha.*</code> stores; creates the entities
+in <code>sensor.py</code>, <code>binary_sensor.py</code>, <code>device_tracker.py</code> and <code>light.py</code>; and answers the panel over
+Home Assistant's websocket.</li>
+<li><b>The panel</b> (plain JavaScript modules, no build step): <code>www/padspan-ha/</code>, with <code>panel.js</code> as the
+shell and one module per screen under <code>views/</code>. The sidebar Atlas is <code>lights_panel.js</code>.</li>
+<li><b>PadSpan Bright</b> is generated from the same source (<code>scripts/bright_build.py</code>), without the
+presence tracking.</li>
+</ul>
+<p>A poll, in short: Bluetooth readings from every receiver → per-device smoothing over time → a room
+vote and, with three or more placed receivers, a position on the floor plan in metres → the entities
+and the live picture every open panel asks for.</p>
+<h2 id="the-fabric">The fabric</h2>
+<p><b>The metric fabric is the truth.</b> Room shapes, receiver positions, signal walls, beacon pins and
+light positions live in <b>metres</b>, in the FabricStore (<code>.storage/padspan_ha.fabric</code>). A floor-plan
+picture is used to trace a building once and to look at afterwards. No working code may derive a
+position from a picture, its pixel size, a map's 0–1 fraction space, a map id or a per-picture
+transform. <code>tests/test_photo_divorce.py</code> holds this; three files remain quarantined
+(<code>calibration.js</code>, <code>traceback.js</code>, <code>radio_map.js</code>), and the guard fails if that list goes stale
+either way.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Store</th><th>File</th><th>Owns</th></tr>
+  <tr><td>FabricStore</td><td><code>padspan_ha.fabric</code></td><td>Room geometry, receiver, beacon and light positions, signal walls (all in metres)</td></tr>
+  <tr><td>ModelStore</td><td><code>padspan_ha.model</code></td><td>Floors, room metadata, adjacency, receiver room and floor, map transforms</td></tr>
+  <tr><td>MapsStore</td><td><code>padspan_ha.maps</code></td><td>The floor-plan pictures and their metadata</td></tr>
+</table>
+</div>
+<p>Every write goes through a store method (<code>ModelStore.async_remove_room</code>, <code>FabricStore.async_remove_room</code>
+…), never through the stored blob: a handler that edits the data directly misses whatever has moved
+to the fabric since. A receiver's height (<code>z_m</code>) is measured from its own floor, never absolute.
+More: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/03_MAPPING_SUITE.md">The mapping suite</a>.</p>
+<h2 id="cache-busting">Cache busting</h2>
+<p>Home Assistant serves a custom panel's files with aggressive browser caching, so every panel file's
+address carries a stamp. A wrong stamp doesn't look like caching; it looks like your code not working.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Symbol</th><th>Where</th><th>Meaning</th></tr>
+  <tr><td><code>BUILD_VERSION</code></td><td><code>build_info.py</code></td><td>The version, shown in the sidebar and Diagnostics</td></tr>
+  <tr><td><code>BUILD_ID</code></td><td><code>build_info.py</code></td><td>The release stamp, rewritten by <code>scripts/release.py</code></td></tr>
+  <tr><td><code>ASSET_ID</code></td><td><code>build_info.py</code></td><td><code>BUILD_ID</code> plus a digest of the frontend files: what addresses carry</td></tr>
+</table>
+</div>
+<p><code>build_info._frontend_digest()</code> hashes every <code>.js</code>, <code>.css</code> and <code>.html</code> file's path, size and time
+under <code>www/</code>; <code>panel.py</code> registers the panel with <code>?v=&lt;VERSION&gt;&amp;b=&lt;ASSET_ID&gt;</code>; <code>panel.js</code> reads <code>b</code>
+off its own <code>import.meta.url</code> and uses it for every view it imports. So one stamp flows from the files
+on disk to every view, and moves whenever any frontend file does. A view imports another as
+<code>await import(`./x.js${new URL(import.meta.url).search}`)</code>. More:
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/06_UI_CACHE_BUSTING.md">UI cache busting</a>.</p>
+<h2 id="rssi-vector-capture">RSSI vector capture</h2>
+<p>Capture records the input the positioning actually used (the full <code>{receiver: rssi}</code> reading per
+tracked device per poll) beside the answer it gave, so the same walk can be run again offline against
+changed code and the difference stated as a number. Off by default:
+<b>Settings → Features → RSSI Vector Capture</b>, then <b>Health → ⏺ Record</b>, <b>Mark room</b> in each room,
+<b>⏹ Stop</b> and <b>Export .jsonl</b>.</p>
+<ul>
+<li>Only named or followed devices are recorded.</li>
+<li>A session stops itself at its duration (1 to 60 minutes), at 25 MB, or when the integration
+unloads.</li>
+<li><code>tests/test_capture_replay.py</code> has <code>load_capture()</code> and <code>replay()</code>: a golden regression (the
+replayed room equals the recorded one) and an accuracy score against the rooms you marked.</li>
+<li>The accuracy benchmark tools read the same files: <a href="/manual/accuracy-benchmark/">appendix C</a>.</li>
+</ul>
+<p>More: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/08_RSSI_VECTOR_CAPTURE.md">RSSI vector capture</a>.</p>
+<h2 id="hard-won-rules">Hard-won rules</h2>
+<p>Each came from a real mistake; the full text with the story is in
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/09_HARD_WON_RULES.md">Hard-won rules</a>.</p>
+<ol>
+<li>A frontend change you can't see is not a frontend change.</li>
+<li><code>node --check</code> doesn't run the code.</li>
+<li>Look at it rendered.</li>
+<li>The fabric is the truth, and every write goes through its store.</li>
+<li>A sidecar that nothing fills is worse than no sidecar.</li>
+<li>An index difference that means something must be computed that way.</li>
+<li>Guards that list their targets by hand go stale.</li>
+<li>A fixture that can't fail is worse than no fixture.</li>
+<li>Record what the pipeline used, not what it produced.</li>
+<li>Test it against the site it will run on.</li>
+<li>Deploy, restart, and click the button.</li>
+<li>Two views that draw one thing must share a contract, not a guess.</li>
+<li>When something "no longer works", check what it is still reading.</li>
+</ol>
+<h2 id="working-in-the-repository">Working in the repository</h2>
+<ul>
+<li>Several sessions often work at once: each in its own worktree and branch. Release notes are files in
+<code>changelog.d/</code>, never a section written into <code>CHANGELOG.md</code> by hand. Releases go through
+<code>scripts/release.py</code> only. The repository's <code>CLAUDE.md</code> has the rules.</li>
+<li>A new third-party import goes into <code>requirements_test.txt</code> in the same commit
+(<code>tests/test_requirements_declared.py</code>).</li>
+<li>Names from devices, receivers and rooms are always set as text, never as markup
+(<code>tests/test_hostile_names.py</code>).</li>
+<li>PadSpan never changes another integration's devices or entities on its own; a test fails if new code
+tries to.</li>
+<li>The manual's reference tables (chapters 12, 14, 20 and the table below) are made by
+<code>scripts/build_manual_reference.py</code> and pinned by <code>tests/test_manual_reference.py</code>. When that test
+fails, run the script and commit what it wrote.</li>
+</ul>
+<h2 id="websocket-commands">Websocket commands</h2>
+<p>Every command the integration registers, read from the code: each handler with
+<code>@websocket_command</code> that the integration registers. <b>Administrator</b> says <code>always</code> for a handler
+marked <code>require_admin</code>, and <code>with Enhanced security</code> for one that needs an administrator while
+Enhanced security is on (<a href="/manual/users-and-security/">chapter 21</a>). A handler can also refuse parts of
+a request inside it. These are the panel's own commands, not a stable public interface: they change
+between versions. For automations, use the entities, services and events in
+<a href="/manual/home-assistant-reference/">chapter 14</a>. More: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md">Websocket API</a>.</p>
+<p>266 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Command</th><th>Fields</th><th>Administrator</th><th>Module</th><th>What it does (its handler's first sentence)</th></tr>
+  <tr><td><code>padspan_ha/adaptive_fingerprints_get</code></td><td>–</td><td>–</td><td><code>ws_adaptive.py</code></td><td>Return raw adaptive learning fingerprints for heatmap visualization.</td></tr>
+  <tr><td><code>padspan_ha/adaptive_reset</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_adaptive.py</code></td><td>Clear all adaptive learning data.</td></tr>
+  <tr><td><code>padspan_ha/adaptive_status_get</code></td><td>–</td><td>–</td><td><code>ws_adaptive.py</code></td><td>Return adaptive learning summary stats.</td></tr>
+  <tr><td><code>padspan_ha/ai_usage_get</code></td><td>–</td><td>always</td><td><code>ai_usage.py</code></td><td>Settings → AI's line: this month's reads, estimate and stops (summary).</td></tr>
+  <tr><td><code>padspan_ha/ai_wizard_check_claude</code></td><td>–</td><td>always</td><td><code>ai_wizard.py</code></td><td>Before anything is measured or read (owner, 2026-11-12: catch an Anthropic account with no credit before the person has spent effort): one…</td></tr>
+  <tr><td><code>padspan_ha/ai_wizard_info</code></td><td><code>surface</code> (optional), <code>kiosk</code> (optional), <code>live</code> (optional)</td><td>always</td><td><code>ai_wizard.py</code></td><td>{reason, offer, wizard, tier, trial_offerable}: the rule's answer for this screen, and where this house is with the helper (settings.ai_map…</td></tr>
+  <tr><td><code>padspan_ha/ai_wizard_mark</code></td><td><code>what</code>, <code>surface</code> (optional), <code>step</code> (optional), <code>setup_step</code> (optional), <code>page</code> (optional), <code>map_id</code> (optional), <code>floor_id</code> (optional), <code>scale_session</code> (optional), <code>rooms_session</code> (optional)</td><td>always</td><td><code>ai_wizard.py</code></td><td>One thing the person did with the helper: shown and opened (by where), a step reached (where it reopens), Not now, Don't ask again, came ba…</td></tr>
+  <tr><td><code>padspan_ha/area_add</code></td><td><code>name</code>, <code>floor_id</code> (optional)</td><td>always</td><td><code>ai_wizard.py</code></td><td>Mapping → Edit's Rooms tool with no Home Assistant area to choose (review 2026-11-11): one area of this name, on this floor where Home Assi…</td></tr>
+  <tr><td><code>padspan_ha/area_delete</code></td><td><code>area_id</code></td><td>always</td><td><code>ws_follow.py</code></td><td>Delete an HA area and clean up PadSpan room_meta.</td></tr>
+  <tr><td><code>padspan_ha/auto_diagnostics</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Run quick health checks and return pass/fail with recommendations.</td></tr>
+  <tr><td><code>padspan_ha/bright_import</code></td><td>–</td><td>always</td><td><code>ws_bright_import.py</code></td><td>Back up, refuse a non-empty target, copy the house, reload.</td></tr>
+  <tr><td><code>padspan_ha/bright_import_status</code></td><td>–</td><td>–</td><td><code>ws_bright_import.py</code></td><td>Is there a Bright house on this HA, was it imported, would we refuse it.</td></tr>
+  <tr><td><code>padspan_ha/calibration_beacon_profiles</code></td><td>–</td><td>–</td><td><code>ws_calibration.py</code></td><td>Compute per-beacon signal profiles grouped by model.</td></tr>
+  <tr><td><code>padspan_ha/calibration_clear</code></td><td>–</td><td>always</td><td><code>ws_calibration.py</code></td><td>Delete all calibration points and reset the model.</td></tr>
+  <tr><td><code>padspan_ha/calibration_clear_map</code></td><td><code>map_id</code></td><td>always</td><td><code>ws_calibration.py</code></td><td>Delete all calibration points collected on a specific map.</td></tr>
+  <tr><td><code>padspan_ha/calibration_compute_model</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Trigger full calibration model recomputation.</td></tr>
+  <tr><td><code>padspan_ha/calibration_delete_point</code></td><td><code>point_id</code></td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Delete a single calibration point by ID.</td></tr>
+  <tr><td><code>padspan_ha/calibration_get</code></td><td>–</td><td>–</td><td><code>ws_calibration.py</code></td><td>Return all calibration points and the cached model stats.</td></tr>
+  <tr><td><code>padspan_ha/calibration_health_check</code></td><td>–</td><td>–</td><td><code>ws_calibration.py</code></td><td>Analyse calibration data quality for the Health Reminder notification.</td></tr>
+  <tr><td><code>padspan_ha/calibration_relearn_radio</code></td><td><code>source</code>, <code>gain_db</code></td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Shift stored RSSI readings for a scanner after an antenna upgrade/downgrade.</td></tr>
+  <tr><td><code>padspan_ha/calibration_retrain_rf</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Force retrain the Random Forest model (picks up metre-space data).</td></tr>
+  <tr><td><code>padspan_ha/calibration_room_walk_preview</code></td><td><code>room</code>, <code>polls</code></td><td>–</td><td><code>ws_calibration.py</code></td><td>Walk a room: the summary shown before Save (room_walk.py).</td></tr>
+  <tr><td><code>padspan_ha/calibration_room_walk_remove</code></td><td><code>room</code></td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Remove one room's walk (its room_walk points only).</td></tr>
+  <tr><td><code>padspan_ha/calibration_room_walk_save</code></td><td><code>room</code>, <code>map_id</code> (optional), <code>device_id</code> (optional), <code>duration_s</code> (optional), <code>polls</code>, <code>replace</code> (optional)</td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Save a walk the user confirmed, as room_walk points at the room's centre.</td></tr>
+  <tr><td><code>padspan_ha/calibration_save_point</code></td><td><code>point</code></td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Save one calibration point (position + per-scanner RSSI readings).</td></tr>
+  <tr><td><code>padspan_ha/calibration_swap_radio</code></td><td><code>old_source</code>, <code>new_source</code></td><td>with Enhanced security</td><td><code>ws_calibration.py</code></td><td>Replace every occurrence of old_source with new_source in calibration data.</td></tr>
+  <tr><td><code>padspan_ha/capture_delete</code></td><td><code>session_id</code></td><td>always</td><td><code>ws_capture.py</code></td><td>Remove one recorded session file by id.</td></tr>
+  <tr><td><code>padspan_ha/capture_get</code></td><td><code>session_id</code>, <code>offset</code> (optional), <code>limit</code> (optional)</td><td>always</td><td><code>ws_capture.py</code></td><td>One page of a session file — the export transport.</td></tr>
+  <tr><td><code>padspan_ha/capture_list</code></td><td>–</td><td>always</td><td><code>ws_capture.py</code></td><td>Recorded sessions, newest first.</td></tr>
+  <tr><td><code>padspan_ha/capture_mark</code></td><td><code>room</code>, <code>keys</code> (optional), <code>x_m</code> (optional), <code>y_m</code> (optional)</td><td>always</td><td><code>ws_capture.py</code></td><td>Stamp ground truth: the operator asserting where a device really is.</td></tr>
+  <tr><td><code>padspan_ha/capture_replay</code></td><td><code>session_id</code>, <code>settings</code> (optional)</td><td>always</td><td><code>ws_capture.py</code></td><td>Replay a finished capture through the room-smoothing pipeline and score it (gap #13, best-in-class roadmap: "ground-truth capture walks wit…</td></tr>
+  <tr><td><code>padspan_ha/capture_start</code></td><td><code>minutes</code> (optional), <code>label</code> (optional), <code>keys</code> (optional), <code>ground_truth</code> (optional), <code>include_calibration</code> (optional)</td><td>always</td><td><code>ws_capture.py</code></td><td>Open a recording session against the live coordinator state.</td></tr>
+  <tr><td><code>padspan_ha/capture_status</code></td><td>–</td><td>always</td><td><code>ws_capture.py</code></td><td>Live session state; polled by the Health tab while recording.</td></tr>
+  <tr><td><code>padspan_ha/capture_stop</code></td><td>–</td><td>always</td><td><code>ws_capture.py</code></td><td>Close the running session.</td></tr>
+  <tr><td><code>padspan_ha/companion_discover</code></td><td>–</td><td>–</td><td><code>ws_companion.py</code></td><td>Discover HA Companion App phones that have BLE Transmitter enabled.</td></tr>
+  <tr><td><code>padspan_ha/companion_follow</code></td><td><code>ibeacon_key</code>, <code>device_name</code>, <code>entity_id</code> (optional)</td><td>with Enhanced security</td><td><code>ws_companion.py</code></td><td>One-click "Follow This Phone" action for Companion App phones.</td></tr>
+  <tr><td><code>padspan_ha/companion_unfollow</code></td><td><code>ibeacon_key</code>, <code>device_name</code> (optional)</td><td>with Enhanced security</td><td><code>ws_companion.py</code></td><td>Remove a Companion App phone from followed list and delete its label.</td></tr>
+  <tr><td><code>padspan_ha/device_how_known</code></td><td><code>object</code></td><td>–</td><td><code>ws_objects.py</code></td><td>The device window's "How we know": left off the snapshot, which goes to every screen every 5 s, and worked out from the fields the window a…</td></tr>
+  <tr><td><code>padspan_ha/device_registry_add_identity</code></td><td><code>padspan_id</code>, <code>kind</code>, <code>value</code></td><td>with Enhanced security</td><td><code>ws_devices.py</code></td><td>Link an additional volatile key to an existing device.</td></tr>
+  <tr><td><code>padspan_ha/device_registry_delete</code></td><td><code>padspan_id</code></td><td>with Enhanced security</td><td><code>ws_devices.py</code></td><td>Delete a device from the Device Registry.</td></tr>
+  <tr><td><code>padspan_ha/device_registry_label_set</code></td><td><code>padspan_id</code>, <code>label</code></td><td>with Enhanced security</td><td><code>ws_devices.py</code></td><td>Set label on a device by padspan_id.</td></tr>
+  <tr><td><code>padspan_ha/device_registry_list</code></td><td>–</td><td>–</td><td><code>ws_devices.py</code></td><td>Return all devices in the Device Registry.</td></tr>
+  <tr><td><code>padspan_ha/device_registry_merge</code></td><td><code>keep_id</code>, <code>absorb_id</code></td><td>with Enhanced security</td><td><code>ws_devices.py</code></td><td>Merge two devices in the Device Registry.</td></tr>
+  <tr><td><code>padspan_ha/device_registry_migrate</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_devices.py</code></td><td>Trigger migration from ObjectStore to DeviceRegistry.</td></tr>
+  <tr><td><code>padspan_ha/emergency_force_off</code></td><td>–</td><td>–</td><td><code>emergency_test.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/emergency_member</code></td><td><code>entity_id</code>, <code>on</code> (optional)</td><td>–</td><td><code>emergency_test.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/emergency_status</code></td><td>–</td><td>–</td><td><code>emergency_test.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/emergency_test</code></td><td><code>on</code></td><td>–</td><td><code>emergency_test.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/entity_delete</code></td><td><code>entity_id</code></td><td>always</td><td><code>ws_follow.py</code></td><td>Remove an entity from the HA entity registry.</td></tr>
+  <tr><td><code>padspan_ha/espresense_companion_import</code></td><td>–</td><td>always</td><td><code>ws_devices.py</code></td><td>Import floors, rooms, and scanner positions from ESPresense Companion.</td></tr>
+  <tr><td><code>padspan_ha/fabric_beacon_height_set</code></td><td><code>key</code> (optional), <code>z_m</code> (optional), <code>heights</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>fabric_light_height_set for a fixed beacon (by its key), on the same gate as pinning one: only its height; x, y and room stay.</td></tr>
+  <tr><td><code>padspan_ha/fabric_beacon_position_set</code></td><td><code>key</code>, <code>x_m</code>, <code>y_m</code>, <code>floor_id</code> (optional), <code>room</code> (optional), <code>kind</code> (optional), <code>label</code> (optional), <code>z_m</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Pin a beacon in real-world metres.</td></tr>
+  <tr><td><code>padspan_ha/fabric_beacon_remove</code></td><td><code>key</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Un-pin a beacon from the positioning fabric.</td></tr>
+  <tr><td><code>padspan_ha/fabric_correct_room</code></td><td><code>floor_id</code>, <code>room</code>, <code>geometry</code>, <code>source_map_id</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Directly correct one room's real-world shape in the FabricStore.</td></tr>
+  <tr><td><code>padspan_ha/fabric_floor_elevations_set</code></td><td><code>floors</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Upsert per-floor elevation data (floor-to-floor height / base elevation).</td></tr>
+  <tr><td><code>padspan_ha/fabric_floor_finalize</code></td><td><code>floor_id</code>, <code>committed</code></td><td>always</td><td><code>ws_fabric.py</code></td><td>Finalize (lock) or unlock a floor's fabric.</td></tr>
+  <tr><td><code>padspan_ha/fabric_health</code></td><td>–</td><td>–</td><td><code>ws_fabric.py</code></td><td>Run diagnostic checks on the positioning fabric (Phase 1-3).</td></tr>
+  <tr><td><code>padspan_ha/fabric_light_height_set</code></td><td><code>entity_id</code> (optional), <code>z_m</code> (optional), <code>heights</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Set only the height of a placed device (any placement record: a light, a fan, a sensor, a lock), x/y untouched: {entity_id, z_m} or {height…</td></tr>
+  <tr><td><code>padspan_ha/fabric_light_position_set</code></td><td><code>entity_id</code>, <code>x_m</code>, <code>y_m</code>, <code>floor_id</code> (optional), <code>color</code> (optional), <code>shape</code> (optional), <code>rotation</code> (optional), <code>width_cm</code> (optional), <code>height_cm</code> (optional), <code>margin_cm</code> (optional), <code>label</code> (optional), <code>z_m</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Place a light in real-world metres.</td></tr>
+  <tr><td><code>padspan_ha/fabric_light_remove</code></td><td><code>entity_id</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Un-place a light (it returns to automatic room clustering).</td></tr>
+  <tr><td><code>padspan_ha/fabric_map_reanchor</code></td><td><code>map_id</code>, <code>origin_x_m</code> (optional), <code>origin_y_m</code> (optional), <code>rotation_rad</code> (optional), <code>scale_x_m</code> (optional), <code>scale_y_m</code> (optional), <code>shear_rad</code> (optional)</td><td>always</td><td><code>ws_fabric.py</code></td><td>Explicitly redefine a map's placement.</td></tr>
+  <tr><td><code>padspan_ha/fabric_map_transform_set</code></td><td><code>map_id</code>, <code>transform</code></td><td>always</td><td><code>ws_fabric.py</code></td><td>Set the affine transform for a map (frac ↔ metres).</td></tr>
+  <tr><td><code>padspan_ha/fabric_open_edges_apply</code></td><td><code>action</code>, <code>set_barriers</code> (optional), <code>remove_barrier_ids</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>The Open edges tool's one write (Mapping → Edit → Signal walls): the open edges, what is left of a wall one replaces and the walls it remov…</td></tr>
+  <tr><td><code>padspan_ha/fabric_reset_spatial</code></td><td>–</td><td>always</td><td><code>ws_fabric.py</code></td><td>Reset the spatial model (Phase 2+3).</td></tr>
+  <tr><td><code>padspan_ha/fabric_resync</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Wipe all ha_sync scanner entries and rebuild clean from HA + snapshot.</td></tr>
+  <tr><td><code>padspan_ha/fabric_rf_barrier_rails_stamp</code></td><td><code>rails</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Open edges from before 2026-11-02 get the railing they showed as their own word (live_aboard.js stampEdgeRails, after a Save of the person'…</td></tr>
+  <tr><td><code>padspan_ha/fabric_rf_barrier_remove</code></td><td><code>barrier_id</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Remove an RF barrier by id.</td></tr>
+  <tr><td><code>padspan_ha/fabric_rf_barrier_set</code></td><td><code>barrier</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Add or update an RF barrier in real-world metres, by id.</td></tr>
+  <tr><td><code>padspan_ha/fabric_room_add</code></td><td><code>room</code>, <code>floor_id</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Add a PadSpan-native room (no HA area needed).</td></tr>
+  <tr><td><code>padspan_ha/fabric_room_remove</code></td><td><code>room</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Remove a room from the fabric: geometry, metadata, adjacency, scanners.</td></tr>
+  <tr><td><code>padspan_ha/fabric_rooms_merge</code></td><td><code>floor_id</code>, <code>keep</code>, <code>rooms</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Merge rooms into one (the Rooms tab, 2026-11-10): <code>keep</code>'s outline becomes one clean polygon round it and <code>rooms</code> (plan_geom.merge_outline,…</td></tr>
+  <tr><td><code>padspan_ha/fabric_rooms_reconcile</code></td><td><code>floor_id</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Re-derive this floor's provenance-clean rooms from their maps' current placements.</td></tr>
+  <tr><td><code>padspan_ha/fabric_scanner_position_set</code></td><td><code>source</code>, <code>x_m</code>, <code>y_m</code>, <code>z_m</code> (optional), <code>floor_id</code> (optional)</td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Set a scanner's real-world position in metres.</td></tr>
+  <tr><td><code>padspan_ha/fabric_scanner_remove</code></td><td><code>source</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Remove a scanner from the positioning fabric.</td></tr>
+  <tr><td><code>padspan_ha/fabric_scanner_z_set</code></td><td><code>source</code>, <code>z_m</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Set only a scanner's mounting height (z stays through map syncs).</td></tr>
+  <tr><td><code>padspan_ha/fabric_sync_mode_set</code></td><td><code>mode</code></td><td>with Enhanced security</td><td><code>ws_fabric.py</code></td><td>Switch fabric sync mode: 'auto' (sync from HA) or 'manual' (standalone).</td></tr>
+  <tr><td><code>padspan_ha/fabric_truth_candidates</code></td><td><code>floor_id</code></td><td>–</td><td><code>ws_fabric.py</code></td><td>Read-only preview of every form of truth a floor's layout can come from, so the user can compare and pick the most accurate one BEFORE anyt…</td></tr>
+  <tr><td><code>padspan_ha/factory_reset</code></td><td><code>confirm</code></td><td>always</td><td><code>ws_factory_reset.py</code></td><td>Erase every PadSpan HA persistent store and reset to factory defaults.</td></tr>
+  <tr><td><code>padspan_ha/findmy_unlink</code></td><td><code>key</code>, <code>address</code> (optional)</td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>"Not this tag": undo a Find My tag's last address link (findmy.py FindMyBridge.unlink).</td></tr>
+  <tr><td><code>padspan_ha/flood_reset</code></td><td><code>entity_id</code></td><td>–</td><td><code>websocket.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/floorplan_import_roomplan</code></td><td><code>roomplan_base64</code></td><td>always</td><td><code>ws_floorplan_import.py</code></td><td>Parse an Apple RoomPlan JSON export into levels + room polygons.</td></tr>
+  <tr><td><code>padspan_ha/floorplan_import_sh3d</code></td><td><code>sh3d_base64</code></td><td>always</td><td><code>ws_floorplan_import.py</code></td><td>Parse a Sweet Home 3D (.sh3d) file into levels + room polygons.</td></tr>
+  <tr><td><code>padspan_ha/follow_alert_delete</code></td><td><code>addr</code></td><td>with Enhanced security</td><td><code>ws_follow.py</code></td><td>Delete a follow-alert configuration for a tracked object.</td></tr>
+  <tr><td><code>padspan_ha/follow_alert_get</code></td><td>–</td><td>–</td><td><code>ws_follow.py</code></td><td>Return all saved follow-alert configurations (persisted in AlertStore).</td></tr>
+  <tr><td><code>padspan_ha/follow_alert_save</code></td><td><code>addr</code> (optional), <code>config</code> (optional)</td><td>with Enhanced security</td><td><code>ws_follow.py</code></td><td>Save follow/alert configuration for a tracked object.</td></tr>
+  <tr><td><code>padspan_ha/forensics_clear</code></td><td>–</td><td>always</td><td><code>ws_forensics.py</code></td><td>Delete all recorded forensics sessions (irreversible).</td></tr>
+  <tr><td><code>padspan_ha/forensics_license_activate</code></td><td><code>key</code></td><td>always</td><td><code>ws_forensics.py</code></td><td>Validate a PadSpan Pro licence key against traks.ca and, if valid, store it and enable forensics.</td></tr>
+  <tr><td><code>padspan_ha/forensics_license_reveal</code></td><td>–</td><td>always</td><td><code>ws_forensics.py</code></td><td>Return the licence key itself — admin only, on explicit request.</td></tr>
+  <tr><td><code>padspan_ha/forensics_query</code></td><td><code>from_ts</code>, <code>to_ts</code></td><td>always</td><td><code>ws_forensics.py</code></td><td>Return devices present (recorded) or possibly present (first/last-seen overlap) during [from_ts, to_ts] (epoch seconds).</td></tr>
+  <tr><td><code>padspan_ha/forensics_stats</code></td><td>–</td><td>–</td><td><code>ws_forensics.py</code></td><td>Return recorder stats for the Settings UI.</td></tr>
+  <tr><td><code>padspan_ha/guest_session_end</code></td><td><code>session</code></td><td>always</td><td><code>ws_guests.py</code></td><td>The tag is back: the stay ends, its report is kept.</td></tr>
+  <tr><td><code>padspan_ha/guest_session_forget</code></td><td><code>session</code></td><td>always</td><td><code>ws_guests.py</code></td><td>Delete a finished stay now, name and report.</td></tr>
+  <tr><td><code>padspan_ha/guest_session_start</code></td><td><code>pid</code>, <code>name</code>, <code>end_at</code> (optional)</td><td>always</td><td><code>ws_guests.py</code></td><td>Lend a guest tag: who, until when, and how the stay is watched.</td></tr>
+  <tr><td><code>padspan_ha/guest_session_update</code></td><td><code>session</code>, <code>name</code> (optional), <code>end_at</code> (optional)</td><td>always</td><td><code>ws_guests.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/guest_tag_mark</code></td><td><code>key</code></td><td>always</td><td><code>ws_guests.py</code></td><td>Make a labelled device a guest tag.</td></tr>
+  <tr><td><code>padspan_ha/guest_tag_unmark</code></td><td><code>pid</code></td><td>always</td><td><code>ws_guests.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/guests_get</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_guests.py</code></td><td>The guest tags, the stays (running and kept), and the labelled devices that could become a guest tag.</td></tr>
+  <tr><td><code>padspan_ha/ha_entities_audit</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Return every PadSpan entity with live state, health, and automation usage.</td></tr>
+  <tr><td><code>padspan_ha/house3d_clear</code></td><td><code>only</code> (optional)</td><td>always</td><td><code>ws_house3d.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/house3d_edit</code></td><td><code>openings</code> (optional), <code>lights</code> (optional), <code>devices</code> (optional), <code>pieces</code> (optional), <code>figures</code> (optional), <code>heights_set</code> (optional), <code>rails_chosen</code> (optional)</td><td>with Enhanced security</td><td><code>ws_house3d.py</code></td><td>Save the 3D editor's draft: {openings, lights, devices, pieces, figures}, each {key: entry to set | None to remove}, and heights_set (see a…</td></tr>
+  <tr><td><code>padspan_ha/house3d_from_photo</code></td><td><code>target</code>, <code>photo</code> (optional), <code>kind</code> (optional)</td><td>with Enhanced security</td><td><code>ws_house3d_photo.py</code></td><td>Read one photo with the chosen AI Task (or, with no photo, say which AI Task would).</td></tr>
+  <tr><td><code>padspan_ha/house3d_get</code></td><td>–</td><td>–</td><td><code>ws_house3d.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/house3d_import_preview</code></td><td><code>sh3d_base64</code>, <code>format</code> (optional)</td><td>–</td><td><code>ws_house3d_import.py</code></td><td>A .sh3d's doors, windows and furniture (or a RoomPlan scan's doors, windows, openings, furniture and stairs) as candidates.</td></tr>
+  <tr><td><code>padspan_ha/house3d_library_get</code></td><td><code>library_id</code>, <code>placed</code> (optional)</td><td>–</td><td><code>ws_house3d_library.py</code></td><td>One piece; with placed, the library counts the placing (anonymous +1).</td></tr>
+  <tr><td><code>padspan_ha/house3d_library_report</code></td><td><code>library_id</code>, <code>reason</code></td><td>with Enhanced security</td><td><code>ws_house3d_library.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/house3d_library_search</code></td><td><code>text</code> (optional), <code>filters</code> (optional), <code>sort</code> (optional), <code>offset</code> (optional), <code>limit</code> (optional)</td><td>–</td><td><code>ws_house3d_library.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/house3d_library_share</code></td><td><code>recipe</code>, <code>submission_id</code> (optional)</td><td>with Enhanced security</td><td><code>ws_house3d_library.py</code></td><td>Share a piece's recipe and details sheet (nothing else of the piece), or send new details for one this house shared.</td></tr>
+  <tr><td><code>padspan_ha/house3d_library_withdraw</code></td><td>–</td><td>always</td><td><code>ws_house3d_library.py</code></td><td>Take every piece this house shared out of the library: {withdrawn, left}.</td></tr>
+  <tr><td><code>padspan_ha/house3d_stairs_plans</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_house3d_stairs.py</code></td><td>The placed floor plans there are to read: [{map_id, name, floor_id}], and whether the AI Task runs on this home's own computer (local: True…</td></tr>
+  <tr><td><code>padspan_ha/house3d_stairs_read</code></td><td><code>map_id</code></td><td>with Enhanced security</td><td><code>ws_house3d_stairs.py</code></td><td>One floor plan's stairs, read by the chosen AI Task.</td></tr>
+  <tr><td><code>padspan_ha/house3d_terms_accept</code></td><td><code>version</code></td><td>with Enhanced security</td><td><code>ws_house3d_library.py</code></td><td>Accept the library's terms (the version the screen showed).</td></tr>
+  <tr><td><code>padspan_ha/insights_get</code></td><td><code>days</code> (optional)</td><td>–</td><td><code>websocket.py</code></td><td>Aggregate TracebackStore frames into time-in-room / entries / occupancy.</td></tr>
+  <tr><td><code>padspan_ha/install_base</code></td><td><code>fresh</code> (optional)</td><td>always</td><td><code>ws_telemetry.py</code></td><td>The install-base dashboard: what every opted-in report adds up to, plus the update-check ping count for the installs that did not opt in.</td></tr>
+  <tr><td><code>padspan_ha/integration_reload</code></td><td>–</td><td>always</td><td><code>websocket.py</code></td><td>Reload the PadSpan HA config entry.</td></tr>
+  <tr><td><code>padspan_ha/irk_add</code></td><td><code>name</code>, <code>irk_hex</code>, <code>force</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_irk.py</code></td><td>Add an IRK directly via PadSpan settings (no private_ble_device integration needed).</td></tr>
+  <tr><td><code>padspan_ha/irk_auto_detect</code></td><td>–</td><td>always</td><td><code>ws_irk.py</code></td><td>Scan system Bluetooth bonds and live BLE cache to find IRKs automatically.</td></tr>
+  <tr><td><code>padspan_ha/irk_remove</code></td><td><code>irk_hex</code></td><td>always</td><td><code>ws_irk.py</code></td><td>Remove a PadSpan-managed IRK and reload the resolver.</td></tr>
+  <tr><td><code>padspan_ha/irk_validate</code></td><td><code>irk_hex</code></td><td>always</td><td><code>ws_irk.py</code></td><td>Test an IRK against all currently-visible BLE RPAs.</td></tr>
+  <tr><td><code>padspan_ha/label_link_answer</code></td><td><code>key</code>, <code>address</code>, <code>same</code></td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>"This looks like &lt;label&gt;: same device?" answered (label_follow.py).</td></tr>
+  <tr><td><code>padspan_ha/label_link_hint_off</code></td><td><code>key</code></td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>The pointer to a device's IRK, dismissed for good.</td></tr>
+  <tr><td><code>padspan_ha/label_link_undo</code></td><td><code>key</code></td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>One click removes a link: the name goes back to the device's first address.</td></tr>
+  <tr><td><code>padspan_ha/licence_homes</code></td><td><code>op</code> (optional), <code>home_id</code> (optional), <code>label</code> (optional)</td><td>always</td><td><code>ws_forensics.py</code></td><td>The licence key's homes, from the licence server: list them, remove one (it frees its place), or name this one.</td></tr>
+  <tr><td><code>padspan_ha/live_snapshot</code></td><td><code>slim</code> (optional)</td><td>–</td><td><code>snapshot_builder.py</code></td><td>Return the full live snapshot to the panel, enriched with presence + calibration data.</td></tr>
+  <tr><td><code>padspan_ha/logs_get</code></td><td><code>level</code> (optional), <code>limit</code> (optional)</td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>Return recent PadSpan log entries from the in-memory ring buffer.</td></tr>
+  <tr><td><code>padspan_ha/lost_and_found_forget</code></td><td><code>key</code></td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>Explicitly clear one object's lost-and-found record.</td></tr>
+  <tr><td><code>padspan_ha/lost_and_found_get</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>Return every object's last-confirmed room + when — persisted, never reset to Unknown (see lost_and_found_store.py's own header).</td></tr>
+  <tr><td><code>padspan_ha/maps_blank_create</code></td><td><code>floor_id</code>, <code>across</code>, <code>down</code>, <code>name</code> (optional)</td><td>always</td><td><code>ws_maps.py</code></td><td>{ok, map} or {ok: false, message}: nothing is written unless both lengths read.</td></tr>
+  <tr><td><code>padspan_ha/maps_delete</code></td><td><code>map_id</code></td><td>always</td><td><code>ws_maps.py</code></td><td>Delete a map and scrub every OTHER store's reference to it.</td></tr>
+  <tr><td><code>padspan_ha/maps_delete_migrate</code></td><td><code>map_id</code>, <code>target_map_id</code>, <code>extend_canvas</code> (optional)</td><td>always</td><td><code>ws_maps.py</code></td><td>Delete a map after migrating its data (receivers, beacons, room_bounds, calibration) to a target map on the same z-level.</td></tr>
+  <tr><td><code>padspan_ha/maps_fit_suggest</code></td><td><code>map_id</code>, <code>ref_map_id</code></td><td>always</td><td><code>ws_maps.py</code></td><td>Where this plan would sit over the Reference plan's floor, from the rooms traced on it (roomplan_import.</td></tr>
+  <tr><td><code>padspan_ha/maps_image_urls</code></td><td>–</td><td>–</td><td><code>ws_maps.py</code></td><td>Fresh signed image links only — the panel's keep-alive for them.</td></tr>
+  <tr><td><code>padspan_ha/maps_list</code></td><td>–</td><td>–</td><td><code>ws_maps.py</code></td><td>Return all maps.</td></tr>
+  <tr><td><code>padspan_ha/maps_replace_image</code></td><td><code>map_id</code>, <code>width</code>, <code>height</code>, <code>png_base64</code>, <code>crop</code> (optional), <code>pixel_op</code> (optional)</td><td>always</td><td><code>ws_maps.py</code></td><td>Replace the stored PNG for an existing map and renormalize coordinates.</td></tr>
+  <tr><td><code>padspan_ha/maps_revert_extend</code></td><td><code>map_id</code></td><td>always</td><td><code>ws_maps.py</code></td><td>Revert a canvas extension on a map (undo the image padding + coord shift).</td></tr>
+  <tr><td><code>padspan_ha/maps_scale_measure</code></td><td><code>map_id</code>, <code>measures</code> (optional), <code>save</code> (optional), <code>not_to_scale</code> (optional)</td><td>always</td><td><code>ws_maps.py</code></td><td>What the lengths make of the plan (writes nothing), or with <code>save</code> the plan's scale from them.</td></tr>
+  <tr><td><code>padspan_ha/maps_scale_nudge_end</code></td><td><code>map_id</code></td><td>always</td><td><code>ws_maps.py</code></td><td>"Later" on "Set this plan's scale now": it ends for this plan, for good.</td></tr>
+  <tr><td><code>padspan_ha/maps_scan_create</code></td><td><code>floor_id</code>, <code>file_base64</code>, <code>name</code> (optional)</td><td>always</td><td><code>ws_maps.py</code></td><td>{ok, map, rooms, heights_m, warnings} or {ok: false, message}: nothing is written unless the scan reads.</td></tr>
+  <tr><td><code>padspan_ha/maps_update</code></td><td><code>map_id</code>, <code>receivers</code> (optional), <code>calibration</code> (optional), <code>notes</code> (optional), <code>floor_id</code> (optional), <code>room_bounds</code> (optional), <code>stack</code> (optional), <code>beacons</code> (optional), <code>lights</code> (optional)</td><td>with Enhanced security</td><td><code>ws_maps.py</code></td><td>Update map metadata: receivers, beacons, room_bounds, calibration, stack, notes.</td></tr>
+  <tr><td><code>padspan_ha/maps_upload</code></td><td><code>name</code>, <code>filename</code>, <code>mime</code>, <code>width</code>, <code>height</code>, <code>png_base64</code>, <code>floor_id</code> (optional), <code>allow_no_image</code> (optional), <code>scale_nudge</code> (optional), <code>kind</code> (optional)</td><td>always</td><td><code>ws_maps.py</code></td><td>Upload a new floor plan image and create a map entry.</td></tr>
+  <tr><td><code>padspan_ha/model_get</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>Return floors from HA floor registry, areas from HA area registry, and per-room metadata.</td></tr>
+  <tr><td><code>padspan_ha/model_update</code></td><td><code>floors</code> (optional), <code>room_meta</code> (optional)</td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>Update room_meta (color, floor assignment).</td></tr>
+  <tr><td><code>padspan_ha/motion_reconnects</code></td><td>–</td><td>–</td><td><code>motion_reconnects.py</code></td><td>Subscription: {entity_id: {"at", "last_changed"}} now, then on every change.</td></tr>
+  <tr><td><code>padspan_ha/movement_history_get</code></td><td><code>device</code> (optional), <code>limit</code> (optional)</td><td>–</td><td><code>websocket.py</code></td><td>Return recent movement history entries.</td></tr>
+  <tr><td><code>padspan_ha/notify_services_list</code></td><td>–</td><td>–</td><td><code>ws_notify.py</code></td><td>Discover all available HA notification services/entities.</td></tr>
+  <tr><td><code>padspan_ha/notify_test</code></td><td><code>email</code> (optional), <code>service</code> (optional)</td><td>–</td><td><code>ws_notify.py</code></td><td>Send a test notification exactly as a Follow alert is sent (presence_coordinator.async_send_follow_notify): to the chosen target only, auto…</td></tr>
+  <tr><td><code>padspan_ha/object_evict</code></td><td><code>key</code></td><td>always</td><td><code>ws_calibration.py</code></td><td>Evict a single object from the coordinator's smoothed state cache.</td></tr>
+  <tr><td><code>padspan_ha/object_label_delete</code></td><td><code>address</code></td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>Remove the user label for a BLE MAC address.</td></tr>
+  <tr><td><code>padspan_ha/object_label_list</code></td><td>–</td><td>–</td><td><code>ws_objects.py</code></td><td>Return all stored object labels from ObjectStore + DeviceRegistry.</td></tr>
+  <tr><td><code>padspan_ha/object_label_set</code></td><td><code>address</code>, <code>label</code></td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>Assign a user label to a BLE object (MAC, ibeacon key, or canonical_id).</td></tr>
+  <tr><td><code>padspan_ha/objects_clear_history</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_objects.py</code></td><td>Purge untagged/unfollowed objects from the 7-day history cache.</td></tr>
+  <tr><td><code>padspan_ha/occupancy_estimate</code></td><td>–</td><td>–</td><td><code>ws_occupancy.py</code></td><td>WS wrapper for occupancy estimation.</td></tr>
+  <tr><td><code>padspan_ha/occupancy_train</code></td><td><code>actual_count</code>, <code>room</code> (optional)</td><td>with Enhanced security</td><td><code>ws_occupancy.py</code></td><td>Record an actual headcount beside what the estimator said at the time.</td></tr>
+  <tr><td><code>padspan_ha/plan_ai_cancel</code></td><td><code>session</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_ai_commit</code></td><td><code>session</code>, <code>rev</code>, <code>items</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Keep suggestions: items [{sug_id, v: new|correction, final (the draft's piece), rail: {side, style} (a railing), target (a stair it was nam…</td></tr>
+  <tr><td><code>padspan_ha/plan_ai_plans</code></td><td>–</td><td>always</td><td><code>ws_plan_ai.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_ai_reject_forget</code></td><td><code>key</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Un-ignore: the reject goes (a failure taken back, counted apart), and a suggestion it had marked wrong, in any kept session, is queued agai…</td></tr>
+  <tr><td><code>padspan_ha/plan_ai_rejects_get</code></td><td>–</td><td>always</td><td><code>ws_plan_ai.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_ai_sessions_get</code></td><td>–</td><td>always</td><td><code>ws_plan_ai.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_ai_start</code></td><td><code>map_ids</code>, <code>kinds</code> (optional), <code>fixtures</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Start one session over the ticked plans, read by the AI Task, or by the backup when it is away, as ask_ai always does.</td></tr>
+  <tr><td><code>padspan_ha/plan_ai_status</code></td><td><code>session</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>The session, after the checks: on one that is not running, a changed plan or a changed target marks its suggestions stale.</td></tr>
+  <tr><td><code>padspan_ha/plan_ai_undo</code></td><td><code>batch_id</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_ai_verdict</code></td><td><code>session</code>, <code>rev</code>, <code>sug_id</code>, <code>v</code>, <code>why</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Right (it looks right: stored and counted, nothing else), failure (one reason; a reject is remembered with it, and a stair's railing hint l…</td></tr>
+  <tr><td><code>padspan_ha/plan_build_answer</code></td><td><code>session</code>, <code>question_id</code>, <code>answer</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>The little help (design 3.5): the answer reruns the local steps only, no new read, and only for the plan it is about.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_cancel</code></td><td><code>session</code>, <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_build_commit</code></td><td><code>session</code>, <code>rev</code>, <code>items</code>, <code>group</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Save accepted items (design 3.8): one at a time, or <code>group</code> for items that shift nothing drawn on their plans (form q8).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_info</code></td><td><code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Whether the line-up can be offered here (design 1): the unlock, the switch and the effective rule, the floors with their plans, this house'…</td></tr>
+  <tr><td><code>padspan_ha/plan_build_refile</code></td><td><code>session</code>, <code>rev</code>, <code>map_id</code>, <code>to_floor_id</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>"This plan isn't Basement?" (design 2, by hand): the same refile item a suggestion makes, under the same rules, accepted and saved like any…</td></tr>
+  <tr><td><code>padspan_ha/plan_build_resume</code></td><td><code>session</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>A session that stopped short reads the rest (design 8, 14).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_check</code></td><td><code>session</code>, <code>items</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>The rooms gate for these ticks, before Save (design 5): the room score on this floor's calibration spots, now and with them.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_commit</code></td><td><code>session</code>, <code>rev</code>, <code>items</code>, <code>finals</code> (optional), <code>via</code> (optional), <code>ha_areas</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Accept all for this floor: the ticked items in ONE save (design 5).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_edit</code></td><td><code>session</code>, <code>rev</code>, <code>op</code>, <code>parts</code> (optional), <code>merge</code> (optional), <code>space</code> (optional), <code>name</code> (optional), <code>room</code> (optional), <code>read</code> (optional), <code>ticked</code> (optional), <code>ha</code> (optional), <code>draft</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>The person's edit of the proposal (design 5): merge rooms and spaces into one, separate a merge, name a space as a new room (or leave it ou…</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_read_again</code></td><td><code>session</code>, <code>rev</code>, <code>room</code>, <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Read again (design 5): a third whole read of the plans a flagged room was read on; two reads out of three decide it.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_resume</code></td><td><code>session</code>, <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>A rooms session that stopped short reads the rest.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_start</code></td><td><code>floor_id</code>, <code>map_ids</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>One floor's rooms read (design 5): only its lined-up plans, two reads each.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_status</code></td><td><code>session</code> (optional), <code>via</code> (optional), <code>reproject</code> (optional), <code>map_id</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>A rooms session (by id, or the newest) with its proposal, and the names a new room may take.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_rooms_undo</code></td><td><code>session</code>, <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Undo a rooms session; allowed under the master switch whatever the AI Task (form q3), and always for the helper's.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_scale_preview</code></td><td><code>map_id</code>, <code>measures</code> (optional), <code>replace</code> (optional), <code>source</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>What the measurement screen says while the person types (the length understood, the plan's size): worked out here, as the save will.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_scale_save</code></td><td><code>map_id</code>, <code>sig</code>, <code>floor_id</code> (optional), <code>measures</code>, <code>source</code> (optional), <code>session</code> (optional), <code>replace</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>The plan's first scale from the person's measurement (design E.3).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_scale_start</code></td><td><code>map_id</code>, <code>again</code> (optional), <code>held_only</code> (optional), <code>recheck</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Claude reads a printed dimension off a plan with no scale (piece 4; design E.1): Read A, then one dimension an axis.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_scale_status</code></td><td><code>session</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>A scale read (by id, or the newest): where it is and what it found.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_scale_undo</code></td><td><code>map_id</code> (optional), <code>via</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Take the helper's scale back, only while nothing in metres was added since (design E.5).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_start</code></td><td><code>floor_id</code>, <code>map_ids</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>One floor's line-up (design 3.1's preconditions; one AI job per house, one a minute, ten a day).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_status</code></td><td><code>session</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>A line-up (by id, or the newest), its plans' and items' signatures checked: an item whose plan moved or changed since is stale.</td></tr>
+  <tr><td><code>padspan_ha/plan_build_undo</code></td><td><code>session</code></td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Undo a whole line-up session (design 3.8).</td></tr>
+  <tr><td><code>padspan_ha/plan_build_verdict</code></td><td><code>session</code>, <code>rev</code>, <code>item_id</code>, <code>v</code>, <code>why</code> (optional)</td><td>always</td><td><code>ws_plan_ai.py</code></td><td>Not now, Wrong (one reason) or back: written at the click; they describe the AI, not the house (design 4).</td></tr>
+  <tr><td><code>padspan_ha/plan_carry_apply</code></td><td><code>map_id</code>, <code>kinds</code></td><td>always</td><td><code>plan_carry.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/plan_carry_dismiss</code></td><td><code>map_id</code></td><td>always</td><td><code>plan_carry.py</code></td><td>They are right where they are: the plan is no longer listed, and nothing is moved.</td></tr>
+  <tr><td><code>padspan_ha/plan_carry_list</code></td><td>–</td><td>always</td><td><code>plan_carry.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/positioning_diag</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Return detailed positioning diagnostics for all labelled devices.</td></tr>
+  <tr><td><code>padspan_ha/power_teams_get</code></td><td>–</td><td>–</td><td><code>power_team.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/power_teams_set</code></td><td><code>teams</code></td><td>always</td><td><code>power_team.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/private_ble_add_irk</code></td><td><code>irk</code>, <code>name</code> (optional)</td><td>always</td><td><code>ws_irk.py</code></td><td>Add a Private BLE Device IRK via PadSpan UI (creates HA config entry).</td></tr>
+  <tr><td><code>padspan_ha/private_ble_delete_irk</code></td><td><code>entry_id</code></td><td>always</td><td><code>ws_irk.py</code></td><td>Delete a Private BLE Device config entry by entry_id.</td></tr>
+  <tr><td><code>padspan_ha/private_ble_status</code></td><td>–</td><td>–</td><td><code>ws_irk.py</code></td><td>Return Private BLE Device resolver status for the UI setup wizard.</td></tr>
+  <tr><td><code>padspan_ha/pro_invite_claim</code></td><td><code>email</code></td><td>always</td><td><code>pro_invite.py</code></td><td>Claim the open invite: a one-year PadSpan Pro key for this email, stored in the same fields a bought key uses (one gate, licence.py).</td></tr>
+  <tr><td><code>padspan_ha/pro_invite_decline</code></td><td>–</td><td>always</td><td><code>pro_invite.py</code></td><td>No thanks: final.</td></tr>
+  <tr><td><code>padspan_ha/propagation_health</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Compute comprehensive propagation model health analysis.</td></tr>
+  <tr><td><code>padspan_ha/quiet_errors</code></td><td>–</td><td>always</td><td><code>ws_diagnostics.py</code></td><td>Errors PadSpan handled quietly since Home Assistant started (quiet_errors.py): each site that fired, its count, and its last error with the…</td></tr>
+  <tr><td><code>padspan_ha/radio_area_set</code></td><td><code>device_id</code> (optional), <code>source</code> (optional), <code>area_name</code> (optional)</td><td>–</td><td><code>ws_radios.py</code></td><td>Assign a BLE scanner to an HA area.</td></tr>
+  <tr><td><code>padspan_ha/radio_audit</code></td><td>–</td><td>–</td><td><code>ws_radios.py</code></td><td>Cross-reference BLE radios with ESPHome devices and fabric scanners.</td></tr>
+  <tr><td><code>padspan_ha/radio_disabled_set</code></td><td><code>source</code>, <code>disabled</code></td><td>with Enhanced security</td><td><code>ws_radios.py</code></td><td>Mark or unmark a BLE radio as 'disabled' (intentionally excluded from location math).</td></tr>
+  <tr><td><code>padspan_ha/radio_lost_set</code></td><td><code>source</code>, <code>lost</code></td><td>with Enhanced security</td><td><code>ws_radios.py</code></td><td>Mark or unmark a BLE radio as 'lost' (excluded from location math).</td></tr>
+  <tr><td><code>padspan_ha/radio_reset</code></td><td><code>source</code></td><td>always</td><td><code>ws_radios.py</code></td><td>Nuclear reset for a single BLE scanner — clears ALL associated data.</td></tr>
+  <tr><td><code>padspan_ha/receivers_to_rooms</code></td><td><code>undo</code> (optional), <code>dry_run</code> (optional)</td><td>always</td><td><code>ws_fabric.py</code></td><td>Every live receiver with a room that has an outline, and no position yet, put inside its room: one backup of the fabric, then one write thr…</td></tr>
+  <tr><td><code>padspan_ha/room_height_set</code></td><td><code>room</code>, <code>height_m</code> (optional), <code>floor_raise_m</code> (optional), <code>surface</code> (optional), <code>space</code> (optional)</td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>Set one room's own height (room_meta[room].height_m) for Live Aboard: a double-height living room, a hall under a mezzanine, on a floor tha…</td></tr>
+  <tr><td><code>padspan_ha/room_tag_purge_missing</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_follow.py</code></td><td>Remove entity_ids from room_tag_map that have no current HA state (phantom/sample entities).</td></tr>
+  <tr><td><code>padspan_ha/room_tags</code></td><td>–</td><td>–</td><td><code>ws_follow.py</code></td><td>Return the room→object map used by the UI.</td></tr>
+  <tr><td><code>padspan_ha/rooms_overlap</code></td><td><code>rooms</code></td><td>–</td><td><code>setup_checks.py</code></td><td>Which rooms are drawn over each other, for Mapping's Edit and Layout (2026-11-18: the report counted them and nobody was told).</td></tr>
+  <tr><td><code>padspan_ha/scanner_offset_set</code></td><td><code>source</code>, <code>offset_db</code> (optional)</td><td>with Enhanced security</td><td><code>ws_radios.py</code></td><td>Set (or clear) the RSSI calibration offset for a single Bluetooth scanner.</td></tr>
+  <tr><td><code>padspan_ha/settings_get</code></td><td>–</td><td>–</td><td><code>ws_settings.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/settings_set</code></td><td><code>data_mode</code> (optional), <code>cpu_mode</code> (optional), <code>update_check_enabled</code> (optional), <code>telemetry_enabled</code> (optional), <code>telemetry_asked</code> (optional), <code>telemetry_heard</code> (optional), <code>telemetry_heard_ask</code> (optional), <code>trial_nudge_done</code> (optional), <code>tester_nudge_done</code> (optional), <code>launch_card_done</code> (optional), <code>whatsnew_seen_version</code> (optional), <code>room_change_delay_s</code> (optional), <code>away_timeout_m</code> (optional), <code>thing_away_timeout_h</code> (optional), <code>ref_power</code> (optional), <code>path_loss_exp</code> (optional), <code>kalman_q</code> (optional), <code>kalman_r</code> (optional), <code>hold_last_room_s</code> (optional), <code>room_reason_attribute</code> (optional), <code>positioning_pick_better</code> (optional), <code>positioning_unsure</code> (optional), <code>positioning_sensor_fusion</code> (optional), <code>calibration_room_walk</code> (optional), <code>assumed_device_height_m</code> (optional), <code>fabric_origin_lat</code> (optional), <code>fabric_origin_lon</code> (optional), <code>fabric_bearing_deg</code> (optional), <code>hidden_map_ids</code> (optional), <code>locate_self_key</code> (optional), <code>followed_addrs</code> (optional), <code>health_reminder_enabled</code> (optional), <code>health_reminder_last_ts</code> (optional), <code>maps_iso_floor_gap</code> (optional), <code>maps_iso_horiz_gap</code> (optional), <code>maps_iso_focus</code> (optional), <code>overview_iso_floor_gap</code> (optional), <code>overview_iso_horiz_gap</code> (optional), <code>overview_iso_focus</code> (optional), <code>overview_iso_zoom</code> (optional), <code>lights_hidden</code> (optional), <code>atlas_emergency_button</code> (optional), <code>atlas_live_colours</code> (optional), <code>overview_atlas</code> (optional), <code>emergency_entities</code> (optional), <code>atlas_alert_pulse</code> (optional), <code>atlas_heatmap_enabled</code> (optional), <code>atlas_weather_enabled</code> (optional), <code>atlas_weather_rain_entity</code> (optional), <code>atlas_weather_condition_entity</code> (optional), <code>atlas_weather_warning_entity</code> (optional), <code>atlas_weather_strength</code> (optional), <code>wall_screen_in</code> (optional), <code>wall_distance_m</code> (optional), <code>wall_text_arcmin</code> (optional), <code>wall_night_dim</code> (optional), <code>wall_pixel_shift</code> (optional), <code>wall_floor_cycle_s</code> (optional), <code>wall_fully</code> (optional), <code>atlas_3d_enabled</code> (optional), <code>atlas_3d_quality</code> (optional), <code>atlas_3d_people</code> (optional), <code>atlas_3d_tags</code> (optional), <code>atlas_3d_ai_task_entity</code> (optional), <code>atlas_3d_ai_task_backup_entity</code> (optional), <code>ai_photos_enabled</code> (optional), <code>ai_credit_month_usd</code> (optional), <code>ai_credit_warn_pct</code> (optional), <code>ai_stairs_enabled</code> (optional), <code>ai_plans_enabled</code> (optional), <code>ai_plan_build_enabled</code> (optional), <code>ai_map_wizard</code> (optional), <code>atlas_3d_library</code> (optional), <code>atlas_3d_weather</code> (optional), <code>atlas_3d_showcase</code> (optional), <code>atlas_3d_look</code> (optional), <code>atlas_3d_home_idle_s</code> (optional), <code>atlas_3d_carries</code> (optional), <code>atlas_3d_director</code> (optional), <code>atlas_3d_director_people</code> (optional), <code>lights_showcase</code> (optional), <code>lights_hide_untouched</code> (optional), <code>lights_hide_device_codes</code> (optional), <code>lights_show_beacons</code> (optional), <code>lights_fit_rooms</code> (optional), <code>lights_isolux</code> (optional), <code>lights_automorph_enabled</code> (optional), <code>lights_automorph_room_pct</code> (optional), <code>lights_automorph_hardness</code> (optional), <code>lights_automorph_style</code> (optional), <code>lights_automorph_subtlety</code> (optional), <code>lights_showcase_theme</code> (optional), <code>lights_showcase_presets</code> (optional), <code>whole_house_presets</code> (optional), <code>atlas_layout_v2</code> (optional), <code>traceback_house_focus</code> (optional), <code>vacation_mode_enabled</code> (optional), <code>vacation_mode_intensity</code> (optional), <code>vacation_mode_dark_only</code> (optional), <code>vacation_mode_dark_offset_min</code> (optional), <code>vacation_mode_end_at</code> (optional), <code>vacation_mode_pause_home</code> (optional), <code>vacation_mode_bedtime</code> (optional), <code>vacation_mode_max_on_min</code> (optional), <code>vacation_mode_max_lights</code> (optional), <code>vacation_mode_anchors</code> (optional), <code>vacation_mode_source</code> (optional), <code>adaptive_learning_enabled</code> (optional), <code>adaptive_floor_detection</code> (optional), <code>signal_loss_linger_s</code> (optional), <code>advanced_extra_tabs</code> (optional), <code>ha_entity_tracker_enabled</code> (optional), <code>ha_entity_area_enabled</code> (optional), <code>ha_entity_distance_enabled</code> (optional), <code>ha_entity_scanner_distance_enabled</code> (optional), <code>ha_entity_occupancy_enabled</code> (optional), <code>subzones_enabled</code> (optional), <code>mqtt_publish_enabled</code> (optional), <code>espresense_mqtt_enabled</code> (optional), <code>espresense_topic_prefix</code> (optional), <code>tasmota_ble_enabled</code> (optional), <code>espresense_room_map</code> (optional), <code>espresense_companion_url</code> (optional), <code>aggressive_ble_reseed</code> (optional), <code>presence_poll_interval_s</code> (optional), <code>ble_reseed_interval_s</code> (optional), <code>lights_panel_enabled</code> (optional), <code>bermuda_ignore</code> (optional), <code>tags_room_events_enabled</code> (optional), <code>tags_nfc_identify_enabled</code> (optional), <code>tags_phone_autolink_enabled</code> (optional), <code>quiet_mode</code> (optional), <code>units_feet</code> (optional), <code>light_theme</code> (optional), <code>day_theme</code> (optional), <code>theme_palette</code> (optional), <code>theme_follow_sun</code> (optional), <code>ui_skin</code> (optional), <code>light_shapes</code> (optional), <code>light_type_overrides</code> (optional), <code>door_opener_ids</code> (optional), <code>door_composites</code> (optional), <code>beacon_auto_calibrate</code> (optional), <code>overview_persistent_pins</code> (optional), <code>overview_show_walls</code> (optional), <code>overview_show_outdoor</code> (optional), <code>overview_show_trails</code> (optional), <code>object_history_days</code> (optional), <code>scanner_offsets</code> (optional), <code>excluded_scanners</code> (optional), <code>scanner_min_rssi</code> (optional), <code>excluded_objects</code> (optional), <code>ingest_rules</code> (optional), <code>overview_2d_mode</code> (optional), <code>positioning_algorithm</code> (optional), <code>beacon_profiling_enabled</code> (optional), <code>beacon_tune_disabled</code> (optional), <code>beacon_group_overrides</code> (optional), <code>walk_to_identify_enabled</code> (optional), <code>radio_map_enabled</code> (optional), <code>distortion_map_enabled</code> (optional), <code>roomplan_import_enabled</code> (optional), <code>vacuum_import_enabled</code> (optional), <code>phone_wizard_enabled</code> (optional), <code>iphone_irk_guide</code> (optional), <code>mac_rotation_bridging</code> (optional), <code>apple_auto_classify</code> (optional), <code>low_memory_mode</code> (optional), <code>optimize_for_scale</code> (optional), <code>guest_tags_enabled</code> (optional), <code>guest_retention_days</code> (optional), <code>enhanced_security</code> (optional), <code>forensics_enabled</code> (optional), <code>license_tier_override</code> (optional), <code>bright_reveal_presence</code> (optional), <code>forensics_retention_days</code> (optional), <code>rssi_capture_enabled</code> (optional), <code>rssi_capture_retention_days</code> (optional), <code>ble_max_age_s</code> (optional), <code>occupancy_hybrid_enabled</code> (optional), <code>occupancy_cluster_threshold</code> (optional), <code>distance_stationary_devices</code> (optional), <code>onboarding_completed</code> (optional), <code>accuracy_tips_hidden</code> (optional), <code>setup_progress</code> (optional), <code>heatmap_gain</code> (optional), <code>heatmap_contrast</code> (optional), <code>distortion_intensity</code> (optional), <code>heatmap_source</code> (optional), <code>auto_offset_mode</code> (optional), <code>padspan_automations</code> (optional)</td><td>with Enhanced security</td><td><code>ws_settings.py</code></td><td>Persist one or more settings changes.</td></tr>
+  <tr><td><code>padspan_ha/setup_phones</code></td><td>–</td><td>–</td><td><code>setup_checks.py</code></td><td>Setup's "Track your phone or watch" step: the phones and watches PadSpan follows as someone's (phones_tracked), {phones: [{name, how}]}.</td></tr>
+  <tr><td><code>padspan_ha/setup_tips</code></td><td>–</td><td>–</td><td><code>setup_checks.py</code></td><td>The accuracy tips for the Overview: {tips: [ids that apply and are not hidden]}.</td></tr>
+  <tr><td><code>padspan_ha/status</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>Return the coordinator's current state dict for the Manage → Health tab.</td></tr>
+  <tr><td><code>padspan_ha/store_backup_create</code></td><td><code>note</code> (optional)</td><td>always</td><td><code>ws_backup.py</code></td><td>Create a full backup snapshot of all PadSpan persistent stores + map images.</td></tr>
+  <tr><td><code>padspan_ha/store_backup_delete</code></td><td><code>backup_id</code></td><td>always</td><td><code>ws_backup.py</code></td><td>Delete a specific backup.</td></tr>
+  <tr><td><code>padspan_ha/store_backup_list</code></td><td>–</td><td>always</td><td><code>ws_backup.py</code></td><td>List all available backups.</td></tr>
+  <tr><td><code>padspan_ha/store_backup_restore</code></td><td><code>backup_id</code>, <code>store_keys</code> (optional), <code>restore_map_images</code> (optional)</td><td>always</td><td><code>ws_backup.py</code></td><td>Restore selected stores from a backup snapshot.</td></tr>
+  <tr><td><code>padspan_ha/subzone_add</code></td><td><code>zone</code></td><td>always</td><td><code>ws_subzones.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/subzone_from_piece</code></td><td><code>piece_id</code>, <code>name</code> (optional)</td><td>always</td><td><code>ws_subzones.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/subzone_remove</code></td><td><code>zone_id</code></td><td>always</td><td><code>ws_subzones.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/subzone_update</code></td><td><code>zone_id</code>, <code>zone</code></td><td>always</td><td><code>ws_subzones.py</code></td><td>The whole sub-zone, changed fields merged over what is stored.</td></tr>
+  <tr><td><code>padspan_ha/subzones_list</code></td><td>–</td><td>–</td><td><code>ws_subzones.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/suspend_databases</code></td><td><code>minutes</code> (optional)</td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>Suspend all learned databases — raw radio + spatial centroid only.</td></tr>
+  <tr><td><code>padspan_ha/system_critics</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Phase 4: unified system self-diagnosis.</td></tr>
+  <tr><td><code>padspan_ha/tags_status</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>Return HA Tags integration status and followed object tag mappings.</td></tr>
+  <tr><td><code>padspan_ha/telemetry_event</code></td><td><code>event</code>, <code>screen</code> (optional)</td><td>–</td><td><code>ws_telemetry.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/telemetry_preview</code></td><td>–</td><td>–</td><td><code>ws_telemetry.py</code></td><td>The report as it stands right now — same fields, same values as a send made this second would carry — shown before anyone opts in.</td></tr>
+  <tr><td><code>padspan_ha/telemetry_reset_id</code></td><td>–</td><td>always</td><td><code>ws_telemetry.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/telemetry_send_now</code></td><td>–</td><td>always</td><td><code>ws_telemetry.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/tester_preview</code></td><td>–</td><td>always</td><td><code>ws_tester.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/tester_signup</code></td><td>–</td><td>always</td><td><code>ws_tester.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/tester_status</code></td><td>–</td><td>always</td><td><code>ws_tester.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/tester_withdraw</code></td><td>–</td><td>always</td><td><code>ws_tester.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/traceback_get</code></td><td><code>start_ts</code> (optional), <code>end_ts</code> (optional), <code>obj_key</code> (optional), <code>max_frames</code> (optional)</td><td>–</td><td><code>websocket.py</code></td><td>Return traceback position frames for playback.</td></tr>
+  <tr><td><code>padspan_ha/traceback_objects</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>Return all object keys seen in traceback history.</td></tr>
+  <tr><td><code>padspan_ha/trial_start</code></td><td><code>email</code></td><td>always</td><td><code>ws_forensics.py</code></td><td>Start the one-time 3-month PadSpan Pro trial (full Pro since 2026-10-27; it was Bright Pro before).</td></tr>
+  <tr><td><code>padspan_ha/unsuspend_databases</code></td><td>–</td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>End database suspension early — resume full pipeline.</td></tr>
+  <tr><td><code>padspan_ha/vacation_lights</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>The lights an evening (anchor) light can be — the ones Vacation Mode switches, by name (vacation_mode.eligible_lights).</td></tr>
+  <tr><td><code>padspan_ha/vacation_log_get</code></td><td><code>start_ts</code>, <code>end_ts</code></td><td>–</td><td><code>websocket.py</code></td><td>What Vacation Mode switched in [start_ts, end_ts], and the spans it was on — so the house history can tell its switching from a person's (v…</td></tr>
+  <tr><td><code>padspan_ha/vacation_preview</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>What Vacation Mode would switch over the next 24 hours — a read; it switches nothing and stores nothing (vacation_mode.async_preview).</td></tr>
+  <tr><td><code>padspan_ha/vacuum_cal_pending_accept</code></td><td><code>point_id</code></td><td>always</td><td><code>ws_vacuum.py</code></td><td>The user accepted one pending point: THE one road into calibration.</td></tr>
+  <tr><td><code>padspan_ha/vacuum_cal_pending_list</code></td><td>–</td><td>always</td><td><code>ws_vacuum.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/vacuum_cal_pending_reject</code></td><td><code>point_id</code> (optional), <code>all</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/vacuum_import_commit</code></td><td><code>floor_id</code> (optional), <code>name</code> (optional), <code>include_rooms</code> (optional), <code>vacuum_entity</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Write the previewed candidate: a new map, its placement, new rooms only.</td></tr>
+  <tr><td><code>padspan_ha/vacuum_import_preview</code></td><td><code>json_text</code> (optional), <code>url</code> (optional), <code>entity_id</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Parse a robot vacuum's map into a candidate.</td></tr>
+  <tr><td><code>padspan_ha/vacuum_link_set</code></td><td><code>enabled</code> (optional), <code>vacuum_entity</code> (optional), <code>walker_enabled</code> (optional), <code>walker_tag</code> (optional), <code>unlink</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Turn the live position / the walker on or off.</td></tr>
+  <tr><td><code>padspan_ha/vacuum_status</code></td><td>–</td><td>always</td><td><code>ws_vacuum.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/version</code></td><td>–</td><td>–</td><td><code>websocket.py</code></td><td>Return version info.</td></tr>
+  <tr><td><code>padspan_ha/wled_backups</code></td><td><code>action</code> (optional), <code>backup_id</code> (optional), <code>pin</code> (optional)</td><td>–</td><td><code>ws_wled.py</code></td><td>List, take, or read a stored backup of a WLED device's cfg/presets.</td></tr>
+  <tr><td><code>padspan_ha/wled_cfg</code></td><td><code>patch</code>, <code>base_hash</code>, <code>reboot</code> (optional), <code>pin</code> (optional)</td><td>always</td><td><code>ws_wled.py</code></td><td>One /json/cfg write, done safely (safe_cfg_write).</td></tr>
+  <tr><td><code>padspan_ha/wled_devices</code></td><td>–</td><td>–</td><td><code>ws_wled.py</code></td><td>Every WLED device HA knows, with its light entities — for teaming.</td></tr>
+  <tr><td><code>padspan_ha/wled_exact_list</code></td><td>–</td><td>–</td><td><code>wled_exact.py</code></td><td>Which WLED lights PadSpan runs — for the Atlas's routing.</td></tr>
+  <tr><td><code>padspan_ha/wled_exact_set</code></td><td><code>exact</code> (optional), <code>hold</code> (optional)</td><td>always</td><td><code>wled_exact.py</code></td><td>Who gives this light its instructions: WLED sync or PadSpan (and the "put the look back" switch).</td></tr>
+  <tr><td><code>padspan_ha/wled_get</code></td><td><code>path</code></td><td>–</td><td><code>ws_wled.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/wled_identify</code></td><td><code>seg_id</code>, <code>seconds</code> (optional)</td><td>–</td><td><code>ws_wled.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/wled_live</code></td><td>–</td><td>–</td><td><code>ws_wled.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/wled_look_get</code></td><td><code>compare</code> (optional)</td><td>–</td><td><code>wled_exact.py</code></td><td>The device's record.</td></tr>
+  <tr><td><code>padspan_ha/wled_look_remember</code></td><td><code>team</code> (optional), <code>preview</code> (optional)</td><td>always</td><td><code>wled_exact.py</code></td><td>Remember the look as it is now (only when someone asks — an accidental state never becomes the look): GET /json/si, then /json/cfg.</td></tr>
+  <tr><td><code>padspan_ha/wled_look_use_history</code></td><td><code>index</code></td><td>always</td><td><code>wled_exact.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/wled_matrix</code></td><td><code>enabled</code>, <code>panels</code> (optional), <code>pin</code> (optional)</td><td>always</td><td><code>ws_wled.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/wled_power</code></td><td><code>entity_id</code>, <code>on</code>, <code>brightness</code> (optional), <code>transition</code> (optional), <code>source</code> (optional)</td><td>–</td><td><code>wled_exact.py</code></td><td>On (with the look) / off / a brightness, for an exact light — open to any user, as HA's own light control is.</td></tr>
+  <tr><td><code>padspan_ha/wled_state</code></td><td><code>body</code></td><td>–</td><td><code>ws_wled.py</code></td><td>POST /json/state — live changes; persisting keys need an admin.</td></tr>
+  <tr><td><code>padspan_ha/wled_team_mode</code></td><td><code>team_id</code>, <code>mode</code></td><td>always</td><td><code>wled_exact.py</code></td><td>Run this team by WLED sync or by PadSpan.</td></tr>
+  <tr><td><code>padspan_ha/wled_teams_get</code></td><td>–</td><td>–</td><td><code>ws_wled.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/wled_teams_set</code></td><td><code>teams</code>, <code>base_hash</code> (optional)</td><td>always</td><td><code>ws_wled.py</code></td><td></td></tr>
+</table>
+</div>
+<div class="pager"><span><a href="/manual/accuracy-benchmark/">← Appendix C. Accuracy benchmark</a></span><span><a href="/manual/">Contents</a></span><span><span></span></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

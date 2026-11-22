@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. Tags, beacons, AirTags and guest tags | PadSpan HA Manual</title>
+<meta name="description" content="To know which room your keys, a dog or a guest is in, Home Assistant has to recognise their tag every time a receiver hears it. A plain beacon with a fixed…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/tags-and-beacons/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="7. Tags, beacons, AirTags and guest tags">
+<meta property="og:description" content="To know which room your keys, a dog or a guest is in, Home Assistant has to recognise their tag every time a receiver hears it. A plain beacon with a fixed…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/tags-and-beacons/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="7-tags-beacons-airtags-and-guest-tags">7. Tags, beacons, AirTags and guest tags</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>To know which room your keys, a dog or a guest is in, Home Assistant has to recognise their tag
+every time a receiver hears it. A plain beacon with a fixed ID does that. The best-known tags are
+built not to: an AirTag keeps changing its Bluetooth address so that nobody can follow it.</p>
+<h2 id="which-tag-works">Which tag works</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Tag</th><th>What it sends</th><th>Room by room?</th></tr>
+  <tr><td>A beacon with a fixed iBeacon ID (Feasycom, Blue Charm, Minew and others)</td><td>The same ID every time; many let you set how often</td><td>Yes. Buy this kind.</td></tr>
+  <tr><td>Anything with one fixed address (cheap key finders, Shelly BLU and other BTHome devices, Xiaomi thermometers, RuuviTag, simple watches)</td><td>The same Bluetooth address every time</td><td>Yes, if it sends every few seconds. A sensor that only sends on an event won't hold a room.</td></tr>
+  <tr><td>Tile</td><td>Older ones keep one address; newer ones are reported to change it</td><td>Maybe. Test yours, and don't buy one for this.</td></tr>
+  <tr><td>AirTag and other Find My tags</td><td>A new address about every 15 minutes near the owner's iPhone</td><td>Not reliably. PadSpan can keep a named one going while it stays in range (experimental, below).</td></tr>
+  <tr><td>Samsung SmartTag, Google Find Hub tags</td><td>A new ID every 15 to 17 minutes</td><td>No.</td></tr>
+  <tr><td>A phone or smartwatch</td><td>A changing address, but a key or its own beacon names it</td><td>Yes, after one step per device: <a href="/manual/phones-and-watches/">chapter 6</a>.</td></tr>
+</table>
+</div>
+<p>A beacon sends the same ID (a UUID, major and minor) every time, so it is recognised even if its
+address changes. The other side of that: anyone with a Bluetooth scanner can recognise that ID too.
+That is no worry for the dog, but think about it for something you carry around town.</p>
+<h2 id="what-to-look-for">What to look for</h2>
+<ul>
+<li><b>For keys</b>: a small beacon with a hole for the key ring, a coin cell you can replace, and an
+interval you can set. IP66 or better if it lives in a pocket.</li>
+<li><b>For a collar</b>: waterproof (IPX7 or IP67), light enough for the animal, and a battery cover that
+is screwed or sealed (a swallowed coin cell can hurt a pet).</li>
+<li><b>For guests</b>: a few key-ring beacons kept in a drawer. Multi-packs can ship with one shared ID,
+so give each its own minor in the maker's app.</li>
+</ul>
+<p><b>How often it sends.</b> Around once a second is a good start. PadSpan doesn't use a reading older
+than about 15 seconds to place a tag, so one that sends only now and then won't hold its room. A
+faster interval costs battery: the makers' figures for a coin cell run from under a year at 0.1
+seconds to several years at one second.</p>
+<h2 id="test-a-tag-before-you-rely-on-it">Test a tag before you rely on it</h2>
+<p>Makers rarely say what a tag sends, so look for yourself.</p>
+<ol>
+<li>Keep the tag's phone nearby, if it has one, with the tag set up in its app. A Find My tag away
+from its owner can keep one address for a whole day and fool you.</li>
+<li>Open Home Assistant's Bluetooth advertisement monitor, or nRF Connect on an Android phone.</li>
+<li>Hold the tag next to a receiver to pick it out by its signal. Write down its address (and, for a
+beacon, its UUID, major and minor).</li>
+<li>Look again after an hour, and again after a day.</li>
+</ol>
+<p>The same address or the same beacon ID: it can be recognised. Gone while its phone is connected:
+it stops sending during a connection, so disconnect it from its app or choose another. A new
+address each time and no fixed ID: nothing can recognise it.</p>
+<h2 id="name-it-in-padspan">Name it in PadSpan</h2>
+<ol>
+<li>Hold the tag next to a receiver.</li>
+<li>Open <b>Follow</b> and <b>Choose a tag to follow</b>. The list starts with the strongest signal, so
+your tag is near the top, marked <b>[Unidentified]</b>.</li>
+<li>Pick it and choose <b>Name this tag</b>. Keep the name short, such as "Keys".</li>
+</ol>
+<p>Or, on the Overview's <b>Objects</b> card (Advanced mode), open <b>All objects</b>, choose <b>Tag</b> on its
+row, type a name and choose <b>Save label</b>. Near a busy street that list is long: change
+<b>All statuses</b> to <b>Identified</b>, or search.</p>
+<p>The name is what gives the tag its Home Assistant entities. For a tag named Keys:</p>
+<ul>
+<li><code>device_tracker.keys</code>: the room, <code>not_home</code> once it hasn't been heard for the <b>Away timeout</b>
+(five minutes by default), or <code>unknown</code> while it has no room.</li>
+<li><code>sensor.keys_area</code>: the room, and distance sensors.</li>
+</ul>
+<p>Every entity and attribute is in <a href="/manual/home-assistant-reference/">chapter 14</a>.</p>
+<p><b>Things nobody carries.</b> Keys on the hall table, a tag on a bag: by default they go <code>not_home</code> like
+anything else when they go unheard. <b>Settings → Tracking → Rooms and timing → Home/Away Timeout →
+Things keep their room</b> keeps their last room for up to 48 hours instead.</p>
+<p><b>A named tag is not a person.</b> PadSpan's people count leaves out keys, beacons, boxes and
+vehicles, so keys at home don't make an empty house look occupied.</p>
+<p><b>What it can't do</b>: ring a tag, or read its battery. A tag with a flat battery looks the same as
+one that left the house.</p>
+<p>Follow has <b>Movement Alerts</b> for a tag too (<a href="/manual/alerts/">chapter 13</a>), and <b>Traceback</b> keeps
+its history.</p>
+<h2 id="a-first-automation-keys-left-behind">A first automation: keys left behind</h2>
+<p>When you leave and your keys don't. The person needs a tracker that knows they've left, such as the
+Companion app's:</p>
+<pre><code>alias: Keys left behind
+triggers:
+  - trigger: state
+    entity_id: person.alex
+    to: not_home
+    for: "00:06:00"
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: device_tracker.keys
+        state: not_home
+actions:
+  - action: notify.mobile_app_alex_phone
+    data:
+      message: "Your keys are still at home: {{ states('device_tracker.keys') }}"</code></pre>
+<p>The six minutes outlast the five-minute <b>Away timeout</b>, so keys in your pocket have gone
+<code>not_home</code> by the time it checks. Raise it if you raised the timeout.</p>
+<h2 id="airtags-you-already-own">AirTags you already own</h2>
+<ul>
+<li><b>Home or away</b>: Find My knows where they are, and some people bring that into Home Assistant by
+other routes. That gives zones, not rooms.</li>
+<li><b>In PadSpan (experimental)</b>: turn on <b>Settings → Features → MAC Rotation Bridging</b> (off by
+default) and name the tag. When the tag changes address, PadSpan carries its name, room and
+history over if it is clear which one it is: the same kind of tag, the old address stopped, the
+new one appeared at that moment, heard in the same place. Two tags lying together that change at
+once stay apart, and a tag that changed while out of range comes back as a new device to name
+again. The same switch links other changing devices by what they send, which can now and then
+link the wrong one.</li>
+<li>So it suits a tag that stays home, on a remote or in a bag, not keys you carry out of the house.</li>
+<li><b>Not for guests or pets.</b> A guest carrying your AirTag gets Apple's warning that an AirTag is
+moving with them, and an AirTag away from its owner plays a sound. For a guest, use a beacon.</li>
+</ul>
+<h2 id="guest-tags">Guest tags</h2>
+<p>Lend a tag to a guest (a house-sitter, a relative, a cleaner, a contractor) and PadSpan follows it
+room by room while they have it. When they give it back, the tag goes back in the drawer, and the
+stay's report is kept as long as you choose. Guest tags are free, and off until you turn them on.
+Only an administrator can turn them on, lend a tag or end a stay.</p>
+<h3 id="turn-it-on">Turn it on</h3>
+<p><b>Settings → Tracking → Phones and guest tags → Guest tags → Use tags as guest tags.</b> Here you
+also choose how long a finished stay's report is kept: not at all, 7, 30 (the default) or 90 days.
+The <b>Guests</b> screen appears in the menu.</p>
+<h3 id="make-a-tag-a-guest-tag">Make a tag a guest tag</h3>
+<p>Name a spare tag first (above), such as "Guest tag 1". In <b>Guests</b>, pick it under
+<b>Use as a guest tag</b> and choose <b>Add</b>.</p>
+<p>The tag keeps its own name; the guest's name belongs to the stay. So <code>device_tracker.guest_tag_1</code>
+stays the same entity from one guest to the next, and your automations keep working.</p>
+<h3 id="lend-it">Lend it</h3>
+<p>On the tag, choose <b>Lend to a guest</b>:</p>
+<ul>
+<li><b>Guest's name</b>.</li>
+<li><b>Until (optional — the stay ends by itself then)</b>.</li>
+<li><b>Rooms they shouldn't go into</b>: you are told when they've been in one for half a minute.
+Passing a doorway doesn't count.</li>
+<li><b>Tell me when they arrive</b>, <b>Tell me when they leave</b>.</li>
+<li><b>Staying here (a house-sitter)</b>: counts as someone home for Vacation Mode.</li>
+<li><b>Send notices to</b>: a phone or another notify target, or <b>A Home Assistant notification</b>.</li>
+<li><b>Quiet hours</b>: no arrive or leave notices then. Off-limits notices still come.</li>
+</ul>
+<p>Tell your guest the tag is tracked, and lend it only if they agree. A beacon doesn't warn anyone the
+way an AirTag does, so the telling is up to you. In many countries, tracking a person without their
+consent is against the law.</p>
+<h3 id="while-they-stay">While they stay</h3>
+<p><b>Guests → Staying now</b> shows where they are (or that the tag isn't heard), since when, until when,
+and the time in each room so far. <b>Change</b> edits the stay. <b>Traceback</b> opens the tag's history
+for the stay. On the Overview, the Atlas and Live Aboard, the tag shows the guest's name with a
+<b>Guest</b> badge. While a tag is lent, its own Follow alerts stay quiet; the stay sends its own.</p>
+<h3 id="when-they-give-it-back">When they give it back</h3>
+<p>Choose <b>Tag returned</b>. The stay moves to <b>Past stays</b> with its report: first in, last out, the
+times they went out and came back, the time in each room, off-limits visits and the notices sent.
+<b>Forget</b> deletes a stay at once, name and all.</p>
+<p>Forgot to end one? After two days without the tag being heard, PadSpan asks whether the stay is
+over. After a week unheard, it ends by itself.</p>
+<h3 id="for-automations">For automations</h3>
+<p><code>binary_sensor.padspan_guest_home</code>, the guest attributes on the tag's tracker and the
+<code>padspan_ha_guest</code> event are in <a href="/manual/home-assistant-reference/">chapter 14</a>. The notices are in
+<a href="/manual/alerts/">chapter 13</a>.</p>
+<h3 id="guests-privacy">Guests' privacy</h3>
+<p>Guests' names stay in your Home Assistant. They aren't in the usage report or in a PadSpan backup. A
+finished stay is deleted after the days you set, and a factory reset deletes all guest tags and
+stays.</p>
+<h2 id="when-a-tag-wont-show-up">When a tag won't show up</h2>
+<ul>
+<li><b>It isn't in the list at all.</b> Some tags sleep until they have been paired once or a button
+pressed. Others go quiet while connected to their app.</li>
+<li><b>Its name keeps disappearing.</b> It changes its address: run the test above.</li>
+<li><b>It's heard but never gets a room.</b> Its receivers need areas in Home Assistant:
+<b>Health → Scanner → Room Mappings</b> lists each receiver's room.</li>
+<li><b>It jumps between rooms</b>: <a href="/manual/troubleshooting/#a-device-shows-the-wrong-room-or-jumps-between-rooms">chapter 26</a>.
+A tag low on a collar has it harder: a pet lying on its tag blocks the signal.</li>
+</ul>
+<div class="pager"><span><a href="/manual/phones-and-watches/">← 6. Phones and watches</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/rooms-and-floors/">8. Rooms and floors come from Home Assistant →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

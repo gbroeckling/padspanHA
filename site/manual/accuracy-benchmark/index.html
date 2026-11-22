@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appendix C. Accuracy benchmark | PadSpan HA Manual</title>
+<meta name="description" content="How often does PadSpan get the room right in your house, measured on walks it has never seen? tools/benchmark/ answers that from a recorded walk, with a…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/accuracy-benchmark/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Appendix C. Accuracy benchmark">
+<meta property="og:description" content="How often does PadSpan get the room right in your house, measured on walks it has never seen? tools/benchmark/ answers that from a recorded walk, with a…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/accuracy-benchmark/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="appendix-c-accuracy-benchmark">Appendix C. Accuracy benchmark</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>How often does PadSpan get the room right in <b>your</b> house, measured on walks it has never seen?
+<code>tools/benchmark/</code> answers that from a recorded walk, with a plain "nearest receiver" answer beside
+it. It is a tool for developers and power users: it isn't shipped in the integration and changes
+nothing in an install. For the everyday score, use <b>Calibration → Model</b> instead
+(<a href="/manual/calibration/#the-model-tab">chapter 11</a>).</p>
+<h2 id="why-held-out-and-grouped">Why held out, and grouped</h2>
+<p>Most room-presence scores test against the same walk that was just used to calibrate. Neighbouring
+readings share most of their radio conditions, so a reading left out is answered by its near-copies
+and the score reads close to perfect. Published work shows the size of the gap: k-NN had a 0.0 m
+median on a random split and 9.4 m when whole positions were held out (arXiv 2610.22680).</p>
+<p>So the benchmark never splits readings at random. A reading is tested only against fingerprints from
+other groups:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th><code>--group-by</code></th><th>Held out together</th><th>Use when</th></tr>
+  <tr><td><code>walk</code> (default with 2+ walks)</td><td>A whole walk</td><td>You recorded the house more than once, ideally on different days</td></tr>
+  <tr><td><code>visit</code> (default with 1 walk)</td><td>One stay in a room</td><td>You have one walk</td></tr>
+  <tr><td><code>position</code></td><td>A visit, plus every reading within 1.5 m of its marked spots (<code>--radius</code>)</td><td>The walk has x/y marks</td></tr>
+  <tr><td><code>--train-walk NAME</code></td><td>Everything except NAME</td><td>A calibration walk and separate test walks</td></tr>
+</table>
+</div>
+<p><code>--settle 5</code> drops the first 5 seconds of every visit (you were still in the doorway when you marked
+the room).</p>
+<h2 id="recording-a-walk-in-padspan">Recording a walk in PadSpan</h2>
+<ol>
+<li>Turn on <b>Settings → Features → RSSI Vector Capture</b> (off by default).</li>
+<li>In <b>Health</b>, under <b>RSSI Vector Capture</b>, choose <b>⏺ Record</b> and give it a label: the label
+becomes the walk's name.</li>
+<li>Carry the phone or tag. Each time you arrive in a room, pick it and choose <b>Mark room</b>. Typing
+the spot's x/y as well (metres, the map's own) gives metre errors and <code>--group-by position</code>.</li>
+<li>Stay 1 to 2 minutes in each room, moving around. <b>⏹ Stop</b>, then <b>Export .jsonl</b>.</li>
+<li>Repeat on another day for a second walk.</li>
+</ol>
+<pre><code>python tools/benchmark/from_capture.py padspan-capture-*.jsonl -o walk.json</code></pre>
+<p>Only readings under a mark are kept; the receivers' rooms and positions, the room centres and what
+PadSpan showed at the time come along. <code>--device KEY</code> keeps one device when several were marked.</p>
+<p>A capture holds your receiver and device addresses and room names. Keep it private unless you mean
+to share it.</p>
+<h2 id="a-walk-from-another-system">A walk from another system</h2>
+<p>A walk log is JSON:</p>
+<pre><code>{
+  "format": "padspan-walk", "version": 1,
+  "scanners": {"kitchen_proxy": {"room": "Kitchen", "x": 2.0, "y": 3.5, "floor": "main", "z": 2.1}},
+  "rooms":    {"Kitchen": {"floor": "main", "polygon": [[0,0],[4,0],[4,4],[0,4]]}},
+  "floors":   {"main": 0.0},
+  "polls": [
+    {"ts": 1761300000.0, "walk": "sat-am", "device": "phone", "room": "Kitchen",
+     "x": 1.2, "y": 2.0, "floor": "main",
+     "rssi": {"kitchen_proxy": -61.0, "hall_proxy": -78.5}}
+  ]
+}</code></pre>
+<p>Each reading needs <code>room</code> (the true room) and <code>rssi</code> (dBm for each receiver that heard it). Optional:
+<code>ts</code> (needed for <code>--settle</code>), <code>walk</code>, <code>device</code>, <code>x</code>/<code>y</code>/<code>floor</code>, and <code>live</code> (what the system under
+test said). A receiver's <code>room</code> feeds the baseline; its <code>x</code>/<code>y</code> are needed for the spatial method.
+CSV works too: <code>ts,walk,device,room,x,y,floor</code> plus one <code>rssi:&lt;scanner&gt;</code> column per receiver, with the
+receivers in a second CSV given by <code>--scanners</code>.</p>
+<h2 id="running-it">Running it</h2>
+<pre><code>pip install voluptuous
+python tools/benchmark/benchmark.py walk.json [more.json ...] [--group-by ...] [--json results.json]</code></pre>
+<p>Home Assistant needn't be installed: PadSpan's modules are loaded straight from
+<code>custom_components/padspan_ha</code>. What is scored, all with PadSpan's own code:</p>
+<ul>
+<li><b>PadSpan k-NN</b>: the calibration match over the held-in readings.</li>
+<li><b>PadSpan spatial</b>: the path-loss solve, with each receiver's fit redone from the held-in
+readings. Needs at least 3 placed receivers.</li>
+<li><b>Nearest scanner</b>: the room of the receiver that hears the device loudest.</li>
+<li><b>PadSpan live (as recorded)</b>: from a capture only. Not held out, so it is "what you saw", not a
+fair split.</li>
+</ul>
+<p><b>Reading the results</b>: <b>rooms right</b> is the share of readings where the room was right (one a
+method couldn't answer counts as wrong; <b>answered</b> shows how many it answered). <b>median m</b> and
+<b>p75 m</b> are metre errors over readings with a marked x/y. The JSON adds per-room shares and the
+most common wrong calls (true room → called room), which usually name the open-plan pair or the
+stairs.</p>
+<h2 id="scoring-any-home-assistant-room-sensor">Scoring any Home Assistant room sensor</h2>
+<pre><code>python tools/benchmark/score_sensor.py walk.json history.json --entity sensor.phone_area [--map "living_room=Living Room"]</code></pre>
+<p><code>history.json</code> is Home Assistant's history (its REST history, or the History panel's
+<b>Download data</b> CSV). At each reading, the sensor's last state at or before that moment is its
+answer; <code>unknown</code>, <code>unavailable</code> and <code>not_home</code> count as no answer. This works for Bermuda, PadSpan's
+own sensors and others. Running two systems side by side on the same walk is the fair comparison;
+please publish only comparisons where each was set up its own documented way.</p>
+<h2 id="a-public-dataset">A public dataset</h2>
+<p>Zenodo record <a href="https://zenodo.org/records/4783076">4783076</a> (CC BY 4.0): a house with 6 fixed beacons
+and 10 rooms, one calibration session (a laptop, 600 fingerprints) and two later test sessions (a
+laptop and a Raspberry Pi, 1,200 each).</p>
+<pre><code>python tools/benchmark/datasets/zenodo_4783076.py DATA_DIR -o house.json
+python tools/benchmark/benchmark.py house.json --train-walk calibration-laptop</code></pre>
+<p>Result (PadSpan 0.38.165's code, 2026-10-25), trained on the calibration session only:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Method</th><th>Rooms right</th><th>Test laptop</th><th>Test Raspberry Pi</th></tr>
+  <tr><td>PadSpan k-NN</td><td>84.2%</td><td>88.4%</td><td>79.9%</td></tr>
+  <tr><td>Nearest beacon</td><td>52.7%</td><td>53.6%</td><td>51.8%</td></tr>
+</table>
+</div>
+<p>What that does and doesn't show:</p>
+<ul>
+<li>The radios are the other way round from a PadSpan house (fixed beacons, a moving receiver).</li>
+<li>The dataset doesn't say where the beacons are, so the spatial method can't run.</li>
+<li>The rows are averaged fingerprints with no times: k-NN without PadSpan's smoothing over time, on
+cleaner input than one reading.</li>
+<li>The Raspberry Pi row is a different receiver from the calibration one.</li>
+</ul>
+<h2 id="limits-plainly">Limits, plainly</h2>
+<ul>
+<li>Each reading is scored on its own. Live PadSpan smooths rooms over time, so it usually does better
+on room changes and worse right after one; the <code>live</code> row from a capture shows the smoothed answer.</li>
+<li>A walk is one person, one device, one afternoon. Several walks on different days, with doors in
+different states, are what make the number mean something.</li>
+<li>The room you mark is only as true as your marking; <code>--settle</code> helps.</li>
+<li>The baseline is deliberately simple. Beating it is a floor, not a boast.</li>
+</ul>
+<div class="pager"><span><a href="/manual/every-screen-and-tab/">← Appendix B. Every screen and tab</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/for-developers/">Appendix D. For developers →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

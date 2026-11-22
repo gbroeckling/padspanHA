@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. Your first room in 15 minutes | PadSpan HA Manual</title>
+<meta name="description" content="From a fresh install to &quot;Alex&#x27;s phone is in the Kitchen&quot;, with no floor plan. Then, if you want it, your house on a map. Everything on this page is free.">
+<link rel="canonical" href="https://padspan.traks.ca/manual/first-room/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="4. Your first room in 15 minutes">
+<meta property="og:description" content="From a fresh install to &quot;Alex&#x27;s phone is in the Kitchen&quot;, with no floor plan. Then, if you want it, your house on a map. Everything on this page is free.">
+<meta property="og:url" content="https://padspan.traks.ca/manual/first-room/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="4-your-first-room-in-15-minutes">4. Your first room in 15 minutes</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>From a fresh install to "Alex's phone is in the Kitchen", with no floor plan. Then, if you want it,
+your house on a map. Everything on this page is free.</p>
+<p>Before you start you need Home Assistant 2024.8 or newer, at least one Bluetooth receiver, and an
+area in Home Assistant for each room (<b>Settings → Areas, labels &amp; zones</b>). See
+<a href="/manual/requirements/">chapter 2</a>.</p>
+<h2 id="1-install-padspan">1. Install PadSpan</h2>
+<p>On Home Assistant 2026.11 or newer:</p>
+<ol>
+<li>Open <b>Settings → Marketplace</b> and search for <b>PadSpan</b>.</li>
+<li>Open <b>PadSpan HA</b> and choose <b>Install</b>.</li>
+<li>The setup dialog opens straight away, with nothing to fill in. Choose <b>Submit</b>.</li>
+<li>Open <b>PadSpan HA</b> in the sidebar.</li>
+</ol>
+<p>On older versions, install it with HACS and restart Home Assistant first. Both ways are in
+<a href="/manual/install-update-uninstall/">chapter 3</a>. The other new sidebar entry, <b>Atlas</b>, is the map of
+your lights; leave it for later.</p>
+<h3 id="the-sample-house">The sample house</h3>
+<p>Until PadSpan hears its first receiver, it shows a sample house with every feature set up, and a
+yellow banner says so. A new install switches to your own house by itself as soon as it hears a
+receiver. If you are looking at the sample house and want your own, choose <b>Back to my house</b>.</p>
+<h2 id="2-give-every-receiver-its-room">2. Give every receiver its room</h2>
+<p>PadSpan puts each device in the room whose receiver hears it best, and a receiver's room is the Home
+Assistant area of its device. A receiver with no area gives no room, however well it hears you: a
+phone right next to it lands in the next receiver's room. So this comes first.</p>
+<p>The quickest place is the Overview's <b>Who's where now</b> card. Each receiver with no area has its
+own row there, with a list of your rooms:</p>
+<ol>
+<li>Check the room in the list. When the receiver's name points to a room ("esp32-kitchen"), that
+room is already chosen, and the row says <b>Chosen from its name; change it if it's wrong.</b></li>
+<li>Choose <b>Set room</b>. The row says <b>Room set: Kitchen.</b></li>
+</ol>
+<p>This gives the receiver's device that area in Home Assistant, the same as setting it there. You can
+also:</p>
+<ul>
+<li>set the area on the device in Home Assistant: <b>Settings → Devices &amp; services → Devices</b>, open
+the receiver, edit its area;</li>
+<li>in PadSpan, on the Overview's <b>Bluetooth radios</b> card (Advanced mode), choose <b>View radios
+list</b>, then <b>Assign</b> beside the receiver (or <b>Change</b>, if it has an area already).</li>
+</ul>
+<p>A Shelly's Bluetooth scanner is a device of its own in Home Assistant: give that device the area.
+<a href="/guides/shelly-bluetooth-proxy/">Shelly as a Bluetooth proxy</a> shows how.</p>
+<p>If Home Assistant has no areas yet, the card says so: add them first, in
+<b>Settings → Areas, labels &amp; zones</b>.</p>
+<h2 id="3-see-whos-where">3. See who's where</h2>
+<p>You don't need a floor plan for this. On the Overview, <b>Who's where now</b> lists each room your
+receivers cover, the named devices in it, and a count of the other Bluetooth devices heard there.
+It keeps itself up to date.</p>
+<p>The line at the top says where you stand:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>What it says</th><th>What it means</th></tr>
+  <tr><td>"No Bluetooth receivers found yet. Add an ESPHome Bluetooth proxy …"</td><td>PadSpan hears no receiver. Add one, or use your Home Assistant machine's own Bluetooth. It shows up within a minute.</td></tr>
+  <tr><td>"… has no Home Assistant area yet, so PadSpan can tell home from away but not rooms."</td><td>No receiver has an area. Give each one the area it's in (step 2).</td></tr>
+  <tr><td>"… cover one room, so you get home or away."</td><td>All your receivers are in one area. Put one in another room.</td></tr>
+  <tr><td>"One receiver has no Home Assistant area yet, so it gives no room: …"</td><td>The others work. Give this one its area.</td></tr>
+  <tr><td>"Your 3 receivers cover 3 rooms. …"</td><td>It's working. Each device goes to the room whose receiver hears it best.</td></tr>
+</table>
+</div>
+<p>A row called <b>Heard, no room yet</b> holds named devices that only a receiver with no area can hear.
+Give that receiver its area.</p>
+<h2 id="4-name-your-phone">4. Name your phone</h2>
+<p>A device you haven't named gets no entities from PadSpan. Naming one gives it a device tracker whose
+state is the room, an area sensor and distance sensors, and PadSpan follows it.</p>
+<p><b>Android phone</b></p>
+<ol>
+<li>In the Home Assistant Companion app, open
+<b>Settings → Companion app → Manage sensors → BLE Transmitter</b> and switch it on. In the same place, set <b>Transmit power</b> to <b>High</b> and
+<b>Advertise mode</b> to <b>Low latency</b>: out of the box it sends too weakly to be heard well.</li>
+<li>In PadSpan's Overview, open the <b>Track Your Phone</b> card and choose <b>Track this phone</b> beside
+it (in Basic mode the button says <b>Track</b>).</li>
+</ol>
+<p>PadSpan names the phone, follows it, and asks the app to start sending. If the button says
+<b>Setup</b>, the sensor isn't on in the app yet; if it says <b>Enable &amp; Track</b>, it is switched off in
+Home Assistant, and that button switches it on (restart Home Assistant afterwards). In Advanced mode
+it then says how it went: <b>Tracked!</b>, <b>Registered — waiting for signal</b> (walk near a
+receiver), or <b>Registered — enable BLE</b>.</p>
+<p><b>iPhone or Apple Watch</b></p>
+<p>An iPhone changes its Bluetooth address every few minutes, so PadSpan needs its key, the IRK, once.</p>
+<ol>
+<li>Get the key and add it to Home Assistant's <b>Private BLE Device</b> integration. The steps, with an
+irk-capture ESP32 or a Mac, are in <a href="/guides/phone-room-presence/">Which room is my phone in?</a>
+and in PadSpan's own phone wizard (below).</li>
+<li>Once Home Assistant has it, the phone shows in <b>Who's where now</b> with a <b>Track</b> button beside
+its name. Choose <b>Track</b>. It can take a few minutes to show the first time.</li>
+</ol>
+<p>With Enhanced security on, only an administrator sees <b>Track</b>.</p>
+<p><b>A beacon or key tag</b></p>
+<p>On <b>Follow</b>, pick it under <b>Choose a tag to follow</b> and choose <b>Name this tag</b>. Or, on the
+Overview's <b>Objects</b> card (Advanced mode), open <b>All objects</b>, choose <b>Tag</b> on its row, type a
+name and choose <b>Save label</b>. Near a busy street that list is long: change <b>All statuses</b> to
+<b>Identified</b>, or search by name. <a href="/guides/bluetooth-tags/">Which Bluetooth tag works?</a>
+has what to buy.</p>
+<p>Once a phone or tag has a name, it is in <b>Who's where now</b> by name, and your automations can use
+its room: <a href="/manual/home-assistant-reference/">chapter 14</a>.</p>
+<p><b>That's your first room.</b> The rest of this page is optional.</p>
+<h2 id="5-make-it-a-map">5. Make it a map</h2>
+<p>A map turns the list of rooms into your house, drawn on the Overview. Calibration needs it. With
+three or more receivers placed on it, PadSpan can also place devices between them, even in a room
+with no receiver of its own.</p>
+<p>Choose <b>Make it a map</b> on the <b>Who's where now</b> card. It opens <b>Setup</b>, the steps in order:</p>
+<ol>
+<li><b>Upload a floor plan</b>: any picture of the floor, even a photo of a sketch. No picture? <b>No
+floor plan? Ways to get one</b> offers a phone's room scan, your own sketch or a blank floor.</li>
+<li><b>Set the scale</b>: click both ends of a wall you know, type its length and choose <b>Save the
+scale</b>. Don't skip it: nothing goes on the map without a scale.</li>
+<li><b>Draw the rooms</b>: press a room's name above the plan, click each corner, and double-click the
+last one. Each room is saved as you finish it.</li>
+<li><b>Floors and their heights</b>: only in a house with two indoor floors or more.</li>
+<li><b>Place receivers and set their heights</b>: in <b>Live BLE Receivers</b> beside the plan, choose
+<b>Add</b> beside each receiver and drag it to where it is mounted. Or choose <b>Put my receivers in
+their rooms</b>: each goes in the middle of its room, to drag into place later.</li>
+<li><b>Track your phone or watch</b>: done already if you named your phone in step 4 above.</li>
+<li><b>Calibrate</b>: walk the house with your phone, so PadSpan learns what each spot sounds like.</li>
+</ol>
+<p>Each step's button opens the tool for it, with a bar at the top that says which step you are on and
+<b>← Back to Setup</b>. <b>Skip for now</b> moves on; Setup remembers where you were.</p>
+<p><b>One step is easy to miss.</b> The floor plan steps run in Mapping's <b>Setup Wizard</b>, which ends on
+<b>Finish</b>. Until you choose <b>Put it on the map</b> there, your rooms and receivers are only on the
+picture. Once the first room is on the map, your house takes the place of <b>Who's where now</b> on the
+Overview, so draw every room your receivers cover: a device in a room you haven't drawn may not
+show.</p>
+<p>Every step is explained in <a href="/manual/setup-the-map/">chapter 9</a>.</p>
+<h2 id="6-calibrate">6. Calibrate</h2>
+<p>The strongest receiver is a good first answer. Calibration makes it better: it records what every
+receiver hears at known spots in your house. It needs a floor plan with a scale.</p>
+<p>Setup's <b>Calibrate</b> step opens one of two ways:</p>
+<ul>
+<li><b>Walk a room</b>, where it is switched on: walk each room for 90 seconds with your phone. It is off
+on a new install. Turn it on in
+<b>Settings → Tracking → Positioning and calibration → Walk a Room (Calibration)</b>; Setup has an
+<b>Open that setting</b> button.</li>
+<li><b>Guided calibration</b>, point by point: choose your phone and the floor, stand at a spot, mark it
+on the plan and let PadSpan listen. Aim for 10 to 20 spots on each floor, spread out.</li>
+</ul>
+<p>The step counts as done at five calibration points. Everything about calibration is in
+<a href="/manual/calibration/">chapter 11</a>.</p>
+<h2 id="if-it-doesnt-work">If it doesn't work</h2>
+<ul>
+<li><b>"Bluetooth feed unavailable"</b>: restart Home Assistant fully, <b>Settings → System → Restart</b>.
+After a first install a reload isn't enough.</li>
+<li><b>Uploading a plan, saving the scale or starting the trial is refused</b>: those need a Home
+Assistant administrator.</li>
+<li><b>Mapping has only Library and Upload, or Settings has no tabs</b>: the mode button at the top
+right has the panel in Basic. Every screen is still in the menu, the ones Basic leaves out under
+<b>More tools</b>. Choose the mode button again for Advanced.</li>
+<li><b>A phone jumps between rooms</b>: see <a href="/manual/troubleshooting/">chapter 26</a> and
+<a href="/guides/room-flapping/">Why does my phone jump between rooms?</a></li>
+<li><b>Something else</b>: <a href="/manual/getting-help/">chapter 27</a>.</li>
+</ul>
+<div class="pager"><span><a href="/manual/install-update-uninstall/">← 3. Install, update, uninstall</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/receivers/">5. Receivers: which, how many, where →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

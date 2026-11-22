@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15. The Atlas | PadSpan HA Manual</title>
+<meta name="description" content="The Atlas is PadSpan&#x27;s device map: your floors and rooms drawn as a plan, with lights, fans, locks, sensors, doors and windows where they really are, and…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/the-atlas/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="15. The Atlas">
+<meta property="og:description" content="The Atlas is PadSpan&#x27;s device map: your floors and rooms drawn as a plan, with lights, fans, locks, sensors, doors and windows where they really are, and…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/the-atlas/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="15-the-atlas">15. The Atlas</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>The Atlas is PadSpan's device map: your floors and rooms drawn as a plan, with lights, fans, locks,
+sensors, doors and windows where they really are, and every one of them switchable with a tap. It
+was called "Lights" until it grew past lighting; the filter chip for light fixtures is still called
+<b>Lights</b>.</p>
+<h2 id="free-and-pro">Free and Pro</h2>
+<ul>
+<li><b>Free</b>: floors, rooms and one marker per light. Tap a marker, or its row, to switch it.</li>
+<li><b>PadSpan Pro</b>: real placement, shapes and sizes, sensors, Automorph, Showcase, WLED's Advanced
+controls, Whole House Presets, Vacation Mode, and openers built from relays.</li>
+</ul>
+<p><b>Settings → Features → PadSpan licence</b> has a one-time 90-day free trial
+(<a href="/manual/padspan-pro/">chapter 25</a>). PadSpan Bright is the same Atlas on its own, without presence
+tracking, with its own Bright Pro key.</p>
+<h2 id="getting-there">Getting there</h2>
+<ul>
+<li><b>Mapping → Atlas builder</b>: where you place and edit devices.</li>
+<li><b>The Atlas page in Home Assistant's sidebar</b>: a lighter view of the same map, without the rest
+of PadSpan. It is on by default; <b>Settings → Atlas → Show the Atlas in the Home Assistant
+sidebar</b> turns it off.</li>
+<li><b>On a wall screen</b>: <a href="/manual/wall-screens-and-kiosks/">chapter 18</a>.</li>
+</ul>
+<p>The map needs your floor plans and rooms first: <a href="/manual/setup-the-map/">chapter 9</a>.</p>
+<h2 id="placing-devices-pro">Placing devices (Pro)</h2>
+<ol>
+<li>In <b>Mapping → Atlas builder</b>, find the device in the row list. <b>Queue all unplaced</b> lines up
+several at once.</li>
+<li>Drag its pulsing pin onto the floor, or choose <b>+ Place</b> and tap the map where it belongs.</li>
+<li>Set its shape, size and angle in the inspector: a light can be a pendant, sconce, strip or
+chandelier, in real centimetres.</li>
+</ol>
+<p>Lights, fans, locks, and motion, temperature, humidity, air-quality and leak sensors are all placed
+the same way.</p>
+<ul>
+<li>A <b>temperature</b> marker is tinted by its reading: blue under 20°, red from 20°, bright orange over
+34°. A <b>humidity</b> reading shows as a percentage.</li>
+<li><b>Motion</b> looks the same whatever the sensor: a short flash, then a fade the longer it has been
+quiet. Motion stays quiet for a few minutes after Home Assistant restarts.</li>
+<li><b>Outdoor gear</b> (anything whose area is on an Outside floor: a shed, the garden, the drive) has no
+floor of its own on the flat map. Place it on a floor plate, outside the room it sits beside.</li>
+</ul>
+<p><b>Heights.</b> Every placed device has a height above its floor, which the 3D house uses. Pick a device
+and use its <b>Height</b> row: one of the spots offered for its kind (a motion sensor: Corner, Ceiling,
+High on the wall; a leak sensor: Floor), centimetres, or <b>Default</b>. The <b>Heights</b> list shows every
+placed device; tick several to set them at once.</p>
+<h2 id="using-the-map">Using the map</h2>
+<ul>
+<li><b>A tap switches</b> a device. <b>A hold</b> (a gold ring fills as you hold), or Shift or Alt with a
+click, <b>selects</b> it for editing. A drag moves it.</li>
+<li><b>Devices on top of each other</b>: hover, or hold a touch, and the box at the top left names
+everything stacked there. <b>Alt+click</b> steps through them.</li>
+<li><b>A room's sheet</b>: tap the room's name for every device in it, <b>All lights on / off</b>, its fans,
+and a button for each of the room's scenes and scripts in Home Assistant (up to six). Tap a
+floor's badge for the floor's sheet.</li>
+<li><b>Find active</b> scrolls to the first device doing something now (a light on, motion) and points it
+out.</li>
+<li>On a touchscreen, pinch zooms the map, and a pan survives the map's refresh.</li>
+</ul>
+<h2 id="doors-windows-and-locks">Doors, windows and locks</h2>
+<p>A door or window marked on a wall (<a href="/manual/walls-and-signal-loss/#doors-and-windows-that-open">chapter 10</a>)
+shows open or shut from its sensor. <b>Invert</b>, next to <b>Delete</b> in the wall list, flips a sensor
+that reports backwards: if a door shows the wrong state, check that first. A lock on the map locks
+and unlocks with a tap and shows its state.</p>
+<h2 id="alarms-and-the-emergency-banner">Alarms and the emergency banner</h2>
+<p>Leak, smoke, gas and carbon monoxide sensors are drawn as a puddle or a round detector, and say
+<b>WET</b>, <b>SMOKE</b>, <b>GAS</b> or <b>CO</b>, <b>ALARM</b> while latched, and <b>DRY</b> or <b>CLEAR</b> when quiet. When
+one goes off, a red ring sweeps through its room, and it stays alarming for 2 days or until someone
+resets it, even if the sensor goes quiet. A banner shows it on every PadSpan screen, with its own
+<b>Reset</b>. Resetting clears PadSpan's memory of the alarm, not the sensor. More in
+<a href="/manual/alerts/">chapter 13</a>.</p>
+<h2 id="power-teams">Power teams</h2>
+<p>Smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say)
+go dark when someone turns the wall off, and come back in the wrong colour. A power team makes the
+dimmer and its bulbs one light in Home Assistant.</p>
+<p><b>Make one</b>: <b>Settings → Atlas → Power teams</b>, <b>+ Add a team</b>. Name it ("Bedroom lights"), pick
+<b>Power from</b> (the wall dimmer or switch, or <b>None: these lights always have power</b> for colour
+lights on their own supply, such as LED strings), tick <b>Its bulbs</b>, and <b>Save</b>. An administrator
+makes and changes teams. Each team is then a light in Home Assistant under its name
+(<code>light.&lt;team&gt;</code>, <a href="/manual/home-assistant-reference/">chapter 14</a>): give it its room there, then place it
+on the map.</p>
+<p><b>What it does</b></p>
+<ul>
+<li><b>On</b> puts the power on at full, sends the bulbs their brightness and colour again while they
+start, and says which bulb never answered.</li>
+<li><b>Off</b> does what you chose for the team: <b>Turns the bulbs off, power stays on</b> (they come back
+at once, in the right colour; new teams start on this) or <b>Cuts the power</b>.</li>
+<li><b>The wall control still works.</b> PadSpan sees the power come on and sets the bulbs. A dimmer held
+low at the wall sets how bright the bulbs go, while the dimmer itself goes back to full: smart
+bulbs need the whole wave.</li>
+<li><b>Follow the day</b>: cool and bright at midday, warm at sunrise and sunset, dim and warmer through
+the night, moved every minute with a slow fade. Choose a colour or brightness yourself and it stops
+until the team is next turned on, or until you choose <b>Follow the day</b> again. <b>Sleep</b> is one
+dim, warm setting. The curve's numbers (<b>Brightest, by day</b>, <b>Dimmest, at midnight</b>,
+<b>Coolest, at noon</b>, <b>Warmest, at sunrise and sunset</b>, <b>Sleep: brightness</b>,
+<b>Sleep: colour</b>) are yours to change.</li>
+<li><b>A fade</b> of up to 100 minutes, from an automation: while it fades, the day doesn't move it.</li>
+</ul>
+<p><b>On the map</b>, a power team is one thing: place the dimmer, one of its bulbs or the team's light. A
+tap switches the team, a drag dims it, and a hold opens its card. A dimmer left on with its bulbs off
+shows dark, as the room is. <b>Show power teams</b> on the settings card shows them in the list.</p>
+<p><b>The team's card</b> says what the team is doing (for example <b>Off · the power is on, so it comes on
+at once</b>, <b>Power on: the bulbs are starting</b>, <b>On · set by hand</b>, <b>Waking up: fading in</b>), with:</p>
+<ul>
+<li><b>Follow the day</b> and <b>Sleep</b>;</li>
+<li>the wall dimmer's <b>Power</b>, with <b>Cut power</b> and <b>Power on</b>;</li>
+<li>each bulb, with <b>Try again</b> for one that didn't answer;</li>
+<li><b>A tap's off</b>: what a tap on the map does when the team is on;</li>
+<li><b>The day's light</b>: when this light's day starts and ends: <b>Sunrise moved by</b> and
+<b>Sunset moved by</b> some minutes, or <b>Day starts at a fixed time</b> and <b>Day ends at a fixed time</b>
+(a bedroom whose day starts at 6:30 all year);</li>
+<li>a <b>wake-up</b>: on the days and at the time you choose (<b>Full light at</b>, <b>Fading in over</b>), a team
+that is off comes on at its dimmest and warmest and fades to full by then. A team already on is
+left alone. <b>Save the wake-up</b>;</li>
+<li><b>Advanced: the day's curve</b>.</li>
+</ul>
+<p>An administrator changes the wake-up and the curve. The sun curve is adapted from Adaptive Lighting.</p>
+<h2 id="showcase-automorph-and-presets-pro">Showcase, Automorph and presets (Pro)</h2>
+<ul>
+<li><b>Showcase</b>: 20 themes for the whole map (colour, room edges, glow and light pools together).
+Pick one in the Atlas toolbar under <b>Presentation</b>.</li>
+<li><b>Automorph</b>: a soft glow from a fixture out into its room, in a choice of styles (toolbar →
+Automorph).</li>
+<li><b>The presets bar</b> saves a whole look (theme, Automorph style, and if you like floor, spacing and
+layout) under a name, and <b>Apply</b> brings it back.</li>
+<li><b>Whole House Presets</b> remembers the house itself: <b>Set</b> keeps every light's and fan's state
+(on or off, brightness, colour, effect, fan speed), and <b>Apply</b> puts the whole house back that
+way, after asking. Locks are never included.</li>
+</ul>
+<h2 id="vacation-mode-pro">Vacation Mode (Pro)</h2>
+<p>The first entry in the Whole House Presets list. It learns your house's routine from Home
+Assistant's history (each light, each day of the week) and keeps switching lights to match, with
+some randomness so it doesn't look like a timer, until you turn it off. While it runs, a banner sits
+in the middle of the Atlas with an <b>Energy saving</b> slider (100% follows the whole routine; lower
+lights less at once). Turning it on or off needs an administrator.</p>
+<ul>
+<li><b>Turning it off asks first.</b> Home Assistant then shows who turned it off, when and from where,
+and the same message goes to your Follow alert targets.</li>
+<li><b>Turned back on within 3 weeks of a trip</b>, it carries on with that trip's routine instead of
+learning from the days the house sat empty.</li>
+<li><b>Options</b>, each off until set: <b>Only after dark</b>, <b>Ends</b> (a date and time; it turns itself
+off and tells you), <b>Pause while someone is home</b>, <b>Bedtime</b> (lights go off from about then
+until 5 am, moving up to 20 minutes each night), <b>Longest on</b>.</li>
+<li><code>binary_sensor.padspan_vacation_mode</code> and the <code>padspan_ha_vacation_mode</code> event are in
+<a href="/manual/home-assistant-reference/">chapter 14</a>. Restoring a PadSpan backup leaves it as it is.</li>
+</ul>
+<h2 id="outdoor-weather">Outdoor weather</h2>
+<p>When it rains or snows, faint rain or snow falls around the house on the Atlas, never over a room.
+Pro animates it; the free map shows it still. Set it up in <b>Settings → Atlas → Atlas — Mapped Light
+Control → Outdoor weather</b> (Advanced mode): the switch (on by default), a rain sensor (optional), the
+weather entity, the warnings sensor (found by itself) and <b>Strength</b> (0.5× to 1.5×).</p>
+<ul>
+<li><b>Light rain</b> when it's wet: a rain sensor decides if you chose one, otherwise the weather entity.</li>
+<li><b>Nothing</b> when an on/off rain sensor reads wet but the weather entity says sunny, clear night or
+partly cloudy: dew and frost wet a rain sensor on clear mornings.</li>
+<li><b>The weather entity's answer</b> when the rain sensor hasn't reported for over 3 hours.</li>
+<li><b>Heavy rain</b> only on a rainfall warning, or when the weather entity says pouring.</li>
+<li><b>Snow</b> when the weather entity says snowy, or at 1 °C or colder. <b>Heavy snow</b> only on a
+snowfall warning.</li>
+</ul>
+<p>Warnings are found by themselves from Environment Canada, MeteoAlarm, DWD and NINA, and
+Météo-France. In the USA, the weatheralerts or nws_alerts custom integrations add them.</p>
+<h2 id="emergency-lighting-test">Emergency lighting test</h2>
+<p>A round red <b>Test emergency lighting</b> button at the top right of the map, shown only when PadSpan
+finds emergency lights: a Home Assistant group with "emergency" in its name (nested groups too), or
+else WLED lights named "emergency".</p>
+<ul>
+<li><b>Tap the red centre</b>: every emergency light comes on, and it says <b>Test on — tap to end</b>. Lights
+already on stay on when it ends.</li>
+<li><b>Tap the ring</b> for the list of emergency lights.</li>
+<li><b>Force off</b> turns every emergency light off, including those on before; it asks for a second tap.</li>
+<li>While a Home Assistant automation with "emergency" in its name runs (a real emergency), the test
+won't switch those lights off under it.</li>
+<li>To hide the button on a screen anyone can tap: <b>Settings → Atlas → Atlas — Mapped Light Control →
+Show the Test emergency lighting button on the Atlas</b>.</li>
+</ul>
+<h2 id="wled-advanced-and-exact-look-pro">WLED: Advanced and Exact look (Pro)</h2>
+<p>A WLED light's card has <b>Controls | Advanced</b>. Advanced is a whole WLED workbench in tabs:
+<b>Layout</b>, <b>Effect</b>, <b>Presets &amp; playlists</b>, <b>LEDs</b>, <b>Sync &amp; team</b>, <b>Exact look</b>,
+<b>Settings</b>, <b>Backup</b> and <b>Info</b>.</p>
+<p><b>Exact look</b> makes a WLED light come on looking the same every time:</p>
+<ol>
+<li>Set the light as you like it, then on <b>Exact look</b> choose <b>Remember this look</b> (or
+<b>Remember team look</b> for every light in its WLED sync team).</li>
+<li>On <b>Sync &amp; team</b>, under <b>Who gives this light its instructions</b>, pick
+<b>PadSpan (exact look)</b> instead of <b>WLED sync</b>. WLED's own sync is switched off on that device,
+and put back if you switch back.</li>
+</ol>
+<p>Only an administrator can change who runs a light.</p>
+<h2 id="openers-locks-and-lights-from-relays-pro">Openers, locks and lights from relays (Pro)</h2>
+<p>A garage door, window opener, door strike or light wired to plain relays? <b>Build an Opener, Lock, or
+Light from Relays</b> (<b>+ Build an opener, lock, or light from relays</b> in the Atlas builder's list)
+makes it a proper Home Assistant cover, lock or light.</p>
+<ul>
+<li><b>Opener</b>: the open and close relays (two different ones), the travel time for a full open or
+close, and a position sensor if you have one (<b>Invert</b> if it reads backwards). Without a sensor,
+the position is remembered from the commands.</li>
+<li><b>Lock</b>: the relay, the unlock pulse and the auto re-lock time, in seconds.</li>
+<li><b>Light</b>: the relay and its pulse.</li>
+</ul>
+<p><b>Build</b> makes the script, automation and entity; <b>Remove</b> takes them away again.</p>
+<div class="pager"><span><a href="/manual/home-assistant-reference/">← 14. Home Assistant: entities, services, events, Assist</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/live-aboard/">16. Live Aboard →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

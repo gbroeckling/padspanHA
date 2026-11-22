@@ -76,9 +76,11 @@ SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html") + 
 # someone asking "Bermuda or PadSpan?" lands on one, not on the release notes.
 # tests/test_site_guides.py keeps each one in the sitemap and pointing at its
 # own address. The creators kit (site/creators/, served at /creators/) is a
-# standalone page of the same kind, so it goes up with them.
+# standalone page of the same kind, so it goes up with them, and so does the
+# manual (site/manual/, served at /manual/), whose pages scripts/build_site_manual.py
+# makes from docs/manual/.
 GUIDES = tuple(sorted(p.relative_to(SRC.parent).as_posix()
-                      for folder in ("guides", "creators")
+                      for folder in ("guides", "creators", "manual")
                       for p in (SRC.parent / folder).rglob("index.html")))
 URL = "https://padspan.traks.ca/"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
@@ -353,7 +355,7 @@ def sitemap_with_dates() -> bytes:
     try:
         xml = plain.decode("utf-8")
         changed = {line[3:].strip() for line in
-                   git("status --porcelain --untracked-files=all -- site/guides site/creators").splitlines()}
+                   git("status --porcelain --untracked-files=all -- site/guides site/creators site/manual").splitlines()}
         for name in GUIDES:
             path = f"site/{name}"
             day = datetime.date.today().isoformat() if path in changed else git(f"log -1 --format=%cs -- {path}").strip()

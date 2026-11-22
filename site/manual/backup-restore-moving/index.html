@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>22. Backup, restore, factory reset, moving to a new Home Assistant | PadSpan HA Manual</title>
+<meta name="description" content="PadSpan keeps two kinds of copy of your house, and they do different jobs.">
+<link rel="canonical" href="https://padspan.traks.ca/manual/backup-restore-moving/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="22. Backup, restore, factory reset, moving to a new Home Assistant">
+<meta property="og:description" content="PadSpan keeps two kinds of copy of your house, and they do different jobs.">
+<meta property="og:url" content="https://padspan.traks.ca/manual/backup-restore-moving/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="22-backup-restore-factory-reset-moving-to-a-new-home-assistant">22. Backup, restore, factory reset, moving to a new Home Assistant</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>PadSpan keeps two kinds of copy of your house, and they do different jobs.</p>
+<ul>
+<li><b>PadSpan's own backups</b> (Manage → Data → Backup &amp; Restore) are for going back: before a big
+change, or after one that went wrong. They live inside PadSpan's own files, on the same machine.</li>
+<li><b>Home Assistant's backup</b> is for losing the machine, or moving to a new one. It carries PadSpan's
+files with the rest of Home Assistant.</li>
+</ul>
+<p>You need both. A PadSpan backup does not survive the machine, and it does not survive a Factory
+Reset.</p>
+<h2 id="padspans-own-backups">PadSpan's own backups</h2>
+<p>Open <b>Manage → Data → Backup &amp; Restore</b> (Manage is under More tools in Basic mode). Only a Home
+Assistant administrator can make, restore or delete one.</p>
+<h3 id="what-a-backup-holds">What a backup holds</h3>
+<p><b>Create Backup</b> takes a copy of these, all in one go:</p>
+<ul>
+<li>the settings, including your licence key</li>
+<li>the floor plans: their records and the pictures themselves</li>
+<li>rooms, floors, walls, placed lights and receivers (the layout and the room model)</li>
+<li>calibration points and the calibration model</li>
+<li>your device names and PadSpan's list of devices</li>
+<li>follow alerts</li>
+<li>movement history, the last day of Traceback, and the last room of each device (Lost &amp; Found)</li>
+<li>the object history, and the Forensics sessions</li>
+<li>what PadSpan remembers about each WLED device</li>
+<li>Live Aboard's furniture and heights, sub-zones, the plan AI's suggestions and the robot vacuum link,
+each only if you have used it</li>
+</ul>
+<p>Not in a PadSpan backup: guest tags and their stays, RSSI recordings, the AI use counter and the
+usage report's counters. Home Assistant's own areas, floors, entities and automations are never in
+it: they are Home Assistant's, in Home Assistant's backup.</p>
+<h3 id="where-backups-live-and-how-many">Where backups live, and how many</h3>
+<p>All of PadSpan's backups are kept in one file, <code>.storage/padspan_ha.backups</code>, with the floor plan
+pictures inside it. PadSpan keeps the <b>3 newest backups you made</b> (a fourth removes the oldest).
+Before some changes it takes one by itself ("Before merging rooms…", "Before putting receivers in
+their rooms…", "Before removing all furniture in Live Aboard", a PadSpan Bright import and others);
+it keeps the 3 newest of those apart, so they never push out one of yours. There is no button to
+download a backup: to keep one off the machine, use Home Assistant's backup, which carries this
+file.</p>
+<h3 id="restore">Restore</h3>
+<ol>
+<li>In Backup &amp; Restore, choose <b>Restore…</b> on the backup.</li>
+<li>Tick what to bring back. Each part of the backup is ticked to start with, and <b>Maps Config</b> and
+<b>Model</b> go together (a plan and where it sits are one thing). The pictures are a tick of their
+own, <b>Map Images</b>.</li>
+<li>Choose <b>Restore selected</b>.</li>
+<li>Reload PadSpan (Settings → Devices &amp; services → PadSpan HA → ⋮ → <b>Reload</b>) for everything to take
+effect, as the message says.</li>
+</ol>
+<p>A restore puts back what you ticked, with a few things kept as they are now, because they belong to
+this install and not to the house:</p>
+<ul>
+<li><b>Your licence</b>: a backup from before you bought a key, or from a trial, never takes the key away.
+The better licence of the two stays.</li>
+<li><b>A tester sign-up, an invite's answer, and what the update check last said</b>.</li>
+<li><b>Movement and Lost &amp; Found</b> are joined with what happened since, not replaced.</li>
+<li><b>Live Aboard's furniture</b> placed since stays when the backup has none.</li>
+</ul>
+<h2 id="factory-reset">Factory Reset</h2>
+<p><b>Manage → Factory Reset</b> empties PadSpan's files and starts it again as new, with PadSpan still
+installed. It works only in Live mode, needs an administrator, and asks you to type <code>FACTORY RESET</code>
+before <b>Erase All Data &amp; Reset</b> can be pressed.</p>
+<p>It erases calibration, floor plans and their pictures, rooms and receivers, your device names, follow
+alerts, history and Traceback, Forensics, learned data, Live Aboard's furniture, guest tags,
+sub-zones, every setting, and <b>all of PadSpan's own backups</b>. Make a Home Assistant backup first
+if you might want any of it back.</p>
+<p>It keeps your licence key, a tester sign-up and furniture you shared to the library (so you can still
+withdraw either), and Vacation Mode's learned routine. It changes nothing in Home Assistant itself:
+areas, floors, entities and devices stay. A Factory Reset during a vacation turns Vacation Mode off.</p>
+<h2 id="home-assistants-backup">Home Assistant's backup</h2>
+<p>Home Assistant's own backup (<b>Settings → System → Backups</b>) copies its config folder, and that is
+where PadSpan keeps everything:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>What</th><th>Where in the config folder</th></tr>
+  <tr><td>PadSpan's data, settings and its own backups</td><td><code>.storage/padspan_ha.*</code></td></tr>
+  <tr><td>Traceback's history, and RSSI recordings</td><td><code>.storage/padspan_ha.traceback_segments/</code> and <code>.storage/padspan_ha.capture_sessions/</code></td></tr>
+  <tr><td>Floor plan pictures</td><td><code>padspan_ha/maps/</code></td></tr>
+  <tr><td>WLED backups made from PadSpan</td><td><code>padspan_ha/wled_backups/</code></td></tr>
+  <tr><td>PadSpan itself</td><td><code>custom_components/padspan_ha/</code></td></tr>
+</table>
+</div>
+<p>So <b>every Home Assistant backup has all of PadSpan in it.</b> From Home Assistant 2025.1, "Home
+Assistant settings" (the config folder) is in every backup and can't be left out; what you choose is
+whether to add the history database, media, the share folder and add-ons. PadSpan needs none of
+those. On an older Home Assistant OS, a partial backup holds PadSpan only if <b>Home Assistant</b> is
+ticked in it.</p>
+<p>The history database is not PadSpan's: it holds the past states of PadSpan's entities, as it does
+for every entity. Leaving it out loses that history, nothing else.</p>
+<h2 id="moving-to-a-new-home-assistant-machine">Moving to a new Home Assistant machine</h2>
+<p>The way that carries everything is Home Assistant's own:</p>
+<ol>
+<li>On the old machine, make a backup: <b>Settings → System → Backups → Back up now</b>. Download it,
+and keep its encryption key.</li>
+<li>Switch the old machine off, or at least stop Home Assistant on it. Two machines running the same
+house both listen to the same receivers and both run the same automations, and PadSpan's licence
+check sees two homes (below).</li>
+<li>On the new machine, start Home Assistant's onboarding and choose to restore from a backup. Give it
+the file and the key.</li>
+<li>When Home Assistant is up, open PadSpan. Your house, plans, calibration, names and settings are as
+they were.</li>
+</ol>
+<p>Then check these, which depend on the machine rather than on the files:</p>
+<ul>
+<li><b>The new machine's own Bluetooth.</b> Receivers on the network (ESPHome proxies, Shelly devices,
+ESPresense, Tasmota) are the same receivers and carry on. If the old machine's own Bluetooth
+adapter was a receiver, the new one is a different receiver: the old one shows as not heard, and
+the new one as new. Place the new one on the map, and use <b>Replace Scanner</b>
+(Settings → Scanner Map) to move the old one's calibration to it.</li>
+<li><b>Its memory.</b> Next to a busy street PadSpan hears thousands of devices. See
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/MINIMUM_REQUIREMENTS.md">Minimum requirements</a> before moving to a 2 GB machine.</li>
+<li><b>Your licence.</b> The restored copy carries the old machine's place among your licence's homes. The
+licence server hands that place over when the old machine has stopped checking in. If both keep
+running, the new one has to take a home of its own.</li>
+<li><b>Wall screens and links</b>: if the new machine has a new address, open each wall screen's link
+again with the new address.</li>
+</ul>
+<p><b>Copying only PadSpan's files</b> (the folders above) into a Home Assistant set up from scratch is not
+the same: PadSpan's rooms and layout point at Home Assistant's floors and areas, and its devices at
+what Home Assistant knows. It works only where the new Home Assistant has the same floors and
+areas. A full Home Assistant backup brings those too.</p>
+<h2 id="coming-from-padspan-bright">Coming from PadSpan Bright</h2>
+<p>PadSpan Bright (the lighting-only edition) and PadSpan HA can be installed side by side, and PadSpan
+HA can take the house you built in Bright.</p>
+<ol>
+<li>Install PadSpan HA (chapter <a href="/manual/install-update-uninstall/">3</a>), keeping Bright installed.</li>
+<li>In PadSpan HA, open <b>Health</b>. A card <b>PadSpan Bright found on this Home Assistant</b> says what
+Bright holds.</li>
+<li>Choose <b>Import from PadSpan Bright</b>. PadSpan HA takes a backup of its own first (it is in Backup &amp;
+Restore), copies Bright's floors, rooms, walls, placed lights, floor plans and their pictures,
+settings and Live Aboard's furniture, then reloads.</li>
+<li>When the house looks right in PadSpan HA, remove PadSpan Bright. The import never deletes
+Bright's files.</li>
+</ol>
+<p>The import runs only into an empty house: if PadSpan HA already has a floor, a room, a light, a wall
+or a map, the card says so and offers nothing, and it never merges two houses. Bright's licence key
+comes across with its settings, unless you have already entered a key in PadSpan HA.</p>
+<div class="pager"><span><a href="/manual/users-and-security/">← 21. Users and Enhanced security</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/performance-and-small-machines/">23. Performance and small machines →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

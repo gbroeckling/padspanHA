@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>27. Getting help | PadSpan HA Manual</title>
+<meta name="description" content="Before asking, chapter 26 has the common problems by symptom. When you do ask, a report from PadSpan saves a round of questions. There are three, and they…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/getting-help/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="27. Getting help">
+<meta property="og:description" content="Before asking, chapter 26 has the common problems by symptom. When you do ask, a report from PadSpan saves a round of questions. There are three, and they…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/getting-help/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="27-getting-help">27. Getting help</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>Before asking, <a href="/manual/troubleshooting/">chapter 26</a> has the common problems by symptom. When you do
+ask, a report from PadSpan saves a round of questions. There are three, and they hold different
+things.</p>
+<h2 id="the-three-reports">The three reports</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Report</th><th>Where</th><th>Holds</th></tr>
+  <tr><td><b>Diagnostics</b> (PadSpan's)</td><td>QA → <b>Go to Diagnostics</b> (QA is under More tools)</td><td>Versions, the panel's timings, PadSpan's status, your floor plans' names, and <b>your own devices</b>: the ones you named, linked to Home Assistant, or phones known by their key, heard in the last 24 hours. <b>Download Report</b> saves it as a file; <b>Copy</b> copies it.</td></tr>
+  <tr><td><b>Export for support</b></td><td>Monitor → <b>Export for support</b> (Monitor is under More tools)</td><td>The same, plus the live view as PadSpan sees it now: devices and advertisements, cut to 200 of each (all of your own devices are kept), and the receivers. <b>Build export</b>, then <b>Copy</b>.</td></tr>
+  <tr><td><b>Download diagnostics</b> (Home Assistant's)</td><td>Settings → Devices &amp; services → PadSpan HA → ⋮ → <b>Download diagnostics</b></td><td>Little: PadSpan's version, its config entry, its status and the saved room list (<code>room_tag_map</code>). Not your devices, rooms or receivers.</td></tr>
+</table>
+</div>
+<p>For most problems, PadSpan's <b>Diagnostics</b> is the one to send. For a device in the wrong room or not
+showing at all, <b>Export for support</b> shows what the receivers hear.</p>
+<h3 id="what-they-leave-out-and-what-they-dont">What they leave out, and what they don't</h3>
+<ul>
+<li><b>Phones' identity keys (IRKs) are never in them.</b> Each one is replaced by <code>irk:hidden-1</code>,
+<code>irk:hidden-2</code> and so on, the same number for the same phone throughout, so the report still makes
+sense.</li>
+<li><b>They do name your rooms, floor plans and devices, with their Bluetooth addresses.</b> That is what
+makes them useful, and it is why you should look a report over before you send it anywhere public.</li>
+<li><b>Errors PadSpan handled quietly</b> (on the Diagnostics screen, for administrators) are not in the
+report: an error's text can name your rooms and devices. If support asks for them, copy the lines
+you are happy to share.</li>
+<li><b>Nothing is sent by any of them.</b> They only make text for you to copy or save.</li>
+</ul>
+<h3 id="logs">Logs</h3>
+<p>PadSpan's own log is in <b>Manage → Logs</b>. For Home Assistant's log with more detail from PadSpan,
+turn on <b>Enable debug logging</b> on PadSpan HA's page in Settings → Devices &amp; services, reproduce the
+problem, then turn it off: Home Assistant offers the log as a file when you do.</p>
+<h2 id="where-to-ask">Where to ask</h2>
+<ul>
+<li><b>A bug</b>: open an issue at
+<a href="https://github.com/gbroeckling/padspanHA/issues">github.com/gbroeckling/padspanHA/issues</a> and
+choose <b>Bug Report</b>. Issues are public, so remove what you'd rather not show (names, addresses)
+from anything you attach.</li>
+<li><b>By email</b>: hello@traks.ca. An email is not public, so a report can go as it is.</li>
+<li><b>A security problem</b>: not in a public issue. See <a href="https://github.com/gbroeckling/padspanHA/blob/main/SECURITY.md">SECURITY.md</a>.</li>
+<li><b>An idea</b>: the <b>Feature request</b> form in the same issues list.</li>
+</ul>
+<h2 id="what-to-include">What to include</h2>
+<ol>
+<li><b>PadSpan's version and Home Assistant's.</b> PadSpan's is under its name at the top of the panel's
+menu, and in every report. Home Assistant's is in Settings → About.</li>
+<li><b>How PadSpan was installed</b>: the Marketplace, HACS or by hand.</li>
+<li><b>Your receivers</b>: what kind (ESPHome Bluetooth proxy, Shelly, Home Assistant's own Bluetooth,
+ESPresense, Tasmota) and how many.</li>
+<li><b>What happened, and what you expected.</b> For a room problem: which device, which room it showed,
+and which room it was really in, with the time.</li>
+<li><b>The steps</b> that make it happen again, if you know them.</li>
+<li><b>A report</b> (above), and a screenshot of the screen in question.</li>
+<li><b>Anything that changed</b> just before: an update, a new receiver, a moved receiver, new
+calibration.</li>
+</ol>
+<p>A wrong-room report is most useful taken while it is wrong: build <b>Export for support</b> then, before
+the device moves on.</p>
+<div class="pager"><span><a href="/manual/troubleshooting/">← 26. Troubleshooting by symptom</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/glossary/">A. Glossary →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

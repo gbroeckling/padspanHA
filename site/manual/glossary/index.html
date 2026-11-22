@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A. Glossary | PadSpan HA Manual</title>
+<meta name="description" content="The words this manual and PadSpan&#x27;s panel use, in alphabetical order.">
+<link rel="canonical" href="https://padspan.traks.ca/manual/glossary/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="A. Glossary">
+<meta property="og:description" content="The words this manual and PadSpan&#x27;s panel use, in alphabetical order.">
+<meta property="og:url" content="https://padspan.traks.ca/manual/glossary/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="a-glossary">A. Glossary</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>The words this manual and PadSpan's panel use, in alphabetical order.</p>
+<p><b>Administrator.</b> A Home Assistant user with administrator rights. Backups, restores, a Factory
+Reset, phones' keys, floor plan uploads and anything that sends data out of the house need one; with
+Enhanced security on, so does every change to PadSpan's shared setup.</p>
+<p><b>Advertisement.</b> A short Bluetooth message a phone, tag or beacon sends out over and over. Receivers
+hear advertisements; PadSpan never connects to the device.</p>
+<p><b>Advanced, Basic and Development.</b> The panel's three modes, switched by the mode button at the top
+right. Every screen is in the menu in every mode; the mode decides which are in the main list (the
+rest are under <b>More tools</b>) and how much detail each screen shows. Settings has only Appearance
+in Basic.</p>
+<p><b>Area.</b> A Home Assistant area (Settings → Areas, labels &amp; zones). Normally a room in PadSpan is a
+Home Assistant area, and its name is the room's name everywhere. (Set to Standalone, in Settings →
+Tracking → Home Assistant and integrations → Room and receiver layout source, PadSpan uses rooms
+drawn in PadSpan and no areas at all.)</p>
+<p><b>Atlas.</b> PadSpan's map of the house for everyday light control, in the sidebar as <b>Atlas</b>, built
+in Mapping → Atlas builder.</p>
+<p><b>Away timeout.</b> How long a device goes unheard before it reads <code>not_home</code> (5 minutes unless you
+change it, in Settings → Tracking → Rooms and timing → Home/Away Timeout).</p>
+<p><b>Backup.</b> Here, either PadSpan's own (Manage → Data → Backup &amp; Restore, kept on the machine) or
+Home Assistant's (Settings → System → Backups, which carries PadSpan's files). See
+<a href="/manual/backup-restore-moving/">chapter 22</a>.</p>
+<p><b>Beacon.</b> A small device that only advertises: a tag, an iBeacon, a Find My tag. A <b>pinned
+beacon</b> is one you placed on the map at a fixed spot (Calibration → Beacon Tune), which can add
+calibration points by itself.</p>
+<p><b>BLE.</b> Bluetooth Low Energy, the kind of Bluetooth phones, watches and tags advertise with.</p>
+<p><b>BLE Transmitter.</b> A sensor in the Android Home Assistant Companion app that makes the phone send
+an iBeacon with a fixed id, so PadSpan can follow it without a key.</p>
+<p><b>Bluetooth proxy, scanner.</b> Other names for a <b>receiver</b>. "Bluetooth proxy" is ESPHome's and Home
+Assistant's word; older parts of PadSpan say "scanner".</p>
+<p><b>Calibration point.</b> A spot in a room where you stood with a device while PadSpan recorded what
+every receiver heard, and how loudly. With enough of them PadSpan can tell rooms apart that sound
+alike to the nearest receiver. Made in Calibration (<b>🧭 Guided calibration</b>, Pin &amp; Listen, Beacon
+Tune, or Walk a room).</p>
+<p><b>Commit this layout.</b> The button in Mapping → Layout that puts the rooms and receivers drawn on a
+floor plan onto the map of the house, as <b>Put it on the map</b> does.</p>
+<p><b>Consensus.</b> The room most of the recent polls agree on. A new room has to win a vote of several
+polls (set by Room Change Delay) before a device moves there, so one loud reading doesn't move it.
+Receivers are judged against it in Health ("Agreement").</p>
+<p><b>dBm.</b> The unit of signal strength (RSSI). Closer to zero is louder: -55 dBm is near, -90 dBm far.</p>
+<p><b>Device.</b> Here, anything Bluetooth PadSpan hears: a phone, a watch, a tag, a beacon, a neighbour's
+earbuds. Also Home Assistant's word for one thing with its entities.</p>
+<p><b>Diagnostics.</b> PadSpan's report for support (QA → Go to Diagnostics). Home Assistant's own
+<b>Download diagnostics</b> is a different, much shorter report. See <a href="/manual/getting-help/">chapter 27</a>.</p>
+<p><b>Edition.</b> Which download is installed: <b>PadSpan HA</b> (presence, maps and the Atlas) or <b>PadSpan
+Bright</b> (the Atlas alone, for light control without presence).</p>
+<p><b>Enhanced security.</b> Settings → Tracking → Privacy, updates and feedback → Enhanced security. When
+on, only an administrator can change PadSpan's shared setup; everyone can still view and use it. On
+for a new install.</p>
+<p><b>Entity.</b> One thing Home Assistant can show and automate: a tracker, a sensor, a light. PadSpan's
+are listed in <a href="/manual/home-assistant-reference/">chapter 14</a>.</p>
+<p><b>Export for support.</b> Monitor → Export for support: the Diagnostics report plus what the receivers
+hear right now.</p>
+<p><b>Fabric.</b> PadSpan's map of the house in metres: each floor, its rooms' outlines, its walls, where
+each receiver and light is. Floor plan pictures are placed over it; positions are always worked out
+in it, never from the picture. Health calls it the <b>Room and receiver layout</b>.</p>
+<p><b>Factory Reset.</b> Manage → Factory Reset: empties PadSpan's files, including its own backups, and
+starts it as new. It keeps your licence key.</p>
+<p><b>Find My tag.</b> An AirTag or another tag that works with Apple's Find My. It changes its address,
+every 15 minutes near its owner and once a day away.</p>
+<p><b>Fingerprint.</b> What every receiver heard at a calibration point. PadSpan matches a device's live
+readings to the nearest fingerprints.</p>
+<p><b>Floor.</b> A Home Assistant floor (Settings → Areas, labels &amp; zones). Each floor can have floor plans
+and its own height.</p>
+<p><b>Floor plan.</b> A picture of a floor, uploaded in Mapping (or made from a blank floor, a phone's room
+scan or a robot vacuum's map). Once its <b>scale</b> is set (a measured length on it), things drawn on it
+can go onto the map of the house.</p>
+<p><b>Follow, followed.</b> Following a device (on the Follow screen) watches it more closely: alerts when
+it changes room, arrives or leaves, and, with Room-change tag events on, the <code>padspan_room_change</code>
+event.</p>
+<p><b>HACS.</b> The Home Assistant Community Store, through which PadSpan is installed and updated on Home
+Assistant 2026.10 and older.</p>
+<p><b>Health.</b> The screen that gathers PadSpan's checks; the status dot opens it. <b>Problems found</b> is its
+list of things that can put devices in the wrong room.</p>
+<p><b>iBeacon.</b> A beacon format with a fixed UUID, major and minor number. PadSpan follows an iBeacon by
+those, not by its address.</p>
+<p><b>IRK (Identity Resolving Key).</b> A phone's or watch's secret key for its changing Bluetooth
+addresses. With it, PadSpan can tell that all those addresses are the same phone. Added in Bluetooth →
+IRK Manager, or in Home Assistant's Private BLE Device. PadSpan never sends one anywhere and hides
+them in every report.</p>
+<p><b>Label, named device.</b> A device you have given a name in PadSpan. Only named devices get Home
+Assistant entities, events and alerts.</p>
+<p><b>Licence key.</b> What unlocks PadSpan Pro (or Bright Pro), entered in Settings → Features → PadSpan
+licence. One key covers up to five homes.</p>
+<p><b>Live Aboard.</b> The Atlas in 3D (Pro, experimental, off unless switched on), with <b>Furnish</b> for
+furniture, devices and people.</p>
+<p><b>Live and Sample.</b> Live is your own house; Sample is a finished sample house to look around in
+(<b>Preview a finished house</b>, and <b>Back to my house</b> returns).</p>
+<p><b>Lost &amp; Found.</b> The last room PadSpan saw each device in, kept so a device never goes back to
+"unknown".</p>
+<p><b>Marketplace.</b> Home Assistant's own store (Settings → Marketplace), from Home Assistant 2026.11.</p>
+<p><b>More tools.</b> The closed group at the bottom of the panel's menu with the screens that are not in
+the main list.</p>
+<p><b><code>not_home</code>.</b> Home Assistant's word for away: a PadSpan tracker or area sensor reads <code>not_home</code> once
+the device has gone unheard for the away timeout.</p>
+<p><b>Object history.</b> PadSpan's list of every device it has heard. Unnamed ones drop out after Object
+History Retention (1 day unless you change it); named ones stay.</p>
+<p><b>Poll.</b> One round of PadSpan's room work, every 5 seconds unless you change it (Settings → Tracking
+→ Performance → Presence Poll Interval).</p>
+<p><b>Power team.</b> A wall dimmer or switch and the smart bulbs it feeds, made into one light (Settings →
+Atlas → Power teams).</p>
+<p><b>Private BLE Device.</b> Home Assistant's integration that follows a phone by its IRK. PadSpan reads
+its keys; a key you add there reaches PadSpan within five minutes.</p>
+<p><b>Pro, and the tiers.</b> PadSpan HA is free with no key. A key's <b>tier</b> says what it unlocks: <code>pro</code>
+(PadSpan Pro: everything in PadSpan HA, such as Atlas placement, Live Aboard, wall mode, Vacation Mode,
+Forensics, Busy Times and Locate) or <code>bright</code> (Bright Pro: the Atlas's whole toolset). Free &lt; Bright
+&lt; Pro, each with all of the one before. There is a one-time 90-day free <b>trial</b>, in Settings →
+Features → PadSpan licence.</p>
+<p><b>Put it on the map.</b> The button (at the end of Setup, and on a room in Rooms) that takes rooms and
+receivers drawn on a measured floor plan onto the map of the house. Until then, devices are placed by
+nearest receiver only.</p>
+<p><b>Receiver.</b> A device that hears Bluetooth advertisements and passes them to Home Assistant: an ESPHome
+Bluetooth proxy, a Shelly Gen2 or newer, the Home Assistant machine's own Bluetooth, an ESPresense
+node or a Tasmota device. Also called a <b>Bluetooth proxy</b> or a <b>scanner</b>. One in each room you want
+told apart.</p>
+<p><b>Room.</b> A Home Assistant area (see Area), drawn on the map of the house. A receiver's area decides
+which room it stands in.</p>
+<p><b>Room Change Delay.</b> How long a new room must keep winning before a device moves there (20 seconds
+unless you change it).</p>
+<p><b>Rotating address, random address.</b> A Bluetooth address a phone, watch or Find My tag changes every
+so often so it can't be followed. PadSpan follows a phone through it with the phone's IRK or BLE
+Transmitter.</p>
+<p><b>RSSI.</b> Received signal strength: how loudly a receiver hears a device, in dBm.</p>
+<p><b>Status dot.</b> The small mark in the top bar that shows only when something is wrong: amber needs a
+look, red is broken.</p>
+<p><b>Sub-zone.</b> An area inside a room (a bed, a couch, a desk), drawn in Mapping → Edit → Sub-zones, with
+its own entities.</p>
+<p><b>Traceback.</b> The screen that shows where devices were, back in time.</p>
+<p><b>Usage report.</b> The opt-in, daily, anonymous report (Settings → Tracking → Help improve PadSpan).
+Off unless you turn it on.</p>
+<p><b>Update check.</b> PadSpan's daily question to <code>padspan.traks.ca</code> about a newer stable version,
+carrying only the version number.</p>
+<p><b>Vacation Mode.</b> Switches lights as on an ordinary day, learned from Home Assistant's history, while
+you are away (Mapping → Atlas builder, Pro).</p>
+<p><b>Wall screen, kiosk.</b> A tablet or screen on the wall showing the Atlas, opened with <code>?kiosk=1</code>
+(Settings → Atlas → Wall screens).</p>
+<div class="pager"><span><a href="/manual/getting-help/">← 27. Getting help</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/every-screen-and-tab/">Appendix B. Every screen and tab →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

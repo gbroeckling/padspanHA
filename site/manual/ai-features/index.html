@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19. AI features | PadSpan HA Manual</title>
+<meta name="description" content="PadSpan has no AI of its own and sends nothing to an AI service itself. A few features can ask an AI you have set up in Home Assistant, an AI Task, to read…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/ai-features/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="19. AI features">
+<meta property="og:description" content="PadSpan has no AI of its own and sends nothing to an AI service itself. A few features can ask an AI you have set up in Home Assistant, an AI Task, to read…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/ai-features/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="19-ai-features">19. AI features</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>PadSpan has no AI of its own and sends nothing to an AI service itself. A few features can ask an AI
+<b>you</b> have set up in Home Assistant, an <b>AI Task</b>, to read a picture for you: a photo of a sofa,
+or a floor plan. Room presence, calibration and everything else work without one.</p>
+<h2 id="what-it-can-do">What it can do</h2>
+<p>All of these need PadSpan Pro, and each read happens only when someone starts it, never on a
+schedule.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Feature</th><th>What is read</th><th>Where</th><th>Switch in Settings → AI</th></tr>
+  <tr><td><b>Furniture from a photo</b> (also a tag, a receiver or a person's figure)</td><td>The photo you chose</td><td>Live Aboard's Furnish (<a href="/manual/furnish/">chapter 17</a>)</td><td>On unless you switch it off</td></tr>
+  <tr><td><b>Stairs from your floor plans</b></td><td>One placed floor plan, resized</td><td>Furnish → <b>Build ▾ → House → Read stairs off the plans (AI)</b></td><td>Off by default, under <b>AI map-building research (experimental)</b></td></tr>
+  <tr><td><b>Add data via plans</b> (the <b>Plans</b> tool)</td><td>Your placed floor plans, whole and in pieces</td><td>Live Aboard's <b>Edit → Plans</b> (<a href="/manual/live-aboard/#building-from-your-plans-with-an-ai-experimental">chapter 16</a>)</td><td><b>AI map-building research (experimental)</b>, off by default</td></tr>
+  <tr><td><b>Build from plans</b> (<b>Line up plans</b>, <b>Rooms from plans</b>)</td><td>Your placed floor plans</td><td>Live Aboard's <b>Edit → Plans</b></td><td><b>Build from plans</b>, off for everyone until offered; needs Claude</td></tr>
+  <tr><td><b>Let Claude draw your rooms</b></td><td>The floor plans of the floor you chose</td><td>Setup's Draw the rooms step (<a href="/manual/setup-the-map/#step-3-draw-the-rooms">chapter 9</a>)</td><td>None: nothing is read until you start it there; needs Claude</td></tr>
+</table>
+</div>
+<p>The experimental ones are research: the AI suggests, you check every item, and nothing is saved
+until you accept it. They never change your calibration or signal walls. What they can save (a
+plan's picture lined up, rooms) takes a backup first and has an undo. Turning a switch off hides the
+feature; it doesn't undo what you kept.</p>
+<p><b>Ask your voice assistant where someone is</b> and <b>Rooms and walls… coming soon</b> are shown as
+coming. Assist's own "where is" sentences work today without an AI: <a href="/manual/home-assistant-reference/">chapter 14</a>.</p>
+<h2 id="connecting-an-ai">Connecting an AI</h2>
+<p><b>Settings → AI → Your AI</b>:</p>
+<ul>
+<li><b>AI Task</b>: pick one whose model can read pictures (a vision model). It needs Home Assistant
+2025.8 or newer. If Home Assistant has none yet, add an AI integration with a vision model first:
+one that runs in your home, such as Ollama, or a cloud one.</li>
+<li><b>Backup AI task</b>: used when the main one can't be reached (a computer that's away, say). Before
+each read, PadSpan opens and closes one connection to the main one's server to see whether it is
+there; nothing is sent on it.</li>
+</ul>
+<p>None is picked by default, and with none picked nothing is read. Only an administrator picks one.</p>
+<h3 id="connecting-claude">Connecting Claude</h3>
+<p><b>Build from plans</b> and <b>Let Claude draw your rooms</b> need Claude, through Home Assistant's own
+Anthropic integration and your own Anthropic account. Anthropic charges that account for each read;
+PadSpan sells no credit and never asks for a card. It takes about 15 minutes, once.</p>
+<ol>
+<li><b>In the Anthropic Console</b>: sign up or sign in, and add credit on the <b>Billing</b> page. If your
+Claude plan includes monthly API credit, link your Console organisation to it instead. A Claude
+subscription on its own doesn't pay for these reads.</li>
+<li>Open <b>API keys</b>, choose <b>Create Key</b>, name it ("Home Assistant") and copy it. The Console shows
+it only once.</li>
+<li><b>In Home Assistant</b>: <b>Settings → Devices &amp; services → Add integration → Anthropic</b>, paste the
+key and finish.</li>
+<li>In the Anthropic integration, open its AI Task (or add one), choose <b>Claude Opus 5.5 or newer</b>
+as its model by its full name, and save. Sonnet and Haiku aren't accepted: the plan reading was
+tested on Opus 5.5.</li>
+<li><b>In PadSpan</b>: the helper's <b>Connect Claude</b> screen checks again by itself when you come back
+(or choose <b>Check again</b>). If Home Assistant has a usable Claude that isn't PadSpan's AI yet, it
+offers <b>Use it for PadSpan</b>, and your earlier AI Task stays as the backup. Or pick it yourself in
+<b>Settings → AI → Your AI</b>.</li>
+</ol>
+<p>Before anything is read, the helper sends one tiny read with no plan in it (a blank one-pixel picture
+and the words "This is a connection check. Reply with the single word OK."), so an account with no
+credit is found then, not after you measured your plan.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>The helper says</th><th>What to do</th></tr>
+  <tr><td>Claude isn't connected to Home Assistant yet</td><td>Steps 1 to 4.</td></tr>
+  <tr><td>Anthropic says this account is out of credit</td><td>Add credit (step 1), then come back.</td></tr>
+  <tr><td>Your AI Task uses an older Claude</td><td>Change its model to Claude Opus 5.5 or newer.</td></tr>
+  <tr><td>PadSpan can't tell which Claude model this AI Task uses</td><td>Choose the model again by its full name.</td></tr>
+  <tr><td>Home Assistant has Claude ready</td><td>Choose <b>Use it for PadSpan</b>. Photo and stair reading use it too.</td></tr>
+</table>
+</div>
+<p><b>When a read fails</b>: out of credit, add credit and choose <b>Try again</b> (what was read is kept).
+Claude couldn't be reached: check the Anthropic integration in <b>Settings → Devices &amp; services</b> and
+Home Assistant's log. The media folder couldn't take the plan: Home Assistant's media folder must be
+writable, because PadSpan hands the picture to the AI Task through it.</p>
+<h2 id="what-is-read-and-where-it-goes">What is read, and where it goes</h2>
+<p>Every read is a call to Home Assistant's own <code>ai_task.generate_data</code> on the AI Task you picked,
+carrying:</p>
+<ul>
+<li><b>one picture</b>: the photo, or a floor plan (whole, or a crop of it). It goes as it is, so whatever
+is printed on a plan goes with it;</li>
+<li><b>instructions written into PadSpan</b>, which add only the picture's size in pixels and, for a
+photo, the kind of piece you picked;</li>
+<li>for a photo, the list of fields to fill in.</li>
+</ul>
+<p>PadSpan adds no names, addresses, people, devices or positions from your house. Home Assistant hands
+the read to the AI behind the AI Task: one that runs in your home keeps the picture there, and a
+cloud one sends it to that company, under its own terms. For the length of the call the picture is a
+file in a hidden folder in Home Assistant's media folder, removed when the call ends. PadSpan keeps no
+copy of a photo. One photo or plan can take several reads.</p>
+<p>A person's figure from a photo asks first that the person agrees, sends nothing until that is ticked,
+and recommends a local AI Task.</p>
+<h2 id="what-it-costs">What it costs</h2>
+<p>PadSpan costs nothing extra here: you pay the AI's maker, if anyone. A local AI (Ollama on your own
+machine) costs only its electricity. A cloud AI charges its own account.</p>
+<p>For Claude, <b>Settings → AI</b> keeps a count: <b>Every read PadSpan sent to your AI this month</b>, with
+an estimated cost for Claude only.</p>
+<ul>
+<li>It is an estimate from each picture's size and each question's length: Home Assistant doesn't pass
+on what Claude counted. The exact numbers are in the <b>Anthropic Console → Usage</b>, filtered by the
+key Home Assistant uses.</li>
+<li>Type <b>Your monthly credit, US$</b> and pick a share (50, 75 or 90%), and PadSpan sends one Home
+Assistant notification a month when the estimate passes it (<b>PadSpan: AI credit</b>).</li>
+<li>The count stays on this Home Assistant: it isn't in backups, a factory reset empties it, and the
+usage report gets only counts and rough bands from it.</li>
+</ul>
+<p>What leaves the house in general: <a href="/manual/privacy/">chapter 24</a>.</p>
+<div class="pager"><span><a href="/manual/wall-screens-and-kiosks/">← 18. Wall screens and kiosks</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/settings-reference/">20. Settings reference →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>

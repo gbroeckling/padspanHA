@@ -17,8 +17,8 @@ import pytest
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _SITE = _ROOT / "site"
-# The creators kit at /creators/ is deployed and checked like a guide.
-_GUIDES = sorted(p for folder in ("guides", "creators") for p in (_SITE / folder).rglob("index.html"))
+# The creators kit at /creators/ and the manual at /manual/ are deployed and checked like a guide.
+_GUIDES = sorted(p for folder in ("guides", "creators", "manual") for p in (_SITE / folder).rglob("index.html"))
 
 pytestmark = pytest.mark.skipif(not _GUIDES, reason="no guides in this tree")
 
@@ -101,7 +101,7 @@ def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     beside = {f"{mod.REMOTE_DIR}/{n}" for n in ("sitemap.xml",) + mod.INDEXNOW_KEYS}
     assert beside <= set(targets)
     assert {f"{mod.REMOTE_DIR}/{g}" for g in mod.GUIDES} <= set(targets)
-    pages = (f"{mod.REMOTE_DIR}/guides/", f"{mod.REMOTE_DIR}/creators/")
+    pages = (f"{mod.REMOTE_DIR}/guides/", f"{mod.REMOTE_DIR}/creators/", f"{mod.REMOTE_DIR}/manual/")
     assert all(t.startswith(pages) or t in beside for t in targets), targets
     # One submission with every guide; the order is the deploy's own (sorted as text).
     assert len(sent) == 1 and sorted(sent[0]) == sorted(_url(p) for p in _GUIDES)

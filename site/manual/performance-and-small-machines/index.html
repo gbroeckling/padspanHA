@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>23. Performance and small machines | PadSpan HA Manual</title>
+<meta name="description" content="What PadSpan costs the Home Assistant machine and the screens, and what to turn on when either struggles. The short version of the requirements is in…">
+<link rel="canonical" href="https://padspan.traks.ca/manual/performance-and-small-machines/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="23. Performance and small machines">
+<meta property="og:description" content="What PadSpan costs the Home Assistant machine and the screens, and what to turn on when either struggles. The short version of the requirements is in…">
+<meta property="og:url" content="https://padspan.traks.ca/manual/performance-and-small-machines/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+h3{font-size:18px;margin:26px 0 8px;font-weight:800}
+h4,h5,h6{font-size:16px;margin:20px 0 6px;font-weight:800}
+h2,h3,h4{scroll-margin-top:12px}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+li>ul,li>ol{margin:6px 0 6px 20px}
+blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px;color:#c8dccd}
+img{max-width:100%;height:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:44px;padding-top:16px;font-size:15px}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/manual/">Manual</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1 id="23-performance-and-small-machines">23. Performance and small machines</h1>
+<p><a href="/manual/">Contents</a></p>
+<p>What PadSpan costs the Home Assistant machine and the screens, and what to turn on when either
+struggles. The short version of the requirements is in <a href="/manual/requirements/">chapter 2</a>.</p>
+<h2 id="the-home-assistant-machine">The Home Assistant machine</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>Recommended</b></td><td>More than 2 GB of memory: a Raspberry Pi 4 or 5 with 4 GB or more, a Home Assistant Green, or a mini PC or virtual machine with 4 GB or more.</td></tr>
+  <tr><td><b>2 GB machines</b></td><td>Not recommended for now. If you have one, turn on <b>Low-memory mode</b> (below).</td></tr>
+  <tr><td><b>Storage</b></td><td>An SSD or eMMC rather than an SD card. The device history is saved up to every 15 seconds: in a house with about 2,900 devices that file is about 5 MB, up to about 30 GB of writes a day.</td></tr>
+</table>
+</div>
+<h2 id="why-a-busy-street-costs-memory">Why a busy street costs memory</h2>
+<p>PadSpan keeps every device it hears for a while, not only the ones you follow. Three things grow
+with them:</p>
+<ul>
+<li><b>The device history</b>: every device heard that isn't a phone's changing address, kept for a day by
+default (<b>Settings → Tracking → What the panel shows → Object History Retention</b>: 1, 2, 7 or 14
+days), at most 10,000 that nobody has named. Named and followed devices are always kept.</li>
+<li><b>The Bluetooth cache</b>: the last reading from every receiver for every address, kept for the
+<b>BLE Advertisement Timeout</b> (same section; 4 hours unless you change it).</li>
+<li><b>The live picture</b>: all of that built into one list for every open PadSpan screen, every
+5 seconds.</li>
+</ul>
+<p>In a quiet house that is a few hundred devices. Next to a busy street or in a block of flats it can
+be tens of thousands; one house reported over 80,000.</p>
+<p><b>Measured</b> on 64-bit Python with six receivers (real use runs 10 to 30% higher):</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Devices held</th><th>PadSpan's memory (held / peak with a screen open)</th></tr>
+  <tr><td>1,000</td><td>about 14 / 20 MB</td></tr>
+  <tr><td>5,000</td><td>about 67 / 100 MB</td></tr>
+  <tr><td>25,000</td><td>about 340 / 500 MB</td></tr>
+  <tr><td>80,000</td><td>about 1.0 / 1.6 GB</td></tr>
+</table>
+</div>
+<p>A 2 GB Raspberry Pi has about 0.4 to 0.8 GB left for PadSpan once Home Assistant OS and a few add-ons
+run, so it fits only about 5,000 devices.</p>
+<h2 id="low-memory-mode">Low-memory mode</h2>
+<p><b>Settings → Tracking → Performance → Low-memory mode</b>, off by default. For a 2 GB machine: it caps
+how many passing devices PadSpan holds.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>Normally</th><th>With Low-memory mode</th></tr>
+  <tr><td>How long the Bluetooth cache keeps an address</td><td>The BLE Advertisement Timeout (4 hours unless changed)</td><td>15 minutes at most</td></tr>
+  <tr><td>Addresses in the Bluetooth cache</td><td>No limit</td><td>2,000</td></tr>
+  <tr><td>Unnamed devices in the device history</td><td>10,000, for 1 to 14 days</td><td>2,000, for 1 day</td></tr>
+  <tr><td>Adverts in the live picture</td><td>5,000</td><td>2,000</td></tr>
+</table>
+</div>
+<p>Together that is about 4,000 devices at most. It changes nothing else: named, labelled and followed
+devices are never dropped, and rooms, positions, the Atlas and Live Aboard work as before. Passing
+strangers just drop out of the lists sooner. The card asks before it turns on.</p>
+<h2 id="the-other-performance-settings">The other Performance settings</h2>
+<p>All in <b>Settings → Tracking → Performance</b>:</p>
+<ul>
+<li><b>Presence Poll Interval</b> (5 seconds): how often rooms are worked out. Higher is lighter on the
+processor and slower to follow you.</li>
+<li><b>CPU Mode</b>: where that work runs. <b>Shared</b> (the default) runs it with Home Assistant: fastest,
+and it competes with Home Assistant. <b>Single core</b> holds it to one core so Home Assistant stays
+responsive. <b>Dedicated core</b> gives it a core of its own. It applies from the next update, no
+restart.</li>
+<li><b>Optimize for scale</b> (off): for several screens at once. The Overview and the 3D people get only
+what they draw (about 50 KB a screen instead of about 2 MB in a busy house), screens asking at the
+same moment share one build, and a hidden screen asks for nothing. Details in
+<a href="/manual/wall-screens-and-kiosks/#several-screens-at-once-optimize-for-scale">chapter 18</a>.</li>
+</ul>
+<p>On <b>Settings → Tracking → Receivers</b>, a longer <b>Bluetooth refresh interval</b> reads the receivers
+less often (but keep 5 seconds for passive ones such as Shellys: <a href="/manual/receivers/">chapter 5</a>).</p>
+<h2 id="the-screens">The screens</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><td><b>The panel and the Atlas</b></td><td>Any current browser: Chrome, Edge, Safari or Firefox, on a computer, tablet or phone. A tablet that runs Home Assistant's dashboards smoothly runs the Atlas.</td></tr>
+  <tr><td><b>Live Aboard (the 3D house)</b></td><td>A browser with WebGL 2. Without it, or on a graphics chip too slow to keep up, PadSpan shows the flat Atlas instead and says so.</td></tr>
+</table>
+</div>
+<p>For a slow screen:</p>
+<ul>
+<li>set Live Aboard's <b>Quality</b> to Low (<b>Settings → Atlas → Live Aboard</b>). On Auto it drops by
+itself when the screen can't keep up;</li>
+<li><b>Show the frame rate (this browser only)</b>, on the same card, shows how many times a second the
+house is drawn;</li>
+<li>the flat Atlas wall (<code>/padspan-lights?kiosk=1</code>) asks Home Assistant for the least.</li>
+</ul>
+<p>With nothing changing, Live Aboard draws nothing, so an idle wall costs almost nothing.</p>
+<h2 id="when-home-assistant-is-slow-or-runs-out-of-memory">When Home Assistant is slow or runs out of memory</h2>
+<ol>
+<li>Turn on <b>Low-memory mode</b>.</li>
+<li>Shorten <b>Object History Retention</b> to 1 day, and the <b>BLE Advertisement Timeout</b>.</li>
+<li>With several wall screens, turn on <b>Optimize for scale</b>.</li>
+<li>Try <b>CPU Mode → Single core</b>.</li>
+</ol>
+<p>More, by symptom: <a href="/manual/troubleshooting/#home-assistant-runs-out-of-memory-or-is-slow">chapter 26</a>.</p>
+<h2 id="how-these-numbers-are-gathered">How these numbers are gathered</h2>
+<p>Only from installs that turned on <b>Settings → Tracking → Help improve PadSpan</b>: what PadSpan holds
+in memory, how fast new devices arrive, how often Home Assistant restarted, and how hard Home
+Assistant and each screen work. Counts and bands only (<a href="/manual/privacy/">chapter 24</a>). Guidance for
+screens, by kind of device, will follow once there is enough of it.</p>
+<div class="pager"><span><a href="/manual/backup-restore-moving/">← 22. Backup, restore, factory reset, moving to a new Home Assistant</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/privacy/">24. Privacy: what leaves the house →</a></span></div>
+<p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone, Apple Watch and AirTag are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>
