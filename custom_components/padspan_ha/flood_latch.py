@@ -203,10 +203,11 @@ def _schedule_end(hass: HomeAssistant, entity_id: str, rec: dict[str, Any]) -> N
         trig = rec.get("triggered_at")
         timers = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_TIMERS, {})
 
-        @ha_callback
-        def _due(_now: Any = None) -> None:
+        # async def: Home Assistant runs it on the loop (a plain function would
+        # go to a worker thread; tests/test_scheduled_callbacks.py).
+        async def _due(_now: Any = None) -> None:
             timers.pop(entity_id, None)
-            hass.async_create_task(_async_ended(hass, entity_id, trig))
+            await _async_ended(hass, entity_id, trig)
         timers[entity_id] = async_call_later(hass, max(0.0, float(rec["expires_at"]) - time.time()), _due)
     except Exception:  # noqa: BLE001
         _quiet_error("flood_latch:schedule_end")
