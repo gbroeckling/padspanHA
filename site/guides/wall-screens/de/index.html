@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcher Touchscreen für ein PadSpan-Wanddisplay? Ab 37 Zoll | PadSpan HA</title>
+<meta name="description" content="Ein großer Touchscreen an der Wand macht PadSpan zum Haus selbst. Was der Bildschirm braucht, welche Größe und Auflösung, welche Touch-Monitore, Android-All-in-Ones und Touch-Rahmen für Fernseher im Einsatz sind und wie du das Wanddisplay einrichtest.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/wall-screens/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/wall-screens/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/wall-screens/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/wall-screens/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Welcher Touchscreen für ein PadSpan-Wanddisplay?">
+<meta property="og:description" content="Touch-Monitore, Android-All-in-Ones und Touch-Rahmen für Fernseher ab 37 Zoll, und wie du PadSpans Wanddisplay darauf einrichtest.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/wall-screens/de/">
+<meta property="og:image" content="https://padspan.traks.ca/images/overview-3d-multifloor.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/wall-screens/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Welcher Touchscreen für ein PadSpan-Wanddisplay?</h1>
+<p class="lead">Ein großer Touchscreen an der Wand macht PadSpan zum Haus selbst: der Atlas, um es zu steuern, die 3D-Ansicht, um es zu sehen, und wer in welchem Raum ist. Hier steht, was der Bildschirm braucht, welche Größe du wählst und welche Arten von Bildschirmen ab 37 Zoll infrage kommen.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/?page=atlas3d&amp;kiosk=1&amp;hl=de">Ein PadSpan-Wanddisplay im Browser ansehen</a>
+  <a class="btn ghost" href="/guides/large-homes/de/">PadSpan in großen Häusern</a>
+</div>
+
+<h2>Was der Bildschirm braucht</h2>
+<p>PadSpan läuft in Home Assistant, also muss der Bildschirm nur Home Assistant im Vollbild in einem aktuellen Browser zeigen und Berührungen annehmen (die 3D-Ansicht braucht WebGL 2). Dahin führen drei Wege:</p>
+<ul>
+  <li><b>Ein Android-All-in-One.</b> Der Bildschirm hat Android eingebaut: Installier einen Kiosk-Browser wie <a href="https://www.fully-kiosk.com/">Fully Kiosk Browser</a> oder die Home-Assistant-Companion-App als Startbildschirm-App (auf Bildschirmen ohne Google Play ihre Minimal-Version) und richte sie auf dein Home Assistant. Ein Gerät, ein Kabel.</li>
+  <li><b>Ein Touch-Monitor und ein kleiner Computer.</b> Ein einfacher Touch-Monitor mit einem Mini-PC oder einem Raspberry Pi dahinter, auf dem ein Browser im Kiosk-Modus läuft. Das ist am flexibelsten und lässt sich später am leichtesten aufrüsten.</li>
+  <li><b>Ein Fernseher mit Touch-Rahmen.</b> Ein Infrarot-Touch-Rahmen kommt vor den Bildschirm eines Fernsehers und wird per USB an einen kleinen Computer angeschlossen. Das klappt mit fast jedem Fernseher, aber der Rahmen sitzt auf dem Displayrand.</li>
+</ul>
+<p>Kapazitiver Touch (PCAP) fühlt sich an wie ein Handy; Infrarot-Rahmen funktionieren auch auf größeren und günstigeren Bildschirmen.</p>
+
+<h2>Größe und Auflösung</h2>
+<ul>
+  <li><b>PadSpan Pro passt das Wanddisplay an den Raum an.</b> Wähl in <b>Settings → Atlas → 📺 Wall screens</b> die Option <b>Size for my room</b> und gib die Größe des Bildschirms an und wie weit weg die Leute stehen, dann bemisst PadSpan die Schrift danach, wie groß sie von dort aussieht. Ein 55-Zoll-Bildschirm quer durch den Raum bekommt viel größere Schrift als ein Monitor auf dem Schreibtisch.</li>
+  <li><b>1080p reicht für die meisten Wände; 4K ist aus der Nähe schärfer.</b> Mit der Voreinstellung <b>Size from the screen</b> zeichnet ein 4K-Wanddisplay alles doppelt so groß wie bei 1080p, quer wie hochkant.</li>
+  <li><b>Quer oder hochkant.</b> Das Wanddisplay zeigt so oder so das ganze Haus auf dem Bildschirm, jede Etage von oben nach unten. Ein Fernseher oder Stick, der sein Bild nicht drehen kann, darf trotzdem hochkant hängen: <b>Screen orientation</b> in derselben Karte dreht dann PadSpan.</li>
+</ul>
+
+<h2>Arten von Bildschirmen</h2>
+<p>Worauf du bei jeder Art achten solltest. Größen und Optionen klärst du beim Hersteller.</p>
+<table>
+  <tr><th>Art</th><th>Worauf achten</th></tr>
+  <tr><td>Touch-Monitore (plus ein kleiner PC)</td><td>43 bis 98 Zoll, 4K für einen großen Bildschirm, den man aus der Nähe sieht; die <a href="https://community.home-assistant.io/t/creating-a-large-home-assistant-display-instructions/943122">Anleitung für große Displays</a> eines Mitglieds der Home-Assistant-Community (englisch) geht einen solchen Aufbau durch. Open-Frame-Modelle (ohne Rückgehäuse) eignen sich für den Einbau in eine Wand.</td></tr>
+  <tr><td>Android-All-in-Ones</td><td>43 und 55 Zoll sind verbreitet. Prüf, ob ein vollwertiger Browser oder ein Kiosk-Browser darauf läuft und ob der Touch infrarot oder kapazitiv ist.</td></tr>
+  <tr><td>Touch-Rahmen für Fernseher</td><td>Infrarot-Rahmen gibt es für Fernseher von 32 bis 98 Zoll. Prüf, ob der Rahmen den Computer unterstützt, den du anschließt: Manche laufen nur unter Windows.</td></tr>
+</table>
+
+<h2>Das Wanddisplay in PadSpan einrichten</h2>
+<p>Wenn du vorher eines sehen willst: <a href="/demo/?page=atlas3d&amp;kiosk=1&amp;hl=de">Die Demo öffnet sich auch als Wanddisplay</a>. Stell den Browser auf Vollbild, dann wirkt es wie echt.</p>
+<figure>
+  <a href="/demo/media/estate-wall-3d-4k.jpg"><img src="/demo/media/estate-wall-3d.jpg" width="1920" height="1080" alt="Das Erdgeschoss des Demo-Hauses in 3D als Wanddisplay, mit den Räumen, Lichtern, Personen und dem Tracker eines Gastes" loading="lazy"></a>
+  <figcaption>Das Demo-Haus als Wanddisplay: das Erdgeschoss in Live Aboard (PadSpan Pro), oben die Leiste mit allen, die zu Hause sind, und wo sich etwas bewegt. Tipp auf das Bild für die 4K-Version.</figcaption>
+</figure>
+<ul>
+  <li><b>Die Wandansicht.</b> Öffne den Atlas als <code>/padspan-lights?kiosk=1</code>: Das ganze Haus passt auf den Bildschirm, und die Bedienelemente über der Karte blenden sich 30 Sekunden nach der letzten Berührung aus. Der Wandmodus braucht das neue Layout des Atlas und gehört zu PadSpan Pro. Die Hauptseite des PadSpan-Panels hat außerdem einen kostenlosen Link <code>?kiosk=1</code>: Er blendet PadSpans Menü aus; die Größenanpassung, das Ausblenden, das Wachhalten und das Dimmen gehören zum Wanddisplay von Pro.</li>
+  <li><b>Ein Link pro Bildschirm.</b> Jede Wand kann ihre eigene Größe haben, zum Beispiel <code>/padspan-lights?kiosk=1&amp;wall_in=55&amp;wall_m=2.5</code> für einen 55-Zoll-Bildschirm, den man aus 2,5 Metern sieht.</li>
+  <li><b>Schonend für den Bildschirm.</b> Die Seite hält den Bildschirm wach, solange sie offen ist (wenn Home Assistant über HTTPS erreichbar ist). Du kannst ihn zwischen Sonnenuntergang und Sonnenaufgang dimmen, und ein optionaler Einbrennschutz verschiebt das Bild alle drei Minuten um zwei Pixel, für OLED und Plasma.</li>
+  <li><b>Auf Tablets mit Fully Kiosk.</b> Mit einer Lizenz für Fully PLUS, eingeschalteter Option für Fully Kiosk und eingeschaltetem JavaScript Interface von Fully dreht die Nachtdimmung die Helligkeit des Bildschirms selbst herunter, und mit der Motion Detection von Fully (dafür braucht es eine Frontkamera) wacht er auf, wenn jemand davortritt.</li>
+</ul>
+<p>Der <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.166/docs/WALL_SCREEN_GUIDE.md">Wall Screen Guide</a> (englisch) hat jede Einstellung. PadSpans Menüs und Einstellungen sind auf Englisch, deshalb stehen ihre Namen hier so, wie du sie im Panel siehst.</p>
+
+<h2>Für Hersteller: Lasst euren Bildschirm testen</h2>
+<p>Wir testen Touchscreens ab 37 Zoll. Schickt uns den, den ihr im belebtesten Teil eines Hauses an die Wand hängen würdet, in der Küche, im Eingangsbereich oder im Wohnzimmer, und wir testen ihn mit PadSpan. Bildschirme, die bestehen, kommen auf eine Liste der mit PadSpan getesteten Bildschirme, in dieser Anleitung und in unserem Marketing. Schreibt an <a href="mailto:hello@traks.ca">hello@traks.ca</a>, um das zu vereinbaren. Besteht einer nicht, sagen wir euch, warum, und veröffentlichen nichts. Bei jedem Eintrag steht, dass das Gerät vom Hersteller kam. Was wir prüfen:</p>
+<ul>
+  <li>PadSpans Wanddisplay füllt den Bildschirm quer und hochkant, und der Browser des Bildschirms läuft in seiner nativen Auflösung.</li>
+  <li>Tippen, Ziehen und Zoomen mit zwei Fingern auf dem Atlas und in der 3D-Ansicht landen dort, wo sie sollen, ohne verpasste oder Geisterberührungen (das erste Tippen auf ein ausgeblendetes Wanddisplay holt nur seine Bedienelemente zurück, so gewollt).</li>
+  <li>Schrift, die für den Bildschirm und seinen Betrachtungsabstand bemessen ist, ist quer durch den Raum lesbar.</li>
+  <li>Eine Woche unbeaufsichtigt an der Wand: Der Bildschirm bleibt wach (über HTTPS oder durch seine eigene Einstellung), schaltet sich nach einem Stromausfall selbst wieder ein und öffnet PadSpan, und er fängt sich nach einem Neustart von Home Assistant wieder.</li>
+  <li>Die Nachtdimmung funktioniert und dreht in Fully Kiosk die Helligkeit des Bildschirms selbst herunter.</li>
+  <li>Die 3D-Ansicht hält bei der Qualität Auto eine gleichmäßige Bildrate (die Bildratenanzeige von Live Aboard), auf dem Android des Bildschirms selbst oder auf dem Computer, den ihr dazu empfehlt.</li>
+</ul>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/?hl=de">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · Produktnamen gehören ihren Herstellern; PadSpan ist mit ihnen nicht verbunden.</p>
+</div></footer>
+</body>
+</html>
