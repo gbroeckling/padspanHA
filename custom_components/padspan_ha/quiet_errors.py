@@ -373,6 +373,7 @@ setup:entry_rain_wet
 setup:entry_update_check
 setup:entry_vacation
 setup:entry_wled_exact
+setup:entry_zigbee_twins
 setup:feeds_bluetooth
 setup:feeds_espresense
 setup:feeds_tags
@@ -400,6 +401,7 @@ setup:unload_update_check
 setup:unload_vacation
 setup:unload_vacuum
 setup:unload_wled_exact
+setup:unload_zigbee_twins
 setup_checks:setup_phones
 setup_checks:setup_tips
 snapshot:ad_enrichment
@@ -724,4 +726,6 @@ ws_settings:set_toggle_entities
 ws_vacuum:import_preview
 ws_wled:run
 ws_wled:run_ended
+zigbee_twins:notify
+zigbee_twins:read
 """.split())

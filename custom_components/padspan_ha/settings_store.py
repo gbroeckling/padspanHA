@@ -91,6 +91,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view
     "locate_self_key": "",     # which tracked object's position is "you", for the Locate tab's wayfinding
     "flood_latches": {},       # {binary_sensor entity_id: {triggered_at, expires_at}} — flood_latch.py owns writes
+    "zigbee_twins_told": [],   # backend-only: the Zigbee devices in two integrations the admin was told about, once each (zigbee_twins.py)
     "scanner_offsets": {},     # {source_name: offset_dBm} — manual per-scanner RSSI trim
     # Sources masked out of positioning (issue #59). A MASK, never a delete:
     # stored calibration samples, positions and registry entries are untouched,

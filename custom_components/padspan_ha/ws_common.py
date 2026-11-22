@@ -245,6 +245,13 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     out["tier"] = _eff(st.data, bool(state["active"]))
     out["tier_floor"] = _floor
     out["edition"] = _edition()
+    # The same Zigbee device in two integrations (zigbee_twins.py): which copy
+    # the panel's lists leave out, for a caller only. Which pairs were told is
+    # the backend's own.
+    out.pop("zigbee_twins_told", None)
+    if connection is not None:
+        from .zigbee_twins import panel_twins as _twins  # noqa: PLC0415
+        out["zigbee_twins"] = _twins(hass)
     return out
 
 
