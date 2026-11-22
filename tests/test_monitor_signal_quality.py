@@ -37,6 +37,8 @@ def _run(tmp_path: Path, ads: list[dict]) -> dict:
     src = (_VIEWS / "monitor.js").read_text(encoding="utf-8")
     (tmp_path / "monitor.mjs").write_text(src, encoding="utf-8")
     (tmp_path / "device_name.js").write_text((_VIEWS / "device_name.js").read_text(encoding="utf-8"), encoding="utf-8")
+    # device_name.js says its lines through views/i18n.js (English with nothing loaded).
+    (tmp_path / "i18n.js").write_text((_VIEWS / "i18n.js").read_text(encoding="utf-8"), encoding="utf-8")
     script = (
         "import { _scannerQuality, _qualityGrade } from './monitor.mjs';\n"
         f"const ADS = {json.dumps(ads)};\n"

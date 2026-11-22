@@ -342,6 +342,8 @@ _NODE = shutil.which("node")
 def test_diag_export_cuts_the_long_lists_but_keeps_every_own_object(tmp_path: Path):
     (tmp_path / "monitor.mjs").write_text((_VIEWS / "monitor.js").read_text(encoding="utf-8"), encoding="utf-8")
     (tmp_path / "device_name.js").write_text((_VIEWS / "device_name.js").read_text(encoding="utf-8"), encoding="utf-8")
+    # device_name.js says its lines through views/i18n.js (English with nothing loaded).
+    (tmp_path / "i18n.js").write_text((_VIEWS / "i18n.js").read_text(encoding="utf-8"), encoding="utf-8")
     objs = [{"key": f"k{i}", "kind": "ble"} for i in range(5000)]
     objs[4000]["user_label"] = "Keys"
     objs[4500]["identified"] = True
