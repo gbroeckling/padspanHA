@@ -7,6 +7,10 @@
 // Manual: auto-generated from HELP dict in help_content.js + supplement content
 // Auto-update: manual sections read HELP at render time — update help_content.js = manual updates too
 
+// Its words in the panel's language (views/i18n.js; English is the key). The lists below (walkthroughs,
+// Quick Start, Full Manual) hold getters, read at render time.
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+
 // ─── Animated SVG Builders ────────────────────────────────────────────────────
 
 function _svgBleSignals() {
@@ -2066,13 +2070,13 @@ export function render(ctx) {
 
   // ── Page header ────────────────────────────────────────────────────────────
   const header = el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap" });
-  header.appendChild(el("div", { style: "font-size:20px;font-weight:700;color:#52b788" }, "Training Hub"));
-  header.appendChild(el("div", { class: "muted", style: "font-size:13px" }, "Walkthroughs, animated guides, and the full PadSpan manual."));
+  header.appendChild(el("div", { style: "font-size:20px;font-weight:700;color:#52b788" }, t("Training Hub")));
+  header.appendChild(el("div", { class: "muted", style: "font-size:13px" }, t("Walkthroughs, animated guides, and the full PadSpan manual.")));
   root.appendChild(header);
 
   // ── Tab bar ────────────────────────────────────────────────────────────────
   const tabBar = el("div", { style: "display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid #1b3526;padding-bottom:10px;flex-wrap:wrap" });
-  for (const [id, label, icon] of [["walkthroughs","Walkthroughs","📡"],["quickstart","Quick Start","🗒️"],["manual","Full Manual","📖"]]) {
+  for (const [id, label, icon] of [["walkthroughs",t("Walkthroughs"),"📡"],["quickstart",t("Quick Start"),"🗒️"],["manual",t("Full Manual"),"📖"]]) {
     const active = ts.tab === id;
     const btn = el("button", {
       class: "btn inline" + (active ? " on" : ""),
@@ -2103,7 +2107,7 @@ function _renderWalkthroughs(ctx, el, ts) {
   if (!ts.walkId) {
     // ── Walkthrough selector grid ────────────────────────────────────────────
     wrap.appendChild(el("div", { class: "muted", style: "font-size:13px;margin-bottom:14px" },
-      "Choose a topic to get started. Each walkthrough is step-by-step with animated diagrams."));
+      t("Choose a topic to get started. Each walkthrough is step-by-step with animated diagrams.")));
     _helpNote(ctx, el, wrap);
     const grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px" });
     for (const wt of WALKTHROUGHS) {
@@ -2116,7 +2120,7 @@ function _renderWalkthroughs(ctx, el, ts) {
       card.appendChild(el("div", { style: "font-size:26px;margin-bottom:8px" }, wt.icon));
       card.appendChild(el("div", { style: "font-size:14px;font-weight:600;color:#cbd5e1;margin-bottom:6px" }, wt.title));
       card.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.5" }, wt.summary));
-      card.appendChild(el("div", { style: "margin-top:10px;font-size:11px;color:#52b788" }, `${wt.steps.length} steps →`));
+      card.appendChild(el("div", { style: "margin-top:10px;font-size:11px;color:#52b788" }, tn(wt.steps.length, "{n} step →", "{n} steps →")));
       grid.appendChild(card);
     }
     wrap.appendChild(grid);
@@ -2131,7 +2135,7 @@ function _renderWalkthroughs(ctx, el, ts) {
 
   // Back button
   const backBtn = el("button", { class: "btn inline", style: "margin-bottom:14px", onclick: () => { ts.walkId = null; ctx.actions.renderRooms(); } },
-    "← All Walkthroughs");
+    t("← All Walkthroughs"));
   wrap.appendChild(backBtn);
 
   const card = el("div", { class: "card", style: "max-width:700px" });
@@ -2141,7 +2145,7 @@ function _renderWalkthroughs(ctx, el, ts) {
   cardHeader.appendChild(el("span", { style: "font-size:22px" }, wt.icon));
   const hgroup = el("div", {});
   hgroup.appendChild(el("div", { style: "font-size:15px;font-weight:700;color:#cbd5e1" }, wt.title));
-  hgroup.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:2px" }, `Step ${ts.walkStep + 1} of ${stepCount}`));
+  hgroup.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:2px" }, t("Step {n} of {total}", { n: ts.walkStep + 1, total: stepCount })));
   cardHeader.appendChild(hgroup);
   card.appendChild(cardHeader);
 
@@ -2161,7 +2165,7 @@ function _renderWalkthroughs(ctx, el, ts) {
 
   const prevBtn = el("button", { class: "btn inline" + (ts.walkStep === 0 ? " disabled" : ""), onclick: () => {
     if (ts.walkStep > 0) { ts.walkStep--; ctx.actions.renderRooms(); }
-  }}, "← Previous");
+  }}, t("← Previous"));
   if (ts.walkStep === 0) prevBtn.disabled = true;
   navRow.appendChild(prevBtn);
 
@@ -2177,9 +2181,9 @@ function _renderWalkthroughs(ctx, el, ts) {
   navRow.appendChild(dots);
 
   if (ts.walkStep < stepCount - 1) {
-    navRow.appendChild(el("button", { class: "btn", onclick: () => { ts.walkStep++; ctx.actions.renderRooms(); } }, "Next →"));
+    navRow.appendChild(el("button", { class: "btn", onclick: () => { ts.walkStep++; ctx.actions.renderRooms(); } }, t("Next →")));
   } else {
-    navRow.appendChild(el("button", { class: "btn", style: "border-color:#52b788", onclick: () => { ts.walkId = null; ts.walkStep = 0; ctx.actions.renderRooms(); } }, "Done ✓"));
+    navRow.appendChild(el("button", { class: "btn", style: "border-color:#52b788", onclick: () => { ts.walkId = null; ts.walkStep = 0; ctx.actions.renderRooms(); } }, t("Done ✓")));
   }
 
   card.appendChild(navRow);
@@ -2192,93 +2196,93 @@ function _renderWalkthroughs(ctx, el, ts) {
 const QUICKSTART_SECTIONS = [
   {
     id: "qs_intro",
-    title: "What is PadSpan™ HA?",
+    title: () => t("What is PadSpan™ HA?"),
     icon: "🏠",
-    paragraphs: [
-      "PadSpan™ HA tells you which room each person or thing is in, using the Bluetooth receivers Home Assistant already has (ESPHome Bluetooth proxies, Shelly devices, or the Home Assistant machine's own Bluetooth).",
-      "Plain presence detection knows home or away; PadSpan knows the room, checks again every 5 seconds by default, and shows it on a live map. Everything runs locally inside Home Assistant.",
+    paragraphs: () => [
+      t("PadSpan™ HA tells you which room each person or thing is in, using the Bluetooth receivers Home Assistant already has (ESPHome Bluetooth proxies, Shelly devices, or the Home Assistant machine's own Bluetooth)."),
+      t("Plain presence detection knows home or away; PadSpan knows the room, checks again every 5 seconds by default, and shows it on a live map. Everything runs locally inside Home Assistant."),
     ],
   },
   {
     id: "qs_getting_started",
-    title: "Getting Started",
+    title: () => t("Getting Started"),
     icon: "🚀",
     helpKeys: ["getting_started"],
-    paragraphs: [
-      "Not installed yet? Add PadSpan HA from Settings → Marketplace (Home Assistant 2026.11 and newer), or through HACS on older versions and then restart Home Assistant fully.",
+    paragraphs: () => [
+      t("Not installed yet? Add PadSpan HA from Settings → Marketplace (Home Assistant 2026.11 and newer), or through HACS on older versions and then restart Home Assistant fully."),
     ],
   },
   {
     id: "qs_follow",
-    title: "Follow",
+    title: () => t("Follow"),
     icon: "🎯",
     helpKeys: ["follow", "follow_selector", "follow_map", "follow_alerts"],
   },
   {
     id: "qs_overview",
-    title: "Overview",
+    title: () => t("Overview"),
     icon: "📋",
     helpKeys: ["overview", "overview_grid"],
   },
   {
     id: "qs_maps",
-    title: "Mapping",
+    title: () => t("Mapping"),
     icon: "🗺️",
     helpKeys: ["maps", "maps_wizard", "maps_edit", "lights_build_controls"],
   },
   {
     id: "qs_settings",
-    title: "Settings",
+    title: () => t("Settings"),
     icon: "⚙️",
-    paragraphs: [
-      "Settings is in the menu in every mode. Basic shows the Appearance settings, with buttons for the usage report and guest tags; Advanced and Development mode have these tabs:",
-      "Appearance — room colours, Panel Style, Theme and 2D Map Mode. Floors come from Home Assistant (shown as \"Floor (HA)\" beside each room): add or change them in HA Settings → Areas, labels & zones.",
-      "Scanner Map — where PadSpan estimates each scanner is, from your calibration points. Clear one map's calibration points here if you need to start that map again.",
-      "Tracking — Room Change Delay (how long before PadSpan confirms a room switch), Home/Away Timeout (how long before a missing device is marked away), guest tags, Phone Tracking (Private BLE) for an iPhone's or Apple Watch's IRK, positioning, receivers, performance and privacy.",
-      "Features — your PadSpan licence, the experimental switches and Forensics.",
-      "AI — the Home Assistant AI Task PadSpan can use to read photos and floor plans.",
-      "Atlas — the Atlas in the sidebar, Live Aboard, wall screens and the Atlas as Overview.",
-      "UI Structure — choose which extra tabs appear in the main menu in Advanced and Development mode instead of under More tools.",
-      "Quiet Mode — switched with the Quiet tick at the top of Overview. Hides unidentified devices to reduce clutter, so only tagged and followed ones show.",
+    paragraphs: () => [
+      t("Settings is in the menu in every mode. Basic shows the Appearance settings, with buttons for the usage report and guest tags; Advanced and Development mode have these tabs:"),
+      t("Appearance — room colours, Panel Style, Theme and 2D Map Mode. Floors come from Home Assistant (shown as \"Floor (HA)\" beside each room): add or change them in HA Settings → Areas, labels & zones."),
+      t("Scanner Map — where PadSpan estimates each scanner is, from your calibration points. Clear one map's calibration points here if you need to start that map again."),
+      t("Tracking — Room Change Delay (how long before PadSpan confirms a room switch), Home/Away Timeout (how long before a missing device is marked away), guest tags, Phone Tracking (Private BLE) for an iPhone's or Apple Watch's IRK, positioning, receivers, performance and privacy."),
+      t("Features — your PadSpan licence, the experimental switches and Forensics."),
+      t("AI — the Home Assistant AI Task PadSpan can use to read photos and floor plans."),
+      t("Atlas — the Atlas in the sidebar, Live Aboard, wall screens and the Atlas as Overview."),
+      t("UI Structure — choose which extra tabs appear in the main menu in Advanced and Development mode instead of under More tools."),
+      t("Quiet Mode — switched with the Quiet tick at the top of Overview. Hides unidentified devices to reduce clutter, so only tagged and followed ones show."),
     ],
   },
   {
     id: "qs_manage",
-    title: "Manage",
+    title: () => t("Manage"),
     icon: "🔧",
-    paragraphs: [
-      "Manage is in the main menu in Advanced and Development mode, and under More tools in Basic.",
-      "Data — remove device names (BLE Device Labels → \"Untag\"), clean up orphan room shapes and phantom entries, delete Home Assistant entities, areas or maps, Backup & Restore, and reload the integration. Live mode only.",
-      "HA Entities — which entities PadSpan creates, and the MQTT, ESPresense (with the ESPresense Companion import) and Tasmota connections.",
-      "Beacon Characteristics — a report of how each beacon reads.",
-      "History — opens History → Movement, the saved room changes.",
-      "Events — email and phone alerts for room changes, and a button that opens History → Movement.",
-      "Logs — PadSpan's recent log messages, for troubleshooting.",
-      "Factory Reset — erase everything PadSpan stored and start again (your licence key is kept).",
+    paragraphs: () => [
+      t("Manage is in the main menu in Advanced and Development mode, and under More tools in Basic."),
+      t("Data — remove device names (BLE Device Labels → \"Untag\"), clean up orphan room shapes and phantom entries, delete Home Assistant entities, areas or maps, Backup & Restore, and reload the integration. Live mode only."),
+      t("HA Entities — which entities PadSpan creates, and the MQTT, ESPresense (with the ESPresense Companion import) and Tasmota connections."),
+      t("Beacon Characteristics — a report of how each beacon reads."),
+      t("History — opens History → Movement, the saved room changes."),
+      t("Events — email and phone alerts for room changes, and a button that opens History → Movement."),
+      t("Logs — PadSpan's recent log messages, for troubleshooting."),
+      t("Factory Reset — erase everything PadSpan stored and start again (your licence key is kept)."),
     ],
   },
   {
     id: "qs_calibration",
-    title: "Calibration",
+    title: () => t("Calibration"),
     icon: "📐",
-    paragraphs: [
-      "Calibration teaches PadSpan what each spot in your house sounds like, so it puts people in the right room. It is in the main menu in every mode and opens on Results: how accurate it is now, room by room, and the next best thing to do.",
-      "To start, press \"🧭 Guided calibration\". It checks your receiver positions (Tune), asks which phone or tag you'll carry and which floor (Beacon and floor), walks you from spot to spot (Roam), then works out the accuracy (Model). The floor plan needs a scale first.",
-      "At each spot, stand still for the \"Collection Duration\" (15 s to start with, 60 s recommended). Aim for 10–20 spots spread across each floor.",
-      "Pin & Listen lets you pick the spots yourself, and Beacon Tune pins beacons that stay in one place so they keep calibrating on their own. Each tab's ? explains more.",
+    paragraphs: () => [
+      t("Calibration teaches PadSpan what each spot in your house sounds like, so it puts people in the right room. It is in the main menu in every mode and opens on Results: how accurate it is now, room by room, and the next best thing to do."),
+      t("To start, press \"🧭 Guided calibration\". It checks your receiver positions (Tune), asks which phone or tag you'll carry and which floor (Beacon and floor), walks you from spot to spot (Roam), then works out the accuracy (Model). The floor plan needs a scale first."),
+      t("At each spot, stand still for the \"Collection Duration\" (15 s to start with, 60 s recommended). Aim for 10–20 spots spread across each floor."),
+      t("Pin & Listen lets you pick the spots yourself, and Beacon Tune pins beacons that stay in one place so they keep calibrating on their own. Each tab's ? explains more."),
     ],
   },
   {
     id: "qs_training",
-    title: "Training Hub",
+    title: () => t("Training Hub"),
     icon: "🎓",
-    paragraphs: [
-      "You're here! The Training Hub has animated step-by-step walkthroughs for major features (like BLE signal propagation and room detection). The Full Manual tab contains the complete reference for every PadSpan tab and feature.",
+    paragraphs: () => [
+      t("You're here! The Training Hub has animated step-by-step walkthroughs for major features (like BLE signal propagation and room detection). The Full Manual tab contains the complete reference for every PadSpan tab and feature."),
     ],
   },
   {
     id: "qs_modes",
-    title: "Basic / Advanced / Development, Live / Sample",
+    title: () => t("Basic / Advanced / Development, Live / Sample"),
     icon: "⚡",
     helpKeys: ["complexity_mode", "data_mode"],
   },
@@ -2295,7 +2299,7 @@ function _renderQuickStart(ctx, el, ts, HELP) {
   const wrap = el("div", {});
 
   wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:16px;line-height:1.6" },
-    "A simplified guide covering the tabs visible in Advanced mode. For the complete reference, switch to the Full Manual tab."));
+    t("A simplified guide covering the tabs visible in Advanced mode. For the complete reference, switch to the Full Manual tab.")));
   _helpNote(ctx, el, wrap);
 
   for (const section of QUICKSTART_SECTIONS) {
@@ -2315,7 +2319,7 @@ function _renderQuickStart(ctx, el, ts, HELP) {
       },
     });
     headerBtn.appendChild(el("span", { style: "font-size:16px" }, section.icon));
-    headerBtn.appendChild(el("span", { style: "font-size:13px;font-weight:600;color:#cbd5e1;flex:1" }, section.title));
+    headerBtn.appendChild(el("span", { style: "font-size:13px;font-weight:600;color:#cbd5e1;flex:1" }, section.title()));
     headerBtn.appendChild(el("span", { style: "font-size:12px;color:#4a6052" }, isOpen ? "▲" : "▼"));
     sectionEl.appendChild(headerBtn);
 
@@ -2334,8 +2338,9 @@ function _renderQuickStart(ctx, el, ts, HELP) {
         }
       }
 
-      if (section.paragraphs && section.paragraphs.length) {
-        for (const p of section.paragraphs) {
+      const paragraphs = section.paragraphs ? section.paragraphs() : [];
+      if (paragraphs.length) {
+        for (const p of paragraphs) {
           body.appendChild(el("div", { style: "font-size:13px;line-height:1.75;color:#94a3b8;margin-bottom:8px" }, p));
         }
       }
@@ -2355,7 +2360,7 @@ function _renderManual(ctx, el, ts, HELP) {
   const wrap = el("div", {});
 
   wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:16px;line-height:1.6" },
-    "This manual is generated automatically from PadSpan's help content. When a new feature is added and its help text is updated, it appears here without any manual editing."));
+    t("This manual is generated automatically from PadSpan's help content. When a new feature is added and its help text is updated, it appears here without any manual editing.")));
   _helpNote(ctx, el, wrap);
 
   for (const section of MANUAL_SECTIONS) {
@@ -2412,7 +2417,7 @@ function _renderManual(ctx, el, ts, HELP) {
   // Footer note
   const footer = el("div", { style: "margin-top:20px;padding:12px;background:#050e08;border:1px solid #1b3526;border-radius:8px" });
   footer.appendChild(el("div", { style: "font-size:11px;color:#4a6052;line-height:1.6" },
-    "Manual version: auto-generated from help_content.js. Content marked with a feature section heading reflects the current help text for that tab. To contribute corrections or additions, update help_content.js in the PadSpan HA source."));
+    t("Manual version: auto-generated from help_content.js. Content marked with a feature section heading reflects the current help text for that tab. To contribute corrections or additions, update help_content.js in the PadSpan HA source.")));
   wrap.appendChild(footer);
 
   return wrap;
