@@ -753,6 +753,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _quiet_error("setup:entry_emergency_test")
         _LOGGER.debug("Emergency test listener setup failed: %s", err)
 
+    # The same Zigbee device in ZHA and Zigbee2MQTT: noticed when a copy
+    # appears, from the device registry's own events (zigbee_twins.py).
+    try:
+        from .zigbee_twins import async_setup_zigbee_twins
+        async_setup_zigbee_twins(hass)
+    except Exception as err:
+        _quiet_error("setup:entry_zigbee_twins")
+        _LOGGER.debug("Zigbee duplicates listener setup failed: %s", err)
+
     # Live Aboard: a person deleted in Home Assistant takes their figure
     # along (house3d_people.py) — nothing at all for a house with no Live
     # Aboard file.
@@ -951,6 +960,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _quiet_error("setup:unload_house3d_people")
         _LOGGER.debug("Live Aboard people listener teardown error: %s", err)
+    try:
+        from .zigbee_twins import async_stop_zigbee_twins
+        async_stop_zigbee_twins(hass)
+    except Exception as err:
+        _quiet_error("setup:unload_zigbee_twins")
+        _LOGGER.debug("Zigbee duplicates listener teardown error: %s", err)
 
     # Stop reading a linked robot vacuum
     try:

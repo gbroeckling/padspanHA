@@ -95,6 +95,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # one when it clears, where Follow alerts go (flood_latch.py). On by
     # default (2026-11-22, owner). Settings → Atlas → Atlas — Mapped Light Control.
     "emergency_notify": True,
+    "zigbee_twins_told": [],   # backend-only: the Zigbee devices in two integrations the admin was told about, once each (zigbee_twins.py)
     "scanner_offsets": {},     # {source_name: offset_dBm} — manual per-scanner RSSI trim
     # Sources masked out of positioning (issue #59). A MASK, never a delete:
     # stored calibration samples, positions and registry entries are untouched,

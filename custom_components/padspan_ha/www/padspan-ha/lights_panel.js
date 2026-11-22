@@ -30,7 +30,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn } =
+        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates } =
   await import(`./views/lights_map.js${STAMP}`);
 // Escape, Tab and the focus for the emergency card and the page drawn again
 // (views/dialog_keys.js). Optional: without it they work as they did.
@@ -474,6 +474,8 @@ class PadSpanLightsApp extends HTMLElement {
       // event listener writes this server-side; ungated, same reasoning as
       // the tier read above (a flood alarm isn't a paid convenience).
       this.state._floodLatches = (s.flood_latches && typeof s.flood_latches === "object") ? s.flood_latches : {};
+      // The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.py): which copy the map leaves out.
+      this.state._zigbeeTwins = s.zigbee_twins || null;
       // The effective tier the backend computed (licence.py). Below `bright`
       // the shared pipeline draws the free map — see lights_map.js. A settings
       // fetch that failed keeps the tier it last knew rather than flickering
@@ -979,8 +981,12 @@ class PadSpanLightsApp extends HTMLElement {
     // Which WLED lights PadSpan runs (exact look): taps, the room sheet and
     // Whole House Presets route them through padspan_ha/wled_power.
     ensureExactDevices(this._hass, ()=>this._render());
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects,
-      new Set((this.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean)));
+    const linkedNow = new Set((this.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
+    const placedNow = this.state.model?.light_positions_m || {};
+    const gathered = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects,
+      linkedNow);
+    // A Zigbee device's duplicate copy stays off the map unless it is placed or linked (lights_map.js).
+    const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gathered, { zigbee_twins: this.state._zigbeeTwins }, (eid) => !!placedNow[eid] || linkedNow.has(eid));
 
     if(!lights.length){
       parts.push(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
@@ -1421,6 +1427,7 @@ class PadSpanLightsApp extends HTMLElement {
       onTableSort: (next)=>{ this.state._tableSort=next; this._render(); },
       tableHealthFilter: !!this.state._tableHealthFilter,
       onTableHealthFilter: (on)=>{ this.state._tableHealthFilter=on; this._render(); },
+      zigbeeTwins,
       floodLatches: this.state._floodLatches || {},
       onFloodReset: (eid)=>{
         this._ws({ type: "padspan_ha/flood_reset", entity_id: eid })

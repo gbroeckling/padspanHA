@@ -355,8 +355,10 @@ installStubGL();
 const LA = await import(pathToFileURL(join(WWW, "views", "live_aboard.js")).href);
 const settle = async (rounds = 12) => { await shim.flush(rounds); await new Promise(r => globalThis._realSetTimeout(r, 0)); };
 let clockOff = 0;
-const realNow = performance.now.bind(performance);
-performance.now = () => realNow() + clockOff;
+// The frames' clock is this harness's own: it moves only when a case moves it (clockOff), never with how
+// fast this machine runs (a machine busy with the whole suite read as a slow screen; live_aboard_view.mjs).
+const clockAt = performance.now();
+performance.now = () => clockAt + clockOff;
 const shimRaf = globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
 const pendingFrames = () => shim.rafQueue.filter(Boolean).length;

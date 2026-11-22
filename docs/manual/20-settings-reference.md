@@ -338,6 +338,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `server_offers` | empty |  | Which free-Pro offers the update check last said are on. |
 | `flood_latches` | empty |  | Leak alarms the Atlas keeps showing until cleared. |
 | `atlas_weather_rain_wet_since` | 0 |  | When the Outdoor weather rain sensor last turned wet, so one stuck on wet for hours is ignored. |
+| `zigbee_twins_told` | empty |  | The Zigbee devices in two integrations you were told about, once each. |
 | `lights_showcase_seen` | off |  | Showcase has been on here. |
 | `wled_teams` | empty |  | WLED devices that act as one light. |
 | `power_teams_woke` | empty |  | Each power team's last wake-up day, so a restart never wakes it twice. |

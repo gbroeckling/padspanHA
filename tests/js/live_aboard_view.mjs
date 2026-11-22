@@ -114,10 +114,15 @@ await tryCase("release: over several off/on cycles the counts stay flat", async 
 
 // ── frames ──────────────────────────────────────────────────────────────────
 // The browser hands each frame its time; the shim's queue is driven here, on
-// a clock the cases can move on.
+// a clock the cases move on, and only they: never with how fast this machine
+// runs. On the real clock plus the cases' offset, a busy machine (the whole
+// suite on every core) put a few hundred milliseconds of its own between two
+// frames of one round, and the view's frame-time check (live_aboard.js
+// MEASURE_*: the median frame against live_aboard_house.js SLOW_MS, 67 ms)
+// took that for a slow screen and fell back to the flat Atlas mid-case.
 let clockOff = 0;
-const realNow = performance.now.bind(performance);
-performance.now = () => realNow() + clockOff;
+const clockAt = performance.now();
+performance.now = () => clockAt + clockOff;
 const shimRaf = globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
 const pendingFrames = () => shim.rafQueue.filter(Boolean).length;

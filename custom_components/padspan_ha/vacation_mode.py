@@ -621,6 +621,13 @@ def _eligible_entity_ids(hass: HomeAssistant) -> list[str]:
             drop |= follower_light_entities(hass, teams)
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Vacation mode: couldn't read WLED teams, switching every light: %s", err)
+    # The same Zigbee device in two integrations (zigbee_twins.py): only the kept copy (Zigbee2MQTT first) is
+    # switched; its duplicate never is, so one lamp is never driven twice.
+    try:
+        from .zigbee_twins import twins as _twins  # noqa: PLC0415
+        drop |= set(_twins(hass)["entities"])
+    except Exception:  # noqa: BLE001 — no registry to read: no duplicates known
+        _quiet_error("vacation_mode:eligible_twins")
     return [eid for eid in states if eid not in drop]
 
 

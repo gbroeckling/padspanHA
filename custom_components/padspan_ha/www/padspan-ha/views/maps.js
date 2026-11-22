@@ -35,8 +35,13 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, la3dCarryOpenings, peopleShownOn } =
+        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList, la3dCarryOpenings, peopleShownOn,
+        withoutZigbeeDuplicates } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
+// The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the sensor and lock
+// pickers here leave the duplicate copy out. Optional: missing, every copy is offered.
+const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).catch(() => null);
+const _noTwins = (ids, ctx, keep) => (TW ? TW.dropDuplicates(ids, ctx.state.settings, keep) : { ids, hidden: 0, via: "" });
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
@@ -3360,6 +3365,9 @@ function _edit(ctx, map, allMaps, opts){
           const candidates = Object.keys(states)
             .filter(eid => isDoorSensor({ entity_id: eid, device_class: states[eid].attributes?.device_class }))
             .sort((a,b) => (states[a].attributes?.friendly_name||a).localeCompare(states[b].attributes?.friendly_name||b));
+          // A Zigbee device's duplicate copy is left out, unless it is the one picked (zigbee_twins.js).
+          const twinsOut = _noTwins(candidates, ctx, [ctx.state.maps._doorMarkEntity]);
+          candidates.splice(0, candidates.length, ...twinsOut.ids);
           const entSel = document.createElement("select");
           entSel.className = "select";
           if(!candidates.length){
@@ -3380,6 +3388,7 @@ function _edit(ctx, map, allMaps, opts){
           panel.appendChild(el("div",{style:"margin-top:8px"},[
             el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, t("Linked sensor")),
             entSel,
+            TW && TW.hiddenNoteEl(twinsOut.hidden, twinsOut.via),
           ]));
 
           const dmMatSel = document.createElement("select");
@@ -10162,9 +10171,12 @@ function _lightsTab(ctx, maps, active) {
   const proTier = String(tier || "").toLowerCase() === "pro";
   const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
     ? ctx.state.settings.light_type_overrides : {};
-  const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
-    undefined, false, ctx.state._motionReconnects,
-    new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean)));
+  const linkedNow = new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
+  const placedNow = { ...((ctx.state.model || {}).light_positions_m || {}), ...(mapState._lightsDraftM || {}) };
+  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
+    undefined, false, ctx.state._motionReconnects, linkedNow);
+  // The same Zigbee device twice: its duplicate copy is left out unless it is placed or linked (lights_map.js).
+  const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gathered, ctx.state.settings, (eid) => !!placedNow[eid] || linkedNow.has(eid));
 
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away
@@ -10846,12 +10858,25 @@ function _lightsTab(ctx, maps, active) {
     // tell a garage-door relay from any other switch), locks are just every
     // lock.* entity in the house, no allowlist needed (lock.* already means
     // exactly one thing).
-    doorOpenerCandidates: ((ctx.state.settings && ctx.state.settings.door_opener_ids) || [])
-      .filter(eid => ctx.hass?.states?.[eid])
+    doorOpenerCandidates: _noTwins(((ctx.state.settings && ctx.state.settings.door_opener_ids) || [])
+      .filter(eid => ctx.hass?.states?.[eid]), ctx).ids
       .map(eid => ({ entity_id: eid, friendly_name: ctx.hass.states[eid].attributes?.friendly_name || eid })),
-    lockCandidates: Object.keys(ctx.hass?.states || {})
-      .filter(eid => eid.startsWith("lock."))
+    lockCandidates: _noTwins(Object.keys(ctx.hass?.states || {})
+      .filter(eid => eid.startsWith("lock.")), ctx).ids
       .map(eid => ({ entity_id: eid, friendly_name: ctx.hass.states[eid].attributes?.friendly_name || eid })),
+    // The same Zigbee device twice (lights_map.js withoutZigbeeDuplicates): how many copies the index leaves out,
+    // and the line on a copy still placed or linked, whose button moves it to the one PadSpan uses.
+    zigbeeTwins,
+    onUseTwin: paid && !preview && TW ? async (l, twin) => {
+      try {
+        const r = await TW.useTwin(ctx.actions.wsCall, l.entity_id, twin);
+        if (r && r.settings) ctx.state.settings = r.settings;
+        if (mapState._lightsDraftM) delete mapState._lightsDraftM[l.entity_id];
+        await ctx.actions.modelRefresh();
+        ctx.toast(TW ? TW.usedNow(ctx.hass?.states?.[twin]?.attributes?.friendly_name || twin) : twin);
+      } catch (e) { ctx.toast(TW ? TW.useFailed(ctx.helpers.errorText(e)) : ctx.helpers.errorText(e), true); }
+      ctx.actions.renderRooms();
+    } : null,
     onLinkDoorOpener: paid && !preview ? async (l, openerEid) => {
       const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
       if (!bar) { ctx.toast("That link no longer exists.", true); return; }

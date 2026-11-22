@@ -926,13 +926,22 @@ export function createEditor(ctx){
       const st = states[eid], dc = st && st.attributes ? st.attributes.device_class : null, dom = eid.split(".")[0];
       return dom === "cover" ? S2.coverIsDoor(st) : dom === "binary_sensor" && ["door", "garage_door", "opening", "window"].includes(dc);
     };
-    const eids = Object.keys(states).filter(ok).sort((p, q) => String((states[p].attributes || {}).friendly_name || p).localeCompare(String((states[q].attributes || {}).friendly_name || q)));
+    // A Zigbee device's duplicate copy is left out (host.twins, zigbee_twins.js), unless it is the one it follows.
+    const tw = host.twins || null, dup = (eid) => !!(tw && tw.duplicateOf(eid, host.settings3d));
+    const eids = Object.keys(states).filter(eid => ok(eid) && !dup(eid)).sort((p, q) => String((states[p].attributes || {}).friendly_name || p).localeCompare(String((states[q].attributes || {}).friendly_name || q)));
     if (cur.link && !eids.includes(cur.link)) eids.unshift(cur.link);
     for (const eid of eids) fsel.appendChild(opt(eid, `${(states[eid] && states[eid].attributes && states[eid].attributes.friendly_name) || eid}${eid.startsWith("cover.") ? " (moves it: follows where it is)" : ""}`));
     fsel.value = cur.link || "";
     fsel.addEventListener("change", guard(() => set({ link: fsel.value || null })));
     fl.append(d("span", null, "Follows"), fsel);
     sheet.appendChild(fl);
+    // Pressed: the kept sensor is what PadSpan uses everywhere (host.twinUse), and this draft follows it.
+    const was = cur.link;
+    const twin = cur.link && tw && tw.duplicateWarningEl(cur.link, host.settings3d, states, guard((use) => {
+      set({ link: use });
+      if (typeof host.twinUse === "function") Promise.resolve(host.twinUse(was, use)).then(() => { if (typeof ctx.reload === "function") ctx.reload(); }, () => {});
+    }));
+    if (twin) sheet.appendChild(twin);
     if (cur.link) sheet.appendChild(d("p", "la3d-sub", cur.link.startsWith("cover.")
       ? "It follows where the door is. A tap shows its card; hold for its controls. It never moves on a tap."
       : "It opens and shuts with that sensor."));

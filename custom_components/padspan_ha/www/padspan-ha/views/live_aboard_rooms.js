@@ -54,14 +54,16 @@ export function roomChipGroups(floors){
  *  the area named as the room, as roomScenes reads it) that the panel doesn't
  *  list already: [{eid, name, state}], by name. Not scenes and scripts (the
  *  panel's own buttons), not hidden, disabled, config or diagnostic entities,
- *  and nothing Home Assistant no longer has. shown: the eids listed above it. */
-export function areaExtras(hass, room, shown){
+ *  and nothing Home Assistant no longer has. shown: the eids listed above it.
+ *  settings: the panel's; a Zigbee device's duplicate copy (its zigbee_twins) is not listed. */
+export function areaExtras(hass, room, shown, settings){
   const ents = (hass && hass.entities) || {}, devs = (hass && hass.devices) || {}, areas = (hass && hass.areas) || {};
   const states = (hass && hass.states) || {}, want = String(room || "").trim().toLowerCase(), skip = new Set(shown || []);
+  const twins = (settings && settings.zigbee_twins && settings.zigbee_twins.entities) || {};
   if (!want) return [];
   const out = [];
   for (const [eid, e] of Object.entries(ents)) {
-    if (!e || skip.has(eid) || /^(scene|script)\./.test(eid) || e.hidden || e.hidden_by || e.disabled_by || e.entity_category) continue;
+    if (!e || skip.has(eid) || twins[eid] || /^(scene|script)\./.test(eid) || e.hidden || e.hidden_by || e.disabled_by || e.entity_category) continue;
     const aid = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id) || null;
     const area = aid && areas[aid];
     if (!area || String(area.name || "").trim().toLowerCase() !== want) continue;

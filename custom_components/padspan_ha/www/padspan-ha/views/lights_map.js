@@ -82,6 +82,10 @@ const TEAM = await import(`./power_team_card.js${new URL(import.meta.url).search
   .catch(err => { console.warn("PadSpan: power_team_card failed to load", err); return null; });
 const _teamOf = (states, eid) => (TEAM ? TEAM.teamOf(states, eid) : null);
 const _track = (hass, word) => { try { Promise.resolve(hass.callWS({ type: "padspan_ha/telemetry_event", event: word })).catch(() => {}); } catch (_) { /* no report */ } };
+// The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the duplicate copy
+// stays off the map and out of the index unless it is placed. Optional, as the others are.
+const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: zigbee_twins failed to load", err); return null; });
 // The scene row under the map and in Live Aboard (scene_row.js). Optional:
 // missing, the map is as it always was, with no row.
 const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
@@ -1962,7 +1966,8 @@ export function vacationOptionsOf(s) {
            anchors: Array.isArray(s.vacation_mode_anchors) ? s.vacation_mode_anchors.slice() : [],
            source: s.vacation_mode_source === "month" ? "month" : "last_week",
            running: !!s.vacation_mode_enabled,
-           trip_source: s.vacation_mode_trip_source === "last_week" ? "last_week" : "month" };
+           trip_source: s.vacation_mode_trip_source === "last_week" ? "last_week" : "month",
+           zigbee_twins: s.zigbee_twins || null };   // the Evening lights leave a Zigbee device's duplicate copy out
 }
 export function vacationEndsText(s) {
   const ts = s && s.vacation_mode_end_at;
@@ -2070,7 +2075,8 @@ function _vacOptionsBox(host) {
       anchorList.textContent = "";
       const known = new Set((lights || []).map((l) => l[0]));
       const gone = [...anchors].filter((eid) => !known.has(eid)).map((eid) => [eid, eid + " (not found)"]);
-      const all = [...(lights || []), ...gone];
+      // A Zigbee device's duplicate copy is left out, unless it is ticked (zigbee_twins.js).
+      const all = [...(lights || []).filter(([eid]) => anchors.has(eid) || !(TW && TW.duplicateOf(eid, o))), ...gone];
       if (!all.length) anchorList.textContent = lights ? "No lights to choose from." : "Could not load the lights.";
       for (const l of all) anchorList.appendChild(anchorTick(l));
     });
@@ -3221,6 +3227,22 @@ function _realLastChanged(lc, r){
 // reconnects = the host's motion_reconnects subscription (motion_reconnects.py):
 // {entity_id: {at, last_changed}} for each motion sensor back from an offline
 // blip in the state it had before — see _realLastChanged.
+/** gatherLights' devices without a Zigbee device's duplicate copy (zigbee_twins.js:
+ *  the same unit in ZHA and Zigbee2MQTT, the Zigbee2MQTT one kept), unless that
+ *  copy is in use (inUse(eid): placed, or linked to a wall): {lights, twins}.
+ *  twins, for the index (host.zigbeeTwins): how many were left out and the line
+ *  for each copy still in use, {hidden, note, rows: {eid: {text, twin, button}}};
+ *  null with no map. Never anything Home Assistant has changed. */
+export function withoutZigbeeDuplicates(lights, settings, inUse){
+  if (!TW || !settings || !settings.zigbee_twins) return { lights, twins: null };
+  const byEid = {};
+  for (const l of lights) byEid[l.entity_id] = { attributes: { friendly_name: l.friendly_name } };
+  const used = new Set(lights.filter(l => inUse(l.entity_id)).map(l => l.entity_id));
+  const r = TW.dropDuplicates(lights.map(l => l.entity_id), settings, used);
+  const ok = new Set(r.ids), rows = {};
+  for (const eid of used) { const w = TW.duplicateWarning(eid, settings, byEid); if (w) rows[eid] = w; }
+  return { lights: lights.filter(l => ok.has(l.entity_id)), twins: { hidden: r.hidden, note: TW.hiddenNote(r.hidden, r.via), rows } };
+}
 export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false, reconnects = null, linkedCovers = null){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
@@ -4189,7 +4211,7 @@ export function buildLightsMapCard(hostIn){
           // "This is a device…" need of the host, and the floor chips a piece
           // moved up or down a floor takes along.
           furnish: h3.furnish === true ? { callWS: typeof h3.callWS === "function" ? h3.callWS : null,
-            toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null } : null,
+            toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null, twins: TW } : null,
           // Add data via plans (experimental, 2026-11): the Plans tool in Edit, only with Settings → AI's
           // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
           // only for an administrator (every plan_ai_ command is one's).
@@ -4249,6 +4271,11 @@ export function buildLightsMapCard(hostIn){
           // read there (who carries what, the return to the home view), and
           // Show people / Show tags & scanners from inside the view (admins).
           settings3d: h3.settings, admin: h3.admin === true, saveSetting: typeof h3.saveSetting === "function" ? h3.saveSetting : null,
+          // The same Zigbee device twice (zigbee_twins.js, handed in: the 3D modules import nothing): Edit's
+          // Follows and Furnish's "This is a device…" leave the duplicate copy out, and twinUse is the host's
+          // "Use the Zigbee2MQTT one" (zigbee_twins.js useTwin).
+          twins: TW,
+          twinUse: TW && typeof h3.callWS === "function" ? (eid, twin) => TW.useTwin((type, data) => h3.callWS({ type, ...data }), eid, twin) : null,
           // The ⋯ list's links and "Set it up" (live_aboard_show.js LINK_WORDS):
           // the host's way to that part of Settings or Mapping, or none.
           goTo: typeof h3.goTo === "function" ? h3.goTo : null, kiosk: h3.kiosk === true,
@@ -5736,7 +5763,8 @@ export const TABLE_HOST_KEYS = ["afterAssign", "callWS", "classFilter", "doorCir
   "onBuildFromRelays", "onConfigureDoor", "onFloodReset", "onLinkDoorLock", "onLinkDoorOpener", "onPlaceRow",
   "onRevertUntouched", "onRowClick", "onRowLongPress", "onRowMore", "onSelectForPlacement", "onTableClassFilter",
   "onTableHealthFilter", "onTableSort", "onToggleDoorInvert", "onToggleDoorSteel", "onToggleHidden", "onTypeOverride",
-  "onUnlinkDoor", "placeQueue", "selectedEids", "tableClassFilter", "tableHealthFilter", "tableSort", "toast", "typeOverrides"];
+  "onUnlinkDoor", "onUseTwin", "placeQueue", "selectedEids", "tableClassFilter", "tableHealthFilter", "tableSort", "toast", "typeOverrides",
+  "zigbeeTwins"];
 const _TABLE_SIG_SKIP = new Set(["keepFocused", "keepTable", "model"]);
 // What the card is built from, besides the devices: a function as "fn" (only
 // whether it is there shows), a Set as its sorted members; the map by identity.
@@ -5804,6 +5832,7 @@ export function buildLightsTable(hostIn, lights){
     el("span", { class: "lv-tbl-title" }, "Light Index"),
     el("span", { class: "lv-count" }, (tableFilter === "all" && !healthFilter) ? String(lights.length) : `${filtered.length} / ${lights.length}`),
     hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
+    host.zigbeeTwins && host.zigbeeTwins.hidden ? el("span", { class: "lv-hint", "data-zigbee-hidden": String(host.zigbeeTwins.hidden) }, host.zigbeeTwins.note) : null,
     ...(host.onTableHealthFilter ? [(() => {
       const btn = el("button", {
         class: "lv-act" + (healthFilter ? " primary" : ""),
@@ -5980,7 +6009,15 @@ export function buildLightsTable(hostIn, lights){
         codeSwatchSvg = svg;
         return [svg, el("span", { style: `font-family:monospace;font-weight:700;color:${swatch};font-size:12px` }, l.code)];
       })()),
-      el("td", { class: "lv-name" }, l.friendly_name),
+      el("td", { class: "lv-name" }, (() => {
+        // A duplicate copy still placed or linked (withoutZigbeeDuplicates): which one PadSpan uses, and in the
+        // builder the button that moves it there.
+        const w = host.zigbeeTwins && host.zigbeeTwins.rows && host.zigbeeTwins.rows[l.entity_id];
+        return w ? [l.friendly_name, el("div", { class: "lv-hint", "data-zigbee-twin": l.entity_id, style: "color:#fbbf24;white-space:normal" }, [
+          w.text, w.twin && host.onUseTwin ? el("button", { class: "lv-act", style: "margin-left:6px",
+            onclick: (e) => { e.stopPropagation(); host.onUseTwin(l, w.twin); } }, w.button) : null,
+        ])] : l.friendly_name;
+      })()),
       el("td", { class: "muted lv-room" }, l.area_name
         ? el("span", {}, l.area_name)
         : host.lightsLoading

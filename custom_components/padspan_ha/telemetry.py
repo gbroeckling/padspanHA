@@ -524,6 +524,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
     "atlas_forest",                                 # the trees behind the flat map (Showcase theme "West Coast Forest")
+    "zigbee_twins",                                 # the same Zigbee device in ZHA and Zigbee2MQTT: left out of lists, said where used
     "atlas_fit",                                    # how big the house is drawn on a wall: the arrangement and the check
     "live_aboard_forest",                           # the same theme's trees in Live Aboard
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)

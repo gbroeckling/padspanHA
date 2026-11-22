@@ -326,5 +326,14 @@
 "PadSpan couldn't use what this page sent. Refresh the page and try again.": "PadSpan konnte mit dem, was diese Seite gesendet hat, nichts anfangen. Lade die Seite neu und versuch es noch einmal.",
 "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "In PadSpan ist etwas schiefgegangen. Versuch es noch einmal; passiert es immer wieder, findest du unter Zustand → Open Diagnostics einen Bericht zum Senden.",
 "Something went wrong on this page. Refresh it and try again.": "Auf dieser Seite ist etwas schiefgegangen. Lade sie neu und versuch es noch einmal.",
-"Only an administrator can do this.": "Das kann nur ein Administrator."
+"Only an administrator can do this.": "Das kann nur ein Administrator.",
+"{n} duplicates hidden (same units on {via})": {
+"one": "1 Duplikat ausgeblendet (dasselbe Gerät in {via})",
+"other": "{n} Duplikate ausgeblendet (dieselben Geräte in {via})"
+},
+"{name} is the {via} copy of a device that is also in {twin_via}, as {twin}. PadSpan uses the {twin_via} one.": "{name} ist die {via}-Kopie eines Geräts, das auch in {twin_via} vorhanden ist, als {twin}. PadSpan verwendet das von {twin_via}.",
+"{name} is the {via} copy of {device}, which is also in {twin_via}. Pick the {twin_via} one in the list.": "{name} ist die {via}-Kopie von {device}, das auch in {twin_via} vorhanden ist. Wähle in der Liste das von {twin_via}.",
+"Use the {twin_via} one": "Das von {twin_via} verwenden",
+"{name} is used now.": "{name} wird jetzt verwendet.",
+"Could not switch to it: {why}": "Umstellen ging nicht: {why}"
 }
