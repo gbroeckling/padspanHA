@@ -126,6 +126,20 @@ def test_german_links_an_english_only_chapter_and_says_so(tmp_path, monkeypatch)
     assert '<a href="/guides/bermuda/de/">a</a>' in h
 
 
+def test_a_german_chapter_shows_the_codes_english_reference_table(tmp_path, monkeypatch) -> None:
+    """A German chapter names a generated block instead of copying it, so the table
+    is always the one build_manual_reference.py last made from the code."""
+    monkeypatch.setattr(B, "DE", tmp_path)
+    de = tmp_path / "12-the-screens.md"
+    de.write_text("# 12. Die Bildschirme\n\nDie Menükarte:\n\n<!-- english:menu -->\n", encoding="utf-8")
+    lines = B._source_lines(de)
+    assert any(line.startswith("| **Overview** |") for line in lines)
+    assert not any("generated:menu" in line for line in lines)
+    de.write_text("# 12\n\n<!-- english:no-such-block -->\n", encoding="utf-8")
+    with pytest.raises(B.ManualError):
+        B._source_lines(de)
+
+
 def test_a_broken_anchor_stops_the_build(monkeypatch) -> None:
     real = B._make
 

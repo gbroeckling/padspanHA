@@ -13,7 +13,9 @@ A chapter's address is its file name without the number ("04-first-room.md" is
 /manual/first-room/), so renumbering a chapter keeps its address. Anchors are
 GitHub's, so a link written for GitHub ("09-setup-the-map.md#step-3-draw-the-rooms")
 works here too. On a German page, a link to a chapter with no German yet goes to
-the English one and says so.
+the English one and says so. A German chapter shows a reference table that
+scripts/build_manual_reference.py makes from the code by naming it on a line of
+its own, `<!-- english:NAME -->`: the table stays English and current.
 
 The repo has no Markdown library, so this converts the Markdown the manual uses
 and no more: headings, paragraphs, bold, code, links, images, lists (nested),
@@ -424,12 +426,38 @@ def _description(parts: list[tuple[str, str]]) -> str:
     return text
 
 
+ENGLISH_BLOCK = re.compile(r"^<!-- english:([\w-]+) -->$")
+
+
+def _source_lines(src: pathlib.Path) -> list[str]:
+    """The page's Markdown. In a German chapter, a line `<!-- english:NAME -->` stands for
+    the English chapter's block made by scripts/build_manual_reference.py
+    (`<!-- generated:NAME ... -->` to `<!-- /generated:NAME -->`), so a reference table
+    stays the code's, in English, without a German copy to fall behind."""
+    lines = src.read_text(encoding="utf-8").expandtabs(4).splitlines()
+    if src.parent != DE:
+        return lines
+    out = []
+    for line in lines:
+        m = ENGLISH_BLOCK.match(line.strip())
+        if not m:
+            out.append(line)
+            continue
+        english = (MANUAL / src.name).read_text(encoding="utf-8").expandtabs(4).splitlines()
+        start = [i for i, x in enumerate(english) if x.startswith(f"<!-- generated:{m.group(1)} ")]
+        end = [i for i, x in enumerate(english) if x.strip() == f"<!-- /generated:{m.group(1)} -->"]
+        if not start or not end:
+            raise ManualError(f"docs/manual/de/{src.name}: the English chapter has no generated block {m.group(1)!r}")
+        out += english[start[0] + 1:end[0]]
+    return out
+
+
 def _make(src: pathlib.Path, lang: str, order: list[pathlib.Path]) -> tuple[Page, str]:
     page = Page(src, lang)
     w = WORDS[lang]
     contents = page.slug == ""
     en_mark = " (vorerst nur auf Englisch)" if contents else " (englisch)"
-    parts = blocks(src.read_text(encoding="utf-8").expandtabs(4).splitlines(), page, en_mark)
+    parts = blocks(_source_lines(src), page, en_mark)
     title = _title(src)
     desc = _description(parts)
     if len(desc) < 50:
