@@ -108,7 +108,7 @@ def test_the_new_file_s_errors_are_kept() -> None:
 
 def test_studio_is_offered_where_the_look_is_chosen() -> None:
     st = _js(_VIEWS / "settings.js")
-    assert '["studio", "Studio — soft light and sky"]' in st
+    assert '["studio", () => t("Studio — soft light and sky")]' in st
     assert ('const lookCur = settings.atlas_3d_look === "own" || settings.atlas_3d_look === "studio" '
             '? settings.atlas_3d_look : "atlas";') in st
     wz = _js(_VIEWS / "aboard_wizard.js")

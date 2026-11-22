@@ -100,9 +100,9 @@ def test_the_box_offers_each_row_saved_on_its_own(box) -> None:
     assert not box["failures"], json.dumps(box["failures"][:4], indent=2, ensure_ascii=False)
     src = (_VIEWS / "settings.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     sec = src[src.index("function _atlas3dSection("):src.index("// ── UI Structure tab")]
-    assert 'tick("atlas_3d_weather", "Rain and snow", settings.atlas_3d_weather !== false,' in sec
+    assert 'tick("atlas_3d_weather", t("Rain and snow"), settings.atlas_3d_weather !== false,' in sec
     # The old Showcase tick gave way to the Look row (atlas_3d_look; tests/test_live_aboard_one_look.py).
-    assert 'tick("atlas_3d_showcase"' not in sec and 'more.appendChild(row("Look", [lookSel]));' in sec
+    assert 'tick("atlas_3d_showcase"' not in sec and 'more.appendChild(row(t("Look"), [lookSel]));' in sec
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
 
 

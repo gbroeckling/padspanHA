@@ -284,10 +284,10 @@ def test_the_panel_asks_nothing_of_home_assistant_and_loads_like_the_others() ->
 
 def test_the_settings_box_offers_off_and_three_times() -> None:
     sec = _js(_VIEWS / "settings.js")
-    assert 'const _ATLAS_3D_IDLE = [[0, "Off"], [30, "After 30 s"], [60, "After 1 min"], [300, "After 5 min"]];' in sec
+    assert 'const _ATLAS_3D_IDLE = [[0, () => t("Off")], [30, () => t("After 30 s")], [60, () => t("After 1 min")], [300, () => t("After 5 min")]];' in sec
     box = sec[sec.index("function _atlas3dSection("):]
     box = box[:box.index("\nfunction ")]
-    assert 'more.appendChild(row("Back to home view", [idleSel]));' in box
+    assert 'more.appendChild(row(t("Back to home view"), [idleSel]));' in box
     assert 'save("atlas_3d_home_idle_s", want,' in box
     for words in ("flies back to its home view", "Views ▾ → Set as home", "Edit or Furnish", "a card is open", "full screen"):
         assert words in box, words

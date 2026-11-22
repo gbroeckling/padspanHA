@@ -587,8 +587,8 @@ def test_the_settings_line_and_its_controls():
     assert "EXPERIMENTAL" in body and "estimate" in body
     assert "https://platform.claude.com/usage" in body and "filter by the key Home Assistant uses" in body
     assert 'save("ai_credit_month_usd"' in body and 'save("ai_credit_warn_pct"' in body
-    assert '`${n} read${n === 1 ? "" : "s"} stopped: `' in body                                # "3 reads stopped: out of credit"
-    assert '[["0", "Off"], ["50", "at 50 %"], ["75", "at 75 %"], ["90", "at 90 %"]]' in body       # off first, the default
+    assert 'tn(n, "{n} read stopped: {what}", "{n} reads stopped: {what}",' in body                                # "3 reads stopped: out of credit"
+    assert '[["0", t("Off")], ["50", t("at 50 %")], ["75", t("at 75 %")], ["90", t("at 90 %")]]' in body       # off first, the default
     assert 'inp.value = credit > 0 ? String(credit) : "";' in body                                 # empty until typed
     assert 'controls.style.display = claude ? "flex" : "none";' in body                            # Claude only
     # Only an administrator asks for it (the command is admin-only).

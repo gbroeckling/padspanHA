@@ -12,10 +12,13 @@
 //
 // Run:  node tests/js/settings_ai_usage.mjs <repo-root>
 import { readFileSync } from "node:fs";
+import { panelT } from "./panel_t.mjs";
 import { pathToFileURL } from "node:url";
 const ROOT = process.argv[2];
 const { install } = await import(pathToFileURL(ROOT + "/tests/js/dom_shim.mjs").href);
 install(globalThis);
+// The lifted code says its words through the view's t()/tn() (views/i18n.js); here panel.js's own (English, filled).
+Object.assign(globalThis, panelT(readFileSync(ROOT + "/custom_components/padspan_ha/www/padspan-ha/panel.js", "utf8")));
 
 const src = readFileSync(ROOT + "/custom_components/padspan_ha/www/padspan-ha/views/settings.js", "utf8");
 const start = src.indexOf("function _aiUsageRow(");

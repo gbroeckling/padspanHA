@@ -83,7 +83,7 @@ def test_the_people_layer_is_off_by_default_with_its_row() -> None:
     assert DEFAULT_SETTINGS["atlas_3d_people"] is False
     sec = _js(_VIEWS / "settings.js")
     sec = sec[sec.index("function _atlas3dSection("):]
-    assert 'tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,' in sec
+    assert 'tick("atlas_3d_people", t("Show people"), settings.atlas_3d_people === true,' in sec
     # It says exactly what shows: people, not the tags (their own switch).
     row = sec[sec.index('tick("atlas_3d_people"'):]
     row = row[:row.index(");")]
@@ -106,7 +106,7 @@ def test_the_tags_layer_is_its_own_switch_off_by_default() -> None:
     assert '"atlas_3d_tags"' in loop, "stored as a bool"
     sec = _js(_VIEWS / "settings.js")
     sec = sec[sec.index("function _atlas3dSection("):]
-    assert 'tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,' in sec
+    assert 'tick("atlas_3d_tags", t("Show tags & scanners"), settings.atlas_3d_tags === true,' in sec
     row = sec[sec.index('tick("atlas_3d_tags"'):]
     row = row[:row.index(");")]
     for words in ("Every tag", "its name", "every scanner at its height", "Tap a tag"):

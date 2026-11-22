@@ -131,10 +131,10 @@ def test_the_hosts_hand_over_the_look_and_nothing_reads_the_old_switch() -> None
 
 def test_the_settings_row_reads_plainly() -> None:
     src = (_VIEWS / "settings.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert ('const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard\'s own"], '
-            '["studio", "Studio — soft light and sky"]];') in src
+    assert ('const _ATLAS_3D_LOOK = [["atlas", () => t("Same as the Atlas")], ["own", () => t("Live Aboard\'s own")], '
+            '["studio", () => t("Studio — soft light and sky")]];') in src
     sec = src[src.index("function _atlas3dSection("):src.index("// ── UI Structure tab")]
-    assert 'more.appendChild(row("Look", [lookSel]));' in sec and 'save("atlas_3d_look", want,' in sec
+    assert 'more.appendChild(row(t("Look"), [lookSel]));' in sec and 'save("atlas_3d_look", want,' in sec
 
 
 def test_the_floor_colours_are_the_atlas_s_own_list() -> None:

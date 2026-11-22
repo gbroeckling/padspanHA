@@ -141,7 +141,7 @@ RENAMED = {
     "Bluetooth refresh interval": ['"BLE Reseed Interval"'],
     "Refresh every 5 s for passive proxy scanners": ['"Enable aggressive BLE reseed (5s) for passive proxy scanners"'],
     "Receiver signal adjustments": ['"Scanner RSSI Offsets"'],
-    'label: "Signal distortion map"': ['label: "Distortion Map"'],
+    'label: t("Signal distortion map")': ['label: "Distortion Map"'],
     '"Tracking Settings"': ['"Presence Settings"'],
 }
 
@@ -172,5 +172,5 @@ def test_settings_links_name_the_tracking_tab():
         src = (VIEWS / rel).read_text(encoding="utf-8")
         assert "Settings → Presence" not in src, rel
     # The menu's Presence page keeps its name.
-    assert 'presence:"Presence"' in SETTINGS_JS
+    assert 'presence: () => t("Presence")' in SETTINGS_JS
     assert not re.search(r'"tab"[^\n]*"Presence"', SETTINGS_JS)
