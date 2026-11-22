@@ -3975,7 +3975,7 @@ export function renderClassic(ctx){
       section.appendChild(el("div",{style:"padding:10px 14px;border:2px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px"},[
         el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 " + t("Room and receiver layout not built yet")),
         el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"},[
-          el("span",{},t("Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. Draw the rooms in Setup's Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.")),
+          el("span",{},t("Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. It isn't built by itself: press Put it on the map on Setup's Finish step (in Advanced and Development modes, Commit this layout in Mapping → Layout does it too). There is nothing separate to migrate.")),
           _drawRoomsBtn(ctx),
         ].filter(Boolean)),
       ]));

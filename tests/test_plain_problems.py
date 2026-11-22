@@ -203,12 +203,16 @@ def test_the_overview_names_one_place_to_draw_rooms() -> None:
     "not built yet" banner) and Basic a fourth. Now every one says Setup's
     Draw the rooms step, the step Setup and Getting started name, each in a
     whole sentence of its own through t() (the Overview is translated), and
-    where this build has Setup, a button opens that step."""
+    where this build has Setup, a button opens that step. The "not built yet"
+    banner said the layout then built itself from the drawn rooms; it never
+    does (wizard_build.js: only on a press), so it names Put it on the map on
+    Setup's Finish step, and Commit this layout."""
     src = (ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "overview.js").read_text(encoding="utf-8")
     for said in ('t("No rooms yet. Draw them in Setup\'s Draw the rooms step.")',
                  't("No rooms drawn yet. Draw them in Setup\'s Draw the rooms step.")',
                  't("Your floor plans have rooms or receivers on them, but the room layout PadSpan works from is still empty. '
-                 'Draw the rooms in Setup\'s Draw the rooms step: the layout builds from them by itself, and there is nothing separate to migrate.")'):
+                 'It isn\'t built by itself: press Put it on the map on Setup\'s Finish step (in Advanced and Development modes, '
+                 'Commit this layout in Mapping → Layout does it too). There is nothing separate to migrate.")'):
         assert src.count(said) == 1, said
     for gone in ("Go to Mapping → Edit to draw room boundaries", "Go to Mapping \\u2192 Layout and place scanners",
                  '"Setup\'s Draw the rooms step" : "Mapping → Layout"'):
