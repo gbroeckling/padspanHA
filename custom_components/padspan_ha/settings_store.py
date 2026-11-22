@@ -90,7 +90,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view
     "locate_self_key": "",     # which tracked object's position is "you", for the Locate tab's wayfinding
-    "flood_latches": {},       # {binary_sensor entity_id: {triggered_at, expires_at}} — flood_latch.py owns writes
+    "flood_latches": {},       # {binary_sensor entity_id: {triggered_at, expires_at[, notified, end_said]}} — flood_latch.py owns writes
+    # A leak, smoke, gas or CO alarm that latches sends one notification, and
+    # one when it clears, where Follow alerts go (flood_latch.py). On by
+    # default (2026-11-22, owner). Settings → Atlas → Atlas — Mapped Light Control.
+    "emergency_notify": True,
     "scanner_offsets": {},     # {source_name: offset_dBm} — manual per-scanner RSSI trim
     # Sources masked out of positioning (issue #59). A MASK, never a delete:
     # stored calibration samples, positions and registry entries are untouched,

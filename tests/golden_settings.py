@@ -108,6 +108,7 @@ VALUES: dict[str, list[tuple[str, Any]]] = {
     "overview_atlas": BOOL,
     "emergency_entities": one(["light.hall", " switch.siren ", "lock.front", "light.hall"]),
     "atlas_alert_pulse": BOOL,
+    "emergency_notify": BOOL,
     "atlas_heatmap_enabled": BOOL,
     "atlas_weather_enabled": BOOL,
     "atlas_weather_rain_entity": one("binary_sensor.rain"),

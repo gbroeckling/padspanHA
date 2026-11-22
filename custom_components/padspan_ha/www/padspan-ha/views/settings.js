@@ -5046,6 +5046,29 @@ function _settingsAtlas(ctx, el){
       ctx.toast("Could not save: " + ctx.helpers.errorText(e), true);
     }
   });
+  // A leak, smoke, gas or CO alarm that latches (the red ring above) sends one
+  // notification, and one when it clears: emergency_notify, on by default
+  // (flood_latch.py; where Follow alerts go, auto-picked when none is set).
+  const alarmRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"emergency-notify"});
+  const alarmCb = el("input",{type:"checkbox"});
+  alarmCb.checked = settings.emergency_notify === true;
+  alarmRow.appendChild(alarmCb);
+  alarmRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Notify when a leak, smoke, gas or CO alarm goes off")));
+  lightsCard.appendChild(alarmRow);
+  const alarmNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    t("One notification when the alarm goes off and one when it clears (reset in the Atlas, or after 2 days), never more while it stays on. It goes where your Follow alerts go. With none set, it goes to the first notification service Home Assistant has, a mail one first; with none in Home Assistant, nothing is sent."));
+  lightsCard.appendChild(alarmNote);
+  alarmCb.addEventListener("change", async ()=>{
+    const want = alarmCb.checked;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { emergency_notify: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      alarmNote.textContent = want ? t("Saved: alarms send a notification from now on.") : t("Saved: alarms send no notification from now on.");
+    } catch (e) {
+      alarmCb.checked = !want;
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
+    }
+  });
   // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
   // temperature, humidity and CO2 drawn across each room from its own sensors.
   // PadSpan Pro's (2026-10-22): below Pro, no row at all, and whatever

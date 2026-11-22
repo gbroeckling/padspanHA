@@ -9,6 +9,7 @@ to turn it on or off.
 |---|---|---|
 | A device changes room, arrives home or leaves | Your phone or email | Follow → **Movement Alerts** |
 | A leak, smoke, gas or carbon monoxide alarm | A red banner on every PadSpan screen; the room rings red on the Atlas | Always on |
+| The same alarm, and when it clears | Your Follow alert targets (your phone or email) | On by default: **Settings → Atlas → Atlas — Mapped Light Control → Notify when a leak, smoke, gas or CO alarm goes off** |
 | A door left open, or a window open in the rain | The room rings amber on the Atlas; a banner on a wall screen | **Settings → Atlas → Atlas — Mapped Light Control → Alert pulse** |
 | Vacation Mode ends or is turned off | A Home Assistant notification, and your Follow alert targets | Always, while Vacation Mode is used |
 | A guest arrives, leaves, or goes into a room they shouldn't | Your phone, or a Home Assistant notification | When you lend a guest tag |
@@ -88,8 +89,27 @@ alarm.
 While the sample house is showing, the banner still shows your own house's alarms, with **Back to my
 house** in place of Reset.
 
-**PadSpan doesn't send a leak or smoke alarm to your phone.** Use a Home Assistant automation on the
-sensor itself for that: it doesn't depend on PadSpan.
+### The notification
+
+PadSpan sends a notification when an alarm latches. It is on by default; turn it off or on in
+**Settings → Atlas → Atlas — Mapped Light Control → Notify when a leak, smoke, gas or CO alarm goes
+off**. It saves as soon as you tick or untick it.
+
+- **One when the alarm goes off**: **PadSpan: Leak alarm**, "Leak alarm: Sink sensor in the
+  Kitchen, at 14:05. …". Nothing more while it stays latched, however often the sensor goes off and
+  on again.
+- **One when it clears**: **PadSpan: Leak alarm cleared** when someone presses Reset, or **PadSpan:
+  Leak alarm ended** when the 2 days are over without a reset. If Home Assistant was off at that
+  moment, it comes when Home Assistant starts again. Deleting the sensor sends nothing.
+- **Where it goes**: to every phone and email address your Follow alerts are set to send to (see
+  above), up to five. With no Follow alert target set, it goes where a Follow alert with no target
+  goes: a mail notify service first, else the first notify service Home Assistant has. With no
+  notify service in Home Assistant at all, nothing is sent; Home Assistant's log says so.
+- An alarm that latched before this notification existed, or while it was off, sends nothing when
+  it clears.
+
+The notification goes through PadSpan. For an alarm that must reach you even when PadSpan is not
+running, also use a Home Assistant automation on the sensor itself.
 
 ## Alert pulse (Atlas)
 

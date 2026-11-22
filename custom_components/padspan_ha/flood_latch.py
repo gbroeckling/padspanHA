@@ -116,8 +116,120 @@ async def _async_latch(hass: HomeAssistant, entity_id: str) -> None:
         if is_active(existing):
             return
         now = time.time()
-        latches[entity_id] = {"triggered_at": now, "expires_at": now + ACTIVE_WINDOW_S}
+        rec: dict[str, Any] = {"triggered_at": now, "expires_at": now + ACTIVE_WINDOW_S}
+        say = _notify_on(st)
+        if say:
+            rec["notified"] = True
+        latches[entity_id] = rec
         await st.async_set(flood_latches=latches)
+    if say:
+        await _async_say(hass, entity_id, "latched", now)
+        _schedule_end(hass, entity_id, rec)
+
+
+# ── The phone notification (emergency_notify, on by default, 2026-11-22) ────
+# One notice when an alarm latches, never again while it stays latched, and
+# one when it clears: reset in the Atlas, or the 2 days over (said even when
+# Home Assistant was off at that moment, at its next start). Sent where Follow
+# alerts go (alert_store.follow_alert_targets), through the same dispatch
+# (presence_coordinator.async_send_follow_notify); with no Follow target set,
+# the auto-pick a Follow alert with no target uses: a mail notify first, else
+# the first notify target Home Assistant has; with none at all, nothing is
+# sent and the log says so. The latch record keeps "notified" (the first
+# notice went) and "end_said" (the clear went), so a restart says nothing twice.
+
+_DATA_TIMERS = "_flood_latch_timers"
+_ALARM_WORD = {"moisture": "Leak alarm", "smoke": "Smoke alarm", "gas": "Gas alarm",
+               "carbon_monoxide": "Carbon monoxide alarm"}
+
+
+def _notify_on(st: Any) -> bool:
+    return (getattr(st, "data", None) or {}).get("emergency_notify") is True
+
+
+def notice(hass: HomeAssistant, entity_id: str, what: str, ts: float) -> tuple[str, str]:
+    """(title, message) for "latched", "reset" or "ended"."""
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+    state = hass.states.get(entity_id)
+    attrs = getattr(state, "attributes", None) or {}
+    kind = _ALARM_WORD.get(attrs.get("device_class"), "Alarm")
+    name = str(attrs.get("friendly_name") or entity_id)
+    from .ws_occupancy import _entity_area_name  # noqa: PLC0415
+    area = _entity_area_name(hass, entity_id)
+    where = f"{name} in the {area}" if area else name
+    at = dt_util.as_local(dt_util.utc_from_timestamp(ts)).strftime("%H:%M")
+    if what == "latched":
+        return (f"PadSpan: {kind}",
+                f"{kind}: {where}, at {at}. The Atlas shows it until you reset it there, or for 2 days. "
+                "You get this once, however often the sensor goes off again until then.")
+    if what == "reset":
+        return f"PadSpan: {kind} cleared", f"{kind} from {where}: reset in PadSpan at {at}."
+    return (f"PadSpan: {kind} ended",
+            f"{kind} from {where}: PadSpan stopped showing it after 2 days without a reset. "
+            "If the sensor goes off again, that is a new alarm.")
+
+
+async def _async_say(hass: HomeAssistant, entity_id: str, what: str, ts: float) -> bool:
+    """Send one notice to every Follow alert target; True if one went."""
+    try:
+        title, message = notice(hass, entity_id, what, ts)
+        from .alert_store import follow_alert_targets  # noqa: PLC0415
+        from .presence_coordinator import async_send_follow_notify  # noqa: PLC0415
+        sent = False
+        for preferred, email in follow_alert_targets(hass) or [("", "")]:
+            try:
+                await async_send_follow_notify(hass, preferred, email, title, message)
+                sent = True
+            except Exception as err:  # noqa: BLE001 — FollowNotifyNotSent or the call's own
+                _LOGGER.warning("Emergency alarm notice not sent via %s: %s",
+                                preferred or email or "auto-detect", err)
+        return sent
+    except Exception:  # noqa: BLE001 — a notice must never stop the latch
+        _quiet_error("flood_latch:notify")
+        return False
+
+
+def _cancel_end(hass: HomeAssistant, entity_id: str) -> None:
+    unsub = (hass.data.get(DOMAIN) or {}).get(_DATA_TIMERS, {}).pop(entity_id, None)
+    if unsub:
+        unsub()
+
+
+def _schedule_end(hass: HomeAssistant, entity_id: str, rec: dict[str, Any]) -> None:
+    """Say the end once its 2 days are up (now, if they already are)."""
+    _cancel_end(hass, entity_id)
+    try:
+        from homeassistant.helpers.event import async_call_later  # noqa: PLC0415
+        trig = rec.get("triggered_at")
+        timers = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_TIMERS, {})
+
+        @ha_callback
+        def _due(_now: Any = None) -> None:
+            timers.pop(entity_id, None)
+            hass.async_create_task(_async_ended(hass, entity_id, trig))
+        timers[entity_id] = async_call_later(hass, max(0.0, float(rec["expires_at"]) - time.time()), _due)
+    except Exception:  # noqa: BLE001
+        _quiet_error("flood_latch:schedule_end")
+
+
+async def _async_ended(hass: HomeAssistant, entity_id: str, triggered_at: Any) -> None:
+    dom = hass.data.get(DOMAIN) or {}
+    st = dom.get(DATA_SETTINGS)
+    if not st:
+        return
+    async with dom.setdefault(_DATA_LOCK, asyncio.Lock()):
+        latches = dict(st.data.get("flood_latches") or {})
+        rec = latches.get(entity_id)
+        if (not isinstance(rec, dict) or rec.get("triggered_at") != triggered_at
+                or not rec.get("notified") or rec.get("end_said")):
+            return
+        if is_active(rec):          # the timer came a moment early
+            _schedule_end(hass, entity_id, rec)
+            return
+        latches[entity_id] = {**rec, "end_said": True}
+        await st.async_set(flood_latches=latches)
+    if _notify_on(st):
+        await _async_say(hass, entity_id, "ended", time.time())
 
 
 # The device classes that latch: the Atlas's Emergency class (light_codes.js
@@ -153,7 +265,8 @@ def _on_entity_registry_updated(hass: HomeAssistant, event: Event) -> None:
     entity_id = event.data.get("entity_id")
     if not entity_id:
         return
-    hass.async_create_task(async_reset_latch(hass, entity_id))
+    # A sensor deleted is not an alarm cleared: no notice.
+    hass.async_create_task(async_reset_latch(hass, entity_id, announce=False))
 
 
 def async_setup_flood_latch(hass: HomeAssistant) -> None:
@@ -175,10 +288,17 @@ def async_setup_flood_latch(hass: HomeAssistant) -> None:
     dom[_DATA_UNSUB_REGISTRY] = hass.bus.async_listen(
         "entity_registry_updated", functools.partial(_on_entity_registry_updated, hass)
     )
+    # The clear of each alarm already announced, still to be said.
+    st = dom.get(DATA_SETTINGS)
+    for eid, rec in (((getattr(st, "data", None) or {}).get("flood_latches")) or {}).items():
+        if isinstance(rec, dict) and rec.get("notified") and not rec.get("end_said"):
+            _schedule_end(hass, eid, rec)
 
 
 def async_stop_flood_latch(hass: HomeAssistant) -> None:
     dom = hass.data.get(DOMAIN, {})
+    for unsub in list((dom.pop(_DATA_TIMERS, None) or {}).values()):
+        unsub()
     for key in (_DATA_UNSUB, _DATA_UNSUB_REGISTRY):
         unsub = dom.pop(key, None)
         if unsub:
@@ -189,14 +309,15 @@ def async_stop_flood_latch(hass: HomeAssistant) -> None:
                 pass
 
 
-async def async_reset_latch(hass: HomeAssistant, entity_id: str) -> bool:
+async def async_reset_latch(hass: HomeAssistant, entity_id: str, announce: bool = True) -> bool:
     """Clear one sensor's latch (the Atlas Reset button). Returns True if it
     existed. Resetting is unconditional — the underlying HA entity's real,
     current state is untouched; this only dismisses PadSpan's own memory
     that it was recently triggered. Shares _async_latch's lock: a reset
     racing a fresh trigger for a DIFFERENT entity is the same
     read-modify-write hazard the module docstring describes, just from a
-    second caller."""
+    second caller. An alarm that was announced and is still showing gets
+    its one "cleared" notice (`announce`)."""
     dom = hass.data.get(DOMAIN)
     if not dom:
         return False
@@ -208,6 +329,10 @@ async def async_reset_latch(hass: HomeAssistant, entity_id: str) -> bool:
         latches = dict(st.data.get("flood_latches") or {})
         if entity_id not in latches:
             return False
-        del latches[entity_id]
+        rec = latches.pop(entity_id)
         await st.async_set(flood_latches=latches)
-        return True
+    _cancel_end(hass, entity_id)
+    if (announce and isinstance(rec, dict) and rec.get("notified") and not rec.get("end_said")
+            and is_active(rec) and _notify_on(st)):
+        await _async_say(hass, entity_id, "reset", time.time())
+    return True

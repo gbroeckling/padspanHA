@@ -208,6 +208,8 @@ entity_identity:pick_uid_key
 espresense_mqtt:on_device_message
 espresense_mqtt:on_room_message
 espresense_mqtt:stop
+flood_latch:notify
+flood_latch:schedule_end
 flood_latch:stop_flood_latch
 forensics_store:stop_forensics
 forensics_store:tick

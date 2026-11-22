@@ -168,6 +168,7 @@ folding heading on that tab.
 | Atlas — Mapped Light Control: Show the Test emergency lighting button on the Atlas | on | on or off | The Atlas's Test emergency lighting button. | `atlas_emergency_button` |
 | Atlas — Mapped Light Control: Draw lit lights in their own colour on the Atlas | off | on or off | Lit lights in the colour they report. Off: amber. | `atlas_live_colours` |
 | Atlas — Mapped Light Control: Alert pulse | off | on or off | Rings an opening left open, or open in the rain, and names the worst alert. | `atlas_alert_pulse` |
+| Atlas — Mapped Light Control: Notify when a leak, smoke, gas or CO alarm goes off | on | on or off | Sends one notification when the alarm latches and one when it clears, where Follow alerts go. | `emergency_notify` |
 | Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂) | off | on or off | A Heatmap chip on the Atlas: rooms coloured by their own sensors. | `atlas_heatmap_enabled` |
 | Power teams | empty |  | Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). | `power_teams` |
 | Outdoor weather: Show rain and snow on the Atlas | on | on or off | Rain or snow around the house while it really rains or snows. | `atlas_weather_enabled` |

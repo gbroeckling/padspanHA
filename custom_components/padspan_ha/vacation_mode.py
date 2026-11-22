@@ -817,21 +817,15 @@ async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float)
         _LOGGER.debug("Vacation mode: no notification: %s", err)
     targets: list[tuple[str, str]] = []
     try:
-        from .const import DATA_ALERTS  # noqa: PLC0415
-        store = (hass.data.get(DOMAIN) or {}).get(DATA_ALERTS)
-        for cfg in ((store.all() if store else None) or {}).values():
-            if not isinstance(cfg, dict):
-                continue
-            t = (str(cfg.get("notify_service") or "").strip(), str(cfg.get("email") or "").strip())
-            if any(t) and t not in targets:
-                targets.append(t)
+        from .alert_store import follow_alert_targets  # noqa: PLC0415
+        targets = follow_alert_targets(hass)
     except Exception as err:  # noqa: BLE001
         _quiet_error("vacation_mode:off_alert")
         _LOGGER.debug("Vacation mode: could not read alert targets: %s", err)
     sent = False
     if targets:
         from .presence_coordinator import async_send_follow_notify  # noqa: PLC0415
-        for preferred, email in targets[:5]:
+        for preferred, email in targets:
             try:
                 await async_send_follow_notify(hass, preferred, email, title, message)
                 sent = True
