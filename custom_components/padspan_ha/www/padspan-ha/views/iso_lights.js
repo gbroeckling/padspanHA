@@ -3116,7 +3116,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // The working map wears the live colour too, but only over the default
   // amber pin: a pin given its own colour keeps it, and a light reporting no
   // colour (onoff, white mode) is drawn exactly as it always was.
-  // Only when asked (Settings → UI Structure → Atlas, opts.liveColours):
+  // Only when asked (Settings → Atlas → Atlas — Mapped Light Control, opts.liveColours):
   // off, the working map is amber exactly as it always was.
   const LIVECOL=!!opts.liveColours;
   const bodyCol=(l,entry)=>{
@@ -3231,9 +3231,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     if(!room) continue;
     floodFx.push({eid: pl.eid, room, x: pl.x, y: pl.y, z: pl.z, liveWet: li.state==="on"});
   }
-  // Alert pulse (Settings → UI Structure → Atlas, off by default): the host
+  // Alert pulse (Settings → Atlas → Atlas — Mapped Light Control, off by default): the host
   // names the openings to flag, {entity_id: "rain_open" | "left_open"} (a
-  // window or cover open while it rains, a door left open for hours), and
+  // window or cover open while it rains or snows; any door, window, gate or
+  // cover left open over 6 hours), and
   // each rings its room the flood ring's way, in amber: three quick ripples
   // in the rain, one slow one left open. Its room is the one beside the
   // wall section it is linked to, the sensor's own area first (an inside
