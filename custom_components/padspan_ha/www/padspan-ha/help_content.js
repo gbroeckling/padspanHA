@@ -190,7 +190,7 @@ export function helpTexts() { return {
     body: [
       t("Mapping is where you give PadSpan a picture of each floor, its real size, the rooms on it and where your receivers (the Bluetooth listeners) hang. Positioning, the 3D views and the Atlas are all built from it."),
       t("In Basic mode Mapping has two tabs, Library and Upload, and Open on a plan starts the Setup Wizard. Advanced and Development add Edit, 3D Stack, Layout, Atlas builder, Export and Help, plus Furnish while Live Aboard is on. Only an administrator gets Upload or can change a plan."),
-      t("New to it? Click Setup at the top (or Start Setup Wizard in an empty Library). It takes you through the plan, its scale, the rooms, floor heights (two indoor floors or more), receivers and calibration, one step at a time."),
+      t("New to it? Click Setup at the top (or Start Setup Wizard in an empty Library). It takes you through the plan, its scale, the rooms, floor heights (two indoor floors or more), receivers, your phone or watch and calibration, one step at a time."),
       t("Floors and rooms come from Home Assistant: create or rename them in Home Assistant's Settings → Areas, labels & zones. A floor can have more than one plan (a wing drawn on its own, say); only Outside is limited to one."),
       t("Each tab has its own ? with the details."),
     ],
