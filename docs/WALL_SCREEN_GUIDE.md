@@ -60,7 +60,7 @@ Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Ma
   gets much bigger text than a 27-inch monitor on a desk, even though both are 4K.
 - **Text size** (Small, Comfortable, Large) moves either one up or down.
 - **Dim at night** darkens the wall between sunset and sunrise (it needs Home Assistant's Sun).
-- **Burn-in protection** moves the picture a few pixels every few minutes, for OLED and plasma.
+- **Protect against burn-in** moves the picture a couple of pixels every few minutes (OLED screens).
 
 The card's preview shows a 4K screen to scale, and the text's height in centimetres. Walls pick up
 a change within half a minute.

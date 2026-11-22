@@ -63,7 +63,7 @@ export const noPhonesText = () =>
   t("No phones detected. Android: enable the HA Companion App with BLE Transmitter. iPhone: add its IRK instead (Bluetooth → IRK Manager).");
 
 export const helpNoteText = () =>
-  t("Not seeing your phone? Android: open Companion App → Settings → Companion App → Manage Sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).");
+  t("Not seeing your phone? Android: open the Companion app → Settings → Companion app → Manage sensors → BLE Transmitter → Enable. iPhone: there is no such setting; add its IRK (Bluetooth → IRK Manager).");
 
 // An Android phone's BLE Transmitter reports its own settings as attributes
 // of its sensor, which companion_discover passes on as phone.attributes:
