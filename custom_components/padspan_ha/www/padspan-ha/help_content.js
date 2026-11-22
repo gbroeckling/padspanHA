@@ -34,9 +34,9 @@ export function helpNote() {
     : t("This help is translated, but much of the panel is still in English, so most names of its tabs, buttons and settings appear here in English, in quotes.");
 }
 
-/** Training's own note under it: not all of Training is translated yet. */
+/** Training's own note under it: none since all of Training's own words are translated (phase 4c, 2026-11-22). */
 export function trainingNote() {
-  return currentLanguage() === "en" ? "" : t("Some of this training is still in English: the walkthroughs and parts of the Quick Start and the Full Manual.");
+  return "";
 }
 
 export function helpTexts() { return {
