@@ -1494,6 +1494,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "pro_invite": (None, "kept", "", "An invite to free Pro, and your answer."),
     "server_offers": (None, "kept", "", "Which free-Pro offers the update check last said are on."),
     "flood_latches": (None, "kept", "", "Leak alarms the Atlas keeps showing until cleared."),
+    "atlas_weather_rain_wet_since": (None, "kept", "", "When the Outdoor weather rain sensor last turned wet, so one stuck on wet for hours is ignored."),
     "lights_showcase_seen": (None, "kept", "", "Showcase has been on here."),
     "wled_teams": (None, "kept", "", "WLED devices that act as one light."),
     "power_teams_woke": (None, "kept", "", "Each power team's last wake-up day, so a restart never wakes it twice."),
