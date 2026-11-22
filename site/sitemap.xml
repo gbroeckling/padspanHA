@@ -48,9 +48,11 @@
   <url><loc>https://padspan.traks.ca/manual/calibration/de/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://padspan.traks.ca/manual/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/manual/every-screen-and-tab/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://padspan.traks.ca/manual/every-screen-and-tab/de/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://padspan.traks.ca/manual/first-room/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/manual/first-room/de/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://padspan.traks.ca/manual/for-developers/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://padspan.traks.ca/manual/for-developers/de/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://padspan.traks.ca/manual/furnish/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/manual/furnish/de/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://padspan.traks.ca/manual/getting-help/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>

@@ -6,6 +6,9 @@
 <title>Appendix D. For developers | PadSpan HA Manual</title>
 <meta name="description" content="How PadSpan is put together, the rules its code keeps, and every websocket command it registers. For contributing: the README&#x27;s Development section. The…">
 <link rel="canonical" href="https://padspan.traks.ca/manual/for-developers/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/for-developers/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/for-developers/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/manual/for-developers/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="PadSpan">
 <meta property="og:title" content="Appendix D. For developers">
@@ -59,6 +62,7 @@ footer p{margin:4px 0}
   <a href="/demo/">Live demo</a>
   <a href="/#install">Install</a>
   <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/manual/for-developers/de/" hreflang="de" lang="de">Deutsch</a>
 </div></nav>
 <main>
 <h1 id="appendix-d-for-developers">Appendix D. For developers</h1>
@@ -175,7 +179,7 @@ Enhanced security is on (<a href="/manual/users-and-security/">chapter 21</a>). 
 a request inside it. These are the panel's own commands, not a stable public interface: they change
 between versions. For automations, use the entities, services and events in
 <a href="/manual/home-assistant-reference/">chapter 14</a>. More: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md">Websocket API</a>.</p>
-<p>266 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
+<p>267 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Command</th><th>Fields</th><th>Administrator</th><th>Module</th><th>What it does (its handler's first sentence)</th></tr>
@@ -368,6 +372,7 @@ between versions. For automations, use the entities, services and events in
   <tr><td><code>padspan_ha/plan_carry_dismiss</code></td><td><code>map_id</code></td><td>always</td><td><code>plan_carry.py</code></td><td>They are right where they are: the plan is no longer listed, and nothing is moved.</td></tr>
   <tr><td><code>padspan_ha/plan_carry_list</code></td><td>–</td><td>always</td><td><code>plan_carry.py</code></td><td></td></tr>
   <tr><td><code>padspan_ha/positioning_diag</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Return detailed positioning diagnostics for all labelled devices.</td></tr>
+  <tr><td><code>padspan_ha/power_team_sleep</code></td><td><code>entity_id</code>, <code>minutes</code> (optional), <code>end</code> (optional)</td><td>–</td><td><code>power_team.py</code></td><td>The card's "Sleep in 30 min": the team fades to Sleep over the minutes, then goes off (or stays).</td></tr>
   <tr><td><code>padspan_ha/power_teams_get</code></td><td>–</td><td>–</td><td><code>power_team.py</code></td><td></td></tr>
   <tr><td><code>padspan_ha/power_teams_set</code></td><td><code>teams</code></td><td>always</td><td><code>power_team.py</code></td><td></td></tr>
   <tr><td><code>padspan_ha/private_ble_add_irk</code></td><td><code>irk</code>, <code>name</code> (optional)</td><td>always</td><td><code>ws_irk.py</code></td><td>Add a Private BLE Device IRK via PadSpan UI (creates HA config entry).</td></tr>
