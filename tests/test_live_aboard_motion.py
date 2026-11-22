@@ -103,3 +103,12 @@ def test_its_words_never_call_the_view_3d() -> None:
     for s in re.findall(r'"([^"\n]*)"|`([^`\n]*)`', src):
         text = s[0] or s[1]
         assert not re.search(r"\b3D\b", text), text
+
+
+def test_the_harness_clock_moves_only_when_a_case_moves_it() -> None:
+    """The frames' times are the harness's own, never the machine's: on the
+    real clock a machine busy with the whole suite put its own delay between
+    frames, and the view read a slow screen (as tests/test_live_aboard_view.py holds)."""
+    src = (Path(__file__).parent / "js" / "live_aboard_motion.mjs").read_text(encoding="utf-8")
+    assert "performance.now = () => clockAt + clockOff;" in src
+    assert "realNow" not in src

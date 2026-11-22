@@ -4611,7 +4611,7 @@ function createSlot(slotKey){
   function paintRoomMore(api){
     if (!roomPanel || !roomPanel.isOpen || !api) return;
     const room = roomPanel.room;
-    roomPanel.more(ROOMS.areaExtras(api.hass, room, roomAggregate(lightsOf(api), room).all.map(l => l.entity_id)));
+    roomPanel.more(ROOMS.areaExtras(api.hass, room, roomAggregate(lightsOf(api), room).all.map(l => l.entity_id), lastP && lastP.settings3d));
   }
   /** The card's data came in: the panel's sheet and list as the house is now; gone once its room no longer shows. */
   function syncRoomPanel(){

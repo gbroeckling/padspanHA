@@ -153,3 +153,12 @@ def test_the_new_words_are_plain_and_never_say_3d() -> None:
             assert w in src, (name, w)
             line = next(ln for ln in src.splitlines() if w in ln)
             assert "3D" not in line, (name, line)
+
+
+def test_the_harness_clock_moves_only_when_a_case_moves_it() -> None:
+    """The frames' times are the harness's own, never the machine's: on the
+    real clock a machine busy with the whole suite put its own delay between
+    frames, and the view read a slow screen (as tests/test_live_aboard_view.py holds)."""
+    src = (Path(__file__).parent / "js" / "live_aboard_house_model.mjs").read_text(encoding="utf-8")
+    assert "performance.now = () => clockAt + clockOff;" in src
+    assert "realNow" not in src

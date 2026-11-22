@@ -426,6 +426,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     for _cmd in _ai_usage_commands:
         websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
+    # "Use the Zigbee2MQTT one": the kept copy of a Zigbee device in two integrations takes its duplicate's place (zigbee_twins.py).
+    from .zigbee_twins import WS_COMMANDS as _twin_commands
+    for _cmd in _twin_commands:
+        websocket_api.async_register_command(hass, _cmd)
     # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most; and which rooms
     # overlap, for Mapping's Edit and Layout.
     from .setup_checks import WS_COMMANDS as _setup_tip_commands

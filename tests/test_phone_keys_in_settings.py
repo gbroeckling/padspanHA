@@ -93,7 +93,7 @@ def test_every_reply_that_carries_the_settings_says_who_asked():
         src = f.read_text(encoding="utf-8")
         assert '"settings": _get_settings(hass)' not in src, f.name
         seen += src.count('"settings": _get_settings(hass, connection)')
-    assert seen == 6
+    assert seen == 7
 
 
 def _decorators(name: str) -> list[str]:

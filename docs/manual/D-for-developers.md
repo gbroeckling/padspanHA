@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-267 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+268 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence) |
 |---|---|---|---|---|
@@ -396,4 +396,5 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/wled_team_mode` | `team_id`, `mode` | always | `wled_exact.py` | Run this team by WLED sync or by PadSpan. |
 | `padspan_ha/wled_teams_get` | – | – | `ws_wled.py` |  |
 | `padspan_ha/wled_teams_set` | `teams`, `base_hash` (optional) | always | `ws_wled.py` |  |
+| `padspan_ha/zigbee_twin_use` | `entity_id`, `twin` | with Enhanced security | `zigbee_twins.py` | Use the Zigbee2MQTT copy's entity wherever PadSpan uses its duplicate's (async_use_twin): {ok, moved, settings}. |
 <!-- /generated:websocket -->

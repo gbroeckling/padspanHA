@@ -42,6 +42,10 @@ const PRO = await import(`./pro_invite.js${new URL(import.meta.url).search}`)
 // and warning list need it.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_weather failed to load", err); return null; });
+// The same Zigbee device in ZHA and Zigbee2MQTT (views/zigbee_twins.js): the Atlas
+// weather pickers leave the duplicate copy out. Optional, as the others are.
+const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: zigbee_twins failed to load", err); return null; });
 // Settings → Atlas → Power teams (views/power_teams.js). Optional, as the others are.
 const POWER_TEAMS = await import(`./power_teams.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: power_teams failed to load", err); return null; });
@@ -2804,7 +2808,7 @@ function _settingsPresence(ctx, el){
     // Build entity options (lights, switches, scenes)
     const _entities = Object.keys(ctx.hass?.states || {}).filter(e =>
       e.startsWith("light.") || e.startsWith("switch.") || e.startsWith("scene.") || e.startsWith("script.")
-    ).sort();
+    ).filter(e => !(TW && TW.duplicateOf(e, ctx.state.settings))).sort();   // a Zigbee device's duplicate copy left out (views/zigbee_twins.js)
 
     const _saveRules = async (newRules) => {
       try {
@@ -3921,8 +3925,10 @@ function _atlasWeatherSection(ctx, el, settings){
   const entities = ctx.hass && ctx.hass.entities;
   const nameOf = (eid) => { const n = states[eid] && states[eid].attributes && states[eid].attributes.friendly_name; return n ? `${n} (${eid})` : eid; };
   const ids = Object.keys(states).sort();
-  const picker = (label, key, blank, list) => {
+  const picker = (label, key, blank, offered) => {
     const cur = String(settings[key] || "");
+    // A Zigbee device's duplicate copy is left out, and said when it is the one chosen (views/zigbee_twins.js).
+    const { ids: list, hidden, via } = TW ? TW.dropDuplicates(offered, settings, [cur]) : { ids: offered, hidden: 0 };
     const sel = document.createElement("select");
     sel.className = "select";
     sel.style.maxWidth = "100%";
@@ -3933,6 +3939,16 @@ function _atlasWeatherSection(ctx, el, settings){
     box.appendChild(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px"},[
       el("span",{style:"color:#cbd5e1;font-size:13px;min-width:130px"}, label), sel,
     ]));
+    const hid = TW && TW.hiddenNoteEl(hidden, via);
+    if (hid) box.appendChild(hid);
+    const twin = TW && TW.duplicateWarningEl(cur, settings, states, (use) => {
+      TW.useTwin(ctx.actions.wsCall, cur, use).then((r) => {
+        if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+        if (!list.includes(use)) sel.appendChild(el("option",{value:use}, nameOf(use)));
+        sel.value = use; twin.remove(); note.textContent = TW.usedNow(nameOf(use));
+      }, (e) => ctx.toast(TW.useFailed(ctx.helpers.errorText(e)), true));
+    }, nameOf);
+    if (twin) box.appendChild(twin);
   };
   // Only actual rain sensors (atlas_weather.js rainSensorIds).
   const rainIds = WX ? WX.rainSensorIds(states, entities) : [];
@@ -4010,7 +4026,7 @@ function _atlas3dDirector(ctx, el, settings, save, row){
   const pickC = document.createElement("select");
   for (const sel of [pickT, pickC]) { sel.className = "select"; sel.style.width = "auto"; sel.style.maxWidth = "100%"; sel.disabled = !admin; }
   pickT.appendChild(el("option",{value:""}, "Pick a doorbell, door, sensor or alarm…"));
-  for (const eid of Object.keys(states).filter(e => _DIRECTOR_DOMAINS.includes(e.split(".")[0])).sort()) pickT.appendChild(el("option",{value:eid}, nameOf(eid)));
+  for (const eid of Object.keys(states).filter(e => _DIRECTOR_DOMAINS.includes(e.split(".")[0]) && !(TW && TW.duplicateOf(e, settings))).sort()) pickT.appendChild(el("option",{value:eid}, nameOf(eid)));
   pickC.appendChild(el("option",{value:""}, "No camera"));
   for (const eid of Object.keys(states).filter(e => e.startsWith("camera.")).sort()) pickC.appendChild(el("option",{value:eid}, nameOf(eid)));
   const add = el("button",{class:"btn inline"}, "Add");

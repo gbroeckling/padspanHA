@@ -62,3 +62,14 @@ def test_switching_off_lets_go_of_the_sprites_geometry_and_the_host() -> None:
     assert td.index("o.isSprite && o.geometry) o.geometry.dispose()") < td.index("{ renderer.dispose();")
     for name in ("lastP", "apiOf", "apiNow", "stage", "send", "touchCb", "saveNorthCb"):
         assert f"{name} = null" in td, name
+
+
+def test_the_harness_clock_moves_only_when_a_case_moves_it() -> None:
+    """The frames' times are the harness's own (later() moves them), never the
+    machine's: on the real clock a machine busy with the whole suite put its
+    own delay between two frames, the view's frame-time check read a slow
+    screen (live_aboard_house.js SLOW_MS) and fell back to the flat Atlas
+    mid-case (2026-11-22: fps "back to the flat Atlas" failed under load only)."""
+    src = (Path(__file__).parent / "js" / "live_aboard_view.mjs").read_text(encoding="utf-8")
+    assert "performance.now = () => clockAt + clockOff;" in src
+    assert "realNow" not in src

@@ -227,5 +227,6 @@
 "Only an administrator can open a WLED backup": "Alleen een beheerder kan een WLED-back-up openen",
 "Pick a backup first.": "Kies eerst een back-up.",
 "Home Assistant can't reach this WLED at {address} — check it's powered on and on the network (if its address changed, Home Assistant's WLED integration needs the new one)": "Home Assistant kan deze WLED op {address} niet bereiken — controleer of hij aan staat en op het netwerk zit (als zijn adres veranderd is, heeft de WLED-integratie van Home Assistant het nieuwe nodig)",
-"That light is not a power team": "Dit licht is geen powerteam"
+"That light is not a power team": "Dit licht is geen powerteam",
+"That is no longer a duplicate of that device. Refresh the page and try again.": "Dit is geen duplicaat van dat apparaat meer. Vernieuw de pagina en probeer het opnieuw."
 }

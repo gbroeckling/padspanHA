@@ -326,5 +326,14 @@
 "PadSpan couldn't use what this page sent. Refresh the page and try again.": "PadSpan kon niets met wat deze pagina stuurde. Vernieuw de pagina en probeer het opnieuw.",
 "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "Er ging iets mis in PadSpan. Probeer het opnieuw; blijft het gebeuren, dan staat onder Gezondheid → Open Diagnostics een rapport om te versturen.",
 "Something went wrong on this page. Refresh it and try again.": "Er ging iets mis op deze pagina. Vernieuw hem en probeer het opnieuw.",
-"Only an administrator can do this.": "Alleen een beheerder kan dit doen."
+"Only an administrator can do this.": "Alleen een beheerder kan dit doen.",
+"{n} duplicates hidden (same units on {via})": {
+"one": "1 duplicaat verborgen (hetzelfde apparaat in {via})",
+"other": "{n} duplicaten verborgen (dezelfde apparaten in {via})"
+},
+"{name} is the {via} copy of a device that is also in {twin_via}, as {twin}. PadSpan uses the {twin_via} one.": "{name} is de {via}-kopie van een apparaat dat ook in {twin_via} staat, als {twin}. PadSpan gebruikt die van {twin_via}.",
+"{name} is the {via} copy of {device}, which is also in {twin_via}. Pick the {twin_via} one in the list.": "{name} is de {via}-kopie van {device}, dat ook in {twin_via} staat. Kies die van {twin_via} in de lijst.",
+"Use the {twin_via} one": "Die van {twin_via} gebruiken",
+"{name} is used now.": "{name} wordt nu gebruikt.",
+"Could not switch to it: {why}": "Overschakelen lukte niet: {why}"
 }
