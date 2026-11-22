@@ -99,10 +99,17 @@ export function teamStatus(states, teamEid){
   if (a.phase === "failed" && missing.length) {
     return [`On, but ${missing.length === 1 ? "1 bulb has" : `${missing.length} bulbs have`} not answered`, "warn"];
   }
-  if (a.fading) return [a.waking ? "Waking up: fading in" : "On · fading", "busy"];
+  if (a.going_off) return ["Going to sleep: fading, then off", "busy"];
+  if (a.fading) return [a.waking ? "Waking up: fading in" : a.effect === "Sleep" ? "Going to sleep: fading" : "On · fading", "busy"];
   if (a.waking) return ["On · the wake-up's light", "ok"];
   if (a.effect === "Sleep") return ["On · sleep: dim and warm", "ok"];
-  if (a.follows_the_day) return [`On · following the day: ${pct(a.brightness)}%, ${a.color_temp_kelvin || "–"} K`, "ok"];
+  // The day leads the colour (Adaptive) and, unless a brightness was set by hand, the brightness too.
+  if (a.follows_the_day) {
+    return a.brightness_follows === false
+      ? [`On · colour follows the day, brightness set by hand (${pct(a.brightness)}%)`, "ok"]
+      : [`On · following the day: ${pct(a.brightness)}%, ${a.color_temp_kelvin || "–"} K`, "ok"];
+  }
+  if (a.brightness_follows) return ["On · colour set by hand, brightness follows the day", "ok"];
   return ["On · set by hand", "ok"];
 }
 
@@ -147,6 +154,8 @@ export function teamSection(teamEid, o){
   const node = el("div", { "data-team-card": teamEid, style: "margin-top:4px" });
   const live = el("div");
   node.appendChild(live);
+  let stored = null, wakeDefault = null, wakeMinutes = [1, 90], limits = {}, nextWake = null;
+  let bedDefault = null, bedMinutes = [1, 120], nightDefault = null;
   const cap = "font-size:11px;color:#94a3b8;margin:12px 0 5px;text-transform:uppercase;letter-spacing:.06em";
   const btn = (primary) => "padding:7px 10px;font-size:12px;font-weight:700;border-radius:9px;cursor:pointer;font-family:inherit;"
     + (primary ? "background:rgba(251,191,36,.14);color:#fbbf24;border:1px solid rgba(251,191,36,.5)"
@@ -178,10 +187,26 @@ export function teamSection(teamEid, o){
         },
       }, word);
       live.appendChild(el("div", { style: "display:flex;gap:6px" }, [pick("Adaptive", "Follow the day", following), pick("Sleep", "Sleep", sleeping)]));
-      if (st && st.state === "on" && !following && !sleeping) {
+      const byHand = st && st.state === "on" && !sleeping && (!following || a.brightness_follows === false);
+      if (byHand) {
         live.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:5px;line-height:1.45" },
-          a.waking ? "The wake-up set this light. Follow the day goes back to the day's."
-            : "Set by hand: it follows the day again when it is next turned on, or now with Follow the day."));
+          a.waking ? "The wake-up set this light. Follow the day goes back to the day's now."
+            : "Set by hand: the day takes it back at the next turn-on" + (stored && stored.resume ? `, or ${stored.resume} min after the last change` : "")
+              + ", or now with Follow the day."));
+      }
+      // Sleep in 30 min: the team fades to Sleep, then goes off (or stays, as its bedtime says).
+      if (st && st.state === "on" && !a.going_off) {
+        live.appendChild(el("button", {
+          type: "button", "data-team-sleep-now": "1", style: btn(false) + ";width:100%;margin-top:6px",
+          onclick: async () => {
+            track("team_card:sleep_now");
+            const end = stored && stored.bedtime && stored.bedtime.end === "sleep" ? "sleep" : "off";
+            try {
+              await hass.callWS({ type: "padspan_ha/power_team_sleep", entity_id: teamEid, minutes: 30, end });
+              toast(end === "off" ? "Going to sleep: off in 30 minutes" : "Going to sleep: Sleep in 30 minutes");
+            } catch (e) { toast(`That didn't work: ${errorText(e)}`, true); }
+          },
+        }, "Sleep in 30 min"));
       }
     }
 
@@ -249,7 +274,7 @@ export function teamSection(teamEid, o){
   // ── Wake-up and the day's curve: the team's settings, saved with the team (an administrator's) ──
   const settings = el("div");
   node.appendChild(settings);
-  let stored = null, wakeDefault = null, wakeMinutes = [1, 90], limits = {};
+  // (declared at the top: the live part reads the stored team too)
   const say = el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px;min-height:14px" });
   // The stored team is the one whose id the light carries (team_id).
   const tid = String(((states[teamEid] || {}).attributes || {}).team_id || "");
@@ -257,6 +282,9 @@ export function teamSection(teamEid, o){
     const r = await hass.callWS({ type: "padspan_ha/power_teams_get" });
     stored = ((r && r.teams) || []).find(t => t.id === tid) || null;
     wakeDefault = (r && r.wake_default) || null; wakeMinutes = (r && r.wake_minutes) || wakeMinutes; limits = (r && r.limits) || {};
+    bedDefault = (r && r.bedtime_default) || null; bedMinutes = (r && r.bedtime_minutes) || bedMinutes;
+    nightDefault = (r && r.night_default) || null;
+    nextWake = (r && r.live && r.live[tid] && r.live[tid].next_wake) || null;    // [day, "HH:MM"]
     return r;
   }
   async function save(change, word, done){
@@ -266,10 +294,17 @@ export function teamSection(teamEid, o){
       const t = teams.find(x => x.id === tid);
       if (!t) { say.textContent = "This team was changed elsewhere: close the card and open it again."; return; }
       change(t);
-      await hass.callWS({ type: "padspan_ha/power_teams_set", teams });
+      const back = await hass.callWS({ type: "padspan_ha/power_teams_set", teams });
       track(word);
+      // Drawn again from what was saved (the next wake-up, a skip, the folds' titles).
+      stored = ((back && back.teams) || teams).find(x => x.id === tid) || stored;
+      if (back && back.live && back.live[tid]) nextWake = back.live[tid].next_wake || null;
+      // The folds that were open stay open.
+      const open = new Set(Array.from(settings.children || []).filter(d => d.open === true || (d.getAttribute && d.getAttribute("open") !== null))
+        .map(d => d.getAttribute && d.getAttribute("data-team-fold")).filter(Boolean));
+      drawSettings(open);
       say.style.color = "#8ee5b4"; say.textContent = done;
-    } catch (e) { say.style.color = "#fca5a5"; say.textContent = "Could not save: " + String((e && (e.message || e.code)) || e); }
+    } catch (e) { say.style.color = "#fca5a5"; say.textContent = "Could not save: " + errorText(e); }
   }
   const fold = (title, key) => {
     const d = el("details", { "data-team-fold": key, style: "margin-top:12px;border-top:1px solid rgba(120,190,155,.14);padding-top:8px" });
@@ -285,52 +320,129 @@ export function teamSection(teamEid, o){
   const row = (label, ...nodes) => el("label", { style: "display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#cbd5e1;margin-top:6px" },
     [el("span", {}, label), el("span", { style: "display:flex;align-items:center;gap:4px" }, nodes)]);
 
-  function drawSettings(){
+  // A row of day buttons (Monday 0), pressed for each day in `on` (a Set it changes).
+  const daysPicker = (on, attr) => {
+    const box = el("div", { style: "display:flex;gap:3px;flex-wrap:wrap;margin-top:6px" });
+    DAYS.forEach((d, i) => {
+      const b = el("button", { type: "button", [attr]: String(i), "aria-pressed": on.has(i) ? "true" : "false" }, d);
+      const paint = () => b.setAttribute("style", btn(on.has(i)) + ";padding:4px 6px;font-size:11px;min-width:34px");
+      paint();
+      b.addEventListener("click", () => { if (on.has(i)) on.delete(i); else on.add(i); b.setAttribute("aria-pressed", on.has(i) ? "true" : "false"); paint(); });
+      box.appendChild(b);
+    });
+    return box;
+  };
+  const selectOf = (pairs, value, data) => {
+    const sel = el("select", { ...data, style: "background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:6px;padding:4px;font-size:12px;font-family:inherit;max-width:170px" });
+    for (const [v, words] of pairs) sel.appendChild(el("option", { value: String(v) }, words));
+    sel.value = String(value);
+    return sel;
+  };
+  const note = (text) => el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.45" }, text);
+  const dayName = (iso) => { const d = new Date(`${iso}T12:00:00`); return isNaN(d) ? iso : DAYS[(d.getDay() + 6) % 7]; };
+
+  function drawSettings(openFolds){
     while (settings.firstChild) settings.removeChild(settings.firstChild);
     if (!stored) return;
     const ro = !admin;
+    const keepOpen = (d) => { if (openFolds && openFolds.has(d.getAttribute("data-team-fold"))) d.setAttribute("open", ""); return d; };
 
     // The morning alarm: on its days, a team that is off comes on at its dimmest and warmest `minutes` before the time
     // and fades to the brightness and colour by then. A team already on is left alone (someone is up).
     const w = { ...(wakeDefault || {}), ...(stored.wake || {}) };
-    const wake = fold(w.on ? `Wake-up: ${w.time}, ${(w.days || []).map(d => DAYS[d]).join(" ") || "no days"}` : "Wake-up: off", "wake");
+    const skipped = !!(nextWake && w.skip && w.skip === nextWake[0]);
+    const wake = keepOpen(fold(w.on ? `Wake-up: ${w.time}${w.weekend_time ? `, weekends ${w.weekend_time}` : ""}, ${(w.days || []).map(d => DAYS[d]).join(" ") || "no days"}`
+      + (nextWake ? ` · next ${dayName(nextWake[0])} ${nextWake[1]}${skipped ? " (skipped)" : ""}` : "") : "Wake-up: off", "wake"));
     const onBox = el("input", { type: "checkbox", "data-wake": "on" }); onBox.checked = !!w.on;
     const time = timeIn(w.time || "06:30", { "data-wake": "time" });
-    const days = el("div", { style: "display:flex;gap:3px;flex-wrap:wrap;margin-top:6px" });
+    const weekend = timeIn(w.weekend_time || "", { "data-wake": "weekend_time" });
     const dayOn = new Set(w.days || []);
-    DAYS.forEach((d, i) => {
-      const b = el("button", { type: "button", "data-wake-day": String(i), "aria-pressed": dayOn.has(i) ? "true" : "false" }, d);
-      const paint = () => b.setAttribute("style", btn(dayOn.has(i)) + ";padding:4px 6px;font-size:11px;min-width:34px");
-      paint();
-      b.addEventListener("click", () => { if (dayOn.has(i)) dayOn.delete(i); else dayOn.add(i); b.setAttribute("aria-pressed", dayOn.has(i) ? "true" : "false"); paint(); });
-      days.appendChild(b);
-    });
     const mins = numIn(w.minutes ?? 30, wakeMinutes[0], wakeMinutes[1], 5);
     const wBri = numIn(w.brightness ?? 100, 1, 100, 5);
     const wK = numIn(w.kelvin ?? 4000, 1500, 9000, 100, 80);
+    const backAfter = numIn(w.back_after ?? 60, 0, 720, 15);
+    backAfter.setAttribute("data-wake", "back_after");
     wake.appendChild(row("On", onBox));
     wake.appendChild(row("Full light at", time));
-    wake.appendChild(days);
+    wake.appendChild(row("Saturday and Sunday at (empty: the same)", weekend));
+    wake.appendChild(daysPicker(dayOn, "data-wake-day"));
     wake.appendChild(row("Fading in over", mins, "min"));
     wake.appendChild(row("Ends at", wBri, "%", wK, "K"));
-    wake.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.45" },
-      "It starts at its dimmest and warmest and is at full light by the time. If the lights are already on, it leaves them alone."
+    wake.appendChild(row("Then back to the day after (0: until off)", backAfter, "min"));
+    wake.appendChild(note("It starts at its dimmest and warmest and is at full light by the time. If the lights are on, it leaves them alone; left on in Sleep, it wakes them from there."
       + (stored.off === "power" && stored.power ? " This team cuts its power when off, so its bulbs start up first (a moment at their start-up light)." : "")));
     if (!ro) {
+      // Saved whole: what the card does not show (a skipped morning) is kept.
       wake.appendChild(el("button", {
         type: "button", "data-wake-save": "1", style: btn(true) + ";margin-top:8px;width:100%",
         onclick: () => save((t) => {
-          t.wake = { on: onBox.checked, time: time.value || "06:30", days: [...dayOn].sort(), minutes: Number(mins.value), brightness: Number(wBri.value), kelvin: Number(wK.value) };
+          t.wake = { ...(t.wake || {}), on: onBox.checked, time: time.value || "06:30", weekend_time: weekend.value || "", days: [...dayOn].sort(),
+            minutes: Number(mins.value), brightness: Number(wBri.value), kelvin: Number(wK.value), back_after: Number(backAfter.value) };
         }, "team_card:wake_saved", onBox.checked ? `Saved: full light at ${time.value || "06:30"}` : "Saved: the wake-up is off"),
       }, "Save the wake-up"));
+      if (w.on && nextWake) {
+        wake.appendChild(el("button", {
+          type: "button", "data-wake-skip": skipped ? "undo" : "skip", style: btn(false) + ";margin-top:6px;width:100%",
+          onclick: () => save((t) => { t.wake = { ...(t.wake || {}), skip: skipped ? "" : nextWake[0] }; },
+            "team_card:wake_skip", skipped ? `${dayName(nextWake[0])} wakes as usual` : `${dayName(nextWake[0])} ${nextWake[1]} skipped`),
+        }, skipped ? `Don't skip ${dayName(nextWake[0])}` : `Skip ${dayName(nextWake[0])} ${nextWake[1]}`));
+      }
     }
     settings.appendChild(wake);
+
+    // Bedtime: on its days at its time, a lit team fades to Sleep (warming as it dims), then off or stays in Sleep.
+    // Only with the day's curve (Sleep is one of its looks).
+    if (stored.adaptive !== false) {
+      const b = { ...(bedDefault || {}), ...(stored.bedtime || {}) };
+      const bed = keepOpen(fold(b.on ? `Bedtime: ${b.time}, ${(b.days || []).map(d => DAYS[d]).join(" ") || "no days"}` : "Bedtime: off", "bedtime"));
+      const bOn = el("input", { type: "checkbox", "data-bed": "on" }); bOn.checked = !!b.on;
+      const bTime = timeIn(b.time || "22:30", { "data-bed": "time" });
+      const bDays = new Set(b.days || []);
+      const bMins = numIn(b.minutes ?? 30, bedMinutes[0], bedMinutes[1], 5);
+      bMins.setAttribute("data-bed", "minutes");
+      const bEnd = selectOf([["off", "Then off"], ["sleep", "Then stay in Sleep"]], b.end === "sleep" ? "sleep" : "off", { "data-bed": "end" });
+      bed.appendChild(row("On", bOn));
+      bed.appendChild(row("Starts at", bTime));
+      bed.appendChild(daysPicker(bDays, "data-bed-day"));
+      bed.appendChild(row("Fading over", bMins, "min"));
+      bed.appendChild(row("At the end", bEnd));
+      bed.appendChild(note("A team that is on fades to Sleep, warmer as it dims. One that is off is left off."
+        + (stored.power && stored.off === "power" ? " Off here cuts the power, as the team's own off does." : "")));
+      if (!ro) {
+        bed.appendChild(el("button", {
+          type: "button", "data-bed-save": "1", style: btn(true) + ";margin-top:8px;width:100%",
+          onclick: () => save((t) => {
+            t.bedtime = { ...(t.bedtime || {}), on: bOn.checked, time: bTime.value || "22:30", days: [...bDays].sort(), minutes: Number(bMins.value), end: bEnd.value };
+          }, "team_card:bedtime_saved", bOn.checked ? `Saved: bedtime at ${bTime.value || "22:30"}` : "Saved: no bedtime"),
+        }, "Save the bedtime"));
+      }
+      settings.appendChild(bed);
+
+      // The night light: switched on between these hours (the wall, a tap, an automation), it comes on in Sleep.
+      const n = { ...(nightDefault || {}), ...(stored.night || {}) };
+      const night = keepOpen(fold(n.on ? `Night light: ${n.from} to ${n.to}` : "Night light: off", "night"));
+      const nOn = el("input", { type: "checkbox", "data-night": "on" }); nOn.checked = !!n.on;
+      const nFrom = timeIn(n.from || "23:00", { "data-night": "from" });
+      const nTo = timeIn(n.to || "06:00", { "data-night": "to" });
+      night.appendChild(row("On", nOn));
+      night.appendChild(row("From", nFrom));
+      night.appendChild(row("To", nTo));
+      night.appendChild(note("Turned on in these hours with no brightness asked for, it comes on dim and warm (Sleep), not at the day's light. A brightness asked for is given."));
+      if (!ro) {
+        night.appendChild(el("button", {
+          type: "button", "data-night-save": "1", style: btn(true) + ";margin-top:8px;width:100%",
+          onclick: () => save((t) => { t.night = { on: nOn.checked, from: nFrom.value || "23:00", to: nTo.value || "06:00" }; },
+            "team_card:night_saved", nOn.checked ? `Saved: night light ${nFrom.value || "23:00"} to ${nTo.value || "06:00"}` : "Saved: no night light"),
+        }, "Save the night light"));
+      }
+      settings.appendChild(night);
+    }
 
     // The day's curve (adapted from Adaptive Lighting, with credit: THIRD_PARTY_NOTICES.md): its brightness and colour
     // at noon, at the horizon and at midnight, sleep's, and when this light's day starts and ends (the sun's sunrise
     // and sunset moved by minutes, or fixed times). And what a tap's off does.
     if (stored.adaptive !== false || stored.power) {
-      const adv = fold("Advanced: the day's curve" + (stored.power ? " and the power" : ""), "advanced");
+      const adv = keepOpen(fold("Advanced: the day's curve" + (stored.power ? " and the power" : ""), "advanced"));
       const c = stored.curve || {};
       const inputs = {}, times = {};
       if (stored.adaptive !== false) {
@@ -344,8 +456,21 @@ export function teamSection(teamEid, o){
           times[key] = timeIn(c[key] || "", { "data-curve": key });
           adv.appendChild(row(words, times[key]));
         }
-        adv.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.45" },
-          "Empty times follow the sun. A fixed start suits a bedroom: the day's light from the same time all year."));
+        for (const [key, words] of [["min_sunrise_time", "Sunrise no earlier than"], ["max_sunrise_time", "Sunrise no later than"],
+                                    ["min_sunset_time", "Sunset no earlier than"], ["max_sunset_time", "Sunset no later than"]]) {
+          times[key] = timeIn(c[key] || "", { "data-curve": key });
+          adv.appendChild(row(words, times[key]));
+        }
+        adv.appendChild(note("Empty times follow the sun. A fixed start suits a bedroom: the day's light from the same time all year. "
+          + "The limits keep the sun's own times but hold them in: a summer dawn at five need not light the room before half past six."));
+      }
+      let resumeSel = null;
+      if (stored.adaptive !== false) {
+        const r = Number(stored.resume) || 0;
+        const choices = [[0, "At the next turn-on"], [30, "After 30 min"], [60, "After 1 hour"], [120, "After 2 hours"], [240, "After 4 hours"], [480, "After 8 hours"]];
+        if (!choices.some(([v]) => v === r)) choices.push([r, `After ${r} min`]);
+        resumeSel = selectOf(choices, r, { "data-team-resume": "1" });
+        adv.appendChild(row("Set by hand: the day takes it back", resumeSel));
       }
       let offSel = null;
       if (stored.power) {
@@ -365,15 +490,16 @@ export function teamSection(teamEid, o){
             for (const [key, inp] of Object.entries(times)) nc[key] = inp.value || "";
             t.curve = nc;
             if (offSel) t.off = offSel.value;
+            if (resumeSel) t.resume = Number(resumeSel.value);
           }, offSel && offSel.value !== stored.off ? "team_card:off_mode_saved" : "team_card:curve_saved", "Saved"),
         }, "Save"));
       }
       settings.appendChild(adv);
     }
-    if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up and the curve."));
+    if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up, the bedtime, the night light and the curve."));
     settings.appendChild(say);
   }
-  if (tid) Promise.resolve().then(load).then(drawSettings, () => { /* no teams read: the card works without its settings */ });
+  if (tid) Promise.resolve().then(load).then(() => { drawSettings(); drawLive(); }, () => { /* no teams read: the card works without its settings */ });
 
   // Live: the team's own entities as Home Assistant changes them.
   let unsub = null, stopped = false, queued = false;

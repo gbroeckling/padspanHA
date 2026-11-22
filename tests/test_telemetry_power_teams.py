@@ -155,7 +155,8 @@ def test_anything_else_in_the_section_is_refused(monkeypatch, bad):
 
 def test_the_team_card_events_are_allowed_and_counted():
     want = {f"team_card:{w}" for w in ("opened", "power_cut", "power_on", "day", "sleep", "retry", "wake_saved",
-                                       "curve_saved", "off_mode_saved")} | {"team_tap"}
+                                       "curve_saved", "off_mode_saved", "sleep_now", "wake_skip", "bedtime_saved",
+                                       "night_saved")} | {"team_tap"}
     assert T.TEAM_CARD_EVENTS == want and all(T.event_allowed(e) for e in want)
     assert not T.event_allowed("team_card:bogus") and not T.event_allowed("team_tap:kitchen")
     h = _hass()

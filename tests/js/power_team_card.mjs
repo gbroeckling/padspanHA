@@ -69,9 +69,13 @@ function fakeHass(states, { admin = true } = {}) {
     ws, svc, subs, states, user: { is_admin: admin },
     callWS: async (m) => {
       ws.push(JSON.parse(JSON.stringify(m)));
+      const live = { "9466dc82": { next_wake: ["2026-11-23", "06:30"] } };
       if (m.type === "padspan_ha/power_teams_get") return { teams: JSON.parse(JSON.stringify(stored)), wake_default: STORED[1].wake, wake_minutes: [1, 90],
+        bedtime_default: { on: false, time: "22:30", days: [0, 1, 2, 3, 4, 5, 6], minutes: 30, end: "off" }, bedtime_minutes: [1, 120],
+        night_default: { on: false, from: "23:00", to: "06:00" }, live,
         limits: { sunrise_offset: [-180, 180], sunset_offset: [-180, 180] } };
-      if (m.type === "padspan_ha/power_teams_set") { stored = JSON.parse(JSON.stringify(m.teams)); return { teams: stored }; }
+      if (m.type === "padspan_ha/power_teams_set") { stored = JSON.parse(JSON.stringify(m.teams)); return { teams: stored, live }; }
+      if (m.type === "padspan_ha/power_team_sleep") return { ran: true };
       return { counted: false };
     },
     callService: async (domain, service, data) => { svc.push([domain, service, JSON.parse(JSON.stringify(data))]); },
@@ -115,7 +119,15 @@ try {
       failed: say({ [TEAM]: { attributes: { phase: "failed", missing: ["light.pot_2", "light.pot_3"] } } }),
       fading: say({ [TEAM]: { attributes: { follows_the_day: false, effect: null, waking: true, fading: true } } }),
       gone: say({ [TEAM]: { state: "unavailable" } }),
+      briHand: say({ [TEAM]: { attributes: { brightness_follows: false, brightness: 102 } } }),
+      colourHand: say({ [TEAM]: { attributes: { follows_the_day: false, effect: null, brightness_follows: true } } }),
+      goingOff: say({ [TEAM]: { attributes: { going_off: true, fading: true, effect: "Sleep", follows_the_day: false } } }),
+      sleepFade: say({ [TEAM]: { attributes: { fading: true, effect: "Sleep", follows_the_day: false } } }),
     };
+    check("status (2026-11-22): brightness set by hand with the colour on the day, the colour by hand, going to sleep",
+      cases2.briHand[0] === "On · colour follows the day, brightness set by hand (40%)"
+      && cases2.colourHand[0] === "On · colour set by hand, brightness follows the day"
+      && cases2.goingOff[0] === "Going to sleep: fading, then off" && cases2.sleepFade[0] === "Going to sleep: fading", cases2);
     check("status: following the day, sleep, set by hand, off (power on or cut), starting, bulbs not answering, waking, out of reach",
       cases2.following[0] === "On · following the day: 100%, 4755 K" && cases2.sleep[0].includes("sleep") && cases2.hand[0] === "On · set by hand"
       && cases2.offPowered[0].includes("the power is on, so it comes on at once") && cases2.offCut[0] === "Off · the power is off"
@@ -240,6 +252,53 @@ try {
     check("out of reach: the card says so and still shows the power and each bulb",
       card.textContent.includes("out of Home Assistant's reach") && find(card, "data-team-bulb").length === 3 && card.textContent.includes("Master Bedroom Pots"),
       card.textContent.slice(0, 400));
+    // Sleep in 30 min: the team fades to Sleep and goes off (its bedtime's end).
+    h.push(TEAM, "on", { phase: "ready", missing: [], follows_the_day: true, effect: "Adaptive" });
+    await wait(200);
+    find(card, "data-team-sleep-now")[0].click(); await settle();
+    const sl = h.ws.filter(m => m.type === "padspan_ha/power_team_sleep").pop();
+    check("Sleep in 30 min: the team's own command, 30 minutes, then off",
+      sl && sl.entity_id === TEAM && sl.minutes === 30 && sl.end === "off" && tracked(h).includes("team_card:sleep_now"), sl);
+
+    // Skip the next morning: saved with the team; a later save of the wake-up keeps it.
+    const wf = () => find(card, "data-team-fold", "wake")[0];
+    find(wf(), "data-wake-skip", "skip")[0].click(); await settle(); await settle();
+    const sk = h.ws.filter(m => m.type === "padspan_ha/power_teams_set").pop().teams.find(t => t.id === "9466dc82");
+    const wkEnd = find(wf(), "data-wake", "weekend_time")[0];
+    wkEnd.value = "08:00";
+    find(wf(), "data-wake", "back_after")[0].value = "45";
+    find(wf(), "data-wake-save")[0].click(); await settle(); await settle();
+    const ws2 = h.ws.filter(m => m.type === "padspan_ha/power_teams_set").pop().teams.find(t => t.id === "9466dc82");
+    check("wake-up: skip Monday, a weekend time and back-to-the-day minutes, a skip kept by a later save",
+      sk && sk.wake.skip === "2026-11-23" && ws2.wake.skip === "2026-11-23" && ws2.wake.weekend_time === "08:00" && ws2.wake.back_after === 45
+      && tracked(h).includes("team_card:wake_skip") && find(wf(), "data-wake-skip", "undo").length === 1 && wf().textContent.includes("(skipped)"),
+      { sk: sk && sk.wake, ws2: ws2 && ws2.wake });
+
+    const bf = find(card, "data-team-fold", "bedtime")[0];
+    find(bf, "data-bed", "on")[0].checked = true;
+    find(bf, "data-bed", "time")[0].value = "22:45";
+    find(bf, "data-bed", "end")[0].value = "sleep";
+    find(bf, "data-bed-save")[0].click(); await settle(); await settle();
+    const bs = h.ws.filter(m => m.type === "padspan_ha/power_teams_set").pop().teams.find(t => t.id === "9466dc82");
+    const nf = find(card, "data-team-fold", "night")[0];
+    find(nf, "data-night", "on")[0].checked = true;
+    find(nf, "data-night", "from")[0].value = "22:00";
+    find(nf, "data-night-save")[0].click(); await settle(); await settle();
+    const ns = h.ws.filter(m => m.type === "padspan_ha/power_teams_set").pop().teams.find(t => t.id === "9466dc82");
+    check("bedtime and night light: saved with the team, each keeping the other",
+      bs && bs.bedtime.on === true && bs.bedtime.time === "22:45" && bs.bedtime.end === "sleep" && bs.bedtime.days.length === 7
+      && ns.night.on === true && ns.night.from === "22:00" && ns.night.to === "06:00" && ns.bedtime.time === "22:45"
+      && tracked(h).includes("team_card:bedtime_saved") && tracked(h).includes("team_card:night_saved"), { bs: bs && bs.bedtime, ns: ns && ns.night });
+
+    const af = find(card, "data-team-fold", "advanced")[0];
+    find(af, "data-curve", "min_sunrise_time")[0].value = "06:30";
+    find(af, "data-team-resume")[0].value = "120";
+    find(af, "data-curve-save")[0].click(); await settle(); await settle();
+    const as = h.ws.filter(m => m.type === "padspan_ha/power_teams_set").pop().teams.find(t => t.id === "9466dc82");
+    check("advanced: an earliest sunrise and the hand-back time saved; the wake-up, bedtime and night light kept",
+      as && as.curve.min_sunrise_time === "06:30" && as.curve.max_sunset_time === "" && as.resume === 120
+      && as.wake.skip === "2026-11-23" && as.bedtime.time === "22:45" && as.night.from === "22:00", as);
+
     const live = h.subs.filter(s => s.live).length;
     document.body._all().find(n => n.tagName === "BUTTON" && n.textContent === "✕").click();
     check("closed: it stops following Home Assistant", live === 1 && h.subs.every(s => !s.live), h.subs.length);
@@ -265,7 +324,7 @@ try {
     const card = document.body._all().find(n => n.getAttribute && n.getAttribute("data-team-card") === TEAM);
     check("not an administrator: the wake-up and the curve are shown with no Save; the light is still switched",
       !!card && !find(card, "data-wake-save").length && !find(card, "data-curve-save").length
-      && card.textContent.includes("An administrator changes the wake-up and the curve.") && find(card, "data-team-power").length === 1,
+      && card.textContent.includes("An administrator changes the wake-up, the bedtime, the night light and the curve.") && find(card, "data-team-power").length === 1,
       card && card.textContent.slice(-300));
   }
 } catch (e) {

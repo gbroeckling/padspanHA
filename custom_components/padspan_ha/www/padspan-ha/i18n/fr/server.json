@@ -226,5 +226,6 @@
 "Only an administrator can restore a WLED backup": "Seul un administrateur peut restaurer une sauvegarde WLED",
 "Only an administrator can open a WLED backup": "Seul un administrateur peut ouvrir une sauvegarde WLED",
 "Pick a backup first.": "Choisissez d’abord une sauvegarde.",
-"Home Assistant can't reach this WLED at {address} — check it's powered on and on the network (if its address changed, Home Assistant's WLED integration needs the new one)": "Home Assistant n’arrive pas à joindre ce WLED à l’adresse {address} — vérifiez qu’il est allumé et sur le réseau (si son adresse a changé, l’intégration WLED de Home Assistant a besoin de la nouvelle)"
+"Home Assistant can't reach this WLED at {address} — check it's powered on and on the network (if its address changed, Home Assistant's WLED integration needs the new one)": "Home Assistant n’arrive pas à joindre ce WLED à l’adresse {address} — vérifiez qu’il est allumé et sur le réseau (si son adresse a changé, l’intégration WLED de Home Assistant a besoin de la nouvelle)",
+"That light is not a power team": "Cette lumière n’est pas une équipe Power"
 }

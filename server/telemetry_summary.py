@@ -745,9 +745,11 @@ def plans_section(latest: dict[str, dict]) -> list[str]:
 # team or not, the house's colour bulbs by brand and integration, which is who could use a team. Then the team card's
 # buttons over the window (telemetry.TEAM_CARD_EVENTS, held equal by tests/test_telemetry_power_teams.py).
 _TEAM_CARD = tuple(f"team_card:{w}" for w in ("opened", "power_cut", "power_on", "day", "sleep", "retry",
-                                              "wake_saved", "curve_saved", "off_mode_saved")) + ("team_tap",)
+                                              "wake_saved", "curve_saved", "off_mode_saved", "sleep_now", "wake_skip",
+                                              "bedtime_saved", "night_saved")) + ("team_tap",)
 _TEAM_COUNTS = (("with_power", "with a wall control"), ("adaptive", "follow the day"), ("curve_changed", "own curve"),
-                ("sun_shifted", "sun times moved"), ("wake_on", "wake-up on"))
+                ("sun_shifted", "sun times moved"), ("wake_on", "wake-up on"), ("wake_weekend", "weekend wake time"),
+                ("bedtime_on", "bedtime on"), ("night_on", "night light on"), ("resume_set", "hand-back timed"))
 _TEAM_WORDS = (("power_domain", "wall control is a"), ("power_platform", "wall control run by"), ("off", "turned off by"),
                ("team_size", "bulbs per team"), ("wake_fade", "wake-up fade (minutes)"), ("bulb_brand", "team bulbs by brand"),
                ("bulb_platform", "team bulbs run by"), ("colour_bulbs_by_brand", "every colour bulb by brand"),
