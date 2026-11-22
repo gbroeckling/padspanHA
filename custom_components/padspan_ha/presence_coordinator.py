@@ -1756,8 +1756,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             key, smooth_addr, addr_src_rssi, source_to_area,
                             _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
                             _fabric_rooms, now)
-                        if smoothed_room:
-                            obj["room"] = smoothed_room
+                        obj["room"] = self._shown_room(key, smoothed_room)
                         obj["_smoothed"] = True
                         _counts["smoothed"] += 1
                         obj["room_confidence"] = self._room_confidence.get(key, 0.0)
@@ -1810,8 +1809,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             key, key, synthetic, source_to_area,
                             _dyn_vote_window, _dyn_vote_threshold, source_to_floor,
                             _fabric_rooms, now)
-                        if smoothed_room:
-                            obj["room"] = smoothed_room
+                        obj["room"] = self._shown_room(key, smoothed_room)
                         obj["_smoothed"] = True
                         _counts["smoothed"] += 1
                         obj["room_confidence"] = self._room_confidence.get(key, 0.0)
@@ -4264,6 +4262,20 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 n_s = _n_exp
             out[src] = round(max(0.0, 10 ** ((ref_s - rssi) / (10.0 * n_s))), 1)
         return out
+
+    def _shown_room(self, key: str, voted: str | None) -> str | None:
+        """The room a Bluetooth device is shown in: the vote's.
+
+        With no voted room yet — the re-entry reset cleared it, or the vote
+        is held for want of fresh readings — the last room the vote gave a
+        device that never went away (the room its next confirmed move is
+        reported from), else no room until the vote names one. The
+        snapshot's own room was left in place here: its strongest receiver's
+        area from adverts up to 60 s old, past the filter, the vote and Room
+        Change Delay, and about a quarter of a real house's room changes went
+        through it.
+        """
+        return voted or self._room_before_gap.get(key)
 
     def held_room(self, key: str, hold_s: float) -> str:
         """The room a device had before a short signal gap cleared it, while
