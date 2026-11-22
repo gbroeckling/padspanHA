@@ -74,6 +74,7 @@ to turn it on or off.</p>
   <tr><th>What</th><th>Where it shows</th><th>Turn it on</th></tr>
   <tr><td>A device changes room, arrives home or leaves</td><td>Your phone or email</td><td>Follow → <b>Movement Alerts</b></td></tr>
   <tr><td>A leak, smoke, gas or carbon monoxide alarm</td><td>A red banner on every PadSpan screen; the room rings red on the Atlas</td><td>Always on</td></tr>
+  <tr><td>The same alarm, and when it clears</td><td>Your Follow alert targets (your phone or email)</td><td>On by default: <b>Settings → Atlas → Atlas — Mapped Light Control → Notify when a leak, smoke, gas or CO alarm goes off</b></td></tr>
   <tr><td>A door left open, or a window open in the rain</td><td>The room rings amber on the Atlas; a banner on a wall screen</td><td><b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b></td></tr>
   <tr><td>Vacation Mode ends or is turned off</td><td>A Home Assistant notification, and your Follow alert targets</td><td>Always, while Vacation Mode is used</td></tr>
   <tr><td>A guest arrives, leaves, or goes into a room they shouldn't</td><td>Your phone, or a Home Assistant notification</td><td>When you lend a guest tag</td></tr>
@@ -147,8 +148,26 @@ is still alarming stays red on the Atlas, and the banner comes back the next tim
 alarm.</p>
 <p>While the sample house is showing, the banner still shows your own house's alarms, with <b>Back to my
 house</b> in place of Reset.</p>
-<p><b>PadSpan doesn't send a leak or smoke alarm to your phone.</b> Use a Home Assistant automation on the
-sensor itself for that: it doesn't depend on PadSpan.</p>
+<h3 id="the-notification">The notification</h3>
+<p>PadSpan sends a notification when an alarm latches. It is on by default; turn it off or on in
+<b>Settings → Atlas → Atlas — Mapped Light Control → Notify when a leak, smoke, gas or CO alarm goes
+off</b>. It saves as soon as you tick or untick it.</p>
+<ul>
+<li><b>One when the alarm goes off</b>: <b>PadSpan: Leak alarm</b>, "Leak alarm: Sink sensor in the
+Kitchen, at 14:05. …". Nothing more while it stays latched, however often the sensor goes off and
+on again.</li>
+<li><b>One when it clears</b>: <b>PadSpan: Leak alarm cleared</b> when someone presses Reset, or <b>PadSpan:
+Leak alarm ended</b> when the 2 days are over without a reset. If Home Assistant was off at that
+moment, it comes when Home Assistant starts again. Deleting the sensor sends nothing.</li>
+<li><b>Where it goes</b>: to every phone and email address your Follow alerts are set to send to (see
+above), up to five. With no Follow alert target set, it goes where a Follow alert with no target
+goes: a mail notify service first, else the first notify service Home Assistant has. With no
+notify service in Home Assistant at all, nothing is sent; Home Assistant's log says so.</li>
+<li>An alarm that latched before this notification existed, or while it was off, sends nothing when
+it clears.</li>
+</ul>
+<p>The notification goes through PadSpan. For an alarm that must reach you even when PadSpan is not
+running, also use a Home Assistant automation on the sensor itself.</p>
 <h2 id="alert-pulse-atlas">Alert pulse (Atlas)</h2>
 <p>Off until you turn it on: <b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b>. It saves
 as soon as you tick it.</p>

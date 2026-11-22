@@ -134,9 +134,21 @@ the house only when you choose <b>Put it on the map</b>
 <h2 id="renaming-and-removing">Renaming and removing</h2>
 <p>PadSpan knows a room by its name.</p>
 <ul>
-<li><b>A room that isn't an area any more</b>, such as one you renamed or removed in Home Assistant, shows
-on the Rooms screen as <b>PadSpan only, not a Home Assistant area</b>, with its outline kept. After a
-rename, draw the outline again for the new name and remove the old one in <b>Mapping → Edit</b>.</li>
+<li><b>An area you rename in Home Assistant</b> is renamed in PadSpan too, while PadSpan is running: the
+room's outline, its details (colour, height), its neighbours, the receivers placed in it, its
+bounds on each floor plan, its calibration points (room walks too), Follow alerts that watch it,
+what PadSpan has learned about it, and the room–tag map. PadSpan makes an automatic backup first
+(<b>Before renaming room …</b> in the backup list) and writes one line in Home Assistant's log saying
+what it renamed. If PadSpan already has a room with the new name, nothing is renamed, since that
+would merge two rooms; the log says so.</li>
+<li><b>Not renamed</b>: past records keep the name the room had then (movement history, lost-and-found,
+recordings and the time line), as do guest stays, a sub-zone's room label, the Live Aboard
+director's room list, the ESPresense room map, and the room names inside a saved RoomPlan scan or
+an AI plan's undo. Change those by hand if you need to.</li>
+<li><b>A room that isn't an area any more</b>, such as one you removed in Home Assistant, or renamed
+while PadSpan was not running, shows on the Rooms screen as <b>PadSpan only, not a Home Assistant
+area</b>, with its outline kept. Draw the outline again for the new name and remove the old one in
+<b>Mapping → Edit</b>.</li>
 <li><b>A receiver moved to another room</b>: change its device's area in Home Assistant, or in PadSpan
 with <b>Set room</b> on the Overview's <b>Who's where now</b> card.</li>
 <li><b>An area you don't want</b> can be removed in Home Assistant, or with <b>Delete</b> in PadSpan's

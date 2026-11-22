@@ -118,7 +118,7 @@ von Ortung sind jeweils eine aufklappbare Überschrift auf diesem Reiter.</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
-  <tr><td>Room Change Delay</td><td>20</td><td>0 to 300</td><td>Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half.</td><td><code>room_change_delay_s</code></td></tr>
+  <tr><td>Room Change Delay</td><td>40</td><td>0 to 300</td><td>Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half.</td><td><code>room_change_delay_s</code></td></tr>
   <tr><td>Hold Room Through Short Gaps: Hold last room</td><td>0</td><td>0 (off), or 1 to 600</td><td>Seconds a device's room stays shown through a signal gap. Display only: rooms are decided as before.</td><td><code>hold_last_room_s</code></td></tr>
   <tr><td>Why This Room (Sensor Attribute): Add a room_reason attribute to each area sensor</td><td>off</td><td>on or off</td><td>Adds <code>room_reason</code> to each area sensor (<a href="/manual/home-assistant-reference/de/">chapter 14</a>).</td><td><code>room_reason_attribute</code></td></tr>
   <tr><td>Home/Away Timeout: Away timeout</td><td>5</td><td>1 to 1440</td><td>Minutes a device goes unheard before its tracker and area sensor read <code>not_home</code>.</td><td><code>away_timeout_m</code></td></tr>
@@ -151,7 +151,7 @@ von Ortung sind jeweils eine aufklappbare Überschrift auf diesem Reiter.</p>
   <tr><td>Positioning Choices: Pick the better method for this house</td><td>off</td><td>on or off</td><td>Uses whichever placing method did better on calibration spots it had not seen.</td><td><code>positioning_pick_better</code></td></tr>
   <tr><td>Positioning Choices: Mark a room as unsure when the signal is thin</td><td>off</td><td>on or off</td><td>With fewer than 3 receivers, or no good calibration match, a device keeps its room and is marked unsure.</td><td><code>positioning_unsure</code></td></tr>
   <tr><td>Positioning Choices: Use motion sensors and usual moves to break ties</td><td>off</td><td>on or off</td><td>Motion and occupancy sensors, and the moves PadSpan has learned, decide between two rooms that read almost the same.</td><td><code>positioning_sensor_fusion</code></td></tr>
-  <tr><td>Walk a Room (Calibration): Add a "Walk a room" tab to Calibration</td><td>off</td><td>on or off</td><td>Adds Walk a room to Calibration.</td><td><code>calibration_room_walk</code></td></tr>
+  <tr><td>Walk a Room (Calibration): Add a "Walk a room" tab to Calibration</td><td>on</td><td>on or off</td><td>Adds Walk a room to Calibration.</td><td><code>calibration_room_walk</code></td></tr>
   <tr><td>Distance Calibration: Reference power</td><td>-59</td><td>-100 to 0</td><td>Signal strength in dBm at 1 metre, for the distance sensors.</td><td><code>ref_power</code></td></tr>
   <tr><td>Distance Calibration: Path-loss exponent</td><td>2.5</td><td>1 to 4</td><td>How fast the signal falls with distance, for the distance sensors: about 2 in the open, 2.5 to 3.5 indoors.</td><td><code>path_loss_exp</code></td></tr>
   <tr><td>Signal smoothing: Process noise Q</td><td>3</td><td>0.01 to 10</td><td>How fast the smoothed signal follows a change. Higher follows movement faster.</td><td><code>kalman_q</code></td></tr>
@@ -247,6 +247,7 @@ von Ortung sind jeweils eine aufklappbare Überschrift auf diesem Reiter.</p>
   <tr><td>Atlas — Mapped Light Control: Show the Test emergency lighting button on the Atlas</td><td>on</td><td>on or off</td><td>The Atlas's Test emergency lighting button.</td><td><code>atlas_emergency_button</code></td></tr>
   <tr><td>Atlas — Mapped Light Control: Draw lit lights in their own colour on the Atlas</td><td>off</td><td>on or off</td><td>Lit lights in the colour they report. Off: amber.</td><td><code>atlas_live_colours</code></td></tr>
   <tr><td>Atlas — Mapped Light Control: Alert pulse</td><td>off</td><td>on or off</td><td>Rings an opening left open, or open in the rain, and names the worst alert.</td><td><code>atlas_alert_pulse</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Notify when a leak, smoke, gas or CO alarm goes off</td><td>on</td><td>on or off</td><td>Sends one notification when the alarm latches and one when it clears, where Follow alerts go.</td><td><code>emergency_notify</code></td></tr>
   <tr><td>Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂)</td><td>off</td><td>on or off</td><td>A Heatmap chip on the Atlas: rooms coloured by their own sensors.</td><td><code>atlas_heatmap_enabled</code></td></tr>
   <tr><td>Power teams</td><td>empty</td><td></td><td>Each wall dimmer or switch and the smart bulbs it feeds, as one light (<a href="/manual/home-assistant-reference/de/">chapter 14</a>).</td><td><code>power_teams</code></td></tr>
   <tr><td>Outdoor weather: Show rain and snow on the Atlas</td><td>on</td><td>on or off</td><td>Rain or snow around the house while it really rains or snows.</td><td><code>atlas_weather_enabled</code></td></tr>
@@ -386,8 +387,8 @@ Keine davon musst du je setzen.</p>
   <tr><td><code>espresense_room_map</code></td><td>empty</td><td>a mapping</td><td>ESPresense room names matched to Home Assistant areas.</td></tr>
   <tr><td><code>atlas_3d_showcase</code></td><td>off</td><td>on or off</td><td>An older Live Aboard look switch, kept so old backups load; Look decides now.</td></tr>
   <tr><td><code>emergency_entities</code></td><td>empty</td><td></td><td>The lights the Atlas's emergency lighting test switches. Empty: Home Assistant's emergency groups, or PadSpan's own rule.</td></tr>
-  <tr><td><code>auto_offset_mode</code></td><td>not set</td><td><code>off</code>, <code>partial</code>, <code>full</code></td><td>Accepted but nothing reads it: only the manual receiver trims are applied.</td></tr>
-  <tr><td><code>signal_loss_linger_s</code></td><td>not set</td><td>10 to 300</td><td>Retired in 0.20.16: accepted, read by nothing.</td></tr>
+  <tr><td><code>occupancy_multiplier</code></td><td>1.5</td><td>0.5 to 10</td><td>Devices per person for the occupancy estimate, as Health's fabric check shows it; nothing else reads it yet.</td></tr>
+  <tr><td><code>occupancy_dwell_min</code></td><td>not set</td><td>0 to 60</td><td>Minutes for the occupancy estimate's dwell; nothing reads it yet.</td></tr>
   <tr><td><code>rssi_capture_retention_days</code></td><td>14</td><td><code>1</code>, <code>3</code>, <code>7</code>, <code>14</code>, <code>30</code></td><td>Days RSSI recordings are kept (RSSI Vector Capture).</td></tr>
 </table>
 </div>
@@ -425,6 +426,7 @@ Keine davon musst du je setzen.</p>
   <tr><td><code>power_teams_slept</code></td><td>empty</td><td></td><td>Each power team's last bedtime day, so a restart never runs it twice.</td></tr>
   <tr><td><code>room_speed_v1_applied</code></td><td>off</td><td></td><td>The November 2026 room-speed defaults were applied once.</td></tr>
   <tr><td><code>atlas_default_v1_applied</code></td><td>off</td><td></td><td>The Atlas's sidebar entry was switched on once, by default.</td></tr>
+  <tr><td><code>room_walk_default_v1_applied</code></td><td>off</td><td></td><td>Walk a room was switched on once, by default, unless a walk was saved.</td></tr>
   <tr><td><code>server_checked_at</code></td><td>0</td><td></td><td>When the update check and licence check last ran.</td></tr>
   <tr><td><code>forensics_license_expires</code></td><td>empty</td><td></td><td>When the licence ends, as the licence server last said.</td></tr>
   <tr><td><code>license_is_trial</code></td><td>off</td><td></td><td>The key is a trial key.</td></tr>

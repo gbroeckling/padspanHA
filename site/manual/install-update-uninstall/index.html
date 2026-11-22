@@ -74,11 +74,14 @@ footer p{margin:4px 0}
 <p>The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer, and in HACS on older
 versions.</p>
 <h3 id="from-the-marketplace-home-assistant-202611-and-newer">From the Marketplace (Home Assistant 2026.11 and newer)</h3>
+<p>The Marketplace is Home Assistant's own place for HACS's list (HACS became part of Home Assistant
+in 2026.11), and only an administrator sees it.</p>
 <ol>
 <li>Open <b>Settings → Marketplace</b> and search for <b>PadSpan</b>.</li>
 <li>Open <b>PadSpan HA</b> and choose <b>Install</b>. The first time, the Marketplace asks you to confirm
-that what it lists isn't reviewed by the Home Assistant project.</li>
-<li>The setup dialog opens right away, with no restart. Choose <b>Submit</b>.</li>
+that what it lists isn't reviewed or supported by the Home Assistant project.</li>
+<li>The setup dialog opens right away, with no restart. Choose <b>Submit</b>. (Some integrations, such
+as ones set up in YAML, need a restart first; PadSpan isn't one of them.)</li>
 <li>Open <b>PadSpan HA</b> in the sidebar.</li>
 </ol>
 <h3 id="with-hacs-home-assistant-202610-and-older">With HACS (Home Assistant 2026.10 and older)</h3>
@@ -112,17 +115,22 @@ security</b> on: changes to PadSpan's shared setup need a Home Assistant adminis
 <li><b>Stable</b> is what the Marketplace and HACS install and offer by default. Most homes should stay on
 stable.</li>
 <li><b>Betas</b> come out often, sometimes several in a day, so a fix reaches testers the day it is made.
-They are GitHub pre-releases. HACS offers a beta only to those who asked it for betas. A beta's
-release notes say BETA in their title.</li>
+They are GitHub pre-releases. The Marketplace and HACS offer a beta only to those who asked for
+betas. A beta's release notes say BETA in their title.</li>
 </ul>
-<p>To get betas in HACS 2: go to <b>Settings → Devices &amp; services → HACS</b>, open the <b>PadSpan HA</b>
-device, and switch on its <b>Pre-release</b> entity. Home Assistant creates that entity switched off and
-disabled, so enable it first (its settings, <b>Enabled</b>). To go back to stable, switch it off again;
-HACS then offers the next stable.</p>
+<p>To get betas, switch on PadSpan's <b>Pre-release</b> switch:</p>
+<ul>
+<li><b>Marketplace</b> (Home Assistant 2026.11 and newer): <b>Settings → Devices &amp; services →
+Marketplace</b>, open the <b>PadSpan HA</b> device.</li>
+<li><b>HACS 2</b> (Home Assistant 2026.10 and older): <b>Settings → Devices &amp; services → HACS</b>, open the
+<b>PadSpan HA</b> device.</li>
+</ul>
+<p>The <b>Pre-release</b> entity is disabled at first, so enable it (its settings, <b>Enabled</b>), then
+switch it on. To go back to stable, switch it off again; you are then offered the next stable.</p>
 <h3 id="step-by-step">Step by step</h3>
 <ol>
-<li>Open <b>Settings → System → Updates</b>. A new PadSpan HA shows there (in HACS, it also shows on
-<b>PadSpan HA</b>).</li>
+<li>Open <b>Settings → Updates</b> (<b>Settings → System → Updates</b> before Home Assistant 2026.11). A
+new PadSpan HA shows there (in HACS, it also shows on <b>PadSpan HA</b>).</li>
 <li>Choose <b>Install</b>. The release notes are in the same dialog.</li>
 <li>Restart Home Assistant: <b>Settings → System → Restart</b>.</li>
 <li>Reload the PadSpan page in each browser that has it open (Ctrl+F5 on a computer).</li>
@@ -170,7 +178,9 @@ WLED light it was running its WLED sync back. With the usage report on, PadSpan 
 report that says it was removed, with nothing about the house.</li>
 <li>Remove the code:
 <ul>
-<li>Marketplace: open <b>PadSpan HA</b> in <b>Settings → Marketplace</b> and remove it.</li>
+<li>Marketplace: open <b>PadSpan HA</b> in <b>Settings → Marketplace</b>, open the menu (⋮) and choose
+<b>Uninstall</b>. It can't be uninstalled while it is still set up, so do step 1 first (or choose
+<b>Delete and uninstall</b> when the Marketplace offers it).</li>
 <li>HACS: open <b>PadSpan HA</b> in HACS, open the menu (⋮) and choose <b>Remove</b>.</li>
 <li>By hand: delete the folder <code>custom_components/padspan_ha</code>.</li>
 </ul></li>
