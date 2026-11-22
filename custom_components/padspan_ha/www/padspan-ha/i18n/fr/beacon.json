@@ -140,6 +140,9 @@
 "Details": "Détails",
 "Hide from this list": "Masquer de cette liste",
 "Placed Beacons ({n})": "Balises placées ({n})",
+"Pinned: it never moves": "Épinglée : ne bouge jamais",
+"A pinned beacon keeps this room and adds calibration points here. Pin only a beacon that never moves.": "Une balise épinglée garde cette pièce et ajoute ici des points d’étalonnage. N’épinglez qu’une balise qui ne bouge jamais.",
+"Pin here: it never moves": "Épingler ici : ne bouge jamais",
 "Remove": "Retirer",
 "Move…": "Déplacer…",
 "Purge Data": "Purger les données",
@@ -234,8 +237,5 @@
 "{n} samples": {
 "one": "1 échantillon",
 "other": "{n} échantillons"
-},
-"Pinned: it never moves": "Épinglée : ne bouge jamais",
-"Pin here: it never moves": "Épingler ici : ne bouge jamais",
-"A pinned beacon keeps this room and adds calibration points here. Pin only a beacon that never moves.": "Une balise épinglée garde cette pièce et ajoute ici des points d’étalonnage. N’épinglez qu’une balise qui ne bouge jamais."
+}
 }

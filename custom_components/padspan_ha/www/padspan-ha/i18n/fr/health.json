@@ -119,7 +119,7 @@
 "Resyncing…": "Resynchronisation…",
 "Resync: removed {removed}, added {added}, pruned {pruned} → {n} scanners": "Resynchro : {removed} retirés, {added} ajoutés, {pruned} élagués → {n} scanners",
 "Reset Spatial Model": "Réinitialiser le modèle spatial",
-"Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.": "Effacer toutes les positions des scanners et des balises et toutes les barrières ? Une sauvegarde est faite d’abord (Gérer → Backup & Restore). Les formes des pièces, les lumières, le placement des plans et les points d’étalonnage NE sont PAS touchés.",
+"Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.": "Effacer toutes les positions des scanners et des balises et toutes les barrières ? Une sauvegarde est faite d’abord (Gérer → Sauvegarde et restauration). Les formes des pièces, les lumières, le placement des plans et les points d’étalonnage NE sont PAS touchés.",
 "Resetting…": "Réinitialisation…",
 "Reset: {n} scanner/beacon positions and barriers cleared (backup taken first)": "Réinitialisé : {n} positions de scanners/balises et barrières effacées (sauvegarde faite avant)",
 "Nothing to reset: no scanner/beacon positions or barriers": "Rien à réinitialiser : aucune position de scanner/balise ni barrière",

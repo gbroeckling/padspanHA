@@ -119,7 +119,7 @@
 "Resyncing…": "Wird abgeglichen…",
 "Resync: removed {removed}, added {added}, pruned {pruned} → {n} scanners": "Abgleich: {removed} entfernt, {added} hinzugefügt, {pruned} bereinigt → {n} Scanner",
 "Reset Spatial Model": "Raummodell zurücksetzen",
-"Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.": "Alle Scanner- und Beacon-Positionen und Barrieren löschen? Vorher wird eine Sicherung angelegt (Verwalten → Backup & Restore). Raumformen, Lichter, Kartenplatzierungen und Kalibrierpunkte bleiben UNBERÜHRT.",
+"Clear every scanner position, beacon position and barrier? A backup is taken first (Manage → Backup & Restore). Room shapes, lights, map placements and calibration points are NOT touched.": "Alle Scanner- und Beacon-Positionen und Barrieren löschen? Vorher wird eine Sicherung angelegt (Verwalten → Sichern und Wiederherstellen). Raumformen, Lichter, Kartenplatzierungen und Kalibrierpunkte bleiben UNBERÜHRT.",
 "Resetting…": "Wird zurückgesetzt…",
 "Reset: {n} scanner/beacon positions and barriers cleared (backup taken first)": "Zurückgesetzt: {n} Scanner-/Beacon-Positionen und Barrieren gelöscht (vorher gesichert)",
 "Nothing to reset: no scanner/beacon positions or barriers": "Nichts zurückzusetzen: keine Scanner-/Beacon-Positionen oder Barrieren",

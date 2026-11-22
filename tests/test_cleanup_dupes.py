@@ -56,7 +56,7 @@ def test_the_old_duplicates_are_gone_from_the_source() -> None:
     assert '["health","Quick status"]' in mon, "the tab id stays"
     assert "padspan_ha/system_critics" not in mon and "_renderCriticsInline" not in mon
     man = (WWW / "views" / "manage.js").read_text(encoding="utf-8")
-    assert '["history","History"]' in man and '["events","Events"]' in man
+    assert '["history",t("History")]' in man and '["events",t("Events")]' in man
     assert "padspan_ha/movement_history_get" not in man and "_manageMovementLoaded" not in man
     assert "function _events(ctx, el){" in man and "_buildNotifications(ctx, el)" in man
 
