@@ -81,9 +81,21 @@ the house only when you choose **Put it on the map**
 
 PadSpan knows a room by its name.
 
-- **A room that isn't an area any more**, such as one you renamed or removed in Home Assistant, shows
-  on the Rooms screen as **PadSpan only, not a Home Assistant area**, with its outline kept. After a
-  rename, draw the outline again for the new name and remove the old one in **Mapping → Edit**.
+- **An area you rename in Home Assistant** is renamed in PadSpan too, while PadSpan is running: the
+  room's outline, its details (colour, height), its neighbours, the receivers placed in it, its
+  bounds on each floor plan, its calibration points (room walks too), Follow alerts that watch it,
+  what PadSpan has learned about it, and the room–tag map. PadSpan makes an automatic backup first
+  (**Before renaming room …** in the backup list) and writes one line in Home Assistant's log saying
+  what it renamed. If PadSpan already has a room with the new name, nothing is renamed, since that
+  would merge two rooms; the log says so.
+- **Not renamed**: past records keep the name the room had then (movement history, lost-and-found,
+  recordings and the time line), as do guest stays, a sub-zone's room label, the Live Aboard
+  director's room list, the ESPresense room map, and the room names inside a saved RoomPlan scan or
+  an AI plan's undo. Change those by hand if you need to.
+- **A room that isn't an area any more**, such as one you removed in Home Assistant, or renamed
+  while PadSpan was not running, shows on the Rooms screen as **PadSpan only, not a Home Assistant
+  area**, with its outline kept. Draw the outline again for the new name and remove the old one in
+  **Mapping → Edit**.
 - **A receiver moved to another room**: change its device's area in Home Assistant, or in PadSpan
   with **Set room** on the Overview's **Who's where now** card.
 - **An area you don't want** can be removed in Home Assistant, or with **Delete** in PadSpan's

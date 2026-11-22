@@ -718,6 +718,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _quiet_error("setup:entry_forensics")
         _LOGGER.debug("Forensics setup failed: %s", err)
 
+    # A Home Assistant area renamed renames its PadSpan room (area_rename.py).
+    try:
+        from .area_rename import async_setup_area_rename
+        async_setup_area_rename(hass)
+    except Exception as err:
+        _quiet_error("setup:entry_area_rename")
+        _LOGGER.debug("Area rename listener setup failed: %s", err)
+
     # Flood/water-leak alarm latching — event-driven, not a poller (a real
     # leak can flap on/off well under a second; see flood_latch.py).
     try:
@@ -901,6 +909,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _quiet_error("setup:unload_forensics")
         _LOGGER.debug("Forensics teardown error: %s", err)
+
+    try:
+        from .area_rename import async_stop_area_rename
+        async_stop_area_rename(hass)
+    except Exception as err:
+        _quiet_error("setup:unload_area_rename")
+        _LOGGER.debug("Area rename listener teardown error: %s", err)
 
     # Stop the flood-latch event listener
     try:

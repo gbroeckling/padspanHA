@@ -165,6 +165,8 @@ ai_wizard:create_area
 ai_wizard:ensure_area_areas
 ai_wizard:ensure_area_floors
 ai_wizard:ha_areas
+area_rename:after
+area_rename:lookup
 binary_sensor:setup_entry
 ble:address_type_of
 ble:adv_record_manufacturer
@@ -365,6 +367,7 @@ settings_store:load
 setup:background_alerts
 setup:background_stores
 setup:dump_devices
+setup:entry_area_rename
 setup:entry_emergency_test
 setup:entry_first_fetch
 setup:entry_flood_latch
@@ -381,6 +384,7 @@ setup:flush_forensics
 setup:flush_traceback
 setup:init_model
 setup:room_walk_default
+setup:unload_area_rename
 setup:unload_bluetooth
 setup:unload_capture
 setup:unload_device_registry

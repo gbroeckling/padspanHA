@@ -1,6 +1,7 @@
-# Walk a room on by default; a notification for leak, smoke, gas and CO alarms
+# Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow
 
 ### New
+- **Renaming an area in Home Assistant renames its PadSpan room.** Before, the room stayed under the old name and showed as "PadSpan only, not a Home Assistant area". Now its outline, details, neighbours, receivers, floor-plan bounds, calibration points, Follow alerts that watch it, what PadSpan learned about it and the room–tag map all take the new name, after an automatic backup ("Before renaming room …"), with one line in Home Assistant's log. Past records (movement history, lost-and-found, recordings) keep the old name, and so do guest stays, sub-zone labels, the Live Aboard director's room list and the ESPresense room map. If PadSpan already has a room with the new name, nothing is renamed. A rename made while PadSpan isn't running is not seen.
 - **A leak, smoke, gas or CO alarm sends a notification.** When one latches, PadSpan sends one notification ("PadSpan: Leak alarm", with the sensor, its room and the time), and one when it clears: reset in the Atlas, or the 2 days over. Nothing more while it stays latched, however often the sensor goes off again. It goes to the phones and email addresses your Follow alerts send to; with none set, to the first notify service Home Assistant has (a mail one first), as a Follow alert with no target does; with no notify service at all, nothing is sent. On by default: Settings → Atlas → Atlas — Mapped Light Control → "Notify when a leak, smoke, gas or CO alarm goes off".
 
 ### Changed
