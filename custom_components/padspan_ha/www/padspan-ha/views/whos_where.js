@@ -14,17 +14,20 @@
 // Phones Home Assistant can already tell apart (Private BLE Device) have a
 // Track button: one click names and follows one, as "Track this phone" does
 // for an Android phone (overview.js). A scanner with no area is named, since
-// it can never give a room.
+// it can never give a room, and (2026-11-21) its room can be picked right here
+// (views/receiver_room.js: its Home Assistant area, guessed from its name).
 //
 // The card keeps itself current: it registers state._whosWhereUpdate, which
 // the panel's poll calls (panel.js _render, fromPoll), so it never goes stale
 // the way the static room grid does.
 
 const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// A receiver's room, picked where this card says it has none.
+const RR = await import(`./receiver_room.js${new URL(import.meta.url).search}`).catch(() => null);
 const okRoom = (r) => typeof r === "string" && r !== "" && r !== "unknown" && r !== "not_home";
 const up = (a) => String(a || "").toUpperCase();
 
-/** The Bluetooth scanners in a snapshot: [{source, name, area}], area "" when
+/** The Bluetooth scanners in a snapshot: [{source, name, area, display_name, device_id}], area "" when
  *  the scanner's Home Assistant device has none. */
 export function scannersOf(snap){
   const radios = snap && snap.ble && Array.isArray(snap.ble.radios) ? snap.ble.radios : [];
@@ -32,6 +35,8 @@ export function scannersOf(snap){
     source: String(r.source),
     name: String(r.name || r.source),
     area: okRoom(r.area_name) ? r.area_name : "",
+    display_name: String(r.display_name || ""),
+    device_id: String(r.device_id || ""),
   }));
 }
 
@@ -132,9 +137,11 @@ export function whosWhereCard(ctx){
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("whos_where") : null,
   ].filter(Boolean)));
   const lineEl = el("div", { style: "font-size:12px;margin:8px 0" });
+  const pickEl = el("div", {});   // a room for each receiver with none (views/receiver_room.js)
   const roomsEl = el("div", { style: "display:grid;gap:6px" });
   const awayEl = el("div", { style: "margin-top:8px" });
   card.appendChild(lineEl);
+  card.appendChild(pickEl);
   card.appendChild(roomsEl);
   card.appendChild(awayEl);
 
@@ -162,6 +169,17 @@ export function whosWhereCard(ctx){
     const b = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px;margin-left:4px", title: "Name it in PadSpan and follow it: room and home/away sensors in Home Assistant" }, "Track");
     b.addEventListener("click", () => track(b, p));
     return b;
+  };
+
+  // A room to pick for each receiver with none: drawn again only when which receivers have none (or the areas to pick
+  // from) changed, or once one is set (it then says so), never under the pointer for someone moving rooms.
+  let shownPicks = null;
+  const drawPicks = (noArea, again = false) => {
+    const k = JSON.stringify([noArea.map(x => x.source), RR ? RR.areaNames(ctx.state) : []]);
+    if (k === shownPicks && !again) return;
+    shownPicks = k;
+    const picks = RR && noArea.length ? RR.roomPickers(ctx, noArea, () => { if (card.isConnected !== false) drawPicks(noArea, true); }) : null;
+    pickEl.replaceChildren(...(picks ? [picks] : []));
   };
 
   // Redrawn only when what it shows changed: a button rebuilt under the
@@ -196,6 +214,7 @@ export function whosWhereCard(ctx){
     if (noArea.length && noArea.length < scanners.length) {
       lineEl.textContent += ` ${noArea.length === 1 ? "One receiver has" : `${noArea.length} receivers have`} no Home Assistant area yet, so ${noArea.length === 1 ? "it gives" : "they give"} no room: ${noArea.map(x => x.name).join(", ")}.`;
     }
+    drawPicks(noArea);
     roomsEl.replaceChildren();
     for (const r of rows) {
       const row = el("div", { style: "display:flex;align-items:baseline;gap:10px;padding:6px 10px;border-radius:6px;background:#071008;flex-wrap:wrap" });

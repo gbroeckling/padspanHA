@@ -397,6 +397,7 @@ setup:unload_update_check
 setup:unload_vacation
 setup:unload_vacuum
 setup:unload_wled_exact
+setup_checks:setup_phones
 setup_checks:setup_tips
 snapshot:ad_enrichment
 snapshot:address_makers

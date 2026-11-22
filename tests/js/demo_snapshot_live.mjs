@@ -150,7 +150,7 @@ return class Panel {
   _scheduleRender(){} _applyTheme(){} _applySkin(){} _renderNav(){} _telemetryFlush(){}
   _startPolling(){} _stopPolling(){} _startDataPoll(){ this.polls++; this._pollTimer = 1; }
   async _getMapsList(){} async _getModel(){} async _getStatus(){} async _getVersionInfo(){}
-  async _runAutoDiag(){} async _loadAlertConfigs(){}
+  async _runAutoDiag(){} async _loadAlertConfigs(){} async _getSetupPhones(){}
   // This harness is about the small demo house: the sample one
   // (sample_house.js, tests/js/sample_estate.mjs) is never loaded here.
   _ensureSampleHouse(){ return Promise.resolve(null); }

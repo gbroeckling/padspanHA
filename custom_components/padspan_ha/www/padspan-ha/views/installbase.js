@@ -842,7 +842,7 @@ const W_SCALE_SAVE = { done: "saved", already_placed: "refused, the plan had a s
 const W_SCALE_UNDO = { done: "taken back", changed_since: "refused, something added since", failed: "failed" };
 const W_SCALE_PCT = { lt1: "under 1 %", "1_3": "1–3 %", "3_10": "3–10 %", gt10: "over 10 %" };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", floors: "floor heights", rooms: "draw rooms", scanners: "place receivers",
-                    calibrate: "calibrate", positioned: "see devices placed" };
+                    phone: "track a phone or watch", calibrate: "calibrate", positioned: "see devices placed" };
 const W_WEATHER = { still: "nothing falling", light_rain: "light rain", heavy_rain: "heavy rain", light_snow: "light snow",
                     heavy_snow: "heavy snow", condition: "the weather's condition", rain_sensor: "a rain sensor", none: "no weather source" };
 const W_WALL_KIND = { kiosk: "as a wall screen (kiosk link)", fullscreen_idle: "full screen, left alone (a wall)",
@@ -1119,11 +1119,11 @@ function word(kind, k) {
         via_upload: "a first scale saved after an upload", via_setup: "a first scale saved from Setup", via_getting_started: "a first scale saved from Getting started",
         via_wizard: "a first scale saved in the Setup Wizard", via_reminder: "a first scale saved from a \"No scale yet\" line",
         via_plans: "a first scale saved from the Plans tool", via_stack: "a first scale saved from 3D Stack" }[b] || b}`;
-      if (a === "setup_next") return `Setup: "Next" pressed, on to the ${{ rooms: "rooms", floors: "floor heights", receivers: "receivers", calibration: "calibration" }[b] || b} step`;
+      if (a === "setup_next") return `Setup: "Next" pressed, on to the ${{ rooms: "rooms", floors: "floor heights", receivers: "receivers", phone: "phone or watch", calibration: "calibration" }[b] || b} step`;
       if (a === "setup_receivers_rooms") return `Setup: "Put my receivers in their rooms" ${{ pressed: "pressed", undone: "undone" }[b] || b}`;
       if (a === "setup_receivers_placed") return `Setup: "Put my receivers in their rooms" placed ${W_ROOMS_BAND[b] ? W_ROOMS_BAND[b].replace("room", "receiver") : b}`;
       if (a === "setup_step" || a === "setup_skip") {
-        const step = { plan: "floor plan", scale: "scale", floors: "floors and heights", rooms: "rooms", receivers: "receivers", calibration: "calibration" }[b] || b;
+        const step = { plan: "floor plan", scale: "scale", floors: "floors and heights", rooms: "rooms", receivers: "receivers", phone: "phone or watch", calibration: "calibration" }[b] || b;
         return `Setup: ${a === "setup_step" ? "reached" : "skipped"} the ${step} step`;
       }
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;

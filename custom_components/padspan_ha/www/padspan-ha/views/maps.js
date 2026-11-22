@@ -1842,6 +1842,7 @@ const _FINISH_NEXT = {
   get rooms() { return [t("Next: draw the rooms."), t("Draw the rooms →")]; },
   get floors() { return [t("Next: say how tall each floor is, so PadSpan can tell the floors apart."), t("Floor heights →")]; },
   get receivers() { return [t("Next: place the receivers, each where it is mounted."), t("Place the receivers →")]; },
+  get phone() { return [t("Next: let PadSpan know the phone or watch you carry."), t("Track your phone or watch →")]; },
   get calibration() { return [t("Next: calibrate, so PadSpan learns what those receivers actually hear from each room — a few minutes walking around with your phone gets you most of the way."), t("Go to Calibration →")]; },
 };
 function _wizardFinish(ctx, map, w){
@@ -2160,6 +2161,11 @@ const _WIZ_STEP = { scale: 2, rooms: 3, receivers: 4, floors: 6 };
 function _goStep(ctx, mapId, step, w, counted = true){
   const st = ctx.state, ms = st.maps || (st.maps = {});
   if (counted && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_next:" + step);
+  if (step === "phone") {            // Setup's own phone step: the phone wizard (or the Overview's Track Your Phone card)
+    st._mapsWizard = null;
+    if (ctx.actions.openSetupStep) ctx.actions.openSetupStep("phone");
+    return;
+  }
   if (step === "calibration") {
     st._mapsWizard = null;
     if (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length) { ctx.actions.openSetupStep("calibration"); return; }
@@ -2206,6 +2212,7 @@ function _floorsNext(ctx, w){
   const next = i < 0 ? null : steps.slice(i + 1).find(id => _stepDone(st, id) !== true);
   if (!next || _stepDone(st, next) === null) return null;   // not known yet (calibration's points not read): say nothing
   const say = next === "receivers" ? [t("Floor heights are set. Next: place the receivers, each where it is mounted."), t("Place the receivers →")]
+    : next === "phone" ? [t("Floor heights are set. Next: let PadSpan know the phone or watch you carry."), t("Track your phone or watch →")]
     : [t("Floor heights are set. Next: calibrate, a few minutes walking round the house with your phone."), t("Calibrate →")];
   // Setup's own step (it leaves Basic's focused card, with the bar back to Setup), as _goStep opens floors and calibration.
   const go = () => (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], st.settings).length)
@@ -2234,6 +2241,8 @@ function _nextLine(ctx, map){
     el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has rooms. Next: say how tall each floor is, so PadSpan can tell the floors apart.")), go(t("Floor heights →"), "floors")]);
   if (!_placedReceivers(st, map.floor_id || "main").size) return el("div",{"data-next-line":"receivers", style:_NEXT_BOX},[
     el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has rooms. Next: place the receivers, each where it is mounted.")), go(t("Place the receivers →"), "receivers")]);
+  if (_stepDone(st, "phone") === false) return el("div",{"data-next-line":"phone", style:_NEXT_BOX},[
+    el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has receivers. Next: let PadSpan know the phone or watch you carry.")), go(t("Track your phone or watch →"), "phone")]);
   if (st.calibration && _wizHasCal(st)) return null;
   return el("div",{"data-next-line":"calibration", style:_NEXT_BOX},[
     el("span",{style:"flex:1 1 220px"}, "✓ " + t("This plan has receivers. Next: calibrate, a few minutes walking round the house with your phone.")), go(t("Calibrate →"), "calibration")]);

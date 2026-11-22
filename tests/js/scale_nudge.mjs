@@ -72,6 +72,8 @@ function house(o = {}) {
   const state = {
     complexity: o.complexity || "advanced", mapsTab: o.tab || "library", dataMode: o.dataMode || "live", view: "maps", kioskMode: !!o.kiosk,
     settings: { setup_progress: {} }, _mapsLoaded: true, _modelLoaded: true, calibration: { points: [] },
+    // Setup's phone step (2026-11-21): a phone tracked, unless a case says otherwise.
+    setupPhones: o.phones || [{ name: "Sam's phone", how: "app" }],
     maps: { list: o.maps || [] }, model: { floors: [{ id: "main", floor_id: "main", name: "Main" }], map_transforms: JSON.parse(JSON.stringify(o.tfs || {})), areas: [] },
     ...(o.wizard ? { _mapsWizard: o.wizard } : {}),
   };
@@ -194,6 +196,13 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   check("Edit with receivers: Next: calibrate", !!q(root, '[data-next-line="calibration"]'), root.textContent.slice(0, 300));
   q(root, '[data-next="calibration"]').click();
   check("its button: Setup's calibration step, counted", r.state._openedStep === "calibration" && r.tele.includes("setup_next:calibration"), [r.state._openedStep, r.tele]);
+  // 2026-11-21: no phone or watch tracked yet: the phone step comes first (Setup's order), its button Setup's phone step.
+  const rp = house({ tab: "edit", maps: [P({ room_bounds: ROOM, receivers: [{ id: "r1", source: "aa", x: 0.2, y: 0.2 }] })], tfs: TF1, phones: [] });
+  rp.state.activeMapId = "e1";
+  root = await render(rp);
+  check("Edit with receivers, no phone tracked: Next: your phone or watch", !!q(root, '[data-next-line="phone"]') && !q(root, '[data-next-line="calibration"]'), root.textContent.slice(0, 300));
+  q(root, '[data-next="phone"]').click();
+  check("its button: Setup's phone step, counted", rp.state._openedStep === "phone" && rp.tele.includes("setup_next:phone") && !rp.state._mapsWizard, [rp.state._openedStep, rp.tele]);
   const n = house({ tab: "edit", maps: [P({})], tfs: TF1 });
   n.state.activeMapId = "e1";
   root = await render(n);
@@ -224,6 +233,11 @@ const count = (h, w) => h.tele.filter(t => t === "scale_nudge:" + w).length;
   button(finR, "Go to Calibration →").click();
   check("Finish: Go to Calibration opens Setup's calibration step", fin.state._openedStep === "calibration" && fin.state._calibTabRequest !== "beacon"
     && !fin.state._mapsWizard, [fin.state._openedStep, fin.state._calibTabRequest]);
+  const finP = house({ tab: "edit", maps: [P({ room_bounds: ROOM, receivers: [{ id: "r1", source: "AA:BB" }] })], tfs: TF1, wizard: { step: 5, mapId: "e1" }, phones: [] });
+  const finPR = await render(finP);
+  check("Finish: no phone tracked yet: it names the phone step", finPR.textContent.includes("Next: let PadSpan know the phone or watch you carry."), finPR.textContent.slice(0, 300));
+  button(finPR, "Track your phone or watch →").click();
+  check("Finish: its button opens Setup's phone step", finP.state._openedStep === "phone" && !finP.state._mapsWizard, finP.state._openedStep);
   // Review 2026-11-11 (B1): an area with no floor in Home Assistant is offered on every floor's plan; one on another
   // floor only is not; with none to choose, the step says so and makes one in Home Assistant on this plan's floor.
   const withAreas = async (areas) => {
@@ -531,7 +545,7 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     // One vocabulary (review 2026-11-13): the wizard's chips are Setup's steps, numbered and named as Setup does.
     // Changed in review 2026-11-11 (C8): a done step's chip starts with "✓ " (Setup's rule), so the mark is read too.
     const chips = all(root, "button").map(b => b.textContent).filter(t => /^(✓ )?\d\. |^Finish$/.test(t));
-    const want = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration").map(x => `${x.done ? "✓ " : ""}${x.n}. ${x.label}`).concat(["Finish"]);
+    const want = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration" && x.id !== "phone").map(x => `${x.done ? "✓ " : ""}${x.n}. ${x.label}`).concat(["Finish"]);
     check(`${cx}: the wizard's chips are Setup's numbers and names`, JSON.stringify(chips) === JSON.stringify(want), [chips, want]);
     check(`${cx}: its count includes a receiver on the house map, and says where it is moved`, cnt && cnt.textContent.startsWith("1 receiver placed on this floor.")
       && cnt.textContent.includes("Check receiver positions"), cnt && cnt.textContent);
@@ -547,8 +561,8 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   const ROOM = { Kitchen: { type: "poly", points: [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4]] } };
   const F3 = [{ id: "g", floor_id: "g", name: "Ground" }, { id: "u", floor_id: "u", name: "Upstairs" }, { id: "a", floor_id: "a", name: "Attic" },
     { id: "__outside__", floor_id: "__outside__", name: "Outside" }];
-  for (const [name, floors, want] of [["one floor", [{ id: "main", floor_id: "main", name: "Main" }], ["plan", "scale", "rooms", "receivers", "calibration"]],
-    ["three floors and Outside", F3, ["plan", "scale", "rooms", "floors", "receivers", "calibration"]]]) {
+  for (const [name, floors, want] of [["one floor", [{ id: "main", floor_id: "main", name: "Main" }], ["plan", "scale", "rooms", "receivers", "phone", "calibration"]],
+    ["three floors and Outside", F3, ["plan", "scale", "rooms", "floors", "receivers", "phone", "calibration"]]]) {
     const h = house({ maps: [{ id: "f1", name: "Main", floor_id: floors[0].id, image: { width: 1000, height: 800 }, receivers: [], room_bounds: ROOM }],
       tfs: { f1: { scale_x_m: 10, scale_y_m: 8, reference_measurements: [{}] } }, wizard: { step: 3, mapId: "f1" } });
     h.state.model.floors = floors;
@@ -559,7 +573,7 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     // Changed in review 2026-11-11 (C8): a done step's chip starts with "✓ " (Setup's rule), so the mark is read too.
     const chips0 = all(root, "button").map(b => b.textContent).filter(t => /^(✓ )?\d\. |^Finish$/.test(t));
     const chips = chips0.slice(0, chips0.indexOf("Finish") + 1);          // the head's chips (the Rooms tool has its own Finish)
-    const wantChips = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration").map(x => `${x.done ? "✓ " : ""}${x.n}. ${x.label}`).concat(["Finish"]);
+    const wantChips = SETUP_MOD.deriveSetup(h.state).steps.filter(x => x.id !== "calibration" && x.id !== "phone").map(x => `${x.done ? "✓ " : ""}${x.n}. ${x.label}`).concat(["Finish"]);
     check(`${name}: the wizard's chips, the same steps, numbers and order`, JSON.stringify(chips) === JSON.stringify(wantChips), [chips, wantChips]);
     const nx = all(root, "button").find(b => /^Next: /.test(b.textContent));
     check(`${name}: the rooms step's Next names the next step`, nx && nx.textContent === (want.includes("floors") ? "Next: floor heights →" : "Next: place the receivers →"), nx && nx.textContent);

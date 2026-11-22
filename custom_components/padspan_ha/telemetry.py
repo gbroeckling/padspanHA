@@ -540,6 +540,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_screen", "atlas_aboard",                 # the flat Atlas: the map alone, full screen; Live Aboard's on the map
     "map_text",                                     # the map as text for screen readers (Overview, the flat Atlas)
     "whos_where",                                   # Who's where now, before any room is drawn (Overview)
+    "receiver_room",                                # a receiver's room, picked where Who's where or Setup says it has none
     "wizard_build",                                 # the Setup Wizard's "Put it on the map" (Mapping)
     "focus",                                        # Basic's focused views: a link opens just its part
     "atlas_heatmap",                                # the flat Atlas: temperature / humidity / CO2 heatmap
@@ -601,7 +602,7 @@ def ui_error_at_allowed(name: str) -> bool:
 # "No thanks" / ✕), and the quiet entry under the PadSpan sidebar menu.
 TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
                                    "update_banner", "milestone", "sidebar", "ai_wizard")
-GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "floors", "scanners", "calibrate", "positioned", "trial")
+GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "floors", "scanners", "phone", "calibrate", "positioned", "trial")
 # The free-Pro cards (views/pro_invite.js): an invite shown (once per page, on
 # Overview or in Settings → PadSpan licence), put off, claimed, refused by the
 # server, or declined; the one-time "test it, get Pro free" card shown, and
@@ -1025,7 +1026,7 @@ CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
 # step skipped, and the whole sequence finished (once per install, only by a
 # house that used it). Where people stop, beside the two wizards' own funnels.
 from .setup_checks import SETUP_STEPS  # noqa: E402
-SETUP_NEXT: tuple[str, ...] = ("rooms", "floors", "receivers", "calibration")
+SETUP_NEXT: tuple[str, ...] = ("rooms", "floors", "receivers", "phone", "calibration")
 SETUP_EVENTS: frozenset[str] = frozenset(
     {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"}
     # "Put my receivers in their rooms" (ws_fabric.ws_receivers_to_rooms, 2026-11-12): pressed, how many it placed, undone.

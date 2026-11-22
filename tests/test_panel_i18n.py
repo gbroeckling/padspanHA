@@ -47,7 +47,7 @@ _GROUP_BUDGET = 60 * 1024    # bytes per language group file
 # gzipped). Fetched once, lazily: not at startup but on the first "?" or the
 # first visit to Training (panel.js _loadHelpLanguage; tests/js/help_lazy.mjs),
 # and only for a shipped language.
-_HELP_BUDGET = 416 * 1024   # was 400 KiB; 2026-11-13: French reached it after four help rounds, and cutting more sentences costs clarity
+_HELP_BUDGET = 432 * 1024   # was 400 KiB; 2026-11-13: French reached it after four help rounds, and cutting more sentences costs clarity; 416 KiB until 2026-11-21 (French 417 KiB with the plain problems, Setup's phone step and the docs fixes)
 _HELP = _WWW / "help_content.js"
 _SHIPPED = ("nl", "de", "fr")
 

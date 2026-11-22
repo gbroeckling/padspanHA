@@ -390,6 +390,8 @@ export function createSampleHouse(q = new URLSearchParams(), { now = Date.now } 
       case "padspan_ha/object_label_list": return { labels: {}, registry_labels: {} };
       case "padspan_ha/private_ble_status": return {};
       case "padspan_ha/setup_tips": return { tips: [] };
+      // Setup's phone step: the people's phones, tracked (setup_checks.phones_tracked).
+      case "padspan_ha/setup_phones": return { phones: fx.WALKERS.filter(w => w.person).map(w => ({ name: w.name, how: "app" })) };
       // Insights and Busy Times: no history kept in the sample house (not "Failed").
       case "padspan_ha/insights_get": return { days: [] };
       case "padspan_ha/follow_alert_get": return { configs: {} };

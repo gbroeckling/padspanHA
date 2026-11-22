@@ -95,7 +95,8 @@ export function renderIphonePath(ctx, pathEl, apple = []) {
     pathEl.appendChild(el("div", { class: "bt-note info", style: "font-size:12px;margin-bottom:8px" },
       t("Looks like an iPhone: {names}. These are the steps for it.", { names: apple.join(", ") })));
   }
-  const ol = el("ol", { class: "muted", style: "font-size:12px;line-height:1.55;margin:0 0 8px;padding-left:18px" });
+  // overflow-wrap: the Mac command's long path breaks at a phone's width instead of pushing the page sideways.
+  const ol = el("ol", { class: "muted", style: "font-size:12px;line-height:1.55;margin:0 0 8px;padding-left:18px;overflow-wrap:anywhere" });
   for (const s of iphoneIrkSteps()) ol.appendChild(el("li", { style: "margin-bottom:5px" }, s));
   pathEl.appendChild(ol);
 

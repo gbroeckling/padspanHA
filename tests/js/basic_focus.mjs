@@ -127,6 +127,19 @@ for (const [btn, part, mustNot] of [
     [ctx.state._focus, ctx.state.view]);
 }
 
+// ── settings: Setup's calibration step, Walk a room off (2026-11-21): "Open that setting", the switch's card alone ──
+{
+  const calls = [];
+  const ctx = makeCtx({ view: "setup", calibration: { points: [] }, _mapsLoaded: true, _modelLoaded: true }, calls);
+  const sr = SETUP.render(ctx);
+  click(attr(sr, "data-setup", "calibration-walk-setting"));
+  const f = ctx.state._focus || {};
+  const root = SET.render(ctx);
+  check("settings: Setup's Open that setting draws the Walk a Room card alone, back to Setup, still Basic",
+    ctx.state.view === "settings" && f.part === "room_walk" && f.back && f.back.view === "setup" && focusedOnly(root, "room_walk")
+    && /Add a "Walk a room" tab to Calibration/.test(text(root)) && !/Positioning Choices|Help improve PadSpan/.test(text(root)) && noSwitch(calls), [f, text(root).slice(0, 300)]);
+}
+
 // ── settings: Guests' "Open Settings" (guest tags off) ──────────────────────
 {
   const calls = [];
@@ -304,10 +317,17 @@ for (const from of ["overview", "calibration"]) {
   click(attr(line, "data-next", "receivers"));
   check("heights: its button opens Setup's receivers step", JSON.stringify(s.calls.filter(c => c[0] === "openSetupStep")) === '[["openSetupStep","receivers"]]', s.calls);
   const m = two(true); m.scanner_positions_m = { "AA:BB": { x_m: 1, y_m: 1, z_m: 2.4, floor_id: "g" } };
-  const c = open("development", m, { calibration: { points: [] } });
+  const c = open("development", m, { calibration: { points: [] }, setupPhones: [{ name: "Sam's phone", how: "app" }] });
   await flush();
   check("heights: receivers placed, Next is calibrating (3D Stack's card too)",
     !!attr(c.root, "data-next-line", "calibration") && !!attr(c.root, "data-next", "calibration"), text(c.root).slice(0, 300));
+  // 2026-11-21: no phone or watch tracked yet: Setup's phone step comes first, and its button opens it.
+  const ph = open("development", m, { calibration: { points: [] }, setupPhones: [] });
+  await flush();
+  check("heights: receivers placed, no phone tracked: Next is the phone step",
+    !!attr(ph.root, "data-next-line", "phone") && /Next: let PadSpan know the phone or watch you carry/.test(text(attr(ph.root, "data-next-line", "phone"))), text(ph.root).slice(0, 300));
+  click(attr(ph.root, "data-next", "phone"));
+  check("heights: its button opens Setup's phone step", JSON.stringify(ph.calls.filter(x => x[0] === "openSetupStep")) === '[["openSetupStep","phone"]]', ph.calls);
   const k = open("basic", two(true), { kioskMode: true });
   check("heights: never on a wall screen", !attr(k.root, "data-next-line"));
   // The Setup Wizard's floors step: the line says it, its own footer's Next is the button.
@@ -384,6 +404,30 @@ for (const from of ["overview", "calibration"]) {
   FOCUS.openFocus(h, FOCUS.part("floorHeights"));
   const hr = MAPS.render(h); await flush();
   check("advanced: floor heights in Development opens the whole 3D Stack tab", !h.state._focus && h.state.mapsTab === "stack" && tabsOf(hr).includes("3D Stack") && !attr(hr, "data-focus-bar"), tabsOf(hr));
+}
+
+// ── phone: Setup's "Track your phone or watch" (2026-11-21): the phone wizard alone ─────────────────────────────
+{
+  const BT = await imp("bluetooth.js");
+  const calls = [];
+  const ctx = makeCtx({ view: "setup", settings: { tier: "pro", edition: "full", iphone_irk_guide: true },
+    _irkPanelStatus: { devices: [], rpa_count: 0, mobile_apps: [] } }, calls);
+  SETUP.openStep(ctx, "phone");
+  const root = BT.render(ctx);
+  check("phone: Setup's step in Basic opens only the phone wizard on Bluetooth, under the bar, still Basic",
+    ctx.state.view === "bluetooth" && focusedOnly(root, "phone_wizard") && !/Add & validate|auto-detect irks|How this install is doing/i.test(text(root))
+    && /Track your phone/.test(text(root)) && noSwitch(calls), text(root).slice(0, 400));
+  check("phone: no ← Back of its own from Setup (Setup's bar is the way back)", !attr(root, "data-focus-back"), text(root).slice(0, 200));
+  const android = attr(root, "data-phone-wizard", "track-android");
+  click(android);
+  check("phone: the Android path's Track it on the Overview opens the Overview with Track Your Phone open",
+    !!android && ctx.state.view === "overview" && ctx.state._trackPhoneOpen === true && !ctx.state._focus, [ctx.state.view, ctx.state._trackPhoneOpen]);
+  const adv = makeCtx({ view: "setup", complexity: "advanced", settings: { tier: "pro", edition: "full", phone_wizard_enabled: true },
+    _irkPanelStatus: { devices: [], rpa_count: 0, mobile_apps: [] } });
+  SETUP.openStep(adv, "phone");
+  const ar = BT.render(adv);
+  check("phone: in Advanced the whole IRK Manager tab, wizard on it", adv.state.btTab === "irk_panel" && !adv.state._focus
+    && !!attr(ar, "data-focus-part", "phone_wizard") && /auto-detect irks/i.test(text(ar)), text(ar).slice(0, 300));
 }
 
 // ── back: nested, and the mode ──────────────────────────────────────────────

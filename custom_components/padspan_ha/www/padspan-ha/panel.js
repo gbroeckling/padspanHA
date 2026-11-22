@@ -346,7 +346,7 @@ function _sampleKind(payload){
     + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read plan_ai_plans plan_ai_status plan_ai_sessions_get plan_build_info plan_build_status plan_build_rooms_status plan_build_rooms_check ai_usage_get insights_get "
     + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
-    + "room_tags rooms_overlap setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
+    + "room_tags rooms_overlap setup_phones setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
     + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status wled_backups wled_devices "
     + "wled_exact_list wled_get wled_look_get wled_teams_get power_teams_get motion_reconnects vacuum_import_preview irk_validate "
     + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
@@ -2560,6 +2560,7 @@ class PadSpanHaApp extends HTMLElement {
     st._mapsWizard = null;
     st.calibration = null;
     st._setupCalAsked = false;
+    st.setupPhones = undefined;   // Setup's phone step: the other house's phones are not this one's
     st._lightsRegStore = null;
     st._settingsDraft = null;
     st.diag = null;
@@ -3335,6 +3336,14 @@ class PadSpanHaApp extends HTMLElement {
     this.state._modelLoaded = true;
   }
 
+  /** Setup's "Track your phone or watch" step: the phones and watches PadSpan follows as someone's
+   *  (setup_checks.phones_tracked), for Setup, Getting started and the Setup Wizard alike. Unknown until it answers. */
+  async _getSetupPhones(){
+    const gen = this._houseGen;   // as in _getMapsList
+    const res = await this._callWS({ type: "padspan_ha/setup_phones" });
+    if(gen === this._houseGen && Array.isArray(res?.phones)) this.state.setupPhones = res.phones;
+  }
+
   async _runAutoDiag(userAction=false){
     try {
       const t0 = performance.now();
@@ -3391,11 +3400,12 @@ class PadSpanHaApp extends HTMLElement {
       this._getLiveSnapshot(),
       this._runAutoDiag(false),
       this._loadAlertConfigs(),
+      this._getSetupPhones(),
     ]);
     // Log any WS failures to console for debugging
     const critNames = ["getMapsList","getModel"];
     critResults.forEach((r,i)=>{ if(r.status==="rejected") console.warn("PadSpan refresh:", critNames[i], "failed:", r.reason); });
-    const names = ["getVersionInfo","getStatus","getRoomTags","getLiveSnapshot","runAutoDiag","loadAlerts"];
+    const names = ["getVersionInfo","getStatus","getRoomTags","getLiveSnapshot","runAutoDiag","loadAlerts","getSetupPhones"];
     results.forEach((r,i)=>{ if(r.status==="rejected") console.warn("PadSpan refresh:", names[i], "failed:", r.reason); });
     this._recomputeDerived();
     try { this.state.timing.lastRefreshMs = Math.round(performance.now() - t0); } catch(e){}
@@ -5335,7 +5345,7 @@ class PadSpanHaApp extends HTMLElement {
 
     // A step opened from the guided Setup (views/setup.js): which step, and
     // the way back, over the tool that does it. Gone with a menu pick.
-    if (this.state._setupReturn && (v === "maps" || v === "calibration") && VIEWS.setup && VIEWS.setup.returnBar) {
+    if (this.state._setupReturn && (v === "maps" || v === "calibration" || v === "bluetooth") && VIEWS.setup && VIEWS.setup.returnBar) {
       try { const _sb = VIEWS.setup.returnBar(this._ctx()); if (_sb) frag.appendChild(_sb); }
       catch(e) { console.warn("PadSpan: setup bar failed", e); }
     }
@@ -5371,6 +5381,7 @@ class PadSpanHaApp extends HTMLElement {
         { id: "rooms",    label: _lbl("rooms"),       step: "rooms" },
         { id: "floors",   label: _lbl("floors"),      step: "floors" },
         { id: "scanners", label: _lbl("receivers"),   step: "receivers" },
+        { id: "phone",    label: _lbl("phone"),       step: "phone" },
         { id: "calibrate", label: _lbl("calibration"), step: "calibration" },
         { id: "positioned", label: t("See someone on the map"), done: _hasPositioned, view: "follow",
           hint: this.state.dataMode === "live" ? t("Follow \u2192 pick your phone or a tag") : t("Switch the top bar to Live first") },

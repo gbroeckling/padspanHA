@@ -45,6 +45,8 @@ function house(stage, extra = {}) {
     st.maps.list[0].receivers = [{ source: "aa" }, { source: "bb" }];
     st.model.scanner_positions_m = { aa: { x_m: 1, y_m: 1, z_m: 2.2 }, bb: { x_m: 2, y_m: 2, z_m: 0.9 } };
   }
+  // 2026-11-21: the phone step (setup_checks.phones_tracked, as the server answers it); none tracked yet is an answer too.
+  st.setupPhones = at("phone") ? [{ name: "Sam's phone", how: "app" }] : [];
   if (at("calibration")) st.calibration = { points: [1, 2, 3, 4, 5].map(i => ({ id: i })), model: {} };
   return Object.assign(st, extra);
 }
@@ -52,16 +54,17 @@ function house(stage, extra = {}) {
 // ── step state derivation ───────────────────────────────────────────────────
 {
   const names = ["empty house → step 1 (plan)", "plan, no scale → step 2 (scale)", "scale, floors at the default → step 3 (floors)",
-    "floor heights, no rooms → step 4 (rooms)", "rooms, no receivers → step 5 (receivers)", "receivers, no calibration → step 6 (calibration)"];
-  for (let i = 0; i < 6; i++) {
+    "floor heights, no rooms → step 4 (rooms)", "rooms, no receivers → step 5 (receivers)", "receivers, no phone → step 6 (phone)",
+    "a phone tracked, no calibration → step 7 (calibration)"];
+  for (let i = 0; i < 7; i++) {
     const st = house(i);
     st.calibration = st.calibration || { points: [], model: {} };
     const d = S.deriveSetup(st);
     check("derive: " + names[i], d.known && d.current === S.SETUP_STEPS[i] && d.doneCount === i
       && d.steps.every((s, j) => s.status === (j < i ? "done" : j === i ? "current" : "todo")), d);
   }
-  const all = S.deriveSetup(house(6));
-  check("derive: every step done → all done, nothing current", all.allDone && all.current === null && all.doneCount === 6, all);
+  const all = S.deriveSetup(house(7));
+  check("derive: every step done → all done, nothing current", all.allDone && all.current === null && all.doneCount === 7, all);
 
   // Owner's D5 (2026-11-13): floor heights after the rooms, and only for two indoor floors or more: a one-floor house
   // (Outside never counts as a floor) has no such step at all; it used to be shown as done.
@@ -69,35 +72,43 @@ function house(stage, extra = {}) {
   one.model.floors = [F2[0], { floor_id: "__outside__", name: "Outside", level: 0 }];
   const od = S.deriveSetup(one);
   check("derive: a one-floor house has no floor heights step; rooms then receivers", JSON.stringify(od.steps.map(x => `${x.n}.${x.id}`))
-    === '["1.plan","2.scale","3.rooms","4.receivers","5.calibration"]', od.steps.map(x => `${x.n}.${x.id}`));
+    === '["1.plan","2.scale","3.rooms","4.receivers","5.phone","6.calibration"]', od.steps.map(x => `${x.n}.${x.id}`));
 
   const same = house(5);
   for (const v of Object.values(same.model.scanner_positions_m)) v.z_m = 2.4;
   check("derive: receivers all at one height on two floors are not done (the receiver_heights tip's rule)",
     S.deriveSetup(same).current === "receivers", S.deriveSetup(same));
 
-  const four = house(5);
+  const four = house(6);
   four.calibration = { points: [1, 2, 3, 4], model: {} };
   check("derive: four calibration points are not enough, five are", S.deriveSetup(four).current === "calibration"
-    && S.deriveSetup(house(6)).steps[5].done, S.deriveSetup(four).steps[5]);
+    && S.deriveSetup(house(7)).steps[6].done, S.deriveSetup(four).steps[6]);
 
   // One rule with the Overview's Getting started "Calibrate" (setup_status.js
   // hasCalibration, which panel.js's _hasCal mirrors): receivers placed in
   // the layout are not calibration; a fitted model is.
-  const placedOnly = house(5);
+  const placedOnly = house(6);
   placedOnly.calibration = { points: [], model: {} };
-  const fitted = house(5);
+  const fitted = house(6);
   fitted.calibration = { points: [], model: { last_computed: "x" } };
   check("derive: receivers placed are not calibration, a fitted model is",
-    Object.keys(placedOnly.model.scanner_positions_m).length === 2 && !S.deriveSetup(placedOnly).steps[5].done && S.deriveSetup(fitted).steps[5].done);
+    Object.keys(placedOnly.model.scanner_positions_m).length === 2 && !S.deriveSetup(placedOnly).steps[6].done && S.deriveSetup(fitted).steps[6].done);
   const STATUS = await import(pathToFileURL(join(WWW, "views", "setup_status.js")).href);
   check("derive: the calibration step is setup_status.js's hasCalibration",
-    [placedOnly, fitted, four, house(6)].every(h => S.deriveSetup(h).steps[5].done === STATUS.hasCalibration(h)));
+    [placedOnly, fitted, four, house(7)].every(h => S.deriveSetup(h).steps[6].done === STATUS.hasCalibration(h)));
 
-  const unknown = house(5);
+  const unknown = house(6);
   delete unknown.calibration;
   const du = S.deriveSetup(unknown);
-  check("derive: calibration not fetched yet is unknown, not done", du.steps[5].unknown && !du.steps[5].done && du.current === "calibration", du.steps[5]);
+  check("derive: calibration not fetched yet is unknown, not done", du.steps[6].unknown && !du.steps[6].done && du.current === "calibration", du.steps[6]);
+  // 2026-11-21: the phone step is the server's answer (setup_checks.phones_tracked): none yet is to do, an answer
+  // not in yet is unknown (never done), one phone or watch makes it done.
+  const noPhone = house(5), notAsked = house(5);
+  delete notAsked.setupPhones;
+  const dn = S.deriveSetup(noPhone), da = S.deriveSetup(notAsked);
+  check("derive: the phone step: none tracked is to do, not asked yet is unknown, one tracked is done",
+    dn.current === "phone" && !dn.steps[5].unknown && da.steps[5].unknown && !da.steps[5].done && da.current === "phone"
+    && S.deriveSetup(house(6)).steps[5].done && S.deriveSetup(house(6)).current === "calibration", [dn.steps[5], da.steps[5]]);
 
   const loading = house(0, { _mapsLoaded: false });
   check("derive: before maps and model arrive the answer is not known", S.deriveSetup(loading).known === false);
@@ -126,7 +137,7 @@ function house(stage, extra = {}) {
   const ahead = S.skipStep(st, { at: "rooms", skipped: [] }, "rooms");
   check("skip: skipping a step jumped ahead to moves on to the step after it", ahead.at === "floors", ahead);
   let q = fresh;
-  for (const id of ["scale", "rooms", "floors", "receivers", "calibration"]) q = S.skipStep({ ...st, calibration: { points: [] } }, q, id);
+  for (const id of ["scale", "rooms", "floors", "receivers", "phone", "calibration"]) q = S.skipStep({ ...st, calibration: { points: [] } }, q, id);
   check("skip: with everything left skipped, the first skipped step comes back",
     S.deriveSetup({ ...st, calibration: { points: [] } }, q).current === "scale" && q.at === null, q);
   const back = S.openProgress(sk, "scale");
@@ -160,8 +171,8 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   const st = house(1, { calibration: { points: [], model: {} } });
   const { ctx, calls, events } = mkCtx(st);
   const root = S.render(ctx);
-  check("view: six rows in order with done / current / to do",
-    JSON.stringify(rows(root)) === JSON.stringify([["plan", "done"], ["scale", "current"], ["rooms", "todo"], ["floors", "todo"], ["receivers", "todo"], ["calibration", "todo"]]), rows(root));
+  check("view: seven rows in order with done / current / to do",
+    JSON.stringify(rows(root)) === JSON.stringify([["plan", "done"], ["scale", "current"], ["rooms", "todo"], ["floors", "todo"], ["receivers", "todo"], ["phone", "todo"], ["calibration", "todo"]]), rows(root));
   check("view: the current step is counted as reached once per page",
     events.filter(e => e === "setup_step:scale").length === 1, events);
   S.render(ctx);
@@ -201,7 +212,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     st.view === "calibration" && st._calibWizard && st._calibWizard.step === 1 && st._setupReturn === "calibration");
 
   const bar = S.returnBar(ctx);
-  check("bar: over the tool it says which step this is", bar && /step 6 of 6: Calibrate/.test(bar.textContent), bar && bar.textContent);
+  check("bar: over the tool it says which step this is", bar && /step 7 of 7: Calibrate/.test(bar.textContent), bar && bar.textContent);
   btn(bar, "back").click();
   check("bar: Back to Setup opens Setup and ends the step's bar", st.view === "setup" && st._setupReturn === null);
   st._setupReturn = "nonsense";
@@ -218,6 +229,76 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("bar: the step it is on now: the wizard's, none at Finish, Edit's tool, Calibration",
     /: Draw the rooms/.test(now3) && !/step \d/.test(fin) && /: Set the scale/.test(meas) && /: Calibrate/.test(cal), [now3, fin, meas, cal]);
   st._setupReturn = null; st.view = "setup";
+}
+
+// 2026-11-21: "Track your phone or watch", a numbered step: it opens the existing phone wizard (Bluetooth → IRK Manager,
+// "Track your phone"): in Basic just that card under the bar back to Setup, in Advanced the tab. An older install with
+// the wizard's two switches off has no wizard: the Overview, with its Track Your Phone card open. Done is the server's
+// answer (setup_checks.phones_tracked), asked again on each visit to Setup.
+{
+  const st = house(5, { calibration: { points: [], model: {} }, settings: { iphone_irk_guide: true }, complexity: "basic" });
+  const { ctx, calls } = mkCtx(st);
+  st._viewVisit = 1;
+  let root = S.render(ctx);
+  S.render(ctx);
+  const asked = () => calls.filter(c => c[0] === "ws" && c[1].type === "padspan_ha/setup_phones").length;
+  check("phone: Setup asks the server which phones are tracked, once a visit", asked() === 1, calls);
+  st._viewVisit = 2; S.render(ctx);
+  check("phone: and again on the next visit", asked() === 2);
+  const row = root.querySelector('[data-setup="step-phone"]');
+  check("phone: the step after the receivers, current, with its words", row && row.getAttribute("data-setup-status") === "current"
+    && row.textContent.startsWith("6Track your phone or watch")
+    && row.textContent.includes("Let PadSpan know the phone or watch you carry"), row && row.textContent);
+  btn(root, "open-phone").click();
+  const f = st._focus || {};
+  check("phone: Start opens only the phone wizard in Basic, with the bar back to Setup", st.view === "bluetooth" && st.btTab === "irk_panel"
+    && f.view === "bluetooth" && f.part === "phone_wizard" && f.back && f.back.view === "setup" && st._setupReturn === "phone", { view: st.view, f });
+  const bar = S.returnBar(ctx);
+  check("phone: the bar over it names the step", bar && /step 6 of 7: Track your phone or watch/.test(bar.textContent), bar && bar.textContent);
+  st.view = "setup"; st._focus = null; st.complexity = "advanced";
+  btn(S.render(ctx), "open-phone").click();
+  check("phone: in Advanced the IRK Manager tab, no focus", st.view === "bluetooth" && st.btTab === "irk_panel" && !st._focus);
+  st.view = "setup"; st.settings = {};
+  btn(S.render(ctx), "open-phone").click();
+  check("phone: no wizard on this install: the Overview, its Track Your Phone card opened", st.view === "overview" && st._trackPhoneOpen === true);
+  st.view = "setup"; S.render(ctx);
+  check("phone: back on Setup, the card is left as it was", st._trackPhoneOpen === false);
+  const done = house(6, { calibration: { points: [], model: {} } });
+  done.setupPhones = [{ name: "Sam's phone", how: "app" }, { name: "Kim's watch", how: "key" }];
+  const d = mkCtx(done);
+  const drow = S.render(d.ctx).querySelector('[data-setup="step-phone"]');
+  check("phone: done names what is tracked", drow && drow.getAttribute("data-setup-status") === "done" && drow.textContent.includes("Tracked: Sam's phone, Kim's watch."), drow && drow.textContent);
+}
+
+// 2026-11-21: the quick first calibration. Walk a room (calibration_room_walk) is off by default and stays so (the
+// owner's call): off, Start opens the guided calibration as before and one line says how to turn the walk on, with a
+// button to that setting; on, Start opens Calibration's Walk a room tab and "Point by point" the guided calibration.
+{
+  const st = house(6, { calibration: { points: [], model: {} }, complexity: "basic" });
+  const { ctx } = mkCtx(st);
+  let root = S.render(ctx);
+  const line = root.querySelector('[data-setup="calibration-walk"]');
+  check("walk: off: the calibration row says how to turn Walk a room on, Start is the guided calibration",
+    line && line.textContent.includes("It is off on this install") && !btn(root, "open-calibration-points"), line && line.textContent);
+  btn(root, "calibration-walk-setting").click();
+  const f = st._focus || {};
+  check("walk: its button opens only that setting's card in Basic, back to Setup", st.view === "settings" && f.part === "room_walk"
+    && f.back && f.back.view === "setup" && st._settingsTab === "presence", f);
+  st.view = "setup"; st._focus = null;
+  btn(S.render(ctx), "open-calibration").click();
+  check("walk: off: Start opens the guided calibration at its first step", st.view === "calibration" && st._calibWizard && st._calibWizard.step === 1);
+  st.view = "setup"; st.settings = { calibration_room_walk: true };
+  root = S.render(ctx);
+  const on = root.querySelector('[data-setup="calibration-walk"]');
+  check("walk: on: the row offers the walk first, point by point beside it", on && on.textContent.startsWith("Quickest: walk each room for 90 seconds")
+    && !!btn(root, "open-calibration-points"), on && on.textContent);
+  btn(root, "open-calibration").click();
+  check("walk: on: Start opens Calibration's Walk a room tab, with the bar back to Setup", st.view === "calibration" && !st._calibWizard
+    && st._calibTabRequest === "walk" && st._setupReturn === "calibration", [st._calibWizard, st._calibTabRequest]);
+  st.view = "setup"; st._calibTabRequest = null;
+  btn(S.render(ctx), "open-calibration-points").click();
+  check("walk: on: Point by point opens the guided calibration", st.view === "calibration" && st._calibWizard && st._calibWizard.step === 1
+    && st._setupReturn === "calibration" && !st._calibTabRequest);
 }
 
 // The rooms helper's Done (end-to-end test 2026-11-11): its receivers step opens on the plan it just saved, not the
@@ -419,6 +500,21 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     && !btn(root, "receivers-undo"));
   const demo = house(4, { dataMode: "sample" });
   check("receivers: nothing on the demo house", !S.receiversBlock(fake(demo, [{ ready: [], skipped: [], undo: 0 }]).ctx));
+  // A receiver is named as the rest of the panel (and the room pickers under the line) name it: the snapshot's
+  // radios, not the server's source id.
+  {
+    S._resetReceivers();
+    const st2 = house(4, { calibration: { points: [], model: {} } });
+    st2._viewVisit = 1;
+    st2.live = { snapshot: { ble: { radios: [{ source: "porch-proxy", display_name: "Porch receiver" }] } } };
+    const m2 = fake(st2, [{ ok: true, ready: [{ source: "kitchen-proxy", room: "Kitchen" }], skipped, undo: 0 }]);
+    S.render(m2.ctx);
+    await flush();
+    const row2 = S.render(m2.ctx).querySelector('[data-setup="step-receivers"]');
+    check("receivers: named as the panel names them, not by their source id",
+      row2 && row2.textContent.includes("no Home Assistant area: Porch receiver") && !row2.textContent.includes("porch-proxy"),
+      row2 && row2.textContent);
+  }
   // Nothing the server would place: no button; the line says why (or, with no receiver yet, that it will work later).
   S._resetReceivers();
   const none = house(4, { calibration: { points: [], model: {} } });
@@ -485,6 +581,94 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   S._resetReceivers();
 }
 
+// 2026-11-21: a receiver the server finds with no room (no Home Assistant area) gets its room picked right there, its
+// name's room chosen (views/receiver_room.js); set as its Home Assistant area, and the server asked again.
+{
+  const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+  const RR = await import(pathToFileURL(join(WWW, "views", "receiver_room.js")).href);
+  RR._resetRooms(); S._resetReceivers();
+  const st = house(4, { calibration: { points: [], model: {} }, live: { snapshot: { rooms_discovered: ["Kitchen", "Office", "Porch"],
+    ble: { radios: [{ source: "porch-proxy", name: "porch-proxy", device_id: "dev-porch" }] } } } });
+  st._viewVisit = 1;
+  const m = mkCtx(st), sent = [], areas = [];
+  let dry = 0;
+  m.ctx.actions.callWS = async (msg) => {
+    sent.push(msg);
+    if (msg.type === "padspan_ha/receivers_to_rooms" && msg.dry_run) { dry++; return { ok: true, ready: [], skipped: [{ source: "porch-proxy", why: "no_area" }], undo: 0 }; }
+    return {};
+  };
+  m.ctx.actions.radioAreaSet = async (p) => { areas.push(p); };
+  m.ctx.actions.refreshSnapshot = async () => {};
+  S.render(m.ctx);
+  await flush();
+  const root = S.render(m.ctx);
+  const row = root.querySelector('[data-setup="step-receivers"]');
+  const pick = row && row.querySelector('[data-receiver-room-pick="porch-proxy"]');
+  check("receivers: no room: its room to pick under the reason, its name's room chosen", pick && pick.value === "Porch"
+    && row.textContent.includes("no Home Assistant area: porch-proxy (pick its room below, or place it by hand)"), row && row.textContent);
+  row.querySelector('[data-receiver-room-set="porch-proxy"]').click();
+  await flush();
+  check("receivers: Set room sets its Home Assistant area and asks the server again", JSON.stringify(areas) === '[{"area_name":"Porch","device_id":"dev-porch"}]'
+    && S.render(m.ctx) && dry >= 1, [areas, dry]);
+  await flush();
+  S.render(m.ctx);
+  await flush();
+  check("receivers: asked again after the room is set", dry >= 2, dry);
+  const nonAdmin = mkCtx(house(4, { calibration: { points: [], model: {} } }));
+  nonAdmin.ctx.hass = { user: { is_admin: false } };
+  check("receivers: nothing for someone who isn't an administrator (the block's own rule)", !S.receiversBlock(nonAdmin.ctx));
+  RR._resetRooms(); S._resetReceivers();
+}
+
+// 2026-11-21: "Signals say this receiver is in X". Each calibration point holds its room and what each receiver heard
+// there: where most of a receiver's strongest-heard points are in one other room (and its own room has points of its
+// own), that room is suggested on the receivers step, one tap to accept.
+{
+  const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+  const RR = await import(pathToFileURL(join(WWW, "views", "receiver_room.js")).href);
+  RR._resetRooms(); RR._resetSignals(); S._resetReceivers();
+  const pt = (room, heard) => ({ room, scanner_readings: Object.entries(heard).map(([source, mean_rssi]) => ({ source, mean_rssi })) });
+  // "kitchen-proxy" is filed in Kitchen but hears the Hall's spots best; "office-proxy" hears its own room best.
+  const points = [
+    pt("Kitchen", { "kitchen-proxy": -78, "office-proxy": -85 }), pt("Kitchen", { "kitchen-proxy": -80 }),
+    pt("Hall", { "kitchen-proxy": -55 }), pt("Hall", { "kitchen-proxy": -58 }), pt("Hall", { "kitchen-proxy": -60 }),
+    pt("Office", { "office-proxy": -50, "kitchen-proxy": -88 }), pt("Office", { "office-proxy": -52 }), pt("Office", { "office-proxy": -54 }),
+    pt("Attic", { "attic-proxy": -50 }), pt("Attic", { "attic-proxy": -50 }), pt("Hall", { "attic-proxy": -40 }),
+  ];
+  const radios = [{ source: "kitchen-proxy", name: "Kitchen proxy", area_name: "Kitchen", device_id: "dev-k" },
+    { source: "office-proxy", name: "Office proxy", area_name: "Office" }, { source: "lost-proxy", area_name: "Kitchen", lost: true },
+    { source: "attic-proxy", name: "Attic proxy", area_name: "Attic" }, { source: "den-proxy", area_name: "Den" }];
+  const AREAS = ["Attic", "Den", "Hall", "Kitchen", "Office"];
+  const got = RR.signalRooms(points, radios, AREAS);
+  check("signals: a receiver whose strongest points are mostly in another room is suggested that room", got.length === 1 && got[0].source === "kitchen-proxy"
+    && got[0].room === "Hall" && got[0].now === "Kitchen" && got[0].n === 3 && got[0].of === 5, got);
+  check("signals: not one that hears its own room best, a lost one, one whose room has no points, or a room that isn't an area",
+    !got.some(x => ["office-proxy", "lost-proxy", "den-proxy", "attic-proxy"].includes(x.source)) && RR.signalRooms(points, radios, ["Kitchen", "Office"]).length === 0, got);
+  // attic-proxy: 2 of 3 strongest in Attic, 1 in Hall: not mostly elsewhere. Few points: nothing to say.
+  check("signals: too few points heard, nothing said", RR.signalRooms(points.slice(0, 2), radios, AREAS).length === 0 && RR.signalRooms(null, null, null).length === 0);
+  const st = house(7, { calibration: { points, model: {} }, live: { snapshot: { rooms_discovered: AREAS, ble: { radios } } } });
+  const m = mkCtx(st), set = [];
+  m.ctx.actions.radioAreaSet = async (p) => { set.push(p); };
+  m.ctx.actions.refreshSnapshot = async () => {};
+  let root = S.render(m.ctx);
+  const row = root.querySelector('[data-setup="step-receivers"]');
+  check("signals: on the receivers step, with its reason and the two buttons", row && row.textContent.includes("Signals say Kitchen proxy is in Hall, not Kitchen: 3 of the 5 calibration points it hears best are there.")
+    && !!row.querySelector('[data-receiver-signals-use="kitchen-proxy"]') && row.querySelector('[data-receiver-signals-use="kitchen-proxy"]').textContent === "Use Hall"
+    && row.querySelector('[data-receiver-signals-keep="kitchen-proxy"]').textContent === "Keep Kitchen", row && row.textContent);
+  row.querySelector('[data-receiver-signals-use="kitchen-proxy"]').click();
+  await flush();
+  check("signals: Use sets that room as its Home Assistant area", JSON.stringify(set) === '[{"area_name":"Hall","device_id":"dev-k"}]', set);
+  RR._resetRooms();
+  root = S.render(m.ctx);
+  root.querySelector('[data-receiver-signals-keep="kitchen-proxy"]').click();
+  check("signals: Keep leaves it and says nothing more on this page", !S.render(m.ctx).querySelector("[data-receiver-signals-use]"));
+  RR._resetSignals();
+  const none = house(7, { calibration: { points: [], model: {} }, live: { snapshot: { rooms_discovered: AREAS, ble: { radios } } } });
+  const n0 = mkCtx(none); n0.ctx.actions.radioAreaSet = async () => {};
+  check("signals: nothing before calibration points exist", !S.render(n0.ctx).querySelector("[data-receiver-signals]"));
+  RR._resetRooms(); RR._resetSignals(); S._resetReceivers();
+}
+
 // Review 2026-11-13, break 4: one rule for "placed" — receivers only on the map of the house (the button's) count, in Setup.
 {
   const st = house(4);
@@ -504,7 +688,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
 
 // Loading: calibration asked once; the demo house says so.
 {
-  const st = house(5, { dataMode: "sample" });
+  const st = house(6, { dataMode: "sample" });
   delete st.calibration;
   const { ctx, calls } = mkCtx(st);
   const root = S.render(ctx);
@@ -530,7 +714,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("sample: nothing opened, stored or counted", st.view === "setup" && !saved(calls).length && !events.length, { calls, events });
   S.openStep(ctx, "rooms");
   check("sample: a step opened from elsewhere is not stored or counted either", !saved(calls).length && !events.length, { calls, events });
-  const done = house(6, { dataMode: "sample", settings: { setup_progress: { at: "calibration", skipped: [], done: false } } });
+  const done = house(7, { dataMode: "sample", settings: { setup_progress: { at: "calibration", skipped: [], done: false } } });
   const d = mkCtx(done);
   S.render(d.ctx);
   check("sample: a finished house is not counted as finishing", !d.events.includes("setup_done") && !saved(d.calls).length, d.events);
@@ -538,7 +722,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
 
 // Finished.
 {
-  const used = house(6, { settings: { setup_progress: { at: "calibration", skipped: [], done: false } } });
+  const used = house(7, { settings: { setup_progress: { at: "calibration", skipped: [], done: false } } });
   const a = mkCtx(used);
   const r = S.render(a.ctx);
   check("done: all done says so and counts setup_done once, stored",
@@ -546,7 +730,7 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   await shim.flush();
   S.render(a.ctx);
   check("done: not counted again", a.events.filter(e => e === "setup_done").length === 1, a.events);
-  const never = mkCtx(house(6));
+  const never = mkCtx(house(7));
   S.render(never.ctx);
   check("done: a house set up before it ever opened Setup is not counted as finishing it",
     !never.events.includes("setup_done") && saved(never.calls).length === 0, never.events);

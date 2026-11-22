@@ -5,9 +5,9 @@
 //
 // Setup: the house's setup as one ordered sequence (interface review item
 // 15) — plan, scale, floors and heights, rooms, receivers and their heights,
-// calibration. A list, not a seventh wizard: each step opens the tool that
+// your phone or watch, calibration. A list, not a seventh wizard: each step opens the tool that
 // already does it (the Mapping Setup Wizard at its step, Mapping → 3D Stack's
-// Floor Heights, the guided calibration), and a bar over that tool leads
+// Floor Heights, the phone wizard, the guided calibration), and a bar over that tool leads
 // back here. Whether a step is done is read off the house itself, by the
 // same rules as the Overview's checklist (setup_status.js) and the accuracy
 // tips (setup_checks.py); only where someone is, and what they skipped, is
@@ -23,6 +23,8 @@ const AIW = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}
 const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`).catch(() => null);
 // Its words in the panel's language (views/i18n.js; English is the key).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// A receiver's room, picked where the receivers step says it has none (2026-11-21).
+const RR = await import(`./receiver_room.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // The steps, their names and their words are setup_status.js's: Getting started and the Setup Wizard read the same
 // (review 2026-11-13: one order, one vocabulary). setup_checks.SETUP_STEPS holds the same ids.
@@ -58,6 +60,10 @@ function _detail(state, id, done) {
     const n = placedReceivers(state).size;
     if (n && !receiverHeightsOk(state)) return t("{n} placed, all at one height. Say how high each one is mounted.", { n });
     if (done) return t("{n} placed.", { n });
+  }
+  if (id === "phone") {
+    if (done === null) return t("Checking…");
+    if (done) return t("Tracked: {names}.", { names: _names(state.setupPhones.map(p => p.name)) });
   }
   if (id === "calibration") {
     if (done === null) return t("Checking…");
@@ -143,16 +149,34 @@ function _save(ctx, p) {
 // ── opening a step: the tool that already does it ───────────────────────────
 
 
+/** Whether Calibration has its Walk a room tab (calibration_room_walk: off by default, and the server refuses a walk
+ *  while it is off). Where it is on, Setup's calibration step offers the walk first. */
+export const walkFirst = (s) => !!s && s.calibration_room_walk === true;
+
+/** Whether the IRK Manager shows the phone wizard (views/bluetooth.js: "Phone Setup Wizard" or "iPhone Setup Path"). */
+export const phoneWizardShown = (s) => !!s && (s.phone_wizard_enabled === true || s.iphone_irk_guide === true);
+
 /** Open a step's own tool, with the bar back to Setup over it. `mapId`: on that plan (the rooms helper's Done opens
  *  receivers on the plan it just saved), else the plan open in Mapping, else the first. */
-export function openStep(ctx, id, mapId = null, door = null) {
+export function openStep(ctx, id, mapId = null, door = null, points = false) {
   const st = ctx.state;
   _save(ctx, openProgress(progressOf(st), id));
   _countStep(ctx, id);
   st._setupReturn = id;
   if (id === "calibration") {
-    st._calibWizard = { step: 1 };
+    // The quick way first where it is on (2026-11-21): Calibration's Walk a room, 90 seconds per room. The guided
+    // calibration, point by point (`points`), is the other way, and the only one while the setting is off.
+    if (walkFirst(st.settings) && !points) { st._calibWizard = null; st._calibTabRequest = "walk"; }
+    else st._calibWizard = { step: 1 };
     ctx.actions.showView("calibration");
+    return;
+  }
+  if (id === "phone") {
+    // The phone wizard ("Track your phone", Bluetooth → IRK Manager), shown while either of its switches is on (a new
+    // install has the iPhone path on): in Basic only that card (views/focus.js), under the bar back to Setup; Advanced,
+    // the tab. An older install with both off has no wizard: the Overview, with its Track Your Phone card open.
+    if (phoneWizardShown(st.settings)) FOCUS.openFocus(ctx, FOCUS.part("phoneWizard", { title: t("Track your phone"), back: { view: "setup", label: t("Setup") } }));
+    else { st._trackPhoneOpen = true; ctx.actions.showView("overview"); }
     return;
   }
   if (id === "floors") {
@@ -177,6 +201,7 @@ export function openStep(ctx, id, mapId = null, door = null) {
  *  where it can't be told (the wizard's Finish): the bar names no step there. */
 export function stepNow(st) {
   if (st.view === "calibration") return "calibration";
+  if (st.view === "bluetooth") return "phone";
   const w = st._mapsWizard;
   if (w) return { 1: "plan", 2: "scale", 3: "rooms", 4: "receivers", 6: "floors" }[w.step] || null;
   const tab = st.mapsTab, mode = st.maps && st.maps._mode;
@@ -214,14 +239,35 @@ const _rcv = { busy: false, said: "", plan: null, asked: null, waiting: false, f
 export function _resetReceivers() { Object.assign(_rcv, { busy: false, said: "", plan: null, asked: null, waiting: false, fill: null }); }   // a test's new page
 
 const _names = (xs) => xs.length > 4 ? t("{names} and {more} more", { names: xs.slice(0, 4).join(", "), more: xs.length - 4 }) : xs.join(", ");
+/** A receiver's name as the rest of the panel shows it (the snapshot's radios: the room pickers below use the same),
+ *  its source id until the snapshot has it. */
+function _rname(ctx, source) {
+  const radios = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.ble && ctx.state.live.snapshot.ble.radios) || [];
+  const r = radios.find(x => x && x.source === source);
+  return String((r && (r.display_name || r.name)) || source);
+}
 /** Why the server's one rule leaves receivers where they are, in words (placed_already is left unsaid). */
-function _whyWords(skipped) {
-  const why = (w) => (skipped || []).filter(x => x.why === w).map(x => x.source), bits = [];
-  if (why("no_area").length) bits.push(t("no Home Assistant area: {names} (give it an area in Home Assistant, or place it by hand)", { names: _names(why("no_area")) }));
+function _whyWords(ctx, skipped) {
+  const why = (w) => (skipped || []).filter(x => x.why === w).map(x => _rname(ctx, x.source)), bits = [];
+  if (why("no_area").length) bits.push(t("no Home Assistant area: {names} (pick its room below, or place it by hand)", { names: _names(why("no_area")) }));
   if (why("two_plans").length) bits.push(t("its room is drawn on plans of more than one floor, and its Home Assistant area's floor doesn't say which: {names} (place it by hand)", { names: _names(why("two_plans")) }));
   if (why("no_outline").length) bits.push(t("its room has no outline yet: {names}", { names: _names(why("no_outline")) }));
   if (why("no_scale").length) bits.push(t("its room is drawn on a floor plan with no scale yet: {names}", { names: _names(why("no_scale")) }));
   return bits;
+}
+
+/** The receivers the server's one rule finds with no room (no Home Assistant area), each with its room to pick
+ *  (views/receiver_room.js), from the snapshot's radios. Once one is set the server is asked again, now and after the
+ *  next poll (the model reads the new area from the snapshot that poll builds). */
+function _roomPicks(ctx, skipped) {
+  const src = (skipped || []).filter(x => x.why === "no_area").map(x => x.source);
+  if (!RR || !src.length) return null;
+  const radios = (ctx.state.live && ctx.state.live.snapshot && ctx.state.live.snapshot.ble && ctx.state.live.snapshot.ble.radios) || [];
+  const again = () => { _rcv.asked = null; ctx.actions.renderRooms(); };
+  return RR.roomPickers(ctx, src.map(s => radios.find(r => r && r.source === s) || { source: s, name: s }), () => {
+    again();
+    setTimeout(again, 6000);
+  });
 }
 
 /** A room drawn only on a plan with no scale: the one press that makes it count, that plan's scale (the server's
@@ -254,12 +300,12 @@ async function _placeReceivers(ctx) {
   try {
     const r = await ctx.actions.callWS({ type: "padspan_ha/receivers_to_rooms" });
     const placed = (r && r.placed) || [], skipped = (r && r.skipped) || [];
-    const list = _names(placed.map(p => t("{receiver} in {room}", { receiver: p.source, room: p.room })));
+    const list = _names(placed.map(p => t("{receiver} in {room}", { receiver: _rname(ctx, p.source), room: p.room })));
     const bits = [placed.length ? tn(placed.length,
       "Placed {n} receiver inside its room ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.",
       "Placed {n} receivers inside their rooms ({list}), on the map of your house. Drag each to where it is mounted, and set its height, in Calibration's first step, \"Check receiver positions\"; the Receivers page sets heights too.",
       { list }) : t("No receiver was placed.")];
-    const not = _whyWords(skipped);
+    const not = _whyWords(ctx, skipped);
     if (not.length) bits.push(t("Not placed, {why}.", { why: not.join("; ") }));
     const already = skipped.filter(x => x.why === "placed_already").length;
     if (already) bits.push(tn(already, "{n} already on the map, left where it is.", "{n} already on the map, left where they are."));
@@ -307,7 +353,7 @@ export function receiversBlock(ctx, opts = {}) {
 function _block(ctx, opts, p) {
   const { el } = ctx.helpers;
   const st = ctx.state;
-  const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(p.skipped);
+  const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(ctx, p.skipped);
   const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;
@@ -317,6 +363,8 @@ function _block(ctx, opts, p) {
     const later = el("div", { "data-setup": "receivers-later", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin:6px 0" }, not.length
       ? t("PadSpan can put a receiver in its room once it has an area that is one of your rooms with an outline. Not ready: {why}.", { why: not.join("; ") })
       : t("Once your Bluetooth receivers are in Home Assistant, each with an area that is one of your rooms, PadSpan can put them in their rooms for you here."));
+    const picks = _roomPicks(ctx, p.skipped);
+    if (picks) later.appendChild(picks);
     const sc = _scaleFirst(ctx, p.skipped);
     if (sc) later.appendChild(el("div", {}, [sc]));
     return later;
@@ -337,6 +385,8 @@ function _block(ctx, opts, p) {
       (not.length ? " " + t("Not ready: {why}.", { why: not.join("; ") }) : "")));
     box.appendChild(b(t("Put my receivers in their rooms"), "receivers-place", () => _placeReceivers(ctx), true));
   }
+  const picks = _roomPicks(ctx, p.skipped);
+  if (picks) box.appendChild(picks);
   const sc = _scaleFirst(ctx, p.skipped);
   if (sc) box.appendChild(sc);
   return box;
@@ -377,6 +427,30 @@ function _helperUndo(ctx, u) {
   return box;
 }
 
+// ── calibrating: the quick way first (2026-11-21) ───────────────────────────
+// Walk a room (views/calibration_walk.js) is a 90-second walk per room; it is off by default (calibration_room_walk,
+// settings_store.py), and turning it on for every install is the owner's call, so this does not. Where it is on, the
+// step's Start walks the rooms and "Point by point" opens the guided calibration; where it is off, one line says how to
+// turn it on, with a button to that setting.
+function _walkLine(ctx) {
+  const { el } = ctx.helpers, st = ctx.state;
+  const box = el("div", { "data-setup": "calibration-walk", style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px" });
+  if (walkFirst(st.settings)) {
+    box.textContent = t("Quickest: walk each room for 90 seconds with your phone (Walk a room). Point by point is the other way.");
+    return box;
+  }
+  box.appendChild(el("span", {}, t("Quicker: walk each room for 90 seconds instead (Walk a room). It is off on this install: turn it on in Settings → Tracking → Positioning and calibration → Walk a Room (Calibration).") + " "));
+  const go = el("button", { class: "btn inline", style: "font-size:12px;margin-top:4px", "data-setup": "calibration-walk-setting" }, t("Open that setting"));
+  if (_demo(st)) go.disabled = true;
+  go.addEventListener("click", () => {
+    if (_demo(st)) return;
+    st._presenceReveal = "positioning"; st._settingsPart = "room_walk";   // Advanced: the whole tab, its section open, scrolled there
+    FOCUS.openFocus(ctx, FOCUS.part("roomWalk", { back: { view: "setup", label: t("Setup") } }));
+  });
+  box.appendChild(go);
+  return box;
+}
+
 // ── the view ────────────────────────────────────────────────────────────────
 
 const _COLORS = {
@@ -395,6 +469,15 @@ export function render(ctx) {
   st._setupReturn = null;
   const root = el("div", { id: "setup" });
 
+  st._trackPhoneOpen = false;   // the Overview's Track Your Phone card opened by the phone step: back here, as it was
+  // The phones and watches PadSpan follows (setup_checks.phones_tracked): asked again each visit, so one tracked in the
+  // phone wizard or on the Overview counts when someone comes back.
+  if (!_demo(st) && st._setupPhonesVisit !== (st._viewVisit || 0) && ctx.actions.callWS) {
+    st._setupPhonesVisit = st._viewVisit || 0;
+    ctx.actions.callWS({ type: "padspan_ha/setup_phones" })
+      .then(r => { if (r && Array.isArray(r.phones)) { st.setupPhones = r.phones; if (st.view === "setup") ctx.actions.renderRooms(); } })
+      .catch(() => {});
+  }
   // Calibration's points: asked once, as Calibration itself does.
   if (!st.calibration && !st._setupCalAsked && ctx.actions.calibrationGet) {
     st._setupCalAsked = true;
@@ -497,7 +580,11 @@ export function render(ctx) {
     if (s.id === "receivers") {
       const rb = receiversBlock(ctx);
       if (rb) info.appendChild(rb);
+      // Once there are calibration points: a receiver they say is in another room, one tap to accept (receiver_room.js).
+      const sig = RR && !_demo(st) ? RR.signalLines(ctx) : null;
+      if (sig) info.appendChild(sig);
     }
+    if (s.id === "calibration") info.appendChild(_walkLine(ctx));
     if (s.id === "rooms" && AIW && AIW.helperUndo && !_demo(st) && !st.kioskMode) {
       const u = AIW.helperUndo(ctx);
       if (u || _undoSaid) info.appendChild(_helperUndo(ctx, u));
@@ -515,6 +602,13 @@ export function render(ctx) {
         ctx.actions.renderRooms();
       });
       btns.appendChild(sk);
+    }
+    // Calibrate with Walk a room on: Start walks the rooms; point by point is the second way, beside it.
+    if (s.id === "calibration" && walkFirst(st.settings)) {
+      const pp = el("button", { class: "btn inline", style: "font-size:12px", "data-setup": "open-calibration-points" }, t("Point by point"));
+      if (_demo(st)) pp.disabled = true;
+      pp.addEventListener("click", () => { if (!_demo(st)) openStep(ctx, "calibration", null, null, true); });
+      btns.appendChild(pp);
     }
     const word = s.done ? (s.id === "plan" ? t("Add a floor") : t("Change")) : cur ? (progress.at === s.id ? t("Continue →") : t("Start →")) : t("Open");
     const go = el("button", { class: "btn inline" + (cur ? " primary" : ""), style: "font-size:12px", "data-setup": "open-" + s.id }, word);

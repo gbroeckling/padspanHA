@@ -239,4 +239,63 @@ const ctx3 = mkCtx("live", snapOf(radios, [{ kind: "ble", address: "x", user_lab
 const card3 = WW.whosWhereCard(ctx3);
 check("names stay text", !card3.querySelector("img") && /<img src=x/.test(card3.textContent));
 
+// ── 2026-11-21: a receiver's room, picked where the card says it has none (views/receiver_room.js) ─────────────
+const RR = await import(pathToFileURL(join(WWW, "views", "receiver_room.js")).href);
+const AREAS = ["Bedroom", "Den", "Garden", "Hall", "Kitchen", "Living Room", "Office"];
+const g = (name, source) => RR.guessArea({ name, source: source || "" }, AREAS);
+check("guess: a room in the receiver's name, as whole words", g("esp32-kitchen-ble") === "Kitchen" && g("Living Room proxy") === "Living Room"
+  && g("living_room_proxy") === "Living Room" && g("livingroom-ble") === "Living Room", [g("esp32-kitchen-ble"), g("livingroom-ble")]);
+check("guess: a name that starts or ends with the room", g("kitchenproxy") === "Kitchen" && g("proxyoffice") === "Office", g("kitchenproxy"));
+check("guess: never part of another word (garden is not Den), the longest room first", g("garden_proxy") === "Garden"
+  && RR.guessArea({ name: "garden_proxy" }, ["Den"]) === "" && RR.guessArea({ name: "master bedroom" }, ["Bed", "Bedroom"]) === "Bedroom", g("garden_proxy"));
+check("guess: nothing to go on, no guess", g("BT-Proxy 3") === "" && RR.guessArea(null, AREAS) === "" && RR.guessArea({ name: "x" }, null) === "");
+check("guess: from the display name too, accents aside", RR.guessArea({ name: "esp-a1b2", display_name: "Küche Proxy" }, ["Küche"]) === "Küche");
+{
+  RR._resetRooms();
+  followed.clear();
+  const set = [];
+  const sr = [radio("AA", "Kitchen", "Kitchen proxy"), { source: "BB:01", name: "esp32-office", area_name: "", device_id: "dev-office" }, radio("CC", "", "BT-Proxy 3")];
+  const sn = { ...snapOf(sr, []), rooms_discovered: AREAS };
+  const cx = mkCtx("live", sn);
+  cx.hass = { user: { is_admin: true } };
+  cx.actions.radioAreaSet = async (p) => { set.push(p); };
+  cx.actions.refreshSnapshot = async () => { set.push("refresh"); };
+  const c = WW.whosWhereCard(cx);
+  document.body.appendChild(c);
+  const rows = [...c.querySelectorAll("[data-receiver-room]")].filter(n => n.getAttribute("data-receiver-room") !== "list");
+  const pick = (src) => c.querySelector(`[data-receiver-room-pick="${src}"]`);
+  check("card: a room to pick for each receiver with none, under the line that names them", rows.map(n => n.getAttribute("data-receiver-room")).join() === "BB:01,CC"
+    && /no Home Assistant area yet/.test(c.textContent), [rows.map(n => n.getAttribute("data-receiver-room")), c.textContent.slice(0, 300)]);
+  check("card: its name's room chosen, said so; no guess, nothing chosen", pick("BB:01").value === "Office" && /Chosen from its name/.test(rows[0].textContent)
+    && pick("CC").value === "" && c.querySelector('[data-receiver-room-set="CC"]').disabled, [pick("BB:01").value, pick("CC").value]);
+  c.querySelector('[data-receiver-room-set="BB:01"]').click();
+  await tick(); await tick();
+  check("card: Set room writes the receiver's Home Assistant area (its device), reads the snapshot again, says so",
+    JSON.stringify(set) === JSON.stringify([{ area_name: "Office", device_id: "dev-office" }, "refresh"])
+    && /Room set: Office/.test(c.textContent) && toasts.some(([m]) => m === "esp32-office is in Office now."), [set, c.textContent.slice(0, 700)]);
+  const p2 = pick("CC");
+  p2.value = "Hall"; p2.dispatchEvent(new Event("change"));
+  cx.state.live.snapshot = { ...sn, objects: { list: [{ kind: "ble", address: "99:01", user_label: "Dog", room: "Kitchen", age_s: 1 }] } };
+  cx.state._whosWhereUpdate();
+  check("card: someone moving rooms doesn't redraw the pickers under the pointer", pick("CC") === p2 && p2.value === "Hall" && /Dog/.test(c.textContent));
+  cx.actions.radioAreaSet = async () => { throw new Error("This radio's name matches more than one HA device (a, b). Rename them so none is contained in another, then try again."); };
+  c.querySelector('[data-receiver-room-set="CC"]').click();
+  await tick(); await tick();
+  check("card: the server's refusal in its own words, and the row can try again", /matches more than one HA device/.test(c.textContent)
+    && !c.querySelector('[data-receiver-room-set="CC"]').disabled, c.textContent.slice(-300));
+  const cy = mkCtx("live", sn);
+  cy.state.settings = { enhanced_security: true }; cy.hass = { user: { is_admin: false } };
+  cy.actions.radioAreaSet = async () => {};
+  // The owner's standing rule: Assign (radio_area_set) stays open to everyone, Enhanced security or not.
+  check("card: anyone can pick a receiver's room, as with Assign (Enhanced security, not an administrator)", !!WW.whosWhereCard(cy).querySelector("[data-receiver-room-pick]"));
+  const cw = mkCtx("live", sn);
+  cw.state.kioskMode = true; cw.actions.radioAreaSet = async () => {};
+  check("card: never on a wall screen", !WW.whosWhereCard(cw).querySelector("[data-receiver-room-pick]"));
+  const cz = mkCtx("live", { ...snapOf(sr, []), rooms_discovered: [] });
+  cz.actions.radioAreaSet = async () => {};
+  const nz = WW.whosWhereCard(cz);
+  check("card: no Home Assistant areas yet: says where to add them", !!nz.querySelector('[data-receiver-room="no-areas"]') && /Areas, labels & zones/.test(nz.textContent));
+  RR._resetRooms();
+}
+
 console.log(JSON.stringify({ cases, failures }));

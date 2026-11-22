@@ -46,8 +46,8 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("derive:", 12), ("resume:", 3), ("skip:", 4), ("view:", 7),
-                                          ("open:", 7), ("bar:", 3), ("done:", 3)])
+@pytest.mark.parametrize("prefix,least", [("derive:", 13), ("resume:", 3), ("skip:", 4), ("view:", 7),
+                                          ("open:", 7), ("bar:", 3), ("done:", 3), ("phone:", 9), ("walk:", 6), ("signals:", 7)])
 def test_the_setup(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
@@ -60,6 +60,34 @@ def test_the_steps_are_the_servers() -> None:
     m = re.search(r"export const SETUP_STEPS = \[([^\]]*)\]", _read("views/setup_status.js"))
     assert "export const SETUP_STEPS = STATUS.SETUP_STEPS;" in _read("views/setup.js")
     assert m and tuple(re.findall(r'"([a-z_]+)"', m.group(1))) == setup_checks.SETUP_STEPS
+
+
+def test_the_phone_step_counts_phones_and_watches_only() -> None:
+    """2026-11-21, "Track your phone or watch": done with one phone or watch PadSpan follows as someone's, as the
+    engine counts them (obj_is_identified): a device with an IRK, or a Companion-app phone tracked (its iBeacon key
+    labelled or followed, and sent by a BLE Transmitter sensor). A labelled iBeacon tag is not a phone."""
+    pt = setup_checks.phones_tracked
+    uuid = "6a1b2c3d-0000-4000-8000-123456789abc"
+    sensor = [f"{uuid}-100-40004 friendly_name: Pixel BLE Transmitter"]
+    assert pt([], {}, [], []) == []
+    assert pt([{"name": "Kim's watch", "canonical_id": "irk:1"}], {}, [], []) == [{"name": "Kim's watch", "how": "key"}]
+    key = f"IBEACON:{uuid.upper()}:100:40004"
+    assert pt([], {key: {"label": "Sam's Pixel"}}, [], sensor) == [{"name": "Sam's Pixel", "how": "app"}]
+    assert pt([], {}, [key], sensor) == [{"name": key, "how": "app"}]                 # followed, never named
+    tag = "IBEACON:FDA50693-A4E2-4FB1-AFCF-C6EB07647825:1:2"
+    assert pt([], {tag: {"label": "Keys"}}, [tag], sensor) == []                       # a beacon tag, no phone sends it
+    assert pt([], {"AA:BB:CC:DD:EE:FF": {"label": "Keys"}}, [], sensor) == []          # a labelled tag by its address
+    both = pt([{"name": "Sam's Pixel", "canonical_id": "irk:2"}], {key: {"label": "sam's pixel"}}, [key], sensor)
+    assert both == [{"name": "Sam's Pixel", "how": "key"}]                             # one phone, once
+    assert pt("x", None, "y", None) == []
+
+
+def test_the_phone_step_is_asked_of_the_server_and_read_in_sample_mode() -> None:
+    assert setup_checks.ws_setup_phones in setup_checks.WS_COMMANDS
+    panel = _read("panel.js")
+    assert 'this._callWS({ type: "padspan_ha/setup_phones" })' in panel and "this._getSetupPhones()," in panel
+    assert " setup_phones " in panel[panel.index("const READS = new Set("):panel.index("const READS = new Set(") + 2000]
+    assert 'ctx.actions.callWS({ type: "padspan_ha/setup_phones" })' in _read("views/setup.js")
 
 
 def test_the_calibration_threshold_is_the_stores() -> None:

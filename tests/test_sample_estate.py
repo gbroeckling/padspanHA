@@ -39,7 +39,7 @@ _CASES = [
     "Rooms: the sample house's rooms by floor, read-only, with its people",
     "Receivers: 19 rows, read-only",
     "Calibration Results: the sample house's own walk, not the five sample rooms",
-    "Setup: a finished house, six of six",
+    "Setup: a finished house, seven of seven",
     "Mapping: the sample house's plans, read-only",
     "rendering every view in Sample mode sends Home Assistant no write and nothing about the house",
     "Basic focused links in Sample mode: the part opens, Basic stays Basic, and nothing reaches Home Assistant",

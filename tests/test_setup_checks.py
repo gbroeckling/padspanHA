@@ -59,7 +59,7 @@ def test_mapping_is_told_which_rooms_overlap_by_the_reports_own_rule():
              "Porch": [[4, 3], [6, 3], [6, 5], [4, 5]], "Bad": [[0, 0], ["x", 1]]}
     _run(C.ws_rooms_overlap(MagicMock(), conn, {"id": 7, "type": "padspan_ha/rooms_overlap", "rooms": rooms}))
     assert conn.send_result.call_args[0] == (7, {"pairs": [["Kitchen", "Pantry"]]})
-    assert C.WS_COMMANDS == (C.ws_setup_tips, C.ws_rooms_overlap)
+    assert C.WS_COMMANDS == (C.ws_setup_tips, C.ws_rooms_overlap, C.ws_setup_phones)
 
 
 def test_the_count_stays_cheap_on_a_house_of_hundreds_of_rooms():
