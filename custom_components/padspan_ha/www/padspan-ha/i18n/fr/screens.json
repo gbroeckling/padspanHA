@@ -48,7 +48,7 @@
 "Movement Alerts": "Alertes de déplacement",
 "Active": "Active",
 "Alerts to your phone or by email when this tag moves rooms, arrives home or leaves. Sent through Home Assistant's notify service.": "Alertes sur votre téléphone ou par e-mail quand cette balise change de pièce, arrive à la maison ou part. Envoyées par le service de notification de Home Assistant.",
-"No notify services found — add SMTP or another notification integration in HA Settings → Integrations": "Aucun service de notification trouvé — ajoutez SMTP ou une autre intégration de notification dans HA, Paramètres → Intégrations",
+"No notify services found — add SMTP or another notification integration in HA Settings → Devices & services": "Aucun service de notification trouvé — ajoutez SMTP ou une autre intégration de notification dans HA, Paramètres → Appareils et services",
 "Auto-detect": "Détection auto",
 "(not found)": "(introuvable)",
 "Save": "Enregistrer",

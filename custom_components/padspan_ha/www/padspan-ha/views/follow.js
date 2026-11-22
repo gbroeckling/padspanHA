@@ -574,7 +574,7 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   // Notify service selector (loads once, cached in state)
   const serviceSelect = el("select", { class: "input", style: "max-width:200px" });
   const _noSvcHint = el("div", { style: "font-size:10px;color:#f59e0b;margin-top:2px;display:none" },
-    t("No notify services found — add SMTP or another notification integration in HA Settings → Integrations"));
+    t("No notify services found — add SMTP or another notification integration in HA Settings → Devices & services"));
   serviceSelect.appendChild(el("option", { value: "" }, t("Auto-detect")));
   // A saved target that is gone (phone renamed or removed) is not in the
   // list: shown and selected anyway, so the picker says what alerts use and

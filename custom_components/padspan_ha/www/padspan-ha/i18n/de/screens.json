@@ -48,7 +48,7 @@
 "Movement Alerts": "Bewegungsalarme",
 "Active": "Aktiv",
 "Alerts to your phone or by email when this tag moves rooms, arrives home or leaves. Sent through Home Assistant's notify service.": "Meldungen aufs Handy oder per E-Mail, wenn dieser Tag den Raum wechselt, nach Hause kommt oder geht. Gesendet über den Benachrichtigungsdienst von Home Assistant.",
-"No notify services found — add SMTP or another notification integration in HA Settings → Integrations": "Keine Benachrichtigungsdienste gefunden — füge SMTP oder eine andere Benachrichtigungs-Integration in HA unter Einstellungen → Integrationen hinzu",
+"No notify services found — add SMTP or another notification integration in HA Settings → Devices & services": "Keine Benachrichtigungsdienste gefunden — füge SMTP oder eine andere Benachrichtigungs-Integration in HA unter Einstellungen → Geräte & Dienste hinzu",
 "Auto-detect": "Automatisch",
 "(not found)": "(nicht gefunden)",
 "Save": "Speichern",
