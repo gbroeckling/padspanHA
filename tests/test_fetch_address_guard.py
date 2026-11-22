@@ -164,8 +164,8 @@ class _Conn:
     def send_result(self, _id, r):
         self.result = r
 
-    def send_error(self, _id, code, text):
-        self.error = (code, text)
+    def send_error(self, _id, code, text=None, **kw):   # a refusal(...) sends message= and the translation fields
+        self.error = (code, kw.get("message", text))
 
 
 def _preview(h, url):

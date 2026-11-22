@@ -14,8 +14,10 @@ i18n/<lang>/<group>.json:
            a big file's named part with its own group, see Part)
   server   the sentences the backend sends that the panel shows as they are:
            every send_error message and System Critics' title, message and
-           action that is one whole sentence in the source (server_sentences).
-           views/ui_error.js looks them up by their exact English (serverText).
+           action that is one whole sentence in the source, and the template of
+           each refusal(...) and critic that puts a value in (server_sentences).
+           views/ui_error.js looks them up by the template a sentence came with,
+           else by their exact English (serverText).
 
 The panel asks for every group but help at startup (panel.js
 _loadPanelLanguage), so no screen waits for its words; each group file stays
@@ -179,6 +181,9 @@ def server_sentences() -> dict[str, Path]:
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "send_error" \
                     and len(node.args) >= 3:
                 said = _whole(node.args[2], local[p], anywhere)
+            elif isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "refusal" \
+                    and node.args:
+                said = _whole(node.args[0], local[p], anywhere)   # const.refusal(template, **values)
             elif p.name == "ws_diagnostics.py" and isinstance(node, ast.Dict):
                 for k, v in zip(node.keys, node.values):
                     if isinstance(k, ast.Constant) and k.value in CRITIC_FIELDS:

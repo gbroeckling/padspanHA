@@ -430,7 +430,7 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.atlas_heatmap_enabled !== undefined) this.state._heatmapOn = s.atlas_heatmap_enabled === true;
       // Settings → Atlas → Atlas — Mapped Light Control → Alert pulse, normally off.
       this.state._alertPulse = s.atlas_alert_pulse === true;
-      // Outdoor weather (Settings → UI Structure → Atlas), field by field. A
+      // Outdoor weather (Settings → Atlas → Atlas — Mapped Light Control → Outdoor weather), field by field. A
       // failed fetch keeps the last answer; before any answer, no weather.
       if (s.atlas_weather_enabled !== undefined) {
         this.state._weather = {
@@ -441,7 +441,7 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_weather_strength: s.atlas_weather_strength,
         };
       }
-      // The 3D house (Settings → UI Structure → Atlas → 3D house), normally
+      // The 3D house (Settings → Atlas → Atlas — Mapped Light Control → Live Aboard), normally
       // off. A failed fetch keeps the last answer; before any, no switch.
       if (s.atlas_3d_enabled !== undefined) {
         this.state._house3d = { atlas_3d_enabled: s.atlas_3d_enabled, atlas_3d_quality: s.atlas_3d_quality,

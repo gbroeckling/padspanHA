@@ -124,7 +124,7 @@ def test_a_key_that_resolves_nothing_is_refused_unless_forced(monkeypatch):
     ads = [{"address": "4A:11:22:33:44:55", "name": "x", "rssi": -80, "manufacturer_data": {}}]
     h, ble = _hass(ads=ads)
     conn = _add(h, ble, monkeypatch, "Phone", _SIG_IRK.hex())
-    _, code, message = conn.send_error.call_args[0]
+    (_, code), message = conn.send_error.call_args[0], conn.send_error.call_args.kwargs["message"]
     assert code == "unverified" and "1 tested" in message
     assert not h._saved
     # The phone is away: forced, it saves, and says it is unverified.

@@ -60,16 +60,45 @@ def _said(node: ast.AST) -> list[str]:
     return []
 
 
+def _templated(node: ast.Call) -> ast.Call | None:
+    """send_error(msg_id, code, **refusal(template, **values)): the refusal(...) call (const.refusal)."""
+    for k in node.keywords:
+        if k.arg is None and isinstance(k.value, ast.Call) and getattr(k.value.func, "id", "") == "refusal":
+            return k.value
+    return None
+
+
 def _refusals() -> list[tuple[str, int, str, list[str]]]:
-    """Every send_error(...): file, line, code source, and the literal words in its message."""
+    """Every send_error(...): file, line, code source, and the literal words in its message (a refusal()'s template)."""
     out = []
     for p in sorted(PKG.glob("*.py")):
         src = p.read_text(encoding="utf-8")
         for node in ast.walk(ast.parse(src)):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "send_error" \
-                    and len(node.args) >= 3:
-                out.append((p.name, node.lineno, ast.get_source_segment(src, node.args[1]) or "", _said(node.args[2])))
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "send_error":
+                said = node.args[2] if len(node.args) >= 3 else (_templated(node).args[0] if _templated(node) else None)
+                if said is not None and len(node.args) >= 2:
+                    out.append((p.name, node.lineno, ast.get_source_segment(src, node.args[1]) or "", _said(said)))
     return out
+
+
+def test_a_refusal_with_a_value_in_it_is_sent_as_its_template() -> None:
+    """const.refusal: the English filled in, and Home Assistant's translation fields beside it, so the panel says it
+    in its own language (views/ui_error.js errorText). Every value the template names is given, by name."""
+    from custom_components.padspan_ha.const import DOMAIN, refusal
+
+    assert refusal("{room} is not a room on the map.", room="Kitchen") == {
+        "message": "Kitchen is not a room on the map.", "translation_key": "{room} is not a room on the map.",
+        "translation_domain": DOMAIN, "translation_placeholders": {"room": "Kitchen"}}
+    calls = []
+    for p in sorted(PKG.glob("*.py")):
+        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "refusal":
+                tpl = node.args[0]
+                assert isinstance(tpl, ast.Constant) and isinstance(tpl.value, str), f"{p.name}:{node.lineno}"
+                named = set(re.findall(r"\{(\w+)\}", tpl.value))
+                assert named == {k.arg for k in node.keywords} and named, f"{p.name}:{node.lineno}: {tpl.value!r}"
+                calls.append(tpl.value)
+    assert len(calls) >= 25, len(calls)
 
 
 def test_there_are_still_hundreds_of_refusals_to_check() -> None:

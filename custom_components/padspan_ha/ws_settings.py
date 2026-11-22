@@ -21,6 +21,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
 from .const import (
+    refusal,
     DOMAIN,
     DATA_SETTINGS,
     DATA_OBJECTS,
@@ -910,9 +911,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .settings_store import report_locked_until  # noqa: PLC0415
             _locked = report_locked_until(st.data) if st is not None else ""
             if not payload["telemetry_enabled"] and _locked:
-                connection.send_error(msg["id"], "report_locked",
-                    f"The usage report stays on while you use a free licence (until {_locked[:10]}). "
-                    "It can be turned off once it ends, or with a bought key.")
+                connection.send_error(msg["id"], "report_locked", **refusal(
+                    "The usage report stays on while you use a free licence (until {date}). "
+                    "It can be turned off once it ends, or with a bought key.", date=_locked[:10]))
                 return
             if payload["telemetry_enabled"] and st is not None and not st.data.get("telemetry_enabled"):
                 # Turned on just now, by any route: the one optional question is due.

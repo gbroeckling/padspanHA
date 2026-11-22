@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry
 from homeassistant.util import dt as dt_util
 from .const import (
+    refusal,
     NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
@@ -96,9 +97,8 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
         if ambiguous:
             connection.send_error(
                 msg["id"], "device_ambiguous",
-                "This radio's name matches more than one HA device ("
-                + ", ".join(str(c) for c in ambiguous[:4])
-                + "). Rename them so none is contained in another, then try again.",
+                **refusal("This radio's name matches more than one HA device ({devices}). Rename them so none is "
+                          "contained in another, then try again.", devices=", ".join(str(c) for c in ambiguous[:4])),
             )
             return
         connection.send_error(msg["id"], "device_not_found", "Home Assistant has no device for this receiver, so its room can't be set here: set its area in Home Assistant.")
@@ -117,7 +117,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
             _quiet_error("ws_radios:area_set_areas")
             pass
         if not area_id:
-            connection.send_error(msg["id"], "area_not_found", f"There's no area called {area_name} in Home Assistant.")
+            connection.send_error(msg["id"], "area_not_found", **refusal("There's no area called {area} in Home Assistant.", area=area_name))
             return
 
     try:

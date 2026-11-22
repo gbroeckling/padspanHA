@@ -137,6 +137,25 @@ async def test_every_check_speaks_plainly_and_keeps_its_figures(every_check) -> 
 
 
 @pytest.mark.asyncio
+async def test_a_sentence_with_a_name_in_it_comes_with_its_template(every_check) -> None:
+    """So the panel can say it in its own language (views/ui_error.js serverText, 2026-11-21): beside the English,
+    the template it was filled from and the values, which are the names, never translated."""
+    critics = (await _critics(every_check))["critics"]
+    templated = 0
+    for c in critics:
+        for k in ("title", "message", "action"):
+            if f"{k}_key" in c:
+                templated += 1
+                assert c[f"{k}_key"].format(**c["args"]) == c[k] != c[f"{k}_key"], (k, c)
+    assert templated >= 18, templated
+    by = {c["title"]: c for c in critics}
+    mix = by["Hall and Kitchen get mixed up"]
+    assert mix["title_key"] == "{room_a} and {room_b} get mixed up" and mix["args"] == {"room_a": "Hall", "room_b": "Kitchen"}
+    assert by["Receiver “Hall proxy” often points to the wrong room"]["args"] == {"receiver": "Hall proxy"}
+    assert by["Positions on “Ground” are often off"]["args"] == {"plan": "Ground", "metres": 3.0}
+
+
+@pytest.mark.asyncio
 async def test_each_problem_names_the_screen_that_fixes_it(every_check) -> None:
     critics = (await _critics(every_check))["critics"]
     go = {(c["category"], c["go"]["to"]) for c in critics}
