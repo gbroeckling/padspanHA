@@ -148,7 +148,7 @@ def test_a_backup_that_cannot_read_a_store_saves_nothing_and_says_so(store, monk
     _run(ws_backup.ws_store_backup_create(h, conn, {"id": 1}))
     assert not box["backups"], "a backup with that store as {} would empty it on a restore"
     assert not conn.send_result.called
-    code, message = conn.send_error.call_args[0][1:3]
+    code, message = conn.send_error.call_args[0][1], conn.send_error.call_args.kwargs["message"]
     assert code == "backup_failed" and HOUSE3D_STORE_KEY in message
 
 

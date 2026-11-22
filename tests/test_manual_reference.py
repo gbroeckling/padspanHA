@@ -5,8 +5,10 @@
 
 docs/manual/14-home-assistant-reference.md (entities, attributes, services,
 events, Assist, MQTT), docs/manual/20-settings-reference.md (every setting,
-its default and range) and docs/manual/12-the-screens.md (the menu map, from
-panel.js MENU) carry blocks made by scripts/build_manual_reference.py. They
+its default and range), docs/manual/12-the-screens.md (the menu map, from
+panel.js MENU), docs/manual/D-for-developers.md (every websocket command) and
+docs/manual/B-every-screen-and-tab.md (every screen and its tabs)
+carry blocks made by scripts/build_manual_reference.py. They
 fail here when they no longer match what the code makes, and the script
 itself refuses an entity, attribute, event field, setting or screen the code
 has and the script gives no words for, or words for one the code no longer
@@ -164,6 +166,32 @@ def test_the_tables_name_what_people_automate_with() -> None:
     for needed in ("`last_room`", "`room_reason`", "`padspan_ha.set_room_tag_map`", "`padspan_ha.wled_on`",
                    "`padspan_ha.wled_off`", "`padspan_device_departed`", "`PadSpanWhereIs`"):
         assert needed in text, needed
+
+
+def test_every_screen_and_its_tabs_are_read_from_the_panel() -> None:
+    """Appendix B: each menu screen once, and the tabs of the screens that have them, as the panel labels them."""
+    tabs = B.screen_tabs_in_code()
+    assert "Atlas builder" in tabs["maps"] and "Tracking" in tabs["settings"] and "Model" in tabs["calibration"]
+    assert "Factory Reset" in tabs["manage"] and "IRK Manager" in tabs["bluetooth"]
+    block = B.committed_block((MANUAL / "B-every-screen-and-tab.md").read_text(encoding="utf-8"), "screens")
+    for _i, name in B.menu_in_code()["menu"]:
+        assert block.count(f"| **{name}** |") == 1, name
+    for labels in tabs.values():
+        for label in labels:
+            assert f"**{label}**" in block, label
+
+
+def test_the_websocket_table_is_every_registered_command() -> None:
+    """Appendix D lists each websocket command the code declares and registers, once, with who may send it."""
+    cmds = B.ws_commands_in_code()
+    assert len(cmds) > 200 and len({c["type"] for c in cmds}) == len(cmds)
+    block = B.committed_block((MANUAL / "D-for-developers.md").read_text(encoding="utf-8"), "websocket")
+    for c in cmds:
+        assert f"| `{c['type']}` |" in block, c["type"]
+    by_type = {c["type"]: c for c in cmds}
+    assert by_type["padspan_ha/irk_validate"]["admin"] == "always"
+    assert by_type["padspan_ha/irk_validate"]["fields"] == ["`irk_hex`"]
+    assert any(c["admin"] == "with Enhanced security" for c in cmds)
 
 
 # ── links ───────────────────────────────────────────────────────────────────

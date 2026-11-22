@@ -19,6 +19,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from .const import (
+    refusal,
     DOMAIN,
     DATA_CALIBRATION,
     DATA_SETTINGS,
@@ -283,7 +284,8 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
         # Recorded as {}, a store that couldn't be read would be emptied by
         # restoring this backup: none is made.
         connection.send_error(msg["id"], "backup_failed",
-                              f"Could not read {', '.join(unread)}, so no backup was made. Nothing was saved.")
+                              **refusal("Could not read {stores}, so no backup was made. Nothing was saved.",
+                                        stores=", ".join(unread)))
         return
 
     # ── Collect map image files ──────────────────────────────────────────────

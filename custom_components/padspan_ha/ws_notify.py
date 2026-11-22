@@ -13,6 +13,7 @@ import logging
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .const import refusal
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -158,13 +159,13 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
         elif err.code == "not_allowed":
             connection.send_error(
                 msg["id"], "not_allowed",
-                f"{chosen} is not a notification target: pick where to send from the list."
+                **refusal("{target} is not a notification target: pick where to send from the list.", target=chosen)
             )
         elif err.code == "not_found":
             connection.send_error(
                 msg["id"], "not_found",
-                f"{chosen} was not found in Home Assistant (renamed or removed?). "
-                "Follow alerts to it are not sent either: pick where to send again."
+                **refusal("{target} was not found in Home Assistant (renamed or removed?). "
+                          "Follow alerts to it are not sent either: pick where to send again.", target=chosen)
             )
         else:
             connection.send_error(

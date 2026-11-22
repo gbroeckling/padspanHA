@@ -288,7 +288,7 @@ def _call(handler, h, msg):
     conn = MagicMock()
     asyncio.new_event_loop().run_until_complete(handler(h, conn, {"id": 5, **msg}))
     if conn.send_error.called:
-        return {"error": conn.send_error.call_args[0][1], "message": conn.send_error.call_args[0][2]}
+        return {"error": conn.send_error.call_args[0][1], "message": conn.send_error.call_args.kwargs.get("message") or conn.send_error.call_args[0][2]}
     return conn.send_result.call_args[0][1]
 
 

@@ -84,6 +84,16 @@ NOT_LOADED_MESSAGE = (
     "happening, restart Home Assistant and look for PadSpan in its log."
 )
 
+
+def refusal(template: str, /, **values) -> dict:
+    """A refusal with a value in it, as connection.send_error(msg_id, code, **refusal("{room} is not a room on the
+    map.", room=...)) (2026-11-21): its English `message` is the template filled in, and beside it go Home
+    Assistant's own fields for a translated error, `translation_key` the template and `translation_placeholders`
+    the values, so the panel says it in its own language (views/ui_error.js errorText; scripts/i18n_coverage.py
+    collects the templates into i18n/<lang>/server.json). The values are names and numbers, never translated."""
+    return {"message": template.format(**values), "translation_key": template, "translation_domain": DOMAIN,
+            "translation_placeholders": values}
+
 # ── HA Storage file keys (.storage/<key>) ─────────────────────────────────────
 SETTINGS_STORE_KEY = "padspan_ha.settings"
 MAPS_STORE_KEY = "padspan_ha.maps"

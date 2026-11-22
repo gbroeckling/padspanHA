@@ -188,4 +188,37 @@ const CRITICS = {
     && toast.includes("issues are public"), [String(copied).slice(0, 80), toast]);
 }
 
+// ── in German: a critic with a name in it, by the template it came with (views/ui_error.js serverText) ──
+// Last: the language stays German. The same views/i18n.js instance health.js and ui_error.js import.
+{
+  const { readFile } = await import("node:fs/promises");
+  const I18N = await import(pathToFileURL(V + "i18n.js").href);
+  globalThis.fetch = async (url) => {
+    try { const body = await readFile(new URL(String(url).split("?")[0])); return { ok: true, json: async () => JSON.parse(body) }; }
+    catch (_) { return { ok: false, json: async () => ({}) }; }
+  };
+  const lang = await I18N.useLanguage({ language: "de" }, ["health", "server"]);
+  const de = JSON.parse(await readFile(new URL("../i18n/de/server.json", pathToFileURL(V + "i18n.js")), "utf-8"));
+  const MIX = "{room_a} and {room_b} get mixed up";
+  const OFF = "When PadSpan checks this plan's calibration points against each other, it places them about {metres} m from where they were taken.";
+  const WHOLE = "It often disagrees with the other receivers about which room a device is in, so it can pull people and things into the wrong room.";
+  const { ctx } = makeCtx({ dataMode: "de-critics" }, { "padspan_ha/system_critics": { summary: { total: 3, critical: 0, warning: 3, info: 0, healthy: false },
+    critics: [
+      { category: "room_confusion", severity: "warning", title: "Kitchen and Hall get mixed up", title_key: MIX, args: { room_a: "Kitchen", room_b: "Hall" },
+        message: "m", action: "a", detail: "d", go: { to: "calibrate" } },
+      { category: "map_quality", severity: "warning", title: "t", message: "When PadSpan checks … about 2.5 m …", message_key: OFF,
+        args: { plan: "Ground", metres: 2.5 }, action: "a", detail: "d", go: { to: "calibrate" } },
+      { category: "scanner", severity: "warning", title: "Attic proxy is new", title_key: "{receiver} is new", args: { receiver: "Attic proxy" },
+        message: WHOLE, action: "a", detail: "d", go: { to: "receivers", source: "AA" } },
+    ], confusion_matrix: [], per_map_quality: [] } });
+  const root = HEALTH.render(ctx);
+  await flush(16);
+  const h = html(root);
+  check("de: loaded", lang === "de", lang);
+  check("de: a critic's title by its template, the names as they are", h.includes(de[MIX].replace("{room_a}", "Kitchen").replace("{room_b}", "Hall")), h.slice(0, 900));
+  check("de: a number the German way", h.includes(de[OFF].replace("{metres}", "2,5").split("Grundrisses")[1]), h.slice(0, 1200));
+  check("de: a whole sentence still by its exact English", h.includes(de[WHOLE]), h.slice(0, 1500));
+  check("de: a template it has no words for: the English as sent", h.includes("Attic proxy is new"), h.slice(0, 1500));
+}
+
 console.log(JSON.stringify(results));

@@ -15,7 +15,7 @@
 // Basic's focused parts (views/focus.js): a setting a problem points to opens on its own there.
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // The panel's words in its language (views/i18n.js; English is the key), and
-// System Critics' sentences from the server by their exact English (views/ui_error.js serverText).
+// System Critics' sentences from the server by their template, or else their exact English (views/ui_error.js serverText).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const { serverText } = await import(`./ui_error.js${new URL(import.meta.url).search}`).catch(() => ({ serverText: (s) => String(s ?? "") }));
 
@@ -840,9 +840,9 @@ function _renderCritics(ctx, container, data) {
             <div style="font-weight:700;font-size:12px;color:${sev.text};text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">
               ${_escHtml(kind)} \u2022 ${_escHtml(SEVERITY_LABELS[critic.severity] || critic.severity)}
             </div>
-            <div style="font-weight:600;font-size:13px;color:#e2e8f0;margin-bottom:4px">${_escHtml(serverText(critic.title))}</div>
-            <div style="font-size:11px;color:#94a3b8;line-height:1.5">${_escHtml(serverText(critic.message))}</div>
-            <div data-critic-action style="font-size:11px;color:#5eead4;margin-top:6px;line-height:1.4;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span><b>${_escHtml(t("Action:"))}</b> ${_escHtml(serverText(critic.action))}</span></div>
+            <div style="font-weight:600;font-size:13px;color:#e2e8f0;margin-bottom:4px">${_escHtml(serverText(critic.title, critic.title_key, critic.args))}</div>
+            <div style="font-size:11px;color:#94a3b8;line-height:1.5">${_escHtml(serverText(critic.message, critic.message_key, critic.args))}</div>
+            <div data-critic-action style="font-size:11px;color:#5eead4;margin-top:6px;line-height:1.4;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span><b>${_escHtml(t("Action:"))}</b> ${_escHtml(serverText(critic.action, critic.action_key, critic.args))}</span></div>
             ${critic.detail ? `<div data-critic-detail style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.4">${_escHtml(t("Details:"))} ${_escHtml(critic.detail)}</div>` : ""}
           </div>
         </div>

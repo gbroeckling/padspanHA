@@ -15,6 +15,7 @@ from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    refusal,
     DOMAIN,
     DATA_SETTINGS,
     DATA_OBJECTS,
@@ -754,8 +755,8 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
             if _tx_entry is not None and not _is_ble_transmitter(_tx_entry):
                 connection.send_error(
                     msg["id"], "not_ble_transmitter",
-                    f"{transmitter_eid} is not a Companion App BLE Transmitter sensor; "
-                    "PadSpan only turns on a phone's BLE Transmitter here.")
+                    **refusal("{entity} is not a Companion App BLE Transmitter sensor; "
+                              "PadSpan only turns on a phone's BLE Transmitter here.", entity=transmitter_eid))
                 return
 
         results: list[str] = []

@@ -49,7 +49,7 @@ from .house3d_store import DOOR_MIN_M, WINDOW_MIN_M, enabled
 from .roomplan_import import RoomPlanParseError, parse_roomplan
 from .sh3d_import import Sh3dParseError, parse_sh3d_furniture
 from .ws_common import _tier_at_least
-from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN
+from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN, refusal
 from .ws_floorplan_import import MAX_SH3D_BYTES, ROOMPLAN_OFF_CODE
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 from .quiet_errors import note as _quiet_error
@@ -443,7 +443,7 @@ async def ws_house3d_import_preview(hass: HomeAssistant, connection, msg) -> Non
     b64 = msg.get("sh3d_base64") or ""
     if len(b64) > (MAX_SH3D_BYTES * 4) // 3 + 4:
         connection.send_error(msg["id"], "upload_too_large",
-                              f"File exceeds the {MAX_SH3D_BYTES // (1024 * 1024)} MB limit")
+                              **refusal("File exceeds the {mb} MB limit", mb=MAX_SH3D_BYTES // (1024 * 1024)))
         return
     try:
         raw = base64.b64decode(b64, validate=True)

@@ -6,7 +6,7 @@
 // The iPhone setup path (GitHub #69). "BLE Transmitter" is a sensor in the
 // Android Companion App only; an iPhone owner looking for it finds nothing.
 // An iPhone is followed by its IRK, added through HA's Private BLE Device
-// integration. Behind Settings → Experimental → "iPhone Setup Path"
+// integration. Behind Settings → Features → Experimental Features → "iPhone Setup Path"
 // (iphone_irk_guide, off by default): with it off, nothing here is drawn and
 // every screen reads as it did.
 //

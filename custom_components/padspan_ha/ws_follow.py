@@ -15,6 +15,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, entity_registry
 from .const import (
+    refusal,
     DOMAIN,
     DATA_SETTINGS,
     DATA_MODEL,
@@ -199,7 +200,7 @@ async def ws_entity_delete(hass: HomeAssistant, connection, msg) -> None:
     er = entity_registry.async_get(hass)
     entry = er.async_get(entity_id)
     if not entry:
-        connection.send_error(msg["id"], "not_found", f"{entity_id} isn't in Home Assistant any more.")
+        connection.send_error(msg["id"], "not_found", **refusal("{entity} isn't in Home Assistant any more.", entity=entity_id))
         return
     er.async_remove(entity_id)
     connection.send_result(msg["id"], {"deleted": entity_id})

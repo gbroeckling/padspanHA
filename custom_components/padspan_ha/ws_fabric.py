@@ -16,6 +16,7 @@ from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    refusal,
     NOT_LOADED_MESSAGE,
     DOMAIN,
     DATA_SETTINGS,
@@ -777,7 +778,7 @@ async def ws_fabric_rooms_merge(hass: HomeAssistant, connection, msg) -> None:
     bad = [r for r in names if not isinstance(geo.get(r), dict) or str(geo[r].get("floor_id")) != floor_id
            or geo[r].get("type", "poly") != "poly" or len(geo[r].get("points_m") or []) < 3]
     if bad:
-        connection.send_error(msg["id"], "invalid", f"Only outlined rooms on this floor merge: {', '.join(bad)}")
+        connection.send_error(msg["id"], "invalid", **refusal("Only outlined rooms on this floor merge: {rooms}", rooms=", ".join(bad)))
         return
     # Pillow and a pure-Python trace: up to a second or more on a small machine, so off the event loop (review B4).
     outline, pieces = await hass.async_add_executor_job(plan_geom.merge_outline, [geo[r]["points_m"] for r in names])
