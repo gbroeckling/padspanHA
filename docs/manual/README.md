@@ -10,8 +10,8 @@ when the profile has none; any other language shows English.
 
 ## Part I: Start
 
-1. What PadSpan is: free and Pro, editions, how it compares. Coming. Today: the [README](../../README.md#editions) (Editions, How It Compares)
-2. Requirements. Coming. Today: [Minimum requirements](../MINIMUM_REQUIREMENTS.md)
+1. [What PadSpan is: free and Pro, editions, is it for me, how it compares](01-what-padspan-is.md)
+2. [Requirements](02-requirements.md)
 3. [Install, update, uninstall](03-install-update-uninstall.md)
 4. Your first room in 15 minutes. Coming. Today: [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) and [Getting Started](../GETTING_STARTED.md)
 
