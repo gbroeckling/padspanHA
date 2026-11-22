@@ -1579,6 +1579,11 @@ class PadSpanLightsApp extends HTMLElement {
         :host{display:block;min-height:100vh;background:#0a150e;color:#e2e8f0;accent-color:#52b788;
               font-family:Inter,system-ui,Arial,sans-serif;box-sizing:border-box}
         #content{padding:16px}
+        /* A phone: the map card runs edge to edge, the rest keeps its margin
+           (the card's rail is a row there: styles.css). */
+        @media (max-width:600px){
+          :host(:not([data-wall])) #content .lv-mapcard.lv-display{margin-left:-16px;margin-right:-16px;border-radius:0;border-left:none;border-right:none}
+        }
         /* Wall mode (?kiosk=1): no header, the map card the whole screen,
            its controls scaled by --wall-ui (lv- rules in styles.css). */
         :host([data-wall]){overflow:clip}

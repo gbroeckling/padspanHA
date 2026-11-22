@@ -4367,7 +4367,7 @@ export function buildLightsMapCard(hostIn){
   if (abLive || abFile) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
   else if (scr) { _abRedraw.delete(abSlot); if (_AB) _AB.liveLayer(abSlot).clear(); }
   if (scanOn() && !(abLive || abFile)) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
-  let abData = null;
+  let abData = null, abNames = null;
   const abDraw = (snapshot) => {
     if (!_AB || !abLive) return;
     const fz = getFocusZ(view.focusIdx);
@@ -4378,7 +4378,7 @@ export function buildLightsMapCard(hostIn){
       // Hiding the device codes hides the A01-style chips, never a person's or a tag's name; the
       // scanners' squares, technical markers like the codes, go with them.
       scanners: !host.hideDeviceCodes,
-      carries: abSet.atlas_3d_carries || null,
+      carries: abSet.atlas_3d_carries || null, names: abNames,
       focused: (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), outdoor: isOutdoorFloorId,
       home: () => { const rn = isoDiv.getRootNode ? isoDiv.getRootNode() : null; return rn && rn.host ? rn : document.body; } }, snapshot);
   };
@@ -4547,6 +4547,8 @@ export function buildLightsMapCard(hostIn){
         codeChip: !!host.codeChip, hideCodes: !codesShown || !!host.hideDeviceCodes,
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
+        // With people or tags on the map: where each room name can step to, for the people layer (atlas_aboard.js clearNames).
+        labelSpots: abLive ? new Map() : null,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
         labelScale: WALL && host.wallLabel ? host.wallLabel() : 1,
         ...(WALL ? { hugX: true } : {}),
@@ -4588,6 +4590,7 @@ export function buildLightsMapCard(hostIn){
         focusAlone: DISPLAY && flatShow("other_floors") !== true };
     const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors, isoOpts);
+    abNames = isoOpts.labelSpots;
     // The sidebar's poll patches the last drawing (drawStageSvg above); the
     // key is what makes it a different drawing: the floor shown, the gaps,
     // zoom, the wall, the settings that shape it, and the map itself.

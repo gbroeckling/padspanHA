@@ -343,8 +343,54 @@ function createLiveLayer(slot){
       }
     }
     for (const [k, it] of items) if (!keep.has(k)) { try { it.g.remove(); } catch (_) { /* gone */ } items.delete(k); }
+    clearNames();
     // As drawn: on a floor on the map and in sight (the floor focus).
     tell(wants.filter(w => keep.has(w.key) && items.has(w.key) && items.get(w.key).g.style.display !== "none"));
+  }
+  // A room's name is never under a badge or a tag's name (the owner, 2026-11-21: "WALK-IN CLOSET" under
+  // Sam's badge, "LIVING ROOM" under "Jordan · Guest"). The drawing says where each name can stand in its
+  // room (d.names, iso_lights.js opts.labelSpots: its own spot first, and its letters' half size): a name
+  // one of them covers goes to the first spot none covers and no other name is on, and back to its own once
+  // that is free again. Its tap box goes with it.
+  function clearNames(){
+    if (!svg || typeof svg.querySelectorAll !== "function" || !d || !(d.names instanceof Map)) return;
+    const over = [];                          // [z, x0, y0, x1, y1]: what is drawn on top of the names, as it stands now
+    for (const it of items.values()) {
+      if (!it.at || it.g.style.display === "none") continue;
+      const [x, y] = it.at, z = it.m[2];
+      if (it.kind === "person") over.push([z, x - 9.5, y - 9.5, x + 9.5, y + 9.5]);
+      else if (it.kind === "scanner") over.push([z, x - 4.5, y - 4.5, x + 4.5, y + 4.5]);
+      else {
+        over.push([z, x - 5, y - 5, x + 5, y + 5]);
+        const n = it.parts.name ? it.parts.name.textContent.length : 0;
+        if (n) over.push([z, x - n * 2.6 - 1.5, y - 15.5, x + n * 2.6 + 1.5, y - 5]);   // 9 px type, its baseline 8 above the dot
+      }
+    }
+    // A name drawn over its room's markers (g.lroom-name: no spot in the room was clear) goes with its tap box.
+    const over2 = new Map();
+    for (const g of svg.querySelectorAll("g.lroom-name")) over2.set(`${g.getAttribute("data-z")}|${g.getAttribute("data-room")}`, g);
+    const names = [];
+    for (const g of svg.querySelectorAll("g.lroom")) {
+      const key = `${g.getAttribute("data-z")}|${g.getAttribute("data-room")}`, n = d.names.get(key);
+      if (!n || !n.spots.length) { for (const x of [g, over2.get(key)]) if (x) x.removeAttribute("transform"); continue; }
+      names.push({ gs: [g, over2.get(key)].filter(Boolean), z: Number(g.getAttribute("data-z")), spots: n.spots, hw: n.ink[0], hh: n.ink[1], at: n.spots[0] });
+    }
+    // How much of a box is under the name at (x, y): 0 when they do not meet.
+    const area = (b, x, y, hw, hh) => Math.max(0, Math.min(b[2], x + hw) - Math.max(b[0], x - hw)) * Math.max(0, Math.min(b[3], y + hh) - Math.max(b[1], y - hh));
+    for (const N of names) {
+      // Each spot: what of the badges and tags' names it is under, and never on another name. The first
+      // spot nothing covers, else the one covered least (a narrow room where someone stands on every spot).
+      const under = ([x, y]) => over.reduce((a, o) => a + (o[0] === N.z ? area([o[1], o[2], o[3], o[4]], x, y, N.hw, N.hh) : 0), 0)
+        + (names.some(M => M !== N && M.z === N.z && area([M.at[0] - M.hw, M.at[1] - M.hh, M.at[0] + M.hw, M.at[1] + M.hh], x, y, N.hw, N.hh) > 0) ? 1e9 : 0);
+      let best = N.spots[0], least = Infinity;
+      for (const p of N.spots) { const u = under(p); if (u < least) { least = u; best = p; } if (!u) break; }
+      N.at = best;
+      const dx = N.at[0] - N.spots[0][0], dy = N.at[1] - N.spots[0][1];
+      for (const g of N.gs) {
+        if (dx || dy) g.setAttribute("transform", `translate(${dx.toFixed(1)} ${dy.toFixed(1)})`);
+        else g.removeAttribute("transform");
+      }
+    }
   }
   return {
     /**
@@ -352,6 +398,7 @@ function createLiveLayer(slot){
      * frameKey (what moves every marker at once: spacing, L/R), model,
      * states, file (the 3D file: each person's figure), people, tags,
      * carries (settings.atlas_3d_carries: what each person carries),
+     * names (the drawing's labelSpots: where each room name can stand),
      * scanners (false: no scanner squares, as with the device codes hidden),
      * hideNames, focused(z), outdoor(fid),
      * home() (where a card goes)}; snapshot when a read came in (else the
@@ -374,6 +421,8 @@ function createLiveLayer(slot){
     /** Off (both switches): nothing of it stays in the drawing. */
     clear(){
       for (const fg of floorsG.values()) { try { fg.remove(); } catch (_) { /* gone */ } }
+      // The names it moved go back to their own spots.
+      if (svg && typeof svg.querySelectorAll === "function") for (const sel of ["g.lroom[transform]", "g.lroom-name[transform]"]) for (const g of svg.querySelectorAll(sel)) g.removeAttribute("transform");
       floorsG.clear(); items.clear(); since.clear(); d = null; snap = null; svg = null;
       if (text) { text.clear(); try { text.el.remove(); } catch (_) { /* gone */ } text = null; }
     },
