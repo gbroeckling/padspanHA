@@ -84,7 +84,8 @@ Without a scale nothing can be put on the map, and calibration can't start.
 Right after the upload, **Set this plan's scale now** opens:
 
 1. Click (or tap) both ends of something you know the length of. The longer, the better: the longest
-   wall you can, or the whole house. A doorway is too short to trust.
+   wall you can, or the whole house. A doorway works, but a small slip on a short length puts the
+   whole plan out more.
 2. Type its length under **Its length:**. Lengths are in metres. With
    **Settings → Appearance → Units: Show lengths in feet and inches** on, they show in feet and
    inches, and you can type them that way.

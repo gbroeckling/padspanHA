@@ -57,7 +57,7 @@ export const row = (ctx, kids, style = "") => ctx.helpers.el("div", { style: "di
 
 /** What to do, said once above the picture. */
 export const measureHow = (tap) => `${tap} both ends of something you know the length of (the longest wall you can, or the whole house), then type its length. ` +
-  "The longer the thing you measure, the more exact your map: a doorway is too short to trust." + (tap === "Tap" ? " Pinch with two fingers, or use + below the plan, to look closer." : "");
+  "The longer the thing you measure, the more exact your map: a doorway works, but a long wall is better." + (tap === "Tap" ? " Pinch with two fingers, or use + below the plan, to look closer." : "");
 /** The line under the picture: which end is next, or how to move one. */
 export const endHint = (sc, tap) => (sc.pts.length < 2 ? `${tap} the ${sc.pts.length ? "other" : "first"} end on the plan.` : `Drag an end, or ${tap.toLowerCase()} near it, to move it.`);
 
