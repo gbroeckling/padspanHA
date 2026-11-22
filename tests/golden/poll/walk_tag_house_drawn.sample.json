@@ -13,7 +13,6 @@
       "name": "tag",
       "identified": true,
       "age_s": 1.956963,
-      "room": null,
       "_smoothed": true,
       "room_confidence": 0.12,
       "rssi_margin_confidence": 0.93,

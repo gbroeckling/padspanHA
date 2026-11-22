@@ -69,18 +69,16 @@ class _House:
         self._patched.__exit__(None, None, None)
         self._loop.close()
 
-    def poll(self, listed: dict[str, float], heard: dict[str, int] | None = None, label: str = "",
-             raw: str = "") -> dict:
+    def poll(self, listed: dict[str, float], heard: dict[str, int] | None = None, label: str = "") -> dict:
         """listed: {key: age_s} as the snapshot lists them. heard: {source:
         rssi} for TAG, each a new advert this poll. label: the name every
-        listed key carries. raw: the snapshot's own room for every listed key
-        (its strongest receiver's area)."""
+        listed key carries."""
         self.clock.t = self.n * POLL_S
         self.n += 1
         ads = [{"address": TAG, "source": s, "rssi": r, "age_s": 1.0, "last_seen": f"advert {self.n} {s}"}
                for s, r in (heard or {}).items()]
         objects = [{"key": k, "address": k, "kind": "ble", "name": k, "identified": True, "age_s": age,
-                    **({"user_label": label} if label else {}), **({"room": raw} if raw else {})}
+                    **({"user_label": label} if label else {})}
                    for k, age in listed.items()]
         self._snap[0] = {"objects": {"list": objects}, "ble": {"advertisements": ads, "radios": RADIOS}}
         return self._loop.run_until_complete(self.coord._async_update_data())

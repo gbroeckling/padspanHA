@@ -3603,11 +3603,6 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                     val = smoothed.get(mk)
                     if val is not None:
                         obj[mk] = val
-                # No voted room yet is no room, as on its entities
-                # (presence_coordinator._shown_room): the snapshot's own
-                # strongest-receiver room stayed here, past the vote.
-                if smoothed.get("_smoothed") and not smoothed.get("room"):
-                    obj["room"] = ""
     except Exception as _overlay_err:
         _LOGGER.warning("Coordinator overlay failed — positioning data may be stale: %s", _overlay_err, exc_info=True)
 
@@ -3664,10 +3659,8 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
 
     # ── Hold the room through a short signal gap (hold_last_room_s) ─────────
     # Display only, OFF by default (0). A device back from a short gap has
-    # its voted room cleared until the vote confirms one again; with the
-    # setting on, the room it had before the gap is shown meanwhile, marked
-    # room_held. Since November 2026 the poll itself shows that room
-    # (presence_coordinator._shown_room), so this finds no empty room to fill.
+    # its room cleared until the vote confirms one again; with the setting on,
+    # the room it had before the gap is shown meanwhile, marked room_held.
     # The vote, smoothing, gate and re-entry reset are untouched.
     try:
         _hold_st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)

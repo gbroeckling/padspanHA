@@ -13,7 +13,6 @@
       "name": "phone",
       "identified": true,
       "age_s": 1000000000.0,
-      "room": null,
       "_smoothed": true,
       "room_confidence": 0.0,
       "rssi_margin_confidence": 0.0,

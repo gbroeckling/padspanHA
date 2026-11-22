@@ -1,7 +1,7 @@
 {
  "two_floors": {
-  "sha256": "a9f319835b19bd5dfea199fe535853c356389afb37fc3134ece1ce982128461c",
-  "sha256_exact": "4959142b3f7010386277ac686156cca6599d2661cd82edbf6854e09a1bbd9e4b",
+  "sha256": "216801a1fe2f90ebc4450e82b395f47c73c2abdfac8fa312afe4cb4443547f44",
+  "sha256_exact": "5c7136d3f8ee707f6b6161b3a4ac4f370c42597e23016706bba767a8315f3b65",
   "exact_on": "ee91f523c509c73f",
   "records": 300,
   "polls": 300,
@@ -9,8 +9,8 @@
   "object_polls": 2527
  },
  "two_floors_other_settings": {
-  "sha256": "12179b760281a1cedc9e6d2c81a675336c0a8d7891cc6b7f61bd7c4cbef405a0",
-  "sha256_exact": "c4c8b82508eb30b0917dea59cfc7e772af0f858b1445f0aa2997668331e0d67f",
+  "sha256": "8d73411c883984fa1dfc0822d3b490c13b44e587602c54c1232df7e31c8bdc25",
+  "sha256_exact": "64da7f6f91fb3aa65073d1f17999d429f1435b75aae24621825cb929c4d5f58a",
   "exact_on": "ee91f523c509c73f",
   "records": 150,
   "polls": 150,
@@ -18,8 +18,8 @@
   "object_polls": 1263
  },
  "walk_phone": {
-  "sha256": "4c463365b92a89f60fdf792a335023117467fc9d1db24e1a1a1de21c3a3249bb",
-  "sha256_exact": "76bce8c6efa888b4379c1c77b0c354386b294d4b2205fa6082fe95c7cc92d1ca",
+  "sha256": "80d8e6b8c5b699e1e50b15b46326c254db8041755a5bbdbc20373b90225e241c",
+  "sha256_exact": "834ec05e16ef83d1035cc3d2982e216a517e03c68be439d53ad96dfbeb8aa130",
   "exact_on": "ee91f523c509c73f",
   "records": 647,
   "polls": 647,
@@ -27,8 +27,8 @@
   "object_polls": 647
  },
  "walk_tag_house_drawn": {
-  "sha256": "21ffbb6b1e15c62170b4abde6c1ccd44d2cb3a51ba61a38c3480dfe8cff56179",
-  "sha256_exact": "9d341e0e3f30a55e6997eb9a4c965dcd074d4d25f44145e1c7ab448eaf651ad7",
+  "sha256": "d1edda8d3fefe4d1fee5834c1154bb0f2902fb09bae8537a6e6680fbc9bf52c4",
+  "sha256_exact": "06507543d620dec62953b33e05799d04d530683233ea7e5e345213f350938ec5",
   "exact_on": "ee91f523c509c73f",
   "records": 646,
   "polls": 646,
