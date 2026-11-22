@@ -15,6 +15,7 @@ import { join } from "node:path";
 const WWW = process.argv[2];
 const M = await import(pathToFileURL(join(WWW, "views", "ui_error.js")).href);
 const W = M.ERROR_WORDS;
+const ERROR_WORDS_EN_CONNECTION = W.connection;   // read in English, before any language loads
 const results = {};
 const check = (name, got, want) => { results[name] = { ok: got === want, detail: got === want ? undefined : { got, want } }; };
 
@@ -44,5 +45,28 @@ check("an object with no words", M.errorText({ code: "x" }), W.other);
 const hostile = { get message() { throw new Error("boom"); } };
 check("a hostile error object", M.errorText(hostile), W.other);
 check("never [object Object]", String(M.errorText({})).includes("[object"), false);
+
+// In another language: the plain lines are its own, and PadSpan's sentence
+// from the server is shown in it when it is one of the backend's whole
+// sentences (i18n/<lang>/server.json); one it doesn't know stays as sent.
+// The same views/i18n.js instance ui_error.js imports (no query here).
+const { readFile } = await import("node:fs/promises");
+const I18N = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href);
+globalThis.fetch = async (url) => {
+  try { const body = await readFile(new URL(String(url).split("?")[0])); return { ok: true, json: async () => JSON.parse(body) }; }
+  catch (_) { return { ok: false, json: async () => ({}) }; }
+};
+const got = await I18N.useLanguage({ language: "de" }, ["panel", "server"]);
+const read = async (g) => JSON.parse(await readFile(join(WWW, "i18n", "de", g + ".json"), "utf-8"));
+const server = await read("server"), panel = await read("panel");
+const ADMIN = "Only an admin can change this while Enhanced security is on";
+check("de: loaded", got, "de");
+check("de: a refusal the backend sends whole is shown translated", M.errorText({ code: "admin_only", message: ADMIN }), server[ADMIN]);
+check("de: serverText looks it up by its exact English", M.serverText(ADMIN), server[ADMIN]);
+check("de: a sentence the backend doesn't send whole stays as it came",
+  M.errorText({ code: "no_room", message: "Kitchen has no shape in the floor plan yet." }), "Kitchen has no shape in the floor plan yet.");
+check("de: the plain lines are German", M.errorText(3), panel[ERROR_WORDS_EN_CONNECTION]);
+check("de: a thrown string the backend sends whole", M.errorText(ADMIN), server[ADMIN]);
+check("de: nothing at all", M.errorText(undefined), panel["Something went wrong. Try again."]);
 
 console.log(JSON.stringify(results));

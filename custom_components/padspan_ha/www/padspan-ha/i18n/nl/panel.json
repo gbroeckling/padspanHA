@@ -162,5 +162,12 @@
 "The release notes couldn't be loaded. Refresh the page and try again.": "De release-opmerkingen konden niet worden geladen. Vernieuw de pagina en probeer het opnieuw.",
 "Full history on padspan.traks.ca": "Volledige geschiedenis op padspan.traks.ca",
 "💡 Suggest an idea": "💡 Idee voorstellen",
-"Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca": "Plaats een idee waarop anderen kunnen stemmen (GitHub-account), of mail hello@traks.ca"
+"Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca": "Plaats een idee waarop anderen kunnen stemmen (GitHub-account), of mail hello@traks.ca",
+"The connection to Home Assistant was lost. Wait a moment and try again.": "De verbinding met Home Assistant is verbroken. Wacht even en probeer het opnieuw.",
+"PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan was via het netwerk niet bereikbaar. Controleer de verbinding en probeer het opnieuw.",
+"This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Deze pagina en de PadSpan in Home Assistant passen niet bij elkaar. Vernieuw de pagina; helpt dat niet, herstart dan Home Assistant.",
+"PadSpan couldn't use what this page sent. Refresh the page and try again.": "PadSpan kon niets met wat deze pagina stuurde. Vernieuw de pagina en probeer het opnieuw.",
+"Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "Er ging iets mis in PadSpan. Probeer het opnieuw; blijft het gebeuren, dan staat onder Gezondheid → Open Diagnostics een rapport om te versturen.",
+"Something went wrong on this page. Refresh it and try again.": "Er ging iets mis op deze pagina. Vernieuw hem en probeer het opnieuw.",
+"Only an administrator can do this.": "Alleen een beheerder kan dit doen."
 }

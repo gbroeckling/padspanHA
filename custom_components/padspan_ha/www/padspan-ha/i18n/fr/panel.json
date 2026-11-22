@@ -162,5 +162,12 @@
 "The release notes couldn't be loaded. Refresh the page and try again.": "Impossible de charger les notes de version. Actualisez la page et réessayez.",
 "Full history on padspan.traks.ca": "Historique complet sur padspan.traks.ca",
 "💡 Suggest an idea": "💡 Proposer une idée",
-"Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca": "Publiez une idée sur laquelle d’autres peuvent voter (compte GitHub), ou écrivez à hello@traks.ca"
+"Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca": "Publiez une idée sur laquelle d’autres peuvent voter (compte GitHub), ou écrivez à hello@traks.ca",
+"The connection to Home Assistant was lost. Wait a moment and try again.": "La connexion à Home Assistant a été perdue. Attendez un instant et réessayez.",
+"PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan est injoignable sur le réseau. Vérifiez la connexion et réessayez.",
+"This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Cette page et le PadSpan de Home Assistant ne correspondent pas. Actualisez la page ; si cela ne suffit pas, redémarrez Home Assistant.",
+"PadSpan couldn't use what this page sent. Refresh the page and try again.": "PadSpan n’a pas pu utiliser ce que cette page a envoyé. Actualisez la page et réessayez.",
+"Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "Un problème est survenu dans PadSpan. Réessayez ; si cela se reproduit, Santé → Open Diagnostics contient un rapport à envoyer.",
+"Something went wrong on this page. Refresh it and try again.": "Un problème est survenu sur cette page. Actualisez-la et réessayez.",
+"Only an administrator can do this.": "Seul un administrateur peut faire cela."
 }

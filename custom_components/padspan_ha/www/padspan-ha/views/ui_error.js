@@ -122,16 +122,31 @@ export function uiErrorModule(ev) {
 // written for people (tests/test_plain_errors.py holds them to that), so
 // those are shown as they are; what comes from Home Assistant's machinery or
 // from a bug on this page gets a plain line that says what to do.
+// Both in the panel's language (views/i18n.js): these lines through t(), and
+// PadSpan's own sentences from the server by their exact English
+// (serverText, i18n/<lang>/server.json). If i18n.js can't load, English.
+const I18N = await import(`./i18n.js${new URL(import.meta.url).search}`).catch(() => null);
+const t = (s) => (I18N ? I18N.t(s) : s);
 export const ERROR_WORDS = Object.freeze({
-  connection: "The connection to Home Assistant was lost. Wait a moment and try again.",
-  network: "PadSpan couldn't be reached over the network. Check the connection and try again.",
-  restart: "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.",
-  sent: "PadSpan couldn't use what this page sent. Refresh the page and try again.",
-  server: "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.",
-  page: "Something went wrong on this page. Refresh it and try again.",
-  admin: "Only an administrator can do this.",
-  other: "Something went wrong. Try again.",
+  get connection() { return t("The connection to Home Assistant was lost. Wait a moment and try again."); },
+  get network() { return t("PadSpan couldn't be reached over the network. Check the connection and try again."); },
+  get restart() { return t("This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant."); },
+  get sent() { return t("PadSpan couldn't use what this page sent. Refresh the page and try again."); },
+  get server() { return t("Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send."); },
+  get page() { return t("Something went wrong on this page. Refresh it and try again."); },
+  get admin() { return t("Only an administrator can do this."); },
+  get other() { return t("Something went wrong. Try again."); },
 });
+
+/** A sentence the server sent (a refusal, a System Critics line), in the
+ *  panel's language when it is one of the backend's whole sentences
+ *  (scripts/i18n_coverage.py server_sentences); anything else as it came. */
+export function serverText(s) {
+  const text = String(s == null ? "" : s);
+  if (!I18N || !text || I18N.currentLanguage() === "en") return text;
+  const tr = I18N.t(text);
+  return tr || text;
+}
 // Home Assistant's schema check (voluptuous) words its refusals for programmers.
 const _SCHEMA = /@ data\[|required key not provided|extra keys not allowed|expected (a |an )?(str|int|float|bool|dict|list|number)|not a valid value|value must be (at|one)|length of value/i;
 // Python's own words, should one ever reach a refusal.
@@ -142,7 +157,7 @@ const _BUG = new Set(["TypeError", "ReferenceError", "RangeError", "SyntaxError"
 export function errorText(e) {
   try {
     if (e == null) return ERROR_WORDS.other;
-    if (typeof e === "string") return e.trim() || ERROR_WORDS.other;
+    if (typeof e === "string") return serverText(e.trim()) || ERROR_WORDS.other;
     if (typeof e === "number") return ERROR_WORDS.connection;   // home-assistant-js-websocket's ERR_* codes
     if (typeof e !== "object") return ERROR_WORDS.other;
     const code = e.code, msg = typeof e.message === "string" ? e.message.trim() : "";
@@ -154,7 +169,7 @@ export function errorText(e) {
     // fetch() that never reached anyone throws a TypeError of its own words: the network, not a bug.
     if (e.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return ERROR_WORDS.network;
     if (_BUG.has(String(e.name || ""))) return ERROR_WORDS.page;
-    return msg || ERROR_WORDS.other;
+    return serverText(msg) || ERROR_WORDS.other;
   } catch (_e) {
     return ERROR_WORDS.other;
   }
