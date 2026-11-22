@@ -400,6 +400,10 @@ def test_the_rain_sensor_list(harness, case) -> None:
     "the row's button moves it to the Zigbee2MQTT one when pressed",
     "a team's duplicate bulb is still listed, ticked",
     "its button moves the team to the Zigbee2MQTT one, read back",
+    "with nothing unsaved the button is there to press",
+    "with an unsaved edit it waits, and says why",
+    "pressed then, nothing is moved and the edit stays",
+    "saved, it is there to press again",
     "Live Aboard's room list leaves the duplicate copy out",
 ])
 def test_the_atlas_and_power_teams(harness, case) -> None:

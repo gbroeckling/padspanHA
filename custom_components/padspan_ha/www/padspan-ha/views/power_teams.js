@@ -49,6 +49,17 @@ export function powerTeamsSection(ctx, el){
   box.appendChild(note);
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   let teams = [], live = {}, defaults = {}, limits = {};
+  // Edits on this screen not saved yet, and the "Use the Zigbee2MQTT one" lines drawn now. The button saves at once
+  // and reads the teams again, which would replace those edits: while there are any, it waits and says why.
+  let dirty = false, twinLines = [];
+  const holdTwin = (w) => {
+    const b = w.querySelector("button");
+    if (b) b.disabled = dirty;
+    let why = w.querySelector("[data-twin-wait]");
+    if (dirty && !why) { why = el("span", { "data-twin-wait": "1", style: "color:#94a3b8" }, "Save or discard your changes first"); w.appendChild(why); }
+    if (why) why.hidden = !dirty;
+  };
+  const edited = () => { if (!dirty) { dirty = true; twinLines.forEach(holdTwin); } };
   const pick = choices((ctx.hass && ctx.hass.states) || {});
   const say = (text, bad) => { note.textContent = text; note.style.color = bad ? "#fca5a5" : "#94a3b8"; };
 
@@ -80,6 +91,7 @@ export function powerTeamsSection(ctx, el){
     const hidPower = TW && TW.hiddenNoteEl(pick.power.length - power.length);
     if (hidPower) b.appendChild(hidPower);
     const powerTwin = TW && TW.duplicateWarningEl(t.power || "", ctx.state && ctx.state.settings, st, (use) => useKept(t.power, use));
+    if (powerTwin) { twinLines.push(powerTwin); holdTwin(powerTwin); }
     if (powerTwin) b.appendChild(powerTwin);
     const offRow = row("Off", off);
     offRow.hidden = !t.power;
@@ -97,6 +109,7 @@ export function powerTeamsSection(ctx, el){
     if (hidBulbs) b.appendChild(hidBulbs);
     for (const eid of (t.bulbs || [])) {
       const w = TW && TW.duplicateWarningEl(eid, ctx.state && ctx.state.settings, st, (use) => useKept(eid, use));
+      if (w) { twinLines.push(w); holdTwin(w); }
       if (w) b.appendChild(w);
     }
     const day = el("input", { type: "checkbox", "data-adaptive": "1" });
@@ -119,26 +132,31 @@ export function powerTeamsSection(ctx, el){
       b.appendChild(el("div", { style: `font-size:11px;margin-top:6px;color:${l.phase === "failed" ? "#fbbf24" : "#94a3b8"}` }, `Now: ${PHASE[l.phase] || l.phase}.${missing}`));
     }
     const rm = el("button", { type: "button", class: "btn inline", "data-remove": "1", style: "margin-top:8px;font-size:12px" }, "Remove this team");
-    rm.addEventListener("click", () => { teams.splice(i, 1); draw(); say("Removed here. Press Save to keep it."); });
+    rm.addEventListener("click", () => { edited(); teams.splice(i, 1); draw(); say("Removed here. Press Save to keep it."); });
     b.appendChild(rm);
+    // Any change typed, picked or ticked in the team is an unsaved edit.
+    for (const n of b.querySelectorAll("input")) { n.addEventListener("input", edited); n.addEventListener("change", edited); }
+    for (const n of b.querySelectorAll("select")) n.addEventListener("change", edited);
     return b;
   }
 
   // "Use the Zigbee2MQTT one": the kept bulb or switch takes the duplicate's place in every team, and everywhere
   // else PadSpan keeps it (zigbee_twins.js useTwin), saved at once; the teams are read again.
   function useKept(eid, use){
+    if (dirty) return;
     TW.useTwin(ctx.actions.wsCall, eid, use)
       .then((r) => { if (r && r.settings && ctx.state) ctx.state.settings = r.settings; return ctx.actions.wsCall("padspan_ha/power_teams_get", {}); })
       .then((r) => { take(r); say(TW.usedNow(((((ctx.hass && ctx.hass.states) || {})[use] || {}).attributes || {}).friendly_name || use)); },
             (e) => say(TW.useFailed(ctx.helpers && ctx.helpers.errorText ? ctx.helpers.errorText(e) : String((e && e.message) || e)), true));
   }
   function draw(){
+    twinLines = [];
     while (body.firstChild) body.removeChild(body.firstChild);
     if (!teams.length) body.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "No team yet."));
     teams.forEach((t, i) => body.appendChild(teamBox(t, i)));
     if (!admin) { body.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px" }, "An administrator makes and changes teams.")); return; }
     const add = el("button", { type: "button", class: "btn inline", "data-add": "1", style: "margin-top:8px" }, "+ Add a team");
-    add.addEventListener("click", () => { teams.push({ name: "", power: "", bulbs: [], off: "bulbs", adaptive: true, curve: { ...defaults } }); draw(); });
+    add.addEventListener("click", () => { edited(); teams.push({ name: "", power: "", bulbs: [], off: "bulbs", adaptive: true, curve: { ...defaults } }); draw(); });
     const save = el("button", { type: "button", class: "btn", "data-save": "1", style: "margin:8px 0 0 8px" }, "Save");
     save.addEventListener("click", async () => {
       try {
@@ -149,6 +167,7 @@ export function powerTeamsSection(ctx, el){
     body.appendChild(el("div", {}, [add, save]));
   }
   function take(r){
+    dirty = false;                                  // what the teams are now, as read or as saved
     teams = JSON.parse(JSON.stringify((r && r.teams) || []));
     live = (r && r.live) || {}; defaults = (r && r.defaults) || {}; limits = (r && r.limits) || {};
     draw();

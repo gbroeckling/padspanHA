@@ -191,6 +191,31 @@ try {
   check("its button moves the team to the Zigbee2MQTT one, read back", JSON.stringify(teamMoves) === JSON.stringify([{ entity_id: "light.lamp_2", twin: "light.lamp" }])
         && JSON.stringify(ticked) === JSON.stringify(["light.lamp"]) && teamsSent.length === 0, { teamMoves, ticked, teamsSent });
 
+  // Unsaved edits on the screen: the button waits (it saves at once and reads the teams again, which would replace them).
+  const waitMoves = [];
+  const wctx = { hass: { user: { is_admin: true }, states: PST }, state: { settings: PSET },
+                 actions: { wsCall: async (type, data) => {
+                   if (type === "padspan_ha/power_teams_get") return { teams: [{ id: "t1", name: "Den", power: "switch.wall", bulbs: ["light.lamp_2"], off: "power" }] };
+                   if (type === "padspan_ha/zigbee_twin_use") waitMoves.push(data);
+                   if (type === "padspan_ha/power_teams_set") return { teams: data.teams };
+                   return { ok: true, settings: {} }; } } };
+  const wbox = PT.powerTeamsSection(wctx, el);
+  wbox._all().find(n => n.getAttribute && n.getAttribute("data-open")).click();
+  await new Promise(r => setImmediate(r));
+  const wline = () => wbox._all().find(n => n.getAttribute && n.getAttribute("data-zigbee-twin") === "light.lamp_2");
+  const wbtn = () => wline()._all().find(n => n.tagName === "BUTTON");
+  check("with nothing unsaved the button is there to press", !!wline() && wbtn().disabled !== true && !/Save or discard your changes first/.test(wline().textContent));
+  const nameIn = wbox._all().find(n => n.tagName === "INPUT" && n.getAttribute("placeholder") === "Bedroom lights");
+  nameIn.value = "Den lamps";
+  nameIn.dispatchEvent({ type: "input" });
+  check("with an unsaved edit it waits, and says why", wbtn().disabled === true && wline().textContent.includes("Save or discard your changes first"), wline().textContent);
+  wbtn().click();
+  await new Promise(r => setImmediate(r));
+  check("pressed then, nothing is moved and the edit stays", waitMoves.length === 0 && nameIn.value === "Den lamps", { waitMoves });
+  wbox._all().find(n => n.getAttribute && n.getAttribute("data-save")).click();
+  await new Promise(r => setImmediate(r));
+  check("saved, it is there to press again", wbtn().disabled !== true && !/Save or discard your changes first/.test(wline().textContent));
+
   // ── Live Aboard's "More devices of the area" (views/live_aboard_rooms.js) ──
   const LR = await import(q("live_aboard_rooms.js"));
   const RH = { areas: { a1: { name: "Hall" } }, devices: { z_hall: { area_id: "a1" }, h_hall: { area_id: "a1" } },
