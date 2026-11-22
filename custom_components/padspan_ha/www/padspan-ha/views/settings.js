@@ -1495,37 +1495,23 @@ function _settingsPresence(ctx, el){
     ]));
   }
   put("privacy", el("div", { class: "card", "data-focus-part": "usage_report" }, [
-    el("div", { class: "h2" }, "Help improve PadSpan"),
+    el("div", { class: "h2" }, t("Help improve PadSpan")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
-      "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
-      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
-      "IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; how your power teams are set up and how many " +
-      "colour bulbs of each brand you have, such as Hue or IKEA (words from a fixed list, never a name); which feature switches " +
-      "are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), " +
-      "and with two screens or more, a few words per screen (first five); " +
-      "with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine " +
-      "works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the " +
-      "code logged. Counts, versions and flags only \u2014 never addresses, keys, device or room names, " +
-      "coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; " +
-      "this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. " +
-      "If you delete PadSpan while this is on, one last report says it was removed, and nothing else."
+      t("Opt in to send the developer an anonymous usage report at most once a day: which version and Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; how your power teams are set up and how many colour bulbs of each brand you have, such as Hue or IKEA (words from a fixed list, never a name); which feature switches are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), and with two screens or more, a few words per screen (first five); with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the code logged. Counts, versions and flags only — never addresses, keys, device or room names, coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. If you delete PadSpan while this is on, one last report says it was removed, and nothing else.")
     ),
     el("div", { class: "muted", style: "font-size:11px;margin-bottom:12px" },
-      "The report carries a random ID so installs can be counted rather than pings; you can replace it any time. " +
-      "Preview shows the exact JSON \u2014 what you see is what goes, and anything identifier-shaped is refused before it leaves. " +
-      "The developer may invite an install that reports to something, like a free year of Pro: the invite comes back with " +
-      "the report's reply and shows on Overview and under PadSpan licence. Nothing about you is sent unless you accept it."),
+      t("The report carries a random ID so installs can be counted rather than pings; you can replace it any time. Preview shows the exact JSON — what you see is what goes, and anything identifier-shaped is refused before it leaves. The developer may invite an install that reports to something, like a free year of Pro: the invite comes back with the report's reply and shows on Overview and under PadSpan licence. Nothing about you is sent unless you accept it.")),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Usage report"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Usage report")),
       telBtn,
       telStatus,
     ]),
     telLocked ? el("div", { class: "muted", style: "font-size:11px;margin:-2px 0 6px" },
-      `On while you use a free licence: it can't be turned off until it ends${settings.report_locked ? " (" + String(settings.report_locked).slice(0, 10) + ")" : ""}, or with a bought key.`) : null,
+      t("On while you use a free licence: it can't be turned off until it ends{until}, or with a bought key.", { until: settings.report_locked ? " (" + String(settings.report_locked).slice(0, 10) + ")" : "" })) : null,
     telOn ? el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Where you heard of PadSpan"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Where you heard of PadSpan")),
       heardSel,
-      el("span", { class: "muted", style: "font-size:11px" }, "Optional. Your own answer, sent as one word."),
+      el("span", { class: "muted", style: "font-size:11px" }, t("Optional. Your own answer, sent as one word.")),
     ]) : null,
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, [previewBtn, sendBtn, idBtn]),
     telOut,
@@ -1541,47 +1527,44 @@ function _settingsPresence(ctx, el){
   aggressiveChk.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({aggressive_ble_reseed: aggressiveChk.checked});
-      ctx.toast(aggressiveChk.checked ? "Bluetooth refresh every 5 s on." : "Bluetooth refresh back to its interval.");
+      ctx.toast(aggressiveChk.checked ? t("Bluetooth refresh every 5 s on.") : t("Bluetooth refresh back to its interval."));
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); aggressiveChk.checked = !aggressiveChk.checked; }
+    } catch(e){ ctx.toast(t("Failed: {error}", { error: ctx.helpers.errorText(e) }), true); aggressiveChk.checked = !aggressiveChk.checked; }
   });
   const aggressiveReseedRow = el("div", { "data-setting": "aggressive_ble_reseed", style: "margin-top:10px" }, [
     el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
-      aggressiveChk, el("span",{},"Refresh every 5 s for passive proxy scanners"),
+      aggressiveChk, el("span",{},t("Refresh every 5 s for passive proxy scanners")),
     ]),
     el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px"},
-      "Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. " +
-      "This keeps the refresh at 5 seconds or faster even if the interval below is set longer, working around a deduplication change in HA 2026.4."),
+      t("Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. This keeps the refresh at 5 seconds or faster even if the interval below is set longer, working around a deduplication change in HA 2026.4.")),
     settings.aggressive_ble_reseed ? el("div",{style:"font-size:11px;color:#26c6da;margin-top:6px"},
-      "Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh.") : null,
+      t("Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh.")) : null,
   ]);
   const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 5);
   const reseedInp = el("input", {
     type: "number", min: "1", max: "60", step: "1", value: String(currentReseed), style: inpStyle,
   });
-  const reseedSaveBtn = el("button", { class: "btn" }, "Save");
+  const reseedSaveBtn = el("button", { class: "btn" }, t("Save"));
   reseedSaveBtn.addEventListener("click", async () => {
     const v = Math.max(1, Math.min(60, parseInt(reseedInp.value) || 5));
     try {
       await ctx.actions.settingsSet({ ble_reseed_interval_s: v });
-      ctx.toast(`Bluetooth refresh interval set to ${v}s`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Bluetooth refresh interval set to {seconds}s", { seconds: v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("receivers", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Bluetooth refresh interval"),
+    el("div", { class: "h2" }, t("Bluetooth refresh interval")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "How often PadSpan re-fetches BLE data from HA's scanner infrastructure. " +
-      "Essential for passive proxy scanners (Shelly, ESPHome BLE proxy) whose " +
-      "advertisements don't arrive via callbacks. Lower values improve freshness on fast hardware."
+      t("How often PadSpan re-fetches BLE data from HA's scanner infrastructure. Essential for passive proxy scanners (Shelly, ESPHome BLE proxy) whose advertisements don't arrive via callbacks. Lower values improve freshness on fast hardware.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Refresh interval"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Refresh interval")),
       reseedInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("seconds")),
       reseedSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentReseed}s. Default: 5s (every scanner's view at most one update old). Range: 1–60s.`
+      t("Current: {seconds}s. Default: 5s (every scanner's view at most one update old). Range: 1–60s.", { seconds: currentReseed })
     ),
     // "Aggressive BLE reseed" lived in Manage → HA Entities → BLE Proxy
     // Compatibility until 2026-10-30; it caps this interval at 5 s
@@ -1599,37 +1582,33 @@ function _settingsPresence(ctx, el){
     style: "width:180px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
   });
   for (const d of HISTORY_DAY_CHOICES) {
-    const o = el("option", { value: String(d) }, d === 1 ? "1 day (default)" : `${d} days`);
+    const o = el("option", { value: String(d) }, d === 1 ? t("1 day (default)") : tn(d, "{n} day", "{n} days"));
     if (d === currentHistDays) o.selected = true;
     histSel.appendChild(o);
   }
-  const histSaveBtn = el("button", { class: "btn" }, "Save");
+  const histSaveBtn = el("button", { class: "btn" }, t("Save"));
   histSaveBtn.addEventListener("click", async () => {
     const v = Number(histSel.value);
-    if (!HISTORY_DAY_CHOICES.includes(v)) { ctx.toast("Invalid retention window", true); return; }
+    if (!HISTORY_DAY_CHOICES.includes(v)) { ctx.toast(t("Invalid retention window"), true); return; }
     try {
       await ctx.actions.settingsSet({ object_history_days: v });
-      ctx.toast(`Object history set to ${v} day${v !== 1 ? "s" : ""}`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(tn(v, "Object history set to {n} day", "Object history set to {n} days"));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("shown", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Object History Retention"),
+    el("div", { class: "h2" }, t("Object History Retention")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "How long a device that you never labelled is kept in history. " +
-      "Labelled and tagged devices are never removed, whatever this is set to. " +
-      "Every rotating-MAC device that passes by becomes a new entry, and the whole " +
-      "history is sent to this panel on every 5s refresh — so longer windows make " +
-      "the panel slower. Raise it only if you need to go back and label something you saw days ago."
+      t("How long a device that you never labelled is kept in history. Labelled and tagged devices are never removed, whatever this is set to. Every rotating-MAC device that passes by becomes a new entry, and the whole history is sent to this panel on every 5s refresh — so longer windows make the panel slower. Raise it only if you need to go back and label something you saw days ago.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Keep unlabelled for"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Keep unlabelled for")),
       histSel,
       histSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentHistDays} day${currentHistDays !== 1 ? "s" : ""}. Default: 1 day. ` +
-      (_unidentifiedNow != null ? `Unlabelled devices in history right now: ${_unidentifiedNow}. ` : "") +
-      "Lowering this takes effect on the next refresh; entries past the window are dropped."
+      tn(currentHistDays, "Current: {n} day. Default: 1 day.", "Current: {n} days. Default: 1 day.") + " " +
+      (_unidentifiedNow != null ? t("Unlabelled devices in history right now: {count}.", { count: _unidentifiedNow }) + " " : "") +
+      t("Lowering this takes effect on the next refresh; entries past the window are dropped.")
     ),
   ]));
 
@@ -1638,13 +1617,13 @@ function _settingsPresence(ctx, el){
   const awayInp = el("input", {
     type: "number", min: "1", max: "1440", step: "1", value: String(currentAwayM), style: inpStyle,
   });
-  const awaySaveBtn = el("button", { class: "btn" }, "Save");
+  const awaySaveBtn = el("button", { class: "btn" }, t("Save"));
   awaySaveBtn.addEventListener("click", async () => {
     const v = Math.max(1, Math.min(1440, parseFloat(awayInp.value) || 5));
     try {
       await ctx.actions.settingsSet({ away_timeout_m: v });
-      ctx.toast(`Away timeout set to ${v} min`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("Away timeout set to {minutes} min", { minutes: v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   // An option, off (0) unless hours are set: things nobody carries keep their
   // last room that long (presence_rules.thing_away_timeout_s).
@@ -1652,50 +1631,40 @@ function _settingsPresence(ctx, el){
   const thingInp = el("input", {
     type: "number", min: "0", max: "48", step: "0.5", value: String(currentThingH), style: inpStyle,
   });
-  const thingSaveBtn = el("button", { class: "btn" }, "Save");
+  const thingSaveBtn = el("button", { class: "btn" }, t("Save"));
   thingSaveBtn.addEventListener("click", async () => {
     const raw = parseFloat(thingInp.value);
     const v = Number.isFinite(raw) ? (raw <= 0 ? 0 : Math.max(0.5, Math.min(48, raw))) : 0;
     try {
       await ctx.actions.settingsSet({ thing_away_timeout_h: v });
-      ctx.toast(v === 0 ? "Off: everything goes away after the away timeout" : `Things keep their room for ${v} h`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(v === 0 ? t("Off: everything goes away after the away timeout") : t("Things keep their room for {hours} h", { hours: v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("rooms", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Home/Away Timeout"),
+    el("div", { class: "h2" }, t("Home/Away Timeout")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "If a device hasn't been detected for this long, it is marked as not_home in HA. " +
-      "The device_tracker and area sensor both switch to not_home. " +
-      "Set higher if devices drop off briefly during normal use."
+      t("If a device hasn't been detected for this long, it is marked as not_home in HA. The device_tracker and area sensor both switch to not_home. Set higher if devices drop off briefly during normal use.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Away timeout"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Away timeout")),
       awayInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "minutes"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("minutes")),
       awaySaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentAwayM} min (${currentAwayM * 60}s). Default: 5 min. Range: 1 min – 24 h.`
+      t("Current: {minutes} min ({seconds}s). Default: 5 min. Range: 1 min – 24 h.", { minutes: currentAwayM, seconds: currentAwayM * 60 })
     ),
     el("div", { class: "muted", style: "font-size:12px;margin:16px 0 14px" },
-      "Optional, and off to start with. For keys in a drawer, a tag on a bag and other things nobody carries: " +
-      "set a number of hours and they stay in the room they were last seen in for that long, then switch to " +
-      "not_home. What a person carries still goes away after the away timeout above. A device counts as carried " +
-      "when it is added to a person in Home Assistant (Settings → People → Track devices), is picked for them in " +
-      "Live Aboard (Furnish → People & devices), or has the person's name. Every other named device counts as a " +
-      "thing. So before you turn this on, add each phone and watch to its person, or it reads as home in its " +
-      "last room for these hours after it has left. A car's tag does the same: it stays in the garage for " +
-      "these hours after the car has gone. " +
-      "0 = off: everything goes away after the away timeout."
+      t("Optional, and off to start with. For keys in a drawer, a tag on a bag and other things nobody carries: set a number of hours and they stay in the room they were last seen in for that long, then switch to not_home. What a person carries still goes away after the away timeout above. A device counts as carried when it is added to a person in Home Assistant (Settings → People → Track devices), is picked for them in Live Aboard (Furnish → People & devices), or has the person's name. Every other named device counts as a thing. So before you turn this on, add each phone and watch to its person, or it reads as home in its last room for these hours after it has left. A car's tag does the same: it stays in the garage for these hours after the car has gone. 0 = off: everything goes away after the away timeout.")
     ),
     el("div", { style: rowStyle, "data-thing-away": "" }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Things keep their room"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Things keep their room")),
       thingInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "hours"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("hours")),
       thingSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentThingH === 0 ? "off (same as the away timeout)" : currentThingH + " h"}. Default: off (0). Range: 0.5 – 48 h.`
+      t("Current: {value}. Default: off (0). Range: 0.5 – 48 h.", { value: currentThingH === 0 ? t("off (same as the away timeout)") : currentThingH + " h" })
     ),
   ]));
 

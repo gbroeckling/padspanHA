@@ -1909,7 +1909,7 @@ def test_the_heard_question_is_wired_the_same_everywhere():
     assert DEFAULT_SETTINGS["telemetry_heard_ask"] == ""
     assert 'vol.Optional("telemetry_heard_ask"): str' in ws
     # shown in Settings only while the report is on
-    assert "telOn ? el(\"div\", { style: rowStyle }, [\n      el(\"div\", { style: \"font-size:13px;color:#a7f3d0;min-width:130px\" }, \"Where you heard of PadSpan\")" in settings
+    assert "telOn ? el(\"div\", { style: rowStyle }, [\n      el(\"div\", { style: \"font-size:13px;color:#a7f3d0;min-width:130px\" }, t(\"Where you heard of PadSpan\"))" in settings
     summary = root / "server" / "telemetry_summary.py"
     if summary.exists():          # the Bright derivation carries no server/
         src = summary.read_text(encoding="utf-8")
