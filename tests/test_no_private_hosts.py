@@ -107,9 +107,10 @@ _FAMILY = re.compile("nic" + "ole", re.I)
 _OWNER = re.compile(_FIRST, re.I)
 _FULL_NAME = _FIRST + " Broeckling"
 _LICENCE_LINE = re.compile(r"copyright|©|licen[cs]e", re.I)
-# Where the full name is the author credit, on purpose (plus every site/*.html page's footer).
+# Where the full name is the author credit, on purpose (plus every site/*.html page's footer,
+# and the manual pages' footer in the script that makes them).
 _CREDIT_FILES = {"README.md", "CONTRIBUTING.md", "CLA.md", "LICENSING.md", "scripts/bright_README.md",
-                 "site/i18n/de.json", "tests/test_atlas_heights.py"}
+                 "scripts/build_site_manual.py", "site/i18n/de.json", "tests/test_atlas_heights.py"}
 # The few lines that name him some other way, on purpose.
 _NAMED_LINES = {("docs/HOW_PADSPAN_IS_BUILT.md", "-- " + _FIRST),
                 ("site/creators/index.html", _FIRST + ", who makes PadSpan, answers himself"),
