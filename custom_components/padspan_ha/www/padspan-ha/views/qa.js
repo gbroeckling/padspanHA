@@ -63,7 +63,7 @@ export function render(ctx){
       label: "Rooms defined",
       pass: rooms.length > 0,
       detail: rooms.length > 0 ? `${rooms.length} room${rooms.length>1?"s":""}` : "No HA areas configured",
-      fix: "Create areas in HA Settings \u2192 Areas & Zones.",
+      fix: "Create areas in HA Settings \u2192 Areas, labels & zones.",
     },
     {
       label: "BLE scanners active",

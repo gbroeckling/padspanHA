@@ -483,7 +483,7 @@ export function renderClassic(ctx){
       el("div",{class:"muted", style:"margin-bottom:8px"}, `Radio: ${radioLabel}`),
       radio.lost     ? el("div",{style:"color:#f59e0b;font-size:12px;margin-bottom:8px"}, "⚠ Currently marked as Lost. Select a room to restore it.") : null,
       radio.disabled ? el("div",{style:"color:#c084fc;font-size:12px;margin-bottom:8px"}, "⊘ Currently Disabled. Select a room to re-enable it.") : null,
-      el("div",{style:"color:#94a3b8;font-size:12px;margin-bottom:10px"}, areas.length ? "Select an HA area for this receiver:" : "No HA areas found. Add areas in HA Settings → Areas & Zones."),
+      el("div",{style:"color:#94a3b8;font-size:12px;margin-bottom:10px"}, areas.length ? "Select an HA area for this receiver:" : "No HA areas found. Add areas in HA Settings → Areas, labels & zones."),
       el("div",{class:"row",style:"gap:8px;flex-wrap:wrap"},[sel, saveBtn, cancelBtn]),
       status,
     ].filter(Boolean));

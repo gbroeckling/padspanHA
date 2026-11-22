@@ -1777,7 +1777,7 @@ const MANUAL_SECTIONS = [
       "Bluetooth (BLE) — Bluetooth Low Energy, the low-power radio that phones, AirTags, Tile trackers, key fobs and watches use. They keep sending short signals that receivers nearby can hear.",
       "Receiver (also called scanner or radio) — something that hears those signals and passes them to Home Assistant: an ESPHome Bluetooth proxy, a Shelly with Bluetooth, or the Home Assistant machine's own Bluetooth. Put one in each room you want told apart. The Receivers page lists them all. (Bermuda is a separate integration, not a receiver.)",
       "Signal strength — how loudly a receiver hears a device, in dBm: −55 is louder, so nearer, than −80. Experts call it RSSI.",
-      "Room (area) — your rooms are your Home Assistant areas, and each receiver belongs to the area you give it. Add or rename rooms in HA Settings → Areas & Zones.",
+      "Room (area) — your rooms are your Home Assistant areas, and each receiver belongs to the area you give it. Add or rename rooms in HA Settings → Areas, labels & zones.",
       "Device (object) — anything PadSpan hears: a phone, an AirTag, a tag, or an unnamed signal.",
       "iBeacon — a beacon format with a fixed ID that stays the same when the device's address changes. The Android Companion app's BLE Transmitter and many key finders use it. PadSpan groups all of one beacon's addresses into one amber-badged device. (AirTags and other Apple Find My tags are not iBeacons — they have no lasting ID; see MAC Rotation Bridging in Settings → Features.)",
       "Private BLE and IRK — phones and watches change their Bluetooth address for privacy. An IRK (Identity Resolving Key) is the key that recognises one device through every change, so PadSpan shows it as one blue-badged device. Add one in Bluetooth → IRK Manager or Settings → Tracking → Phones and guest tags.",
@@ -1795,7 +1795,7 @@ const MANUAL_SECTIONS = [
     icon: "🚀",
     helpKeys: ["getting_started"],
     paragraphs: [
-      "Installing: add PadSpan HA through HACS, then restart Home Assistant fully (Settings → System → Restart; reloading the integration is not enough the first time).",
+      "Installing: on Home Assistant 2026.11 and newer, add PadSpan HA from Settings → Marketplace; its setup opens right away, with no restart. On older versions, add it through HACS, then restart Home Assistant fully (Settings → System → Restart; reloading the integration is not enough the first time).",
       "If PadSpan says Bluetooth feed unavailable, Home Assistant needs that full restart.",
     ],
   },
@@ -2205,7 +2205,7 @@ const QUICKSTART_SECTIONS = [
     icon: "🚀",
     helpKeys: ["getting_started"],
     paragraphs: [
-      "Not installed yet? Add PadSpan HA through HACS, then restart Home Assistant fully.",
+      "Not installed yet? Add PadSpan HA from Settings → Marketplace (Home Assistant 2026.11 and newer), or through HACS on older versions and then restart Home Assistant fully.",
     ],
   },
   {
@@ -2232,7 +2232,7 @@ const QUICKSTART_SECTIONS = [
     icon: "⚙️",
     paragraphs: [
       "Settings is in the menu in every mode. Basic shows the Appearance settings, with buttons for the usage report and guest tags; Advanced and Development mode have these tabs:",
-      "Appearance — room colours, Panel Style, Theme and 2D Map Mode. Floors come from Home Assistant (shown as \"Floor (HA)\" beside each room): add or change them in HA Settings → Areas & Zones.",
+      "Appearance — room colours, Panel Style, Theme and 2D Map Mode. Floors come from Home Assistant (shown as \"Floor (HA)\" beside each room): add or change them in HA Settings → Areas, labels & zones.",
       "Scanner Map — where PadSpan estimates each scanner is, from your calibration points. Clear one map's calibration points here if you need to start that map again.",
       "Tracking — Room Change Delay (how long before PadSpan confirms a room switch), Home/Away Timeout (how long before a missing device is marked away), guest tags, Phone Tracking (Private BLE) for an iPhone's or Apple Watch's IRK, positioning, receivers, performance and privacy.",
       "Features — your PadSpan licence, the experimental switches and Forensics.",

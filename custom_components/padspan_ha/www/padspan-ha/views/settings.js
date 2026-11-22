@@ -105,7 +105,7 @@ export function render(ctx){
   const _tabDefs = [
     ["appearance", "Appearance",
       "How PadSpan looks: room colours that carry across the Overview map, the Follow tracker and every other drawing, " +
-      "Panel Style (Classic or 2025), Theme (with Follow the sun) and 2D Map Mode. Floors and rooms come from Home Assistant (HA Settings → Areas & Zones)."],
+      "Panel Style (Classic or 2025), Theme (with Follow the sun) and 2D Map Mode. Floors and rooms come from Home Assistant (HA Settings → Areas, labels & zones)."],
     ["scannermap", "Scanner Map",
       "Shows where PadSpan thinks each of your Bluetooth scanners is physically located on the floor plan. " +
       "The numbered dots are estimated positions based on your calibration data — when you collected fingerprints " +
@@ -189,7 +189,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     const floorsCard = el("div",{class:"card"});
     floorsCard.appendChild(el("div",{style:"font-weight:700"},"Floors"));
     floorsCard.appendChild(el("div",{class:"muted", style:"font-size:12px;margin-top:4px"},
-      "Floors are read from HA. Manage them in HA Settings → Areas & Zones."
+      "Floors are read from HA. Manage them in HA Settings → Areas, labels & zones."
     ));
     const floorPills = el("div",{style:"display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"});
     if(haFloors.length){
