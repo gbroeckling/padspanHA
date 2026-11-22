@@ -40,9 +40,8 @@ const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, iphoneMeta, noPhonesText,
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, iphoneSetupAlert: () => "",
                     iphoneMeta: () => "", noPhonesText: () => "", helpNoteText: () => "", transmitterAdvice: () => "" }));
-// The panel's words in its language (views/i18n.js; English is the key). So far
-// the first-run parts: the sample house's banner and Track Your Phone.
-const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// The panel's words in its language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // An Android phone's Setup button (both Track Your Phone cards): the Companion app's steps.
 function androidSetupAlert(){
   return t("To enable phone tracking:") + "\n\n" + [
@@ -123,7 +122,7 @@ function _renderAtlasHome(ctx){
     // check, so the Atlas skips its own (set before hass, which boots it).
     app._embedded = true;
     import(`../lights_panel.js${new URL(import.meta.url).search}`)
-      .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Show the Atlas as Overview\" off in Settings → Atlas.", true); });
+      .catch(() => { if (ctx.toast) ctx.toast(t("The Atlas could not load. Turn \"Show the Atlas as Overview\" off in Settings → Atlas."), true); });
   }
   if (ctx.hass) app.hass = ctx.hass;
   const wrap = document.createElement("div");
@@ -155,9 +154,9 @@ export function liveSwitch(ctx){
     return b;
   };
   return el("div", { class: "live-switch", style: "display:flex;gap:6px;align-items:center;margin:0 0 12px" }, [
-    btn(!classic, "⚡ Live Tracker", "The live view", false),
-    btn(classic, "▦ Overview", "The classic Overview (the Overview tab shows the Atlas)", true),
-    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("live_tracker", "Help: Live Tracker") : null,
+    btn(!classic, "⚡ " + t("Live Tracker"), t("The live view"), false),
+    btn(classic, "▦ " + t("Overview"), t("The classic Overview (the Overview tab shows the Atlas)"), true),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("live_tracker", t("Help: Live Tracker")) : null,
   ].filter(Boolean));
 }
 
@@ -192,12 +191,14 @@ function _presentInRoom(ctx, o, room){
 // while Guest tags are on and the tag is out on loan. Wherever the object is
 // named, the guest's name leads with a small amber "Guest" pill, and the
 // tag's own label stays in the tooltip. No o.guest, nothing changes.
+// A translation placed inside SVG markup: plain text, escaped.
+const _escT = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 function _guestName(o){ return (o && o.guest && o.guest.name) ? String(o.guest.name) : ""; }
 const _GUEST_PILL_CSS = "display:inline-block;font-size:10px;line-height:14px;padding:0 6px;border-radius:999px;"
   + "background:#f59e0b1f;color:#fbbf24;border:1px solid #f59e0b88;font-weight:600;white-space:nowrap;vertical-align:middle";
 function _guestPillSvg(cx, cy){
   return `<rect x="${cx-17}" y="${cy-7}" width="34" height="14" rx="7" fill="#f59e0b" fill-opacity="0.14" stroke="#f59e0b" stroke-opacity="0.6"/>`
-    + `<text x="${cx}" y="${cy+3.5}" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">Guest</text>`;
+    + `<text x="${cx}" y="${cy+3.5}" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">${_escT(t("Guest"))}</text>`;
 }
 
 export function render(ctx){
@@ -222,13 +223,13 @@ export function renderClassic(ctx){
   const fmtAgo = (sec)=>{
     if(sec==null || isNaN(sec)) return "";
     const s = Math.max(0, Math.round(Number(sec)));
-    if(s < 60) return `${s}s ago`;
+    if(s < 60) return t("{n}s ago", { n: s });
     const m = Math.round(s/60);
-    if(m < 60) return `${m}m ago`;
+    if(m < 60) return t("{n}m ago", { n: m });
     const h = Math.round(m/60);
-    if(h < 48) return `${h}h ago`;
+    if(h < 48) return t("{n}h ago", { n: h });
     const d = Math.round(h/24);
-    return `${d}d ago`;
+    return t("{n}d ago", { n: d });
   };
 
   const dataMode = ctx.state.dataMode || "sample";
@@ -292,7 +293,7 @@ export function renderClassic(ctx){
   const radiosPassive = radios.filter(r => _modeOf(r) === "passive").length;
   const radiosAuto = radios.filter(r => _modeOf(r) === "auto").length;
   const radioModeLabel = radiosCount
-    ? `${radiosActive} active / ${radiosPassive} passive` + (radiosAuto ? ` / ${radiosAuto} auto` : "")
+    ? t("{active} active / {passive} passive", { active: radiosActive, passive: radiosPassive }) + (radiosAuto ? " / " + t("{n} auto", { n: radiosAuto }) : "")
     : "";
 
   // ---------- Modal helpers ----------
@@ -310,7 +311,7 @@ export function renderClassic(ctx){
       const hasFollowed = eids.some(eid => ctx.actions.followedHas(String(eid)));
       const roomLabel = el("td",{},[
         el("span",{}, room),
-        hasFollowed ? el("span",{style:"margin-left:6px;font-size:10px;color:#fbbf24;font-weight:700"}, "\u25C9 tracked") : null,
+        hasFollowed ? el("span",{style:"margin-left:6px;font-size:10px;color:#fbbf24;font-weight:700"}, "\u25C9 " + t("tracked")) : null,
       ].filter(Boolean));
       const row = el("tr",{},[
         roomLabel,
@@ -318,27 +319,27 @@ export function renderClassic(ctx){
         el("td",{}, eids.join(", "))
       ]);
       row.style.cursor = "pointer";
-      row.title = "Click for room details";
+      row.title = t("Click for room details");
       row.addEventListener("click", ()=>{ ctx.actions.closeModal(); ctx.actions.showRoomDetail(room); });
       return row;
     });
 
     body.appendChild(el("div",{class:"controls"},[
-      el("span",{class:"badge"}, `${roomsCount} rooms`),
-      el("span",{class:"badge"}, `${tagsCount} mapped entities`)
+      el("span",{class:"badge"}, tn(roomsCount, "{n} room", "{n} rooms")),
+      el("span",{class:"badge"}, tn(tagsCount, "{n} mapped entity", "{n} mapped entities"))
     ]));
 
     // On a phone the table scrolls sideways in its own box (.table-scroll), not the whole sheet.
     body.appendChild(el("div",{class:"table-scroll"}, el("table",{class:"table"},[
       el("thead",{}, el("tr",{},[
-        el("th",{}, "Room"),
-        el("th",{}, "Mapped entities"),
-        el("th",{}, "Entity IDs")
+        el("th",{}, t("Room")),
+        el("th",{}, t("Mapped entities")),
+        el("th",{}, t("Entity IDs"))
       ])),
-      el("tbody",{}, rows.length?rows:el("tr",{}, el("td",{colspan:3}, "No rooms in current map.")))
+      el("tbody",{}, rows.length?rows:el("tr",{}, el("td",{colspan:3}, t("No rooms in current map."))))
     ])));
 
-    ctx.actions.openModal("Rooms", body, "Current room→entity map");
+    ctx.actions.openModal(t("Rooms"), body, t("Current room→entity map"));
   }
 
   // The Bluetooth radios KPI's "View radios list" modal: every scanner HA
@@ -353,20 +354,20 @@ export function renderClassic(ctx){
     const r = radios || [];
     const areas = (liveSnap && Array.isArray(liveSnap.rooms_discovered)) ? liveSnap.rooms_discovered : [];
     body.appendChild(el("div",{class:"controls"},[
-      el("span",{class:"badge"}, `${r.length} radios`),
-      el("span",{class:"badge"}, "Areas read from HA device registry"),
+      el("span",{class:"badge"}, tn(r.length, "{n} radio", "{n} radios")),
+      el("span",{class:"badge"}, t("Areas read from HA device registry")),
     ]));
     const rows = r.map((x)=>{
-      const assignBtn = el("button",{class:"btn tiny"}, x.area_name ? "Change" : "Assign");
+      const assignBtn = el("button",{class:"btn tiny"}, x.area_name ? t("Change") : t("Assign"));
       assignBtn.addEventListener("click",(e)=>{
         e.stopPropagation();
         openAreaAssign(x, areas);
       });
       const areaCell = el("td",{});
       if(x.disabled){
-        areaCell.appendChild(el("span",{class:"badge warn",style:"background:rgba(148,100,220,.18);color:#c084fc;margin-right:4px"},"⊘ Disabled"));
+        areaCell.appendChild(el("span",{class:"badge warn",style:"background:rgba(148,100,220,.18);color:#c084fc;margin-right:4px"},"⊘ " + t("Disabled")));
       } else if(x.lost){
-        areaCell.appendChild(el("span",{class:"badge warn",style:"background:rgba(245,158,11,.18);color:#f59e0b;margin-right:4px"},"⚠ Lost"));
+        areaCell.appendChild(el("span",{class:"badge warn",style:"background:rgba(245,158,11,.18);color:#f59e0b;margin-right:4px"},"⚠ " + t("Lost")));
       }
       areaCell.appendChild(document.createTextNode(x.area_name || (x.disabled||x.lost ? "" : "—")));
       const _ovRn = ctx.helpers.radioName(x.source);
@@ -381,7 +382,7 @@ export function renderClassic(ctx){
         el("td",{}, assignBtn),
       ]);
       tr.style.cursor = "pointer";
-      tr.title = "Click for receiver details";
+      tr.title = t("Click for receiver details");
       tr.addEventListener("click",(e)=>{
         if(e.target.tagName==="BUTTON") return;
         ctx.actions.closeModal(); ctx.actions.showScannerDetail(x);
@@ -392,18 +393,18 @@ export function renderClassic(ctx){
     // On a phone the table scrolls sideways in its own box (.table-scroll), not the whole sheet.
     body.appendChild(el("div",{class:"table-scroll"}, el("table",{class:"table"},[
       el("thead",{}, el("tr",{},[
-        el("th",{}, "ID"),
-        el("th",{}, "Name"),
-        el("th",{}, "Source"),
-        el("th",{}, "Adapter"),
-        el("th",{}, "Scanning"),
-        el("th",{}, "Connectable"),
-        el("th",{}, "Area"),
+        el("th",{}, t("ID")),
+        el("th",{}, t("Name")),
+        el("th",{}, t("Source")),
+        el("th",{}, t("Adapter")),
+        el("th",{}, t("Scanning")),
+        el("th",{}, t("Connectable")),
+        el("th",{}, t("Area")),
         el("th",{}, ""),
       ])),
-      el("tbody",{}, rows.length?rows:el("tr",{}, el("td",{colspan:8}, "No radios found. (Switch to Live mode + ensure Bluetooth is enabled in HA.)")))
+      el("tbody",{}, rows.length?rows:el("tr",{}, el("td",{colspan:8}, t("No radios found. (Switch to Live mode + ensure Bluetooth is enabled in HA.)"))))
     ])));
-    ctx.actions.openModal("Bluetooth Radios", body, "ID = 3-letter label code · Areas read from HA device registry");
+    ctx.actions.openModal(t("Bluetooth Radios"), body, t("ID = 3-letter label code · Areas read from HA device registry"));
   }
 
   // The area-picker sub-modal opened from a radio's Assign/Change button.
@@ -418,30 +419,30 @@ export function renderClassic(ctx){
   function openAreaAssign(radio, areas){
     const sid = _sid(radio.source);
     if(dataMode !== "live"){
-      ctx.toast("Area assignment requires Live mode.", true);
+      ctx.toast(t("Area assignment requires Live mode."), true);
       return;
     }
     const sel = el("select",{class:"select"});
-    sel.appendChild(el("option",{value:""},"— No area (clear) —"));
+    sel.appendChild(el("option",{value:""},t("— No area (clear) —")));
     for(const a of areas){
       const opt = el("option",{value:a}, a);
       if(a === radio.area_name && !radio.lost && !radio.disabled) opt.selected = true;
       sel.appendChild(opt);
     }
     // Lost sentinel — always at bottom, visually distinct
-    const lostOpt = el("option",{value:"__lost__"}, "⚠  Lost  —  exclude from location math");
+    const lostOpt = el("option",{value:"__lost__"}, t("⚠  Lost  —  exclude from location math"));
     lostOpt.style.color = "#f59e0b";
     if(radio.lost) lostOpt.selected = true;
     sel.appendChild(lostOpt);
     // Disabled sentinel — below Lost
-    const disabledOpt = el("option",{value:"__disabled__"}, "⊘  Disabled  —  intentionally off");
+    const disabledOpt = el("option",{value:"__disabled__"}, t("⊘  Disabled  —  intentionally off"));
     disabledOpt.style.color = "#c084fc";
     if(radio.disabled) disabledOpt.selected = true;
     sel.appendChild(disabledOpt);
 
     const status = el("div",{class:"muted", style:"min-height:20px;margin-top:6px"});
-    const saveBtn = el("button",{class:"btn"}, "Save");
-    const cancelBtn = el("button",{class:"btn inline"}, "Cancel");
+    const saveBtn = el("button",{class:"btn"}, t("Save"));
+    const cancelBtn = el("button",{class:"btn inline"}, t("Cancel"));
     cancelBtn.addEventListener("click", ()=>ctx.actions.closeModal());
     saveBtn.addEventListener("click", async ()=>{
       const v = sel.value;
@@ -451,12 +452,12 @@ export function renderClassic(ctx){
           if(radio.disabled) await ctx.actions.radioDisabledSet(radio.source, false);
           await ctx.actions.radioLostSet(radio.source, true);
           ctx.actions.closeModal();
-          ctx.toast(`"${radio.display_name || radio.name || radio.source}" marked as Lost`);
+          ctx.toast(t("\"{name}\" marked as Lost", { name: radio.display_name || radio.name || radio.source }));
         } else if(v === "__disabled__"){
           if(radio.lost) await ctx.actions.radioLostSet(radio.source, false);
           await ctx.actions.radioDisabledSet(radio.source, true);
           ctx.actions.closeModal();
-          ctx.toast(`"${radio.display_name || radio.name || radio.source}" marked as Disabled`);
+          ctx.toast(t("\"{name}\" marked as Disabled", { name: radio.display_name || radio.name || radio.source }));
         } else {
           // Restore from lost/disabled if needed, then set area
           if(radio.lost)     await ctx.actions.radioLostSet(radio.source, false);
@@ -466,7 +467,7 @@ export function renderClassic(ctx){
           else if(radio.source) payload.source = radio.source;
           await ctx.actions.radioAreaSet(payload);
           ctx.actions.closeModal();
-          ctx.toast(v ? `Area set to "${v}"` : "Area cleared");
+          ctx.toast(v ? t("Area set to \"{area}\"", { area: v }) : t("Area cleared"));
         }
         await ctx.actions.refreshSnapshot();
       } catch(e) {
@@ -474,20 +475,20 @@ export function renderClassic(ctx){
         // are named so that one contains the other, and that message names
         // them — swallowing it leaves the user with a dead end instead of the
         // one thing that fixes it (issue #65).
-        status.textContent = (e && e.message) ? e.message : "Failed to update. Check HA logs.";
+        status.textContent = (e && e.message) ? ctx.helpers.errorText(e) : t("Failed to update. Check HA logs.");
         saveBtn.disabled = false;
       }
     });
     const radioLabel = [sid, radio.display_name || radio.name || radio.source].filter(Boolean).join("  ·  ");
     const body = el("div",{},[
-      el("div",{class:"muted", style:"margin-bottom:8px"}, `Radio: ${radioLabel}`),
-      radio.lost     ? el("div",{style:"color:#f59e0b;font-size:12px;margin-bottom:8px"}, "⚠ Currently marked as Lost. Select a room to restore it.") : null,
-      radio.disabled ? el("div",{style:"color:#c084fc;font-size:12px;margin-bottom:8px"}, "⊘ Currently Disabled. Select a room to re-enable it.") : null,
-      el("div",{style:"color:#94a3b8;font-size:12px;margin-bottom:10px"}, areas.length ? "Select an HA area for this receiver:" : "No HA areas found. Add areas in HA Settings → Areas, labels & zones."),
+      el("div",{class:"muted", style:"margin-bottom:8px"}, t("Radio: {name}", { name: radioLabel })),
+      radio.lost     ? el("div",{style:"color:#f59e0b;font-size:12px;margin-bottom:8px"}, t("⚠ Currently marked as Lost. Select a room to restore it.")) : null,
+      radio.disabled ? el("div",{style:"color:#c084fc;font-size:12px;margin-bottom:8px"}, t("⊘ Currently Disabled. Select a room to re-enable it.")) : null,
+      el("div",{style:"color:#94a3b8;font-size:12px;margin-bottom:10px"}, areas.length ? t("Select an HA area for this receiver:") : t("No HA areas found. Add areas in HA Settings → Areas, labels & zones.")),
       el("div",{class:"row",style:"gap:8px;flex-wrap:wrap"},[sel, saveBtn, cancelBtn]),
       status,
     ].filter(Boolean));
-    ctx.actions.openModal("Assign Area", body, `HA area for "${radio.display_name || radio.name || radio.source}"`);
+    ctx.actions.openModal(t("Assign Area"), body, t("HA area for \"{name}\"", { name: radio.display_name || radio.name || radio.source }));
   }
 
   // A first byte with bit 0x02 (locally administered) or 0x01 (multicast) set
@@ -500,17 +501,17 @@ export function renderClassic(ctx){
   // The Maker cell, from what the server worked out for the object. Nothing is
   // asked or sent: the broadcast and PadSpan's built-in lists are the only sources.
   const MAKER_HOW = {
-    company_id: "From the company number in its broadcast",
-    espresense: "From ESPresense's id for this device",
-    address: "From the built-in list of address makers. A receiver confirmed this address is fixed",
+    company_id: t("From the company number in its broadcast"),
+    espresense: t("From ESPresense's id for this device"),
+    address: t("From the built-in list of address makers. A receiver confirmed this address is fixed"),
   };
   function makerCell(o, kind, addr){
-    if(kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") return el("span",{class:"badge"}, "n/a");
+    if(kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") return el("span",{class:"badge"}, t("n/a"));
     if(o.company_name) return el("span",{class:"badge", title: MAKER_HOW[o.maker_source] || ""}, o.company_name);
     if(o.service_owner) return el("span",{class:"badge", title: SERVICE_HOW}, serviceWords(o));
-    if(o.maker_guess) return el("span",{class:"badge", title:"From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance"}, `Probably ${o.maker_guess}`);
-    if(kind === "private_ble" || o.address_type === "random" || (kind === "ble" && isRandomAddress(addr))) return el("span",{class:"badge warn"}, "random address");
-    return el("span",{class:"badge"}, "maker unknown");
+    if(o.maker_guess) return el("span",{class:"badge", title:t("From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance")}, t("Probably {maker}", { maker: o.maker_guess }));
+    if(kind === "private_ble" || o.address_type === "random" || (kind === "ble" && isRandomAddress(addr))) return el("span",{class:"badge warn"}, t("random address"));
+    return el("span",{class:"badge"}, t("maker unknown"));
   }
 
   // The Objects KPI's modal — every tracked object (HA entities plus raw
@@ -523,10 +524,10 @@ export function renderClassic(ctx){
   function openObjectsList(initialFilter="all"){
     if(!liveSnap || !liveSnap.objects){
       const body = el("div",{},[
-        el("p",{}, "This list is only available in Live mode (it includes BLE advertisement monitor data)."),
-        el("p",{}, "Switch to Live in Settings, then reopen this list.")
+        el("p",{}, t("This list is only available in Live mode (it includes BLE advertisement monitor data).")),
+        el("p",{}, t("Switch to Live in Settings, then reopen this list."))
       ]);
-      ctx.actions.openModal("All objects", body, "Live snapshot required");
+      ctx.actions.openModal(t("All objects"), body, t("Live snapshot required"));
       return;
     }
 
@@ -558,30 +559,30 @@ export function renderClassic(ctx){
 
     // Time range slider
     const _ageSteps = [300, 900, 3600, 21600, 86400, 259200, 604800];
-    const _ageLabels = ["5 min", "15 min", "1 hour", "6 hours", "1 day", "3 days", "1 week"];
+    const _ageLabels = [t("5 min"), t("15 min"), t("1 hour"), t("6 hours"), t("1 day"), t("3 days"), t("1 week")];
     if (ctx.state.objAgeMax == null) ctx.state.objAgeMax = 604800;
     const _ageIdx = _ageSteps.indexOf(ctx.state.objAgeMax);
     const _curIdx = _ageIdx >= 0 ? _ageIdx : _ageSteps.length - 1;
 
     const body = el("div",{});
     const controls = el("div",{class:"controls"});
-    const search = el("input",{type:"text", placeholder:"Search address, name, label…"});
+    const search = el("input",{type:"text", placeholder:t("Search address, name, label…")});
     const kindSel = el("select",{},[
-      el("option",{value:"all"}, "All kinds"),
-      el("option",{value:"entity"}, "Entities only"),
-      el("option",{value:"ble"}, "BLE / beacon devices"),
+      el("option",{value:"all"}, t("All kinds")),
+      el("option",{value:"entity"}, t("Entities only")),
+      el("option",{value:"ble"}, t("BLE / beacon devices")),
     ]);
     const statusSel = el("select",{},[
-      el("option",{value:"all"}, "All statuses"),
-      el("option",{value:"identified"}, "Identified"),
-      el("option",{value:"unidentified"}, "Unidentified"),
-      el("option",{value:"away"}, "Away"),
+      el("option",{value:"all"}, t("All statuses")),
+      el("option",{value:"identified"}, t("Identified")),
+      el("option",{value:"unidentified"}, t("Unidentified")),
+      el("option",{value:"away"}, t("Away")),
     ]);
     statusSel.value = initialFilter === "unidentified" ? "unidentified" : "all";
 
     const commonOnly = el("label",{style:"display:flex;align-items:center;gap:6px"},[
       el("input",{type:"checkbox"}),
-      el("span",{}, "Only common OUIs (≥3)")
+      el("span",{}, t("Only common OUIs (≥3)"))
     ]);
 
     const ageLabel = el("span",{class:"muted",style:"white-space:nowrap;font-size:12px"}, _ageLabels[_curIdx]);
@@ -598,28 +599,28 @@ export function renderClassic(ctx){
     });
 
     const stats = el("div",{class:"spacer"});
-    controls.appendChild(el("span",{class:"badge"}, `${fmtNum(summary.total||0)} total`));
-    controls.appendChild(el("span",{class:"badge"}, `${fmtNum(summary.unidentified||0)} unidentified`));
+    controls.appendChild(el("span",{class:"badge"}, t("{n} total", { n: fmtNum(summary.total||0) })));
+    controls.appendChild(el("span",{class:"badge"}, t("{n} unidentified", { n: fmtNum(summary.unidentified||0) })));
     controls.appendChild(search);
     controls.appendChild(kindSel);
     controls.appendChild(statusSel);
     controls.appendChild(commonOnly);
     controls.appendChild(el("div",{style:"display:flex;align-items:center;gap:6px"},
-      [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, "History:"), ageSlider, ageLabel]));
+      [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, t("History:")), ageSlider, ageLabel]));
     controls.appendChild(stats);
 
     const table = el("table",{class:"table"});
     const thead = el("thead",{}, el("tr",{},[
-      el("th",{}, "Kind"),
-      el("th",{}, "Name / Entity"),
-      el("th",{}, "Address"),
-      el("th",{}, "Room"),
-      el("th",{}, "Signal"),
-      el("th",{}, "Last seen"),
-      el("th",{}, "OUI freq"),
-      el("th",{}, "Follow"),
-      el("th",{}, "Tag"),
-      el("th",{}, "Maker"),
+      el("th",{}, t("Kind")),
+      el("th",{}, t("Name / Entity")),
+      el("th",{}, t("Address")),
+      el("th",{}, t("Room")),
+      el("th",{}, t("Signal")),
+      el("th",{}, t("Last seen")),
+      el("th",{}, t("OUI freq")),
+      el("th",{}, t("Follow")),
+      el("th",{}, t("Tag")),
+      el("th",{}, t("Maker")),
     ]));
     const tbody = el("tbody",{});
     table.appendChild(thead);
@@ -653,12 +654,12 @@ export function renderClassic(ctx){
         const btn = el("button",{
           class: "btn tiny",
           style: isF ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "",
-        }, isF ? "✓ Following" : "Follow");
+        }, isF ? "✓ " + t("Following") : t("Follow"));
         btn.addEventListener("click",(e)=>{
           e.stopPropagation();
           ctx.actions.followedToggle(followKey);
           const nowF = ctx.actions.followedHas(followKey);
-          btn.textContent = nowF ? "✓ Following" : "Follow";
+          btn.textContent = nowF ? "✓ " + t("Following") : t("Follow");
           btn.style.cssText = nowF ? "background:#1a3a2a;border-color:#52b788;color:#52b788" : "";
         });
         return el("td",{}, btn);
@@ -670,7 +671,7 @@ export function renderClassic(ctx){
                       : kind === "ibeacon"     ? (o.key || "")
                       : addr;
         if ((kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") || !tagAddr) return el("td",{}, "");
-        const btn = el("button",{class:"btn tiny"}, userLabel ? "Relabel" : "Tag");
+        const btn = el("button",{class:"btn tiny"}, userLabel ? t("Relabel") : t("Tag"));
         btn.addEventListener("click",(e)=>{
           e.stopPropagation();
           ctx.actions.tagObjectPrompt(tagAddr, userLabel);
@@ -701,16 +702,16 @@ export function renderClassic(ctx){
           isAway ? "away" : "",
         ].filter(Boolean).join(" ").toLowerCase(),
       },[
-        el("td",{}, kind==="ble" ? pill("BLE","") : pill("Entity","")),
+        el("td",{}, kind==="ble" ? pill("BLE","") : pill(t("Entity"),"")),
         el("td",{}, [
           (_guestName(o)
-            ? el("div",{title:`Tag: ${name}`}, [_guestName(o), " ", el("span",{style:_GUEST_PILL_CSS}, "Guest"),
+            ? el("div",{title:t("Tag: {name}", { name })}, [_guestName(o), " ", el("span",{style:_GUEST_PILL_CSS}, t("Guest")),
                 el("span",{style:"color:#94a3b8;margin-left:6px"}, name)])
             : el("div",{}, name)),
-          (userLabel && o.broadcast_name && o.broadcast_name !== userLabel ? el("div",{style:"color:#94a3b8"}, `Broadcasts as ${o.broadcast_name}`) : null),
+          (userLabel && o.broadcast_name && o.broadcast_name !== userLabel ? el("div",{style:"color:#94a3b8"}, t("Broadcasts as {name}", { name: o.broadcast_name })) : null),
           (o.entity_id ? el("div",{style:"color:#94a3b8"}, o.entity_id) : null),
-          (Array.isArray(o.linked_entities) && o.linked_entities.length ? el("div",{style:"color:#94a3b8"}, `Linked: ${o.linked_entities.join(", ")}`) : null),
-          (kind==="ble" && Array.isArray(o.sources) && o.sources.length ? (() => { const _by = o.sources.map(s=>{const _src=typeof s==="object"?(s.source||""):String(s);const id=_sid(_src);const _fn=ctx.helpers.radioName(_src);return id?id+" "+(_fn||_src):(_fn||_src);}); return el("div",{style:"color:#94a3b8",title:_by.join(", ")}, `Seen by: ${firstFew(_by)}`); })() : null),
+          (Array.isArray(o.linked_entities) && o.linked_entities.length ? el("div",{style:"color:#94a3b8"}, t("Linked: {list}", { list: o.linked_entities.join(", ") })) : null),
+          (kind==="ble" && Array.isArray(o.sources) && o.sources.length ? (() => { const _by = o.sources.map(s=>{const _src=typeof s==="object"?(s.source||""):String(s);const id=_sid(_src);const _fn=ctx.helpers.radioName(_src);return id?id+" "+(_fn||_src):(_fn||_src);}); return el("div",{style:"color:#94a3b8",title:_by.join(", ")}, t("Seen by: {list}", { list: firstFew(_by) })); })() : null),
           ((o.company_name || o.service_owner || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
             ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
                 addressBadge(el, o),
@@ -721,9 +722,9 @@ export function renderClassic(ctx){
                   el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#a7f3d0;border:1px solid #166534"}, sn)
                 ),
               ].filter(Boolean))
-            : (kind==="ble" && o.manufacturer_data && Object.keys(o.manufacturer_data).length ? el("div",{style:"color:#94a3b8;font-size:11px"}, `Manuf ID: ${Object.keys(o.manufacturer_data).slice(0,3).join(", ")}`) : null)),
+            : (kind==="ble" && o.manufacturer_data && Object.keys(o.manufacturer_data).length ? el("div",{style:"color:#94a3b8;font-size:11px"}, t("Manuf ID: {list}", { list: Object.keys(o.manufacturer_data).slice(0,3).join(", ") })) : null)),
           (o.device && (o.device.manufacturer || o.device.model) ? el("div",{style:"color:#94a3b8"}, `${o.device.manufacturer||""} ${o.device.model||""}`.trim()) : null),
-          (o.connectable === true ? el("span",{style:"font-size:10px;color:#52b788"}, "connectable") : null),
+          (o.connectable === true ? el("span",{style:"font-size:10px;color:#52b788"}, t("connectable")) : null),
         ].filter(Boolean)),
         el("td",{}, addr || "—"),
         // An object keeps its last known room forever — deliberately, so
@@ -732,8 +733,8 @@ export function renderClassic(ctx){
         // "Garage" in this column while its own entities said not_home.
         el("td",{}, isAway
           ? el("span",{style:"color:#94a3b8"},[
-              el("span",{style:"color:#f87171;font-size:10px;font-weight:600"},"Away"),
-              o.last_room ? el("span",{}," · last: "+o.last_room) : null,
+              el("span",{style:"color:#f87171;font-size:10px;font-weight:600"},t("Away")),
+              o.last_room ? el("span",{}," · " + t("last: {room}", { room: o.last_room })) : null,
             ].filter(Boolean))
           : (room || "—")),
         el("td",{}, rssi ? `${rssi} dBm` : "—"),
@@ -797,7 +798,7 @@ export function renderClassic(ctx){
         if(ok) shown++;
       }
       _listGroups.refresh(!!q);
-      stats.textContent = `${shown} of ${rowEls.length}`;
+      stats.textContent = t("{shown} of {total}", { shown, total: rowEls.length });
     }
 
     search.addEventListener("input", apply);
@@ -810,7 +811,7 @@ export function renderClassic(ctx){
     // On a phone the table scrolls sideways in its own box (.table-scroll), not the whole sheet.
     body.appendChild(el("div",{class:"table-scroll"}, table));
 
-    ctx.actions.openModal(initialFilter === "unidentified" ? "Unidentified" : (_quietMode ? "Tracked objects" : "All objects"), body, "Filter");
+    ctx.actions.openModal(initialFilter === "unidentified" ? t("Unidentified") : (_quietMode ? t("Tracked objects") : t("All objects")), body, t("Filter"));
   }
 
   // The experimental 2D flat map lives in views/plan_viewer.js — it is a
@@ -1057,7 +1058,7 @@ export function renderClassic(ctx){
         .map(f => f.name || f.id);
       if (names.length) return names.join(" + ");
       const byLvl = haFloors.find(f => Number(f.level) === Number(z));
-      return byLvl ? (byLvl.name || byLvl.id) : `Floor ${sortedIsoLevels.indexOf(z) + 1}`;
+      return byLvl ? (byLvl.name || byLvl.id) : t("Floor {n}", { n: sortedIsoLevels.indexOf(z) + 1 });
     };
 
     // ── Slider positions: all → l0 → l0+l1 → l1 → l1+l2 → l2 → … ───────────
@@ -1071,7 +1072,7 @@ export function renderClassic(ctx){
     const _getFocusZ   = (idx) => _isoPos[Math.max(0,Math.min(idx,_isoPos.length-1))];
     const _getFocusLbl = (idx) => {
       const pos = _getFocusZ(idx);
-      if(pos === null) return "All floors";
+      if(pos === null) return t("All floors");
       const zArr = Array.isArray(pos) ? pos : [pos];
       return zArr.map(_floorLabelForLevel).join(" + ");
     };
@@ -1467,7 +1468,7 @@ export function renderClassic(ctx){
         const _emitIsoRoom = (room, pp, lix, liy) => {
           const color = roomColorFn(room);
           const _objsHere = allObjects.filter(o=>_presentInRoom(ctx,o,room));
-          const _roomTip = `${room}\n${_objsHere.length} object${_objsHere.length!==1?"s":""} detected`;
+          const _roomTip = `${room}\n` + tn(_objsHere.length, "{n} object detected", "{n} objects detected");
           s += `<g data-tip="${_esc(_roomTip)}" data-room="${_esc(room)}" style="cursor:pointer"><polygon points="${pp}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2" opacity="0.9"/></g>`;
           s += `<text x="${Math.round(lix)}" y="${Math.round(liy)+lidx*2}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" `
              + `${_annT(Math.round(lix), Math.round(liy)+lidx*2)}>${_esc(room)}</text>`;
@@ -1562,10 +1563,10 @@ export function renderClassic(ctx){
           const rsid = (_sid(sc.source) || "R").toUpperCase();
           const inRoom = storey.rooms.find(r => _ptInPoly(sc.x_m, sc.y_m, r.pts));
           const _rTip = `${rsid} · ${(isLive ? (liveRadio.display_name||liveRadio.name) : null)||sc.source}`
-            + (inRoom ? `\nArea: ${inRoom.room}` : "")
-            + ((isLive && liveRadio.scanning!=null) ? `\nScanning: ${liveRadio.scanning?"Yes":"No"}` : "")
-            + ((isLive && liveRadio.scan_mode) ? `\nMode: ${liveRadio.scan_mode === "active" ? "Active — transmits scan requests" : liveRadio.scan_mode === "passive" ? "Passive — listens only" : liveRadio.scan_mode}` : "")
-            + (isLive ? "" : "\n(offline)");
+            + (inRoom ? "\n" + t("Area: {area}", { area: inRoom.room }) : "")
+            + ((isLive && liveRadio.scanning!=null) ? "\n" + t("Scanning: {yes}", { yes: liveRadio.scanning ? t("Yes") : t("No") }) : "")
+            + ((isLive && liveRadio.scan_mode) ? "\n" + t("Mode: {mode}", { mode: liveRadio.scan_mode === "active" ? t("Active — transmits scan requests") : liveRadio.scan_mode === "passive" ? t("Passive — listens only") : liveRadio.scan_mode }) : "")
+            + (isLive ? "" : "\n" + t("(offline)"));
           const rxColor = isLive ? "#52b788" : "#4a6052";
           // ACTIVE scanning means the radio TRANSMITS — it sends SCAN_REQ and
           // reads the SCAN_RSP that comes back. PASSIVE only listens. That is
@@ -1611,24 +1612,24 @@ export function renderClassic(ctx){
       // ── Helper: build tooltip string for any object ────────────────────────
       const _objTip = (o) => {
         const parts = [];
-        const n = deviceName(o, "Unknown");
-        if(_guestName(o)) parts.push(`${_guestName(o)} (Guest)`, `Tag: ${n}`);
+        const n = deviceName(o, t("Unknown"));
+        if(_guestName(o)) parts.push(t("{name} (Guest)", { name: _guestName(o) }), t("Tag: {name}", { name: n }));
         else parts.push(n);
-        if(o.kind) parts.push(`Kind: ${o.kind}`);
-        if(o.address && o.address !== n) parts.push(`Addr: ${o.address}`);
-        if(o.room) parts.push(`Room: ${o.room}`);
+        if(o.kind) parts.push(t("Kind: {kind}", { kind: o.kind }));
+        if(o.address && o.address !== n) parts.push(t("Addr: {address}", { address: o.address }));
+        if(o.room) parts.push(t("Room: {room}", { room: o.room }));
         // Below the site's indoor coverage envelope: no scanner hears it well
         // enough for it to be inside the covered building. The room named is
         // the nearest scanner's, or the outdoor area that hears it best.
-        if(o.outside) parts.push("Outside the covered building");
-        if(o.knn_confidence > 0) parts.push(`Calibrated: ${Math.round(o.knn_confidence * 100)}%`);
+        if(o.outside) parts.push(t("Outside the covered building"));
+        if(o.knn_confidence > 0) parts.push(t("Calibrated: {pct}%", { pct: Math.round(o.knn_confidence * 100) }));
         if(o.rssi != null) parts.push(`RSSI: ${o.rssi} dBm`);
         if(o.age_s != null){
           const a = Number(o.age_s);
-          parts.push(`Seen: ${a<60 ? Math.round(a)+"s ago" : Math.floor(a/60)+"m ago"}`);
+          parts.push(t("Seen: {ago}", { ago: a<60 ? t("{n}s ago", { n: Math.round(a) }) : t("{n}m ago", { n: Math.floor(a/60) }) }));
         }
-        if(o.sources && o.sources.length) parts.push(`Receivers: ${o.sources.map(s => typeof s === "object" ? (s.source || "") : String(s)).join(", ")}`);
-        if(!o.user_label) parts.push("Click to tag / view details");
+        if(o.sources && o.sources.length) parts.push(t("Receivers: {list}", { list: o.sources.map(s => typeof s === "object" ? (s.source || "") : String(s)).join(", ") }));
+        if(!o.user_label) parts.push(t("Click to tag / view details"));
         return parts.join("|");  // pipe-delimited for data attribute, rendered as lines
       };
 
@@ -1752,7 +1753,7 @@ export function renderClassic(ctx){
         const confPct = hasKnn ? Math.round((o.knn_confidence || 0) * 100) : 0;
         // Color: green > 60%, amber 30-60%, red < 30%, gray = no data
         const confColor = !hasKnn ? "#64748b" : confPct >= 60 ? "#52b788" : confPct >= 30 ? "#f59e0b" : "#f87171";
-        const confLabel = !hasKnn ? "Room only" : confPct + "%";
+        const confLabel = !hasKnn ? t("Room only") : confPct + "%";
 
         const _ok = _esc(o.key||o.address||o.entity_id||"");
         // Dim away/ghost objects
@@ -1767,7 +1768,7 @@ export function renderClassic(ctx){
            + `${_annT(Math.round(bx), Math.round(by))}>`;
         if(_t.outside){
           s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="17" fill="none" `
-             + `stroke="#38bdf8" stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`;
+             + `stroke="#38bdf8" stroke-width="2" opacity="0.85"><title>${_esc(t("Outside the building — shown at the edge, actual distance is further out"))}</title></circle>`;
         }
         // Confidence circle (only when we have a real positioned match)
         if(posConf > 0){
@@ -1788,7 +1789,7 @@ export function renderClassic(ctx){
         s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(16)}" fill="${BEACON_CLR}" opacity="${glowOp}"/>`;
         s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(11)}" fill="${BEACON_CLR}" stroke="#071008" stroke-width="1.5" opacity="${dotOp}"/>`;
         s += `<circle cx="${Math.round(bx)}" cy="${Math.round(by)}" r="${_bf(3.5)}" fill="#071008" opacity="0.7"/>`;
-        const awayTag = isAway ? " (Away)" : "";
+        const awayTag = isAway ? " " + t("(Away)") : "";
         const fullLbl = lbl + awayTag;
         // The name plate is a share of the MAP, not a fixed 140 units.
         //
@@ -1881,7 +1882,7 @@ export function renderClassic(ctx){
           // object with persistent pins off it was a ring around nothing.
           const _ring = _teth.outside
             ? `<circle cx="${px}" cy="${py}" r="17" fill="none" stroke="#38bdf8" `
-              + `stroke-width="2" opacity="0.85"><title>Outside the building — shown at the edge, actual distance is further out</title></circle>`
+              + `stroke-width="2" opacity="0.85"><title>${_esc(t("Outside the building — shown at the edge, actual distance is further out"))}</title></circle>`
             : "";
 
           if(ctx.state._overviewPersistentPins){
@@ -2074,7 +2075,7 @@ export function renderClassic(ctx){
     // For screen readers: the map is a figure, described by who is in which
     // room (panel.js _updateMapText, a box no one sees). Nothing drawn changes.
     isoDiv.setAttribute("role", "figure");
-    isoDiv.setAttribute("aria-label", "House map");
+    isoDiv.setAttribute("aria-label", t("House map"));
     isoDiv.setAttribute("aria-describedby", "psMapText");
 
     // ── 3D map loading indicator ────────────────────────────────────────
@@ -2289,7 +2290,7 @@ export function renderClassic(ctx){
     for(const [room, g] of Object.entries((ctx.state.model||{}).room_geometry_m || {})){
       const floorId = String((g && g.floor_id) || "");
       const haFlr = haFloors2.find(f=>String(f.id)===floorId);
-      const flLbl = haFlr ? (haFlr.name||haFlr.id) : (floorId==="__outside__" ? "Outside" : (floorId||"—"));
+      const flLbl = haFlr ? (haFlr.name||haFlr.id) : (floorId==="__outside__" ? t("Outside") : (floorId||"—"));
       const objsInRoom = allObjects.filter(o=>_presentInRoom(ctx,o,room));
       ovRoomRows.push({ room, floor: flLbl, count: objsInRoom.length, objects: objsInRoom });
     }
@@ -2300,9 +2301,9 @@ export function renderClassic(ctx){
       const tbl = el("table",{style:"width:100%;border-collapse:collapse;font-size:13px"},[
         el("thead",{},el("tr",{style:"border-bottom:1px solid #1b3526"},[
           el("th",{style:thStyle+";width:24px"}),
-          el("th",{style:thStyle},"Room"),
-          el("th",{style:thStyle},"Floor"),
-          el("th",{style:thStyle},"Objects"),
+          el("th",{style:thStyle},t("Room")),
+          el("th",{style:thStyle},t("Floor")),
+          el("th",{style:thStyle},t("Objects")),
         ])),
       ]);
       const tbody2 = document.createElement("tbody");
@@ -2320,8 +2321,8 @@ export function renderClassic(ctx){
           const oc = isF ? "#fbbf24" : (o.identified ? "#5eead488" : "#f59e0b88");
           const chip = el("span",{style:`font-size:10px;padding:1px 5px;border-radius:3px;background:${oc}22;color:${isF?"#fbbf24":"#94a3b8"};border:1px solid ${oc};white-space:nowrap${isF?";font-weight:700":""}`}, isF ? lbl + " \u25C9" : lbl);
           if(_guestName(o)){
-            chip.title = `Tag: ${tagLbl}`;
-            chip.appendChild(el("span",{style:_GUEST_PILL_CSS+";margin-left:4px;line-height:12px"}, "Guest"));
+            chip.title = t("Tag: {name}", { name: tagLbl });
+            chip.appendChild(el("span",{style:_GUEST_PILL_CSS+";margin-left:4px;line-height:12px"}, t("Guest")));
           }
           objChips.appendChild(chip);
         }
@@ -2329,7 +2330,7 @@ export function renderClassic(ctx){
 
         const roomCell = el("td",{style:"padding:5px 8px"},[
           el("span",{style:"font-weight:600;color:#e2e8f0"}, rr.room),
-          hasFollowed ? el("span",{style:"margin-left:6px;font-size:10px;color:#fbbf24;font-weight:700"}, "\u25C9 tracked") : null,
+          hasFollowed ? el("span",{style:"margin-left:6px;font-size:10px;color:#fbbf24;font-weight:700"}, "\u25C9 " + t("tracked")) : null,
         ].filter(Boolean));
 
         const tr2 = el("tr",{style:"border-bottom:1px solid #0f2017;cursor:pointer"},[
@@ -2358,10 +2359,10 @@ export function renderClassic(ctx){
     const roomToggleBtn = document.createElement("button");
     roomToggleBtn.className = "btn inline";
     roomToggleBtn.style.cssText = "padding:1px 6px;font-size:10px";
-    roomToggleBtn.textContent = ctx.state._overviewShowRoomList ? "Rooms \u25BC" : "Rooms";
+    roomToggleBtn.textContent = ctx.state._overviewShowRoomList ? t("Rooms") + " \u25BC" : t("Rooms");
     roomToggleBtn.addEventListener("click", ()=>{
       ctx.state._overviewShowRoomList = !ctx.state._overviewShowRoomList;
-      roomToggleBtn.textContent = ctx.state._overviewShowRoomList ? "Rooms \u25BC" : "Rooms";
+      roomToggleBtn.textContent = ctx.state._overviewShowRoomList ? t("Rooms") + " \u25BC" : t("Rooms");
       roomListPanel.style.display = ctx.state._overviewShowRoomList ? "block" : "none";
     });
 
@@ -2424,7 +2425,7 @@ export function renderClassic(ctx){
     const floorUnit = _ctrlUnit();
     const floorLbl = document.createElement("span");
     floorLbl.style.cssText = "color:#94a3b8";
-    floorLbl.textContent = "Floor:";
+    floorLbl.textContent = t("Floor:");
     floorUnit.appendChild(floorLbl);
     // Step buttons (gap #18, best-in-class roadmap) — the practical benefit
     // of "swipe floor switching" without the gesture-conflict risk: a
@@ -2445,7 +2446,7 @@ export function renderClassic(ctx){
     floorPrevBtn.className = "btn inline";
     floorPrevBtn.style.cssText = "padding:1px 6px;font-size:10px;color:#94a3b8";
     floorPrevBtn.textContent = "◀";
-    floorPrevBtn.title = "Previous floor";
+    floorPrevBtn.title = t("Previous floor");
     floorPrevBtn.addEventListener("click", () => _stepFloor(-1));
     floorUnit.appendChild(floorPrevBtn);
     focusSlider.style.cssText = "width:90px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
@@ -2455,7 +2456,7 @@ export function renderClassic(ctx){
     floorNextBtn.className = "btn inline";
     floorNextBtn.style.cssText = "padding:1px 6px;font-size:10px;color:#94a3b8";
     floorNextBtn.textContent = "▶";
-    floorNextBtn.title = "Next floor";
+    floorNextBtn.title = t("Next floor");
     floorNextBtn.addEventListener("click", () => _stepFloor(1));
     floorUnit.appendChild(floorNextBtn);
     floorUnit.appendChild(focusLbl);
@@ -2464,11 +2465,10 @@ export function renderClassic(ctx){
     const ovOutBtn = document.createElement("button");
     ovOutBtn.className = "btn inline";
     const _outStyle = (on) => `padding:1px 6px;font-size:10px;margin-left:4px;${on ? "background:#0f2a1a;border-color:#4ade80;color:#a7f3d0;font-weight:700" : "color:#94a3b8"}`;
-    const _outLabel = (on) => on ? "Outdoor ON" : "Outdoor";
+    const _outLabel = (on) => on ? t("Outdoor ON") : t("Outdoor");
     ovOutBtn.style.cssText = _outStyle(ctx.state._overviewShowOutdoor);
     ovOutBtn.textContent = _outLabel(ctx.state._overviewShowOutdoor);
-    ovOutBtn.title = "Show sheds, driveways and other areas that are not a storey. "
-      + "They are fitted into the building's footprint, not drawn at their true distance.";
+    ovOutBtn.title = t("Show sheds, driveways and other areas that are not a storey. They are fitted into the building's footprint, not drawn at their true distance.");
     ovOutBtn.addEventListener("click", ()=>{
       ctx.state._overviewShowOutdoor = !ctx.state._overviewShowOutdoor;
       ovOutBtn.style.cssText = _outStyle(ctx.state._overviewShowOutdoor);
@@ -2480,7 +2480,7 @@ export function renderClassic(ctx){
     // Spacing
     const ovSpacingLbl = document.createElement("span");
     ovSpacingLbl.style.cssText = "color:#94a3b8;margin-left:4px";
-    ovSpacingLbl.textContent = "Gap:";
+    ovSpacingLbl.textContent = t("Gap:");
     const gapUnit = _ctrlUnit();
     gapUnit.appendChild(ovSpacingLbl);
     ovGapSlider.style.cssText = "width:70px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
@@ -2489,7 +2489,7 @@ export function renderClassic(ctx){
     // L/R
     const ovLRLbl = document.createElement("span");
     ovLRLbl.style.cssText = "color:#94a3b8;margin-left:4px";
-    ovLRLbl.textContent = "L/R:";
+    ovLRLbl.textContent = t("L/R:");
     const lrUnit = _ctrlUnit();
     lrUnit.appendChild(ovLRLbl);
     ovHorizSlider.style.cssText = "width:70px;accent-color:#52b788;vertical-align:middle;cursor:pointer";
@@ -2501,8 +2501,8 @@ export function renderClassic(ctx){
     const ovSaveBtn = document.createElement("button");
     ovSaveBtn.className = "btn inline";
     ovSaveBtn.style.cssText = "padding:1px 6px;font-size:10px";
-    ovSaveBtn.title = "Save these slider positions so the view reopens with the same layout";
-    ovSaveBtn.textContent = "Save";
+    ovSaveBtn.title = t("Save these slider positions so the view reopens with the same layout");
+    ovSaveBtn.textContent = t("Save");
     ovSaveBtn.addEventListener("click", async ()=>{
       ovSaveBtn.disabled = true;
       try{
@@ -2511,31 +2511,31 @@ export function renderClassic(ctx){
           overview_iso_horiz_gap: ctx.state._overviewHorizGap,
           overview_iso_focus:     ctx.state._overviewIsoFocusIdx,
         });
-        ovSaveLbl.textContent = "Saved ✓";
+        ovSaveLbl.textContent = t("Saved ✓");
         setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);
-      }catch(e){ ovSaveLbl.textContent = "Error"; }
+      }catch(e){ ovSaveLbl.textContent = t("Error"); }
       ovSaveBtn.disabled = false;
     });
     const ovResetBtn = document.createElement("button");
     ovResetBtn.className = "btn inline";
     ovResetBtn.style.cssText = "padding:1px 6px;font-size:10px";
-    ovResetBtn.title = "Reset sliders to default values and clear the saved layout";
-    ovResetBtn.textContent = "Reset";
+    ovResetBtn.title = t("Reset sliders to default values and clear the saved layout");
+    ovResetBtn.textContent = t("Reset");
     ovResetBtn.addEventListener("click", async ()=>{
       ctx.state._overviewFloorGap = 150; _ovFG = 150;
       ctx.state._overviewHorizGap = 0;   _ovHG = 0;
       ctx.state._overviewIsoFocusIdx = 0;
       ovGapSlider.value   = "150"; ovGapLbl.textContent   = "150";
       ovHorizSlider.value = "0";   ovHorizLbl.textContent = "0";
-      focusSlider.value   = "0";   focusLbl.textContent   = "All floors";
+      focusSlider.value   = "0";   focusLbl.textContent   = t("All floors");
       _rebuildPositions();
       _rebuildIso(null);
       ovResetBtn.disabled = true;
       try{
         await ctx.actions.settingsSet({ overview_iso_floor_gap:150, overview_iso_horiz_gap:0, overview_iso_focus:0 });
-        ovSaveLbl.textContent = "Reset ✓";
+        ovSaveLbl.textContent = t("Reset ✓");
         setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);
-      }catch(e){ ovSaveLbl.textContent = "Error"; }
+      }catch(e){ ovSaveLbl.textContent = t("Error"); }
       ovResetBtn.disabled = false;
     });
     ctrlRow.appendChild(ovSaveBtn);
@@ -2547,12 +2547,12 @@ export function renderClassic(ctx){
     const ovTo2d = document.createElement("button");
     ovTo2d.className = "btn inline";
     ovTo2d.style.cssText = "padding:1px 6px;font-size:10px;color:#94a3b8";
-    ovTo2d.textContent = "▣ Overhead";
-    ovTo2d.title = "Switch to the large top-down overhead map";
+    ovTo2d.textContent = "▣ " + t("Overhead");
+    ovTo2d.title = t("Switch to the large top-down overhead map");
     ovTo2d.addEventListener("click", async ()=>{
       ovTo2d.disabled = true;
       try { await ctx.actions.settingsSet({ overview_2d_mode: true }); }
-      catch(e){ ovTo2d.disabled = false; if(ctx.toast) ctx.toast("Failed to switch view", true); }
+      catch(e){ ovTo2d.disabled = false; if(ctx.toast) ctx.toast(t("Failed to switch view"), true); }
     });
     ctrlRow.appendChild(ovTo2d);
 
@@ -2560,11 +2560,11 @@ export function renderClassic(ctx){
     ovPersistentBtn.className = "btn inline";
     const _pinStyle = (on) => `padding:1px 6px;font-size:10px;${on ? "background:#7f1d1d;border-color:#ef4444;color:#fca5a5;font-weight:700" : "color:#94a3b8"}`;
     ovPersistentBtn.style.cssText = _pinStyle(ctx.state._overviewPersistentPins);
-    ovPersistentBtn.textContent = ctx.state._overviewPersistentPins ? "Pins ON" : "Pins";
+    ovPersistentBtn.textContent = ctx.state._overviewPersistentPins ? t("Pins ON") : t("Pins");
     ovPersistentBtn.addEventListener("click", ()=>{
       ctx.state._overviewPersistentPins = !ctx.state._overviewPersistentPins;
       ovPersistentBtn.style.cssText = _pinStyle(ctx.state._overviewPersistentPins);
-      ovPersistentBtn.textContent = ctx.state._overviewPersistentPins ? "Pins ON" : "Pins";
+      ovPersistentBtn.textContent = ctx.state._overviewPersistentPins ? t("Pins ON") : t("Pins");
       _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
       // Persist to settings so it survives reboots
       ctx.actions.settingsSet({ overview_persistent_pins: ctx.state._overviewPersistentPins });
@@ -2575,11 +2575,11 @@ export function renderClassic(ctx){
     ovWallsBtn.className = "btn inline";
     const _wallStyle = (on) => `padding:1px 6px;font-size:10px;${on ? "background:#1a1a2e;border-color:#6366f1;color:#a5b4fc;font-weight:700" : "color:#94a3b8"}`;
     ovWallsBtn.style.cssText = _wallStyle(ctx.state._overviewShowWalls);
-    ovWallsBtn.textContent = ctx.state._overviewShowWalls ? "Walls ON" : "Walls";
+    ovWallsBtn.textContent = ctx.state._overviewShowWalls ? t("Walls ON") : t("Walls");
     ovWallsBtn.addEventListener("click", ()=>{
       ctx.state._overviewShowWalls = !ctx.state._overviewShowWalls;
       ovWallsBtn.style.cssText = _wallStyle(ctx.state._overviewShowWalls);
-      ovWallsBtn.textContent = ctx.state._overviewShowWalls ? "Walls ON" : "Walls";
+      ovWallsBtn.textContent = ctx.state._overviewShowWalls ? t("Walls ON") : t("Walls");
       _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
       ctx.actions.settingsSet({ overview_show_walls: ctx.state._overviewShowWalls });
     });
@@ -2591,11 +2591,11 @@ export function renderClassic(ctx){
     ovTrailsBtn.className = "btn inline";
     const _trailStyle = (on) => `padding:1px 6px;font-size:10px;${on ? "background:#422006;border-color:#fbbf24;color:#fde68a;font-weight:700" : "color:#94a3b8"}`;
     ovTrailsBtn.style.cssText = _trailStyle(ctx.state._overviewShowTrails);
-    ovTrailsBtn.textContent = ctx.state._overviewShowTrails ? "Trails ON" : "Trails";
+    ovTrailsBtn.textContent = ctx.state._overviewShowTrails ? t("Trails ON") : t("Trails");
     ovTrailsBtn.addEventListener("click", ()=>{
       ctx.state._overviewShowTrails = !ctx.state._overviewShowTrails;
       ovTrailsBtn.style.cssText = _trailStyle(ctx.state._overviewShowTrails);
-      ovTrailsBtn.textContent = ctx.state._overviewShowTrails ? "Trails ON" : "Trails";
+      ovTrailsBtn.textContent = ctx.state._overviewShowTrails ? t("Trails ON") : t("Trails");
       _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
       ctx.actions.settingsSet({ overview_show_trails: ctx.state._overviewShowTrails });
     });
@@ -2611,11 +2611,11 @@ export function renderClassic(ctx){
     const _syncOverlayBtns = () => {
       if (_ovHeatBtn) {
         _ovHeatBtn.style.cssText = _heatStyle(ctx.state._overviewShowHeatmap);
-        _ovHeatBtn.textContent = ctx.state._overviewShowHeatmap ? "Heat ON" : "Heat";
+        _ovHeatBtn.textContent = ctx.state._overviewShowHeatmap ? t("Heat ON") : t("Heat");
       }
       if (_ovDistBtn) {
         _ovDistBtn.style.cssText = _distStyle(ctx.state._overviewShowDistortion);
-        _ovDistBtn.textContent = ctx.state._overviewShowDistortion ? "Warp ON" : "Warp";
+        _ovDistBtn.textContent = ctx.state._overviewShowDistortion ? t("Warp ON") : t("Warp");
       }
       // Show/hide the slider control bar based on active overlay
       if (_isoOverlayCtrl) {
@@ -2633,7 +2633,7 @@ export function renderClassic(ctx){
       _ovHeatBtn = document.createElement("button");
       _ovHeatBtn.className = "btn inline";
       _ovHeatBtn.style.cssText = _heatStyle(ctx.state._overviewShowHeatmap);
-      _ovHeatBtn.textContent = ctx.state._overviewShowHeatmap ? "Heat ON" : "Heat";
+      _ovHeatBtn.textContent = ctx.state._overviewShowHeatmap ? t("Heat ON") : t("Heat");
       _ovHeatBtn.addEventListener("click", () => {
         ctx.state._overviewShowHeatmap = !ctx.state._overviewShowHeatmap;
         if (ctx.state._overviewShowHeatmap) ctx.state._overviewShowDistortion = false; // mutual exclusion
@@ -2647,7 +2647,7 @@ export function renderClassic(ctx){
       _ovDistBtn = document.createElement("button");
       _ovDistBtn.className = "btn inline";
       _ovDistBtn.style.cssText = _distStyle(ctx.state._overviewShowDistortion);
-      _ovDistBtn.textContent = ctx.state._overviewShowDistortion ? "\u2192 Signal distortion ON" : "\u2192 Signal distortion";
+      _ovDistBtn.textContent = "\u2192 " + (ctx.state._overviewShowDistortion ? t("Signal distortion ON") : t("Signal distortion"));
       _ovDistBtn.addEventListener("click", () => {
         ctx.state._overviewShowDistortion = !ctx.state._overviewShowDistortion;
         if (ctx.state._overviewShowDistortion) ctx.state._overviewShowHeatmap = false; // mutual exclusion
@@ -2679,15 +2679,15 @@ export function renderClassic(ctx){
         return { lbl, sl };
       };
 
-      const g = _mkSlider(`Gain: ${ctx.state._heatGain ?? ctx.state.settings?.heatmap_gain ?? 0}`, -20, 20, ctx.state._heatGain ?? ctx.state.settings?.heatmap_gain ?? 0, "#d8b4fe", 50);
-      const c = _mkSlider(`Contrast: ${ctx.state._heatContrast ?? ctx.state.settings?.heatmap_contrast ?? 0}`, -15, 15, ctx.state._heatContrast ?? ctx.state.settings?.heatmap_contrast ?? 0, "#d8b4fe", 65);
-      const d = _mkSlider(`Warp: ${ctx.state._distIntensity ?? ctx.state.settings?.distortion_intensity ?? 50}%`, 0, 100, ctx.state._distIntensity ?? ctx.state.settings?.distortion_intensity ?? 50, "#fdba74", 55);
-      const src = _mkSlider(`Source: ${ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0}%`, 0, 100, ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0, "#5eead4", 60);
+      const g = _mkSlider(t("Gain: {v}", { v: ctx.state._heatGain ?? ctx.state.settings?.heatmap_gain ?? 0 }), -20, 20, ctx.state._heatGain ?? ctx.state.settings?.heatmap_gain ?? 0, "#d8b4fe", 50);
+      const c = _mkSlider(t("Contrast: {v}", { v: ctx.state._heatContrast ?? ctx.state.settings?.heatmap_contrast ?? 0 }), -15, 15, ctx.state._heatContrast ?? ctx.state.settings?.heatmap_contrast ?? 0, "#d8b4fe", 65);
+      const d = _mkSlider(t("Warp: {v}%", { v: ctx.state._distIntensity ?? ctx.state.settings?.distortion_intensity ?? 50 }), 0, 100, ctx.state._distIntensity ?? ctx.state.settings?.distortion_intensity ?? 50, "#fdba74", 55);
+      const src = _mkSlider(t("Source: {v}%", { v: ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0 }), 0, 100, ctx.state._heatSource ?? ctx.state.settings?.heatmap_source ?? 0, "#5eead4", 60);
 
       const iSaveBtn = document.createElement("button");
       iSaveBtn.className = "btn inline";
       iSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;color:#52b788;border-color:#2d6a4f";
-      iSaveBtn.textContent = "Save";
+      iSaveBtn.textContent = t("Save");
       iSaveBtn.addEventListener("click", async () => {
         try {
           await ctx.actions.settingsSet({
@@ -2696,8 +2696,8 @@ export function renderClassic(ctx){
             distortion_intensity: parseInt(d.sl.value, 10),
             heatmap_source: parseInt(src.sl.value, 10),
           });
-          ctx.toast("Overlay settings saved");
-        } catch(e) { ctx.toast("Failed to save", true); }
+          ctx.toast(t("Overlay settings saved"));
+        } catch(e) { ctx.toast(t("Failed to save"), true); }
       });
 
       // Loading progress bar for overlay rendering
@@ -2719,20 +2719,20 @@ export function renderClassic(ctx){
       // Fetch adaptive fingerprints once for the source blend
       if (!ctx.state._adaptiveFpLoaded) {
         ctx.state._adaptiveFpLoaded = true;
-        _showProgress(20, "Loading...");
+        _showProgress(20, t("Loading..."));
         ctx.actions.callWS({ type: "padspan_ha/adaptive_fingerprints_get" }).then(res => {
           if (res?.fingerprints) {
             ctx.state._adaptiveFps = res.fingerprints;
             ctx.state._adaptiveObs = res.total_observations || 0;
             const rooms = Object.keys(res.fingerprints).length;
-            _showProgress(100, `${res.total_observations} obs, ${rooms} rooms`);
+            _showProgress(100, t("{obs} obs, {rooms} rooms", { obs: res.total_observations, rooms }));
           } else {
-            _showProgress(100, "No data");
+            _showProgress(100, t("No data"));
           }
-        }).catch(() => { _showProgress(100, "Error"); });
+        }).catch(() => { _showProgress(100, t("Error")); });
       } else if (ctx.state._adaptiveObs) {
         const rooms = Object.keys(ctx.state._adaptiveFps || {}).length;
-        statusLbl.textContent = `${ctx.state._adaptiveObs} obs, ${rooms} rooms`;
+        statusLbl.textContent = t("{obs} obs, {rooms} rooms", { obs: ctx.state._adaptiveObs, rooms });
         progressFill.style.width = "100%";
       }
 
@@ -2740,10 +2740,10 @@ export function renderClassic(ctx){
       let _overlayTimer = null;
       const _isoOverlayUpdate = () => {
         const gv = parseInt(g.sl.value, 10), cv = parseInt(c.sl.value, 10), dv = parseInt(d.sl.value, 10), sv = parseInt(src.sl.value, 10);
-        g.lbl.textContent = `Gain: ${gv > 0 ? "+" : ""}${gv}`;
-        c.lbl.textContent = `Contrast: ${cv > 0 ? "+" : ""}${cv}`;
-        d.lbl.textContent = `Warp: ${dv}%`;
-        src.lbl.textContent = sv === 0 ? "Source: Model" : sv >= 100 ? "Source: Historical" : `Source: ${sv}% hist`;
+        g.lbl.textContent = t("Gain: {v}", { v: `${gv > 0 ? "+" : ""}${gv}` });
+        c.lbl.textContent = t("Contrast: {v}", { v: `${cv > 0 ? "+" : ""}${cv}` });
+        d.lbl.textContent = t("Warp: {v}%", { v: dv });
+        src.lbl.textContent = sv === 0 ? t("Source: Model") : sv >= 100 ? t("Source: Historical") : t("Source: {v}% hist", { v: sv });
         ctx.state._heatGain = gv;
         ctx.state._heatContrast = cv;
         ctx.state._distIntensity = dv;
@@ -2751,13 +2751,13 @@ export function renderClassic(ctx){
         // The builder configures the overlay module from this state on
         // every rebuild, so the sliders only need to record their values.
         // Debounce: wait 150ms after last slider move before rebuilding SVG
-        _showProgress(30, "Rendering...");
+        _showProgress(30, t("Rendering..."));
         if (_overlayTimer) clearTimeout(_overlayTimer);
         _overlayTimer = setTimeout(() => {
           // _rebuildIso's own doBuild calls _heatLegendRefresh once the new
           // scale exists — see the comment on that call.
           _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx));
-          _showProgress(100, sv > 0 && ctx.state._adaptiveObs ? `${ctx.state._adaptiveObs} obs` : "Ready");
+          _showProgress(100, sv > 0 && ctx.state._adaptiveObs ? t("{obs} obs", { obs: ctx.state._adaptiveObs }) : t("Ready"));
         }, 150);
       };
       g.sl.addEventListener("input", _isoOverlayUpdate);
@@ -2915,29 +2915,29 @@ export function renderClassic(ctx){
         const oc = o.identified ? "#5eead4" : "#f59e0b";
         s += `<circle cx="${ox}" cy="${oy}" r="7" fill="${oc}" opacity="0.9"/>`;
         // Guest tag: an amber ring and the guest's name; tag label in the hover.
-        if(_guestName(o)) s += `<circle cx="${ox}" cy="${oy}" r="10" fill="none" stroke="#fbbf24" stroke-width="1.5"><title>${_esc(_guestName(o))} (Guest) · Tag: ${_esc(o.user_label || o.private_ble_name || o.name || "?")}</title></circle>`;
+        if(_guestName(o)) s += `<circle cx="${ox}" cy="${oy}" r="10" fill="none" stroke="#fbbf24" stroke-width="1.5"><title>${_esc(t("{name} (Guest)", { name: _guestName(o) }))} · ${_esc(t("Tag: {name}", { name: o.user_label || o.private_ble_name || o.name || "?" }))}</title></circle>`;
         const lbl = (_guestName(o) || deviceName(o, "?")).substring(0, 6);
         s += `<text x="${ox}" y="${oy + 18}" text-anchor="middle" fill="${oc}" font-size="9">${_esc(lbl)}</text>`;
       });
 
       // Bottom summary
       const rc = roomRadios.length, oc = roomObjs.length;
-      const sumTxt = [rc ? `${rc} radio${rc>1?"s":""}` : "", oc ? `${oc} obj${oc>1?"s":""}` : ""].filter(Boolean).join(" · ") || "no devices";
+      const sumTxt = [rc ? tn(rc, "{n} radio", "{n} radios") : "", oc ? tn(oc, "{n} obj", "{n} objs") : ""].filter(Boolean).join(" · ") || t("no devices");
       s += `<text x="${x + BW - 8}" y="${y + BH - 7}" text-anchor="end" fill="${color}77" font-size="10">${_esc(sumTxt)}</text>`;
     });
 
     // Unassigned radios row
     if(unassignedRadios.length){
       const uy = svgH + GAP;
-      s += `<text x="${PX}" y="${uy + 14}" fill="#94a3b8" font-size="12" font-weight="600">Radios not yet assigned to an HA area</text>`;
+      s += `<text x="${PX}" y="${uy + 14}" fill="#94a3b8" font-size="12" font-weight="600">${_esc(t("Radios not yet assigned to an HA area"))}</text>`;
       unassignedRadios.slice(0,6).forEach((r, ri) => {
         const rx = PX + 20 + ri * 140, ry = uy + 42;
-        const rName = (r.display_name || r.name || r.source || "Unknown").substring(0, 16);
+        const rName = (r.display_name || r.name || r.source || t("Unknown")).substring(0, 16);
         s += `<circle cx="${rx}" cy="${ry}" r="8" fill="none" stroke="#52b788" stroke-width="0.8" opacity="0.3"/>`;
         s += `<circle cx="${rx}" cy="${ry}" r="5" fill="none" stroke="#52b788" stroke-width="1"   opacity="0.6"/>`;
         s += `<circle cx="${rx}" cy="${ry}" r="3" fill="#52b78888"/>`;
         s += `<text x="${rx + 14}" y="${ry - 2}" fill="#52b788" font-size="10" font-weight="600">${_esc(rName)}</text>`;
-        s += `<text x="${rx + 14}" y="${ry + 12}" fill="#94a3b8" font-size="9">${_esc(r.display_name || r.name || r.source || "Unknown")}</text>`;
+        s += `<text x="${rx + 14}" y="${ry + 12}" fill="#94a3b8" font-size="9">${_esc(r.display_name || r.name || r.source || t("Unknown"))}</text>`;
       });
     }
 
@@ -3011,7 +3011,7 @@ export function renderClassic(ctx){
     const _remS = liveSnap.suspend_remaining_s ?? 0;
     const _mm = Math.floor(_remS / 60);
     const _ss = _remS % 60;
-    const _countdown = _remS > 0 ? `${_mm}:${String(_ss).padStart(2,"0")} remaining` : "ending soon";
+    const _countdown = _remS > 0 ? t("Raw radio only · {time} remaining", { time: `${_mm}:${String(_ss).padStart(2,"0")}` }) : t("Raw radio only · ending soon");
 
     if (!document.getElementById("padspan-suspend-flash-style")) {
       const _sty = document.createElement("style");
@@ -3026,17 +3026,17 @@ export function renderClassic(ctx){
     const cancelBtn = el("button",{style:
       "background:#991b1b;color:#fecaca;border:1px solid #b91c1c;border-radius:4px;" +
       "padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;margin-left:12px"
-    }, "Resume Normal");
+    }, t("Resume Normal"));
     cancelBtn.addEventListener("click", async () => {
-      cancelBtn.disabled = true; cancelBtn.textContent = "Resuming...";
+      cancelBtn.disabled = true; cancelBtn.textContent = t("Resuming...");
       try {
         const r = await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
-        if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); }
-        else ctx.toast("Normal pipeline resumed");
-      } catch(e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
+        if (r && r.ok === false) { ctx.toast(t("Not resumed: {why}", { why: r.error || t("try again in a moment") }), true); }
+        else ctx.toast(t("Normal pipeline resumed"));
+      } catch(e) { ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
       finally {
         // Left disabled after a failure, the only way back was a reload.
-        cancelBtn.disabled = false; cancelBtn.textContent = "Resume Normal";
+        cancelBtn.disabled = false; cancelBtn.textContent = t("Resume Normal");
       }
     });
 
@@ -3049,9 +3049,9 @@ export function renderClassic(ctx){
     },[
       el("span",{style:"font-size:16px;animation:padspan-suspend-dot 1s ease-in-out infinite"}, "\u26a0"),
       el("span",{style:"color:#fbbf24;font-weight:700;font-size:13px;letter-spacing:0.3px"},
-        "DATABASES SUSPENDED"),
+        t("DATABASES SUSPENDED")),
       el("span",{"data-suspend-countdown":"1",style:"color:#fde68a;font-size:12px;font-weight:400"},
-        "Raw radio only \u00b7 " + _countdown),
+        _countdown),
       cancelBtn,
     ]);
   };
@@ -3062,8 +3062,8 @@ export function renderClassic(ctx){
     const hdr = el("div",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
     const arrow = el("span",{style:"font-size:11px;color:#52b788;transition:transform .2s"},"\u25B6");
     hdr.appendChild(arrow);
-    hdr.appendChild(el("span",{style:"font-weight:700;font-size:13px;color:#52b788"},"Positioning Diagnostics"));
-    hdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"},"Tap to load"));
+    hdr.appendChild(el("span",{style:"font-weight:700;font-size:13px;color:#52b788"},t("Positioning Diagnostics")));
+    hdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"},t("Tap to load")));
     wrap.appendChild(hdr);
     const body = el("div",{style:"display:none;margin-top:8px"});
     wrap.appendChild(body);
@@ -3071,11 +3071,11 @@ export function renderClassic(ctx){
       const open = body.style.display !== "none";
       if (open) { body.style.display = "none"; arrow.style.transform = ""; return; }
       body.style.display = "block"; arrow.style.transform = "rotate(90deg)";
-      body.textContent = "Loading...";
+      body.textContent = t("Loading...");
       try {
         const res = await ctx.actions.wsCall("padspan_ha/positioning_diag");
         const devices = res.devices || [];
-        if (!devices.length) { body.textContent = "No labelled devices found."; return; }
+        if (!devices.length) { body.textContent = t("No labelled devices found."); return; }
         body.textContent = "";
         const pre = el("pre",{style:"font-size:11px;color:#e2e8f0;background:#071008;padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;user-select:all;cursor:text"});
         const lines = [];
@@ -3129,7 +3129,7 @@ export function renderClassic(ctx){
         }
         pre.textContent = lines.join("\n");
         body.appendChild(pre);
-        const copyBtn = el("button",{class:"btn",style:"margin-top:6px;font-size:11px;padding:4px 10px"},"Copy to Clipboard");
+        const copyBtn = el("button",{class:"btn",style:"margin-top:6px;font-size:11px;padding:4px 10px"},t("Copy to Clipboard"));
         copyBtn.addEventListener("click", () => {
           const text = pre.textContent;
           // Use textarea + execCommand as primary (works in HA shadow DOM)
@@ -3138,16 +3138,16 @@ export function renderClassic(ctx){
           ta.style.cssText = "position:fixed;left:-9999px;top:-9999px";
           document.body.appendChild(ta);
           ta.select();
-          try { document.execCommand("copy"); ctx.toast("Copied"); }
+          try { document.execCommand("copy"); ctx.toast(t("Copied")); }
           catch(e) {
             // Fallback: try clipboard API
-            navigator.clipboard.writeText(text).then(() => ctx.toast("Copied")).catch(() => ctx.toast("Copy failed — select text manually", true));
+            navigator.clipboard.writeText(text).then(() => ctx.toast(t("Copied"))).catch(() => ctx.toast(t("Copy failed — select text manually"), true));
           }
           document.body.removeChild(ta);
         });
         body.appendChild(copyBtn);
         // data loaded
-      } catch(e) { body.textContent = "Error: " + String(e); }
+      } catch(e) { body.textContent = t("Error: {why}", { why: ctx.helpers.errorText(e) }); }
     });
     return wrap;
   };
@@ -3157,15 +3157,15 @@ export function renderClassic(ctx){
     const summary = el("div",{class:"basic-summary"},[
       el("div",{style:"text-align:center"},[
         el("div",{class:"basic-summary-num"}, liveLoading ? "--" : String(roomsCount)),
-        el("div",{class:"basic-summary-lbl"}, "Rooms"),
+        el("div",{class:"basic-summary-lbl"}, t("Rooms")),
       ]),
       el("div",{style:"text-align:center"},[
         el("div",{class:"basic-summary-num"}, liveLoading ? "--" : String(objectsTotal)),
-        el("div",{class:"basic-summary-lbl"}, "Objects"),
+        el("div",{class:"basic-summary-lbl"}, t("Objects")),
       ]),
       el("div",{style:"text-align:center"},[
         el("div",{class:"basic-summary-num"}, liveLoading ? "--" : String(radiosCount)),
-        el("div",{class:"basic-summary-lbl"}, "Receivers"),
+        el("div",{class:"basic-summary-lbl"}, t("Receivers")),
       ]),
       (() => {
         const cs = liveSnap?.calibration_status;
@@ -3174,16 +3174,16 @@ export function renderClassic(ctx){
         const empty = cs.empty_points || 0;
         const usable = total - empty;
         const color = !usable ? "#f87171" : usable >= (cs.knn_min_required||5) ? "#52b788" : "#f59e0b";
-        const algoName = cs.positioning_algorithm === "rf" ? "Learned model" : "Calibration match";
-        const knnLabel = cs.store_initialized === false ? "Store not loaded" :
-          !cs.knn_active ? `Need ${(cs.knn_min_required||5) - usable} more` :
-          cs.knn_positioned_objects > 0 ? `${algoName} active (${cs.knn_positioned_objects})` : `${algoName} ready`;
+        const algoName = cs.positioning_algorithm === "rf" ? t("Learned model") : t("Calibration match");
+        const knnLabel = cs.store_initialized === false ? t("Store not loaded") :
+          !cs.knn_active ? t("Need {n} more", { n: (cs.knn_min_required||5) - usable }) :
+          cs.knn_positioned_objects > 0 ? t("{method} active ({n})", { method: algoName, n: cs.knn_positioned_objects }) : t("{method} ready", { method: algoName });
         const knnColor = cs.store_initialized === false ? "#f87171" :
           cs.knn_active && cs.knn_positioned_objects > 0 ? "#52b788" :
           cs.knn_active ? "#f59e0b" : "#94a3b8";
         return el("div",{style:"text-align:center"},[
           el("div",{class:"basic-summary-num",style:`color:${color}`}, liveLoading ? "--" : String(usable)),
-          el("div",{class:"basic-summary-lbl"}, "Cal pts"),
+          el("div",{class:"basic-summary-lbl"}, t("Cal pts")),
           el("div",{style:`font-size:10px;color:${knnColor};margin-top:2px`}, knnLabel),
         ]);
       })(),
@@ -3191,13 +3191,13 @@ export function renderClassic(ctx){
 
     const mapCard = el("div",{class:"card"},[
       el("div",{class:"card-head"},[
-        el("div",{class:"h2"}, "Your home"),
+        el("div",{class:"h2"}, t("Your home")),
         helpBtn("overview_grid"),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        dataMode === "live" ? "Live view · updates every 5s"
-          : !modeKnown ? "Connecting to Home Assistant…"
-          : "Sample data — switch to Live for your real home."),
+        dataMode === "live" ? t("Live view · updates every 5s")
+          : !modeKnown ? t("Connecting to Home Assistant…")
+          : t("Sample data — switch to Live for your real home.")),
     ]);
     if(mapEl) mapCard.appendChild(mapEl);
 
@@ -3316,10 +3316,10 @@ export function renderClassic(ctx){
                   ok.textContent = "\u2713 " + t("IRK saved — tracking will activate within 60 seconds");
                   irkRow.appendChild(ok);
                 } catch (err) {
-                  irkSaveBtn.textContent = "Error";
+                  irkSaveBtn.textContent = t("Error");
                   irkSaveBtn.style.color = "#f87171";
                   irkSaveBtn.style.borderColor = "#dc2626";
-                  const errMsg = (err && err.message) || String(err);
+                  const errMsg = ctx.helpers.errorText(err);
                   const errDiv = document.createElement("div");
                   errDiv.style.cssText = "font-size:10px;color:#f87171;width:100%;margin-top:2px";
                   errDiv.textContent = errMsg;
@@ -3327,8 +3327,8 @@ export function renderClassic(ctx){
                   irkSaveBtn.disabled = false;
                   // A phone asleep or away can't be checked against live traffic; the
                   // backend asks for "save unverified", which Retry never sent.
-                  if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }
-                  else irkSaveBtn.textContent = "Retry";
+                  if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = t("Save unverified"); }
+                  else irkSaveBtn.textContent = t("Retry");
                 }
               });
 
@@ -3376,12 +3376,12 @@ export function renderClassic(ctx){
                     meta.textContent = meta.textContent.replace(t("not tracked"), t("tracked"));
                     _setUnfollow();
                   } else {
-                    btn.textContent = "Error — retry";
+                    btn.textContent = t("Error — retry");
                     btn.style.color = "#f87171";
                     btn.disabled = false;
                   }
                 } catch (e) {
-                  btn.textContent = "Error — retry";
+                  btn.textContent = t("Error — retry");
                   btn.style.color = "#f87171";
                   btn.disabled = false;
                 }
@@ -3408,7 +3408,7 @@ export function renderClassic(ctx){
                   meta.textContent = meta.textContent.replace(t("tracked"), t("not tracked"));
                   _setTrack();
                 } catch (e) {
-                  btn.textContent = "Error";
+                  btn.textContent = t("Error");
                   btn.style.color = "#f87171";
                   btn.disabled = false;
                 }
@@ -3458,7 +3458,7 @@ export function renderClassic(ctx){
                   meta.textContent = phone.ibeacon_key ? t("Entity enabled & BLE command sent. Restart HA to complete.")
                     : t("Entity enabled. Restart HA, then turn on the BLE Transmitter in the Companion app (or follow the phone here).");
                 } catch (e) {
-                  btn.textContent = "Enable manually in HA";
+                  btn.textContent = t("Enable manually in HA");
                   btn.style.color = "#f59e0b";
                   btn.disabled = false;
                 }
@@ -3471,7 +3471,7 @@ export function renderClassic(ctx){
             row.appendChild(btn);
             _phoneBody.appendChild(row);
           }
-        } catch (e) { _bLoadMsg.textContent = "Phone discovery error: " + (e.message||e); _bLoadMsg.style.color = "#f87171"; }
+        } catch (e) { _bLoadMsg.textContent = t("Phone discovery error: {why}", { why: ctx.helpers.errorText(e) }); _bLoadMsg.style.color = "#f87171"; }
       })();
     } else {
       basicCompanionCard.style.display = "none";
@@ -3483,13 +3483,13 @@ export function renderClassic(ctx){
     bQuietToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ quiet_mode: bQuietToggle.checked });
-        ctx.toast(bQuietToggle.checked ? "Quiet mode on" : "Quiet mode off");
+        ctx.toast(bQuietToggle.checked ? t("Quiet mode on") : t("Quiet mode off"));
         ctx.actions.renderRooms();
-      } catch(e){ ctx.toast("Failed to save", true); }
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     const bQuietRow = el("div",{style:"display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:" + (_quietMode ? "#52b788" : "#64748b")},[
       bQuietToggle,
-      el("span",{style:"user-select:none"}, "Quiet"),
+      el("span",{style:"user-select:none"}, t("Quiet")),
     ]);
     bQuietRow.addEventListener("click", (e)=>{ if(e.target !== bQuietToggle){ bQuietToggle.checked = !bQuietToggle.checked; bQuietToggle.dispatchEvent(new Event("change")); } });
 
@@ -3497,7 +3497,7 @@ export function renderClassic(ctx){
       _buildSuspendBanner(),
       el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"},[
         el("div",{class:"row",style:"align-items:center;gap:8px"},[
-          el("h2",{style:"margin:0"}, "Overview"),
+          el("h2",{style:"margin:0"}, t("Overview")),
           helpBtn("overview"),
         ]),
         bQuietRow,
@@ -3516,49 +3516,49 @@ export function renderClassic(ctx){
   const grid = el("div",{class:"grid"},[
     el("div",{class:"card"},[
       el("div",{class:"kpi"},[
-        el("div",{class:"k"}, "Rooms"),
+        el("div",{class:"k"}, t("Rooms")),
         el("div",{class:"v"}, liveLoading ? "--" : String(roomsCount)),
       ]),
       el("div",{class:"row"},[
-        el("button",{class:"btn", style:"width:auto", onclick: openRoomsList}, "View rooms list"),
+        el("button",{class:"btn", style:"width:auto", onclick: openRoomsList}, t("View rooms list")),
       ])
     ]),
     el("div",{class:"card"},[
       el("div",{class:"kpi"},[
-        el("div",{class:"k"}, "Objects"),
+        el("div",{class:"k"}, t("Objects")),
         el("div",{class:"v"}, liveLoading ? "--" : String(objectsTotal)),
       ]),
       el("div",{class:"row"},[
-        el("button",{class:"btn", style:"width:auto", onclick: ()=>openObjectsList("all")}, _quietMode ? "Tracked objects" : "All objects"),
-        _quietMode ? null : el("button",{class:"btn", style:"width:auto", onclick: ()=>openObjectsList("unidentified")}, `Unidentified (${liveLoading ? "--" : unidentifiedCount})`),
+        el("button",{class:"btn", style:"width:auto", onclick: ()=>openObjectsList("all")}, _quietMode ? t("Tracked objects") : t("All objects")),
+        _quietMode ? null : el("button",{class:"btn", style:"width:auto", onclick: ()=>openObjectsList("unidentified")}, t("Unidentified ({n})", { n: liveLoading ? "--" : unidentifiedCount })),
       ].filter(Boolean)),
       unidentifiedCount > 0 ? el("div",{style:"margin-top:6px"},[
         el("button",{class:"btn inline",style:"font-size:11px;color:#f87171;border-color:#7f1d1d", onclick: async function(){
-          if(!confirm("Clear all unidentified objects? Tagged and followed devices will be kept.")) return;
-          this.disabled = true; this.textContent = "Clearing...";
+          if(!confirm(t("Clear all unidentified objects? Tagged and followed devices will be kept."))) return;
+          this.disabled = true; this.textContent = t("Clearing...");
           try {
             const r = await ctx.actions.wsCall("padspan_ha/objects_clear_history",{});
-            ctx.toast(`Cleared ${r.removed} object${r.removed!==1?"s":""}, kept ${r.kept} tagged/followed`);
+            ctx.toast(tn(r.removed, "Cleared {n} object, kept {kept} tagged/followed", "Cleared {n} objects, kept {kept} tagged/followed", { kept: r.kept }));
             await ctx.actions.refreshSnapshot();
-          } catch(e){ ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
-          this.disabled = false; this.textContent = "Clear unidentified";
-        }}, "Clear unidentified"),
+          } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+          this.disabled = false; this.textContent = t("Clear unidentified");
+        }}, t("Clear unidentified")),
       ]) : null,
     ]),
     el("div",{class:"card"},[
       el("div",{class:"kpi"},[
-        el("div",{class:"k"}, "Bluetooth radios"),
+        el("div",{class:"k"}, t("Bluetooth radios")),
         el("div",{class:"v"}, liveLoading ? "--" : String(radiosCount)),
       ]),
       (!liveLoading && radioModeLabel)
         ? el("div",{style:"margin-top:-2px;color:#94a3b8;font-size:12px",
-             title:"Active radios transmit scan requests and read the replies. Passive radios only listen. Set per device in Settings → Devices & Services → ESPHome → Configure."},
+             title:t("Active radios transmit scan requests and read the replies. Passive radios only listen. Set per device in Settings → Devices & Services → ESPHome → Configure.")},
             radioModeLabel)
         : null,
       el("div",{class:"row"},[
-        el("button",{class:"btn", style:"width:auto", onclick: openRadiosList}, "View radios list"),
+        el("button",{class:"btn", style:"width:auto", onclick: openRadiosList}, t("View radios list")),
       ]),
-      el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? "Live snapshot" : !modeKnown ? "Connecting to Home Assistant…" : "Sample data — switch to Live to see your real devices")
+      el("div",{style:"margin-top:8px;color:#94a3b8;font-size:12px"}, dataMode==="live" ? t("Live snapshot") : !modeKnown ? t("Connecting to Home Assistant…") : t("Sample data — switch to Live to see your real devices"))
     ]),
     // Calibration status card
     (() => {
@@ -3571,49 +3571,49 @@ export function renderClassic(ctx){
       const storeOk = cs.store_initialized !== false;
       const knnPos = cs.knn_positioned_objects || 0;
       const color = !storeOk ? "#f87171" : !total ? "#f87171" : empty > 0 ? "#f59e0b" : ready ? "#52b788" : "#f59e0b";
-      const algoLabel = cs.positioning_algorithm === "rf" ? "Learned model" : "Matched to calibration points";
-      const algoTech = cs.positioning_algorithm === "rf" ? "Random Forest" : "k-NN (k-nearest neighbours)";
-      const statusText = !storeOk ? "Store not loaded (restart HA)" :
-        !total ? "No data" : !ready ? `Need ${(cs.knn_min_required||5) - usable} more` :
-        knnPos > 0 ? `${algoLabel} — ${knnPos} objects positioned` : `${algoLabel} — ready (no objects matched yet)`;
+      const algoLabel = cs.positioning_algorithm === "rf" ? t("Learned model") : t("Matched to calibration points");
+      const algoTech = cs.positioning_algorithm === "rf" ? "Random Forest" : t("k-NN (k-nearest neighbours)");
+      const statusText = !storeOk ? t("Store not loaded (restart HA)") :
+        !total ? t("No data") : !ready ? t("Need {n} more", { n: (cs.knn_min_required||5) - usable }) :
+        knnPos > 0 ? tn(knnPos, "{method} — {n} object positioned", "{method} — {n} objects positioned", { method: algoLabel }) : t("{method} — ready (no objects matched yet)", { method: algoLabel });
       const parts = [];
-      if (cs.manual_points > 0) parts.push(`${cs.manual_points} manual`);
-      if (cs.auto_points > 0) parts.push(`${cs.auto_points} auto`);
-      if (empty > 0) parts.push(`${empty} empty (no RSSI)`);
+      if (cs.manual_points > 0) parts.push(t("{n} manual", { n: cs.manual_points }));
+      if (cs.auto_points > 0) parts.push(t("{n} auto", { n: cs.auto_points }));
+      if (empty > 0) parts.push(t("{n} empty (no RSSI)", { n: empty }));
       return el("div",{class:"card"},[
         el("div",{class:"kpi"},[
-          el("div",{class:"k"}, "Calibration"),
-          el("div",{class:"v",style:`color:${color}`}, `${usable} pts`),
+          el("div",{class:"k"}, t("Calibration")),
+          el("div",{class:"v",style:`color:${color}`}, t("{n} pts", { n: usable })),
         ]),
         el("div",{style:"font-size:11px;color:#94a3b8;margin-top:4px"},
-          parts.join(" · ") + (cs.scanners ? ` · ${cs.scanners} scanners` : "") + (cs.maps ? ` · ${cs.maps} maps` : "")),
+          parts.join(" · ") + (cs.scanners ? " · " + tn(cs.scanners, "{n} scanner", "{n} scanners") : "") + (cs.maps ? " · " + tn(cs.maps, "{n} map", "{n} maps") : "")),
         el("div",{style:`font-size:11px;margin-top:4px;color:${color}`,title:algoTech},
-          `Positioning: ${statusText}`),
+          t("Positioning: {status}", { status: statusText })),
         !storeOk ? el("div",{style:"font-size:11px;margin-top:4px;color:#f87171;font-weight:600"},
-          "CalibrationStore was not loaded at startup. Restart Home Assistant to turn on positioning from calibration points.") : null,
+          t("CalibrationStore was not loaded at startup. Restart Home Assistant to turn on positioning from calibration points.")) : null,
         empty > 0 ? el("div",{style:"font-size:11px;margin-top:4px;color:#f59e0b"},
-          `${empty} point(s) have no RSSI data — re-calibrate to fix`) : null,
+          tn(empty, "{n} point has no RSSI data — re-calibrate to fix", "{n} points have no RSSI data — re-calibrate to fix")) : null,
         // k-NN diagnostic: collapsible
         cs.source_overlap !== undefined ? (() => {
           const diagWrap = el("div",{style:"font-size:10px;margin-top:6px;padding:6px;background:#071008;border:1px solid #1b3526;border-radius:4px;color:#94a3b8"});
           const diagHdr = el("div",{style:"display:flex;align-items:center;gap:6px;cursor:pointer"});
           const diagArrow = el("span",{style:"font-size:10px;color:#52b788;transition:transform .2s"}, "\u25B6");
           diagHdr.appendChild(diagArrow);
-          diagHdr.appendChild(el("span",{style:"font-weight:600;color:#e2e8f0"}, `${algoLabel}: details`));
+          diagHdr.appendChild(el("span",{style:"font-weight:600;color:#e2e8f0"}, t("{method}: details", { method: algoLabel })));
           diagWrap.appendChild(diagHdr);
           const diagBody = el("div",{style:"display:none;margin-top:4px"});
-          diagBody.appendChild(el("div",{}, `Cal sources: ${(cs.cal_sources||[]).length} · Live signal sources: ${(cs.ema_sources||[]).length} · Overlap: ${cs.source_overlap}`));
+          diagBody.appendChild(el("div",{}, t("Cal sources: {cal} · Live signal sources: {live} · Overlap: {both}", { cal: (cs.cal_sources||[]).length, live: (cs.ema_sources||[]).length, both: cs.source_overlap })));
           if (cs.source_overlap === 0) diagBody.appendChild(el("div",{style:"color:#f87171;font-weight:600;margin-top:3px"},
-            "No scanner overlap between calibration data and live objects — cannot match!"));
+            t("No scanner overlap between calibration data and live objects — cannot match!")));
           if (cs.source_overlap === 0 && (cs.cal_sources||[]).length > 0 && (cs.ema_sources||[]).length > 0)
             diagBody.appendChild(el("div",{style:"color:#f59e0b;margin-top:3px"},
               `Cal: ${(cs.cal_sources||[]).slice(0,3).join(", ")} · Live: ${(cs.ema_sources||[]).slice(0,3).join(", ")}`));
           (cs.knn_diag||[]).forEach(d => {
             diagBody.appendChild(el("div",{style:"margin-top:3px;border-top:1px solid #1b3526;padding-top:3px"}, [
-              el("div",{}, `${d.key}: ${d.ema_scanners} smoothed, ${d.shared_with_cal} overlap cal`),
+              el("div",{}, t("{key}: {n} smoothed, {shared} overlap cal", { key: d.key, n: d.ema_scanners, shared: d.shared_with_cal })),
               d.knn_result ? el("div",{style:"color:#52b788"},
                 `→ conf=${(d.knn_result.confidence*100).toFixed(0)}% room=${d.knn_result.room} k=${d.knn_result.k_used} shared=${d.knn_result.shared_scanners||"?"}`) :
-                el("div",{style:"color:#f87171"}, d.shared_with_cal > 0 ? "→ locate returned null" : "→ no shared scanners"),
+                el("div",{style:"color:#f87171"}, "→ " + (d.shared_with_cal > 0 ? t("locate returned null") : t("no shared scanners"))),
             ]));
           });
           diagWrap.appendChild(diagBody);
@@ -3742,18 +3742,18 @@ export function renderClassic(ctx){
                 ok.textContent = "\u2713 " + t("IRK saved — tracking will activate within 60 seconds");
                 irkRow.appendChild(ok);
               } catch (err) {
-                irkSaveBtn.textContent = "Error";
+                irkSaveBtn.textContent = t("Error");
                 irkSaveBtn.style.color = "#f87171";
                 irkSaveBtn.style.borderColor = "#dc2626";
                 const errDiv = document.createElement("div");
                 errDiv.style.cssText = "font-size:10px;color:#f87171;width:100%;margin-top:2px";
-                errDiv.textContent = (err && err.message) || String(err);
+                errDiv.textContent = ctx.helpers.errorText(err);
                 irkRow.appendChild(errDiv);
                 irkSaveBtn.disabled = false;
                 // A phone asleep or away can't be checked against live traffic; the
                   // backend asks for "save unverified", which Retry never sent.
-                  if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }
-                  else irkSaveBtn.textContent = "Retry";
+                  if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = t("Save unverified"); }
+                  else irkSaveBtn.textContent = t("Retry");
               }
             });
             irkRow.appendChild(addIrkBtn);
@@ -3814,9 +3814,9 @@ export function renderClassic(ctx){
                 meta.textContent = phone.ibeacon_key ? t("Entity enabled & BLE command sent. Restart Home Assistant to complete setup.")
                   : t("Entity enabled. Restart Home Assistant, then turn on the BLE Transmitter in the Companion app (or follow the phone here).");
               } catch (e) {
-                enableBtn.textContent = "Enable manually";
+                enableBtn.textContent = t("Enable manually");
                 enableBtn.disabled = false;
-                meta.textContent = `Go to HA → Settings → Devices → ${phone.device_name} → Entities → BLE Transmitter → Enable`;
+                meta.textContent = t("Go to HA → Settings → Devices → {name} → Entities → BLE Transmitter → Enable", { name: phone.device_name });
               }
             });
             row.appendChild(enableBtn);
@@ -3904,14 +3904,14 @@ export function renderClassic(ctx){
                     meta.textContent = t("Tagged as \"{label}\" · BLE transmitter is OFF. Enable it in Companion App → Settings → Manage Sensors → BLE Transmitter.", { label: r.verified_label });
                   }
                 } else {
-                  btn.textContent = "Error saving — retry";
+                  btn.textContent = t("Error saving — retry");
                   btn.style.cssText = "font-size:12px;padding:4px 14px;color:#f87171;border-color:#7f1d1d;font-weight:600";
                   btn.disabled = false;
                 }
                 // Refresh to update map + follow view
                 setTimeout(() => ctx.actions.renderRooms(), 1500);
               } catch (e) {
-                btn.textContent = "Error — try again";
+                btn.textContent = t("Error — try again");
                 btn.style.color = "#f87171";
                 btn.disabled = false;
               }
@@ -3928,7 +3928,7 @@ export function renderClassic(ctx){
           t("Not seeing your phone? Open Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. The phone will appear here once the transmitter is active."));
         _aPhoneBody.appendChild(helpNote);
       } catch (e) {
-        _aLoadMsg.textContent = "Phone discovery error: " + (e.message||e);
+        _aLoadMsg.textContent = t("Phone discovery error: {why}", { why: ctx.helpers.errorText(e) });
         _aLoadMsg.style.color = "#f87171";
       }
     })();
@@ -3942,13 +3942,13 @@ export function renderClassic(ctx){
   quietToggle.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({ quiet_mode: quietToggle.checked });
-      ctx.toast(quietToggle.checked ? "Quiet mode on" : "Quiet mode off");
+      ctx.toast(quietToggle.checked ? t("Quiet mode on") : t("Quiet mode off"));
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed to save", true); }
+    } catch(e){ ctx.toast(t("Failed to save"), true); }
   });
   const quietRow = el("div",{style:"display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:" + (_quietMode ? "#52b788" : "#64748b")},[
     quietToggle,
-    el("span",{style:"user-select:none"}, "Quiet"),
+    el("span",{style:"user-select:none"}, t("Quiet")),
   ]);
   quietRow.addEventListener("click", (e)=>{ if(e.target !== quietToggle){ quietToggle.checked = !quietToggle.checked; quietToggle.dispatchEvent(new Event("change")); } });
 
@@ -3956,12 +3956,12 @@ export function renderClassic(ctx){
     _buildSuspendBanner(),
     el("div",{style:"display:flex;align-items:center;justify-content:space-between"},[
       el("div",{class:"row",style:"align-items:center;gap:8px"},[
-        el("h2",{style:"margin:0"}, "Overview"),
+        el("h2",{style:"margin:0"}, t("Overview")),
         helpBtn("overview"),
       ]),
       quietRow,
     ]),
-    el("div",{style:"color:#94a3b8;margin-top:2px;margin-bottom:10px"}, `Mode: ${modeKnown ? dataMode.toUpperCase() : "…"} · ${ctx.state.versionInfo?.version || ""} (${ctx.state.versionInfo?.build_id || ""})`),
+    el("div",{style:"color:#94a3b8;margin-top:2px;margin-bottom:10px"}, t("Mode: {mode}", { mode: modeKnown ? (dataMode === "live" ? t("Live") : t("Sample")).toUpperCase() : "…" }) + ` · ${ctx.state.versionInfo?.version || ""} (${ctx.state.versionInfo?.build_id || ""})`),
     sampleBanner,
     whosWhere,
     _buildDiagPanel(),
@@ -3992,47 +3992,46 @@ export function renderClassic(ctx){
     occCard.addEventListener("mouseenter",()=>{occCard.style.borderColor="#5eead4";});
     occCard.addEventListener("mouseleave",()=>{occCard.style.borderColor="#5eead433";});
     occCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:baseline;gap:8px"},[
-      el("span",{style:"font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8"},"People in building"),
-      el("span",{style:"font-size:10px;color:#5eead4;white-space:nowrap"},"Details ›"),
+      el("span",{style:"font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8"},t("People in building")),
+      el("span",{style:"font-size:10px;color:#5eead4;white-space:nowrap"},t("Details ›")),
     ]));
     const occNum = el("span",{style:"font-weight:800;font-size:26px;line-height:1;color:#5eead4"},"…");
     const occUnit = el("span",{style:"font-size:12px;color:#94a3b8"},"");
     const occBadge = el("span",{style:"display:none;font-size:10px;padding:1px 6px;border-radius:10px;background:#0a2a2a;border:1px solid #5eead433;color:#5eead4;white-space:nowrap"});
     occCard.appendChild(el("div",{style:"display:flex;align-items:baseline;gap:8px;margin-top:2px"},[occNum,occUnit,occBadge]));
-    const occWho = el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px;line-height:1.4"},"Loading…");
+    const occWho = el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px;line-height:1.4"},t("Loading…"));
     const occWhy = el("div",{style:"font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.4"},"");
     occCard.appendChild(occWho);
     occCard.appendChild(occWhy);
     section.appendChild(occCard);
 
-    const _plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const _fill = (res) => {
       // No estimate in the answer (an older backend, a failed read): a dash, never "undefined".
       const n = Number.isFinite(res.total_estimate) ? res.total_estimate : null;
       const col = n === null ? "#94a3b8" : _confColor(res.confidence);
       const ev = res.evidence || {};
       occNum.textContent = n === null ? "–" : String(n); occNum.style.color = col;
-      occUnit.textContent = n === 1 ? "person" : "people";
+      occUnit.textContent = n === 1 ? t("person") : t("people");
       if (n !== null && res.total_low !== res.total_high) {
         occBadge.textContent = `${res.total_low}–${res.total_high}`;
-        occBadge.title = "possible range";
+        occBadge.title = t("possible range");
         occBadge.style.display = ""; occBadge.style.borderColor = col + "44"; occBadge.style.color = col;
       } else {
         occBadge.style.display = "none";
       }
       // Who: every counted person, with a room when something places them.
       const who = (res.people || []).map(p => p.kind === "known"
-        ? p.name + (p.room ? ` · ${p.room}${p.assumed ? " (assumed)" : ""}` : "")
-        : `+1 ${p.name === "Someone" ? "someone" : "unknown phone"}` + (p.room ? ` · ${p.room}` : ""));
-      occWho.textContent = who.length ? who.join("  •  ") : "Nobody home";
+        ? p.name + (p.room ? ` · ${p.room}${p.assumed ? " " + t("(assumed)") : ""}` : "")
+        : "+1 " + (p.name === "Someone" ? t("someone") : t("unknown phone")) + (p.room ? ` · ${p.room}` : ""));
+      occWho.textContent = who.length ? who.join("  •  ") : t("Nobody home");
       // Why: the evidence that was weighed — not addends.
       const why = [];
-      if ((ev.persons_unlocated || []).length) why.push(`${ev.persons_unlocated.join(", ")} not placed by a device`);
-      if (ev.phone_clusters) why.push(_plural(ev.phone_clusters, "phone heard", "phones heard"));
+      if ((ev.persons_unlocated || []).length) why.push(t("{names} not placed by a device", { names: ev.persons_unlocated.join(", ") }));
+      if (ev.phone_clusters) why.push(tn(ev.phone_clusters, "{n} phone heard", "{n} phones heard"));
       const rooms = (ev.occupancy_rooms || []).concat((ev.motion_rooms || []).filter(r => !(ev.occupancy_rooms || []).includes(r)));
-      if (rooms.length) why.push(`sensors: ${rooms.join(", ")}`);
-      if ((ev.things_seen || []).length) why.push(_plural(ev.things_seen.length, "tagged thing seen, not a person", "tagged things seen, not people"));
-      occWhy.textContent = why.join(" · ") || (res.hybrid_enabled === false ? "phones only — hybrid off" : "no sensors active");
+      if (rooms.length) why.push(t("sensors: {rooms}", { rooms: rooms.join(", ") }));
+      if ((ev.things_seen || []).length) why.push(tn(ev.things_seen.length, "{n} tagged thing seen, not a person", "{n} tagged things seen, not people"));
+      occWhy.textContent = why.join(" · ") || (res.hybrid_enabled === false ? t("phones only — hybrid off") : t("no sensors active"));
     };
 
     // Async load
@@ -4041,7 +4040,7 @@ export function renderClassic(ctx){
         _fill(await ctx.actions.callWS({type:"padspan_ha/occupancy_estimate"}));
       } catch(e) {
         occNum.textContent = "—"; occNum.style.color = "#64748b"; occUnit.textContent = "";
-        occWho.textContent = "Unavailable"; occWhy.textContent = String(e.message || e);
+        occWho.textContent = t("Unavailable"); occWhy.textContent = ctx.helpers.errorText(e);
       }
     })();
 
@@ -4052,99 +4051,100 @@ export function renderClassic(ctx){
         const col = _confColor(res.confidence);
         const ev = res.evidence || {};
         const body = el("div",{style:"max-width:520px"});
-        const H = t => el("div",{style:"font-weight:700;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px"},t);
+        const H = (txt) => el("div",{style:"font-weight:700;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px"},txt);
 
         body.appendChild(el("div",{style:"display:flex;align-items:baseline;gap:10px"},[
           el("div",{style:`font-weight:800;font-size:28px;color:${col}`},String(res.total_estimate)),
           el("div",{},[
-            el("div",{style:"font-size:13px;color:#e2e8f0"},`${res.total_estimate === 1 ? "person" : "people"} in the building`),
+            el("div",{style:"font-size:13px;color:#e2e8f0"},res.total_estimate === 1 ? t("person in the building") : t("people in the building")),
             el("div",{style:"font-size:11px;color:#94a3b8"},
-              (res.total_low !== res.total_high ? `possibly ${res.total_low}–${res.total_high} · ` : "") + `confidence ${res.confidence}`),
+              (res.total_low !== res.total_high ? t("possibly {low}–{high}", { low: res.total_low, high: res.total_high }) + " · " : "")
+                + t("confidence {level}", { level: ({ high: t("high"), medium: t("medium"), low: t("low") })[res.confidence] || res.confidence })),
           ]),
         ]));
 
-        body.appendChild(H("Counted"));
-        if (!(res.people || []).length) body.appendChild(el("div",{style:"font-size:12px;color:#64748b"},"Nobody"));
+        body.appendChild(H(t("Counted")));
+        if (!(res.people || []).length) body.appendChild(el("div",{style:"font-size:12px;color:#64748b"},t("Nobody")));
         for (const p of res.people || []) {
           body.appendChild(el("div",{style:"display:flex;gap:8px;font-size:12px;align-items:baseline;flex-wrap:wrap"},[
             el("span",{style:`color:${p.kind === "known" ? "#52b788" : "#f59e0b"};font-weight:600;min-width:110px`},
               p.name + ((p.aliases || []).length ? ` (${p.aliases.join(", ")})` : "")),
-            el("span",{style:"color:#e2e8f0"},(p.room || "not placed") + (p.assumed ? " (assumed)" : "")),
+            el("span",{style:"color:#e2e8f0"},(p.room || t("not placed")) + (p.assumed ? " " + t("(assumed)") : "")),
             el("span",{style:"color:#64748b;font-size:11px"},p.via || ""),
           ]));
         }
 
         if ((res.rooms || []).length) {
-          body.appendChild(H("Rooms with evidence"));
+          body.appendChild(H(t("Rooms with evidence")));
           const tbl = el("div",{style:"display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:11px;align-items:baseline"});
           for (const r of res.rooms) {
             const rc = ctx.helpers.roomColor ? ctx.helpers.roomColor(r.room) : "#5eead4";
             const chips = [];
             if ((r.people || []).length) chips.push(r.people.join(", "));
-            if (r.phones) chips.push(_plural(r.phones, "phone", "phones"));
-            if (r.occupancy) chips.push("occupancy");
-            if (r.motion) chips.push("motion");
+            if (r.phones) chips.push(tn(r.phones, "{n} phone", "{n} phones"));
+            if (r.occupancy) chips.push(t("occupancy"));
+            if (r.motion) chips.push(t("motion"));
             tbl.appendChild(el("div",{style:`color:${rc};font-weight:600`},r.room));
             tbl.appendChild(el("div",{style:"color:#94a3b8;text-align:right"},chips.join(" · ")));
           }
           body.appendChild(tbl);
         }
 
-        body.appendChild(H("How"));
+        body.appendChild(H(t("How")));
         const unacc = ev.unaccounted_rooms || [];
         const how = [
-          `${_plural(res.known || 0, "known person", "known people")} home` +
-            ((ev.persons_unlocated || []).length ? ` — ${ev.persons_unlocated.join(", ")} not placed by a device` : ""),
-          `${_plural(ev.phone_clusters || 0, "unclaimed phone", "unclaimed phones")} heard` +
-            (ev.phone_addresses ? ` (${_plural(ev.phone_addresses, "rotating address", "rotating addresses")})` : ""),
-          `${_plural(unacc.length, "sensed room", "sensed rooms")} with nobody placed` + (unacc.length ? `: ${unacc.join(", ")}` : ""),
-          `→ ${_plural(res.unknown || 0, "unknown person", "unknown people")} beyond the known`,
+          tn(res.known || 0, "{n} known person home", "{n} known people home") +
+            ((ev.persons_unlocated || []).length ? " — " + t("{names} not placed by a device", { names: ev.persons_unlocated.join(", ") }) : ""),
+          tn(ev.phone_clusters || 0, "{n} unclaimed phone heard", "{n} unclaimed phones heard") +
+            (ev.phone_addresses ? " (" + tn(ev.phone_addresses, "{n} rotating address", "{n} rotating addresses") + ")" : ""),
+          tn(unacc.length, "{n} sensed room with nobody placed", "{n} sensed rooms with nobody placed") + (unacc.length ? `: ${unacc.join(", ")}` : ""),
+          "→ " + tn(res.unknown || 0, "{n} unknown person beyond the known", "{n} unknown people beyond the known"),
         ];
-        if ((ev.stuck_sensors || []).length) how.push(`ignored, held on for over an hour: ${ev.stuck_sensors.join(", ")}`);
+        if ((ev.stuck_sensors || []).length) how.push(t("ignored, held on for over an hour: {list}", { list: ev.stuck_sensors.join(", ") }));
         for (const line of how) body.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5"},line));
 
         if ((ev.things_seen || []).length) {
-          body.appendChild(H(`Seen, not people (${ev.things_seen.length})`));
+          body.appendChild(H(t("Seen, not people ({n})", { n: ev.things_seen.length })));
           body.appendChild(el("div",{style:"font-size:11px;color:#64748b;line-height:1.5"},
-            ev.things_seen.map(t => t.label + (t.room ? ` · ${t.room}` : "")).join("  •  ")));
+            ev.things_seen.map(th => th.label + (th.room ? ` · ${th.room}` : "")).join("  •  ")));
         }
 
         body.appendChild(el("div",{style:"margin-top:12px;font-size:10px;color:#64748b"},
-          `Training: ${res.training_count} obs · Hybrid: ${res.hybrid_enabled === false ? "off" : "on"}`));
+          t("Training: {n} obs · Hybrid: {state}", { n: res.training_count, state: res.hybrid_enabled === false ? t("off") : t("on") })));
 
         // Training input
         body.appendChild(el("div",{style:"margin-top:12px;padding-top:12px;border-top:1px solid #1b3526"}));
-        body.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#5eead4;margin-bottom:6px"},"🎯 Record the real count"));
+        body.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#5eead4;margin-bottom:6px"},"🎯 " + t("Record the real count")));
         body.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin-bottom:8px"},
-          "Enter how many people are actually in the building right now. It is stored beside what the estimate said, so the two can be compared."));
+          t("Enter how many people are actually in the building right now. It is stored beside what the estimate said, so the two can be compared.")));
         const trainRow = el("div",{style:"display:flex;align-items:center;gap:8px"});
         const trainInput = document.createElement("input");
         trainInput.type="number";trainInput.min="0";trainInput.max="500";trainInput.step="1";
-        trainInput.placeholder="people";
+        trainInput.placeholder=t("people");
         trainInput.style.cssText="width:80px;padding:4px 8px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:12px";
-        trainRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Actual count:"));
+        trainRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},t("Actual count:")));
         trainRow.appendChild(trainInput);
         const trainBtn = el("button",{class:"btn save-pulse",style:"width:auto;padding:4px 14px;font-size:11px"});
-        trainBtn.textContent = "💾 Save";
+        trainBtn.textContent = "💾 " + t("Save");
         trainBtn.addEventListener("click", async () => {
           const v = parseInt(trainInput.value);
-          if (isNaN(v) || v < 0) { ctx.toast("Enter a valid count"); return; }
-          trainBtn.disabled = true; trainBtn.textContent = "Saving…"; trainBtn.classList.remove("save-pulse");
+          if (isNaN(v) || v < 0) { ctx.toast(t("Enter a valid count")); return; }
+          trainBtn.disabled = true; trainBtn.textContent = t("Saving…"); trainBtn.classList.remove("save-pulse");
           try {
             const tr = await ctx.actions.callWS({type:"padspan_ha/occupancy_train",actual_count:v});
-            ctx.toast(`Saved: actual ${v}, estimate said ${tr.observation.estimated} (${tr.total_observations} observations)`);
-            trainBtn.textContent = "✔ Saved";
+            ctx.toast(t("Saved: actual {actual}, estimate said {est} ({n} observations)", { actual: v, est: tr.observation.estimated, n: tr.total_observations }));
+            trainBtn.textContent = "✔ " + t("Saved");
           } catch(e) {
-            ctx.toast("Save failed: "+ctx.helpers.errorText(e));
-            trainBtn.disabled=false; trainBtn.textContent="Save"; trainBtn.classList.add("save-pulse");
+            ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }));
+            trainBtn.disabled=false; trainBtn.textContent=t("Save"); trainBtn.classList.add("save-pulse");
           }
         });
         trainRow.appendChild(trainBtn);
         body.appendChild(trainRow);
 
-        ctx.actions.openModal("People in building", body, res.hybrid_enabled === false ? "Phones only — hybrid counting is off" : "People, not devices");
+        ctx.actions.openModal(t("People in building"), body, res.hybrid_enabled === false ? t("Phones only — hybrid counting is off") : t("People, not devices"));
       } catch(e) {
-        ctx.toast("Failed to load occupancy: "+ctx.helpers.errorText(e));
+        ctx.toast(t("Failed to load occupancy: {why}", { why: ctx.helpers.errorText(e) }));
       }
     });
   }

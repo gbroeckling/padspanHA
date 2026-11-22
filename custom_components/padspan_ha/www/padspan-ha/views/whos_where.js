@@ -22,6 +22,8 @@
 // the way the static room grid does.
 
 const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // A receiver's room, picked where this card says it has none.
 const RR = await import(`./receiver_room.js${new URL(import.meta.url).search}`).catch(() => null);
 const okRoom = (r) => typeof r === "string" && r !== "" && r !== "unknown" && r !== "not_home";
@@ -47,10 +49,12 @@ export function scannersOf(snap){
 export function scannerLine(scanners){
   const n = scanners.length;
   const areas = new Set(scanners.map(s => s.area).filter(Boolean)).size;
-  if (!n) return { tone: "none", text: "No Bluetooth receivers found yet. Add an ESPHome Bluetooth proxy (or use your Home Assistant machine's own Bluetooth) and it shows up here within a minute." };
-  if (!areas) return { tone: "warn", text: `${n === 1 ? "Your receiver has no" : `None of your ${n} receivers has a`} Home Assistant area yet, so PadSpan can tell home from away but not rooms. Give each receiver the area it's in.` };
-  if (areas === 1) return { tone: "ok", text: `Your ${n === 1 ? "receiver covers" : `${n} receivers cover`} one room, so you get home or away. Put one in each room you want told apart.` };
-  return { tone: "ok", text: `Your ${n} receivers cover ${areas} rooms. Each device goes to the room whose receiver hears it best. With three or more placed on a floor plan, PadSpan can also place devices between them, even in rooms with no receiver of their own.` };
+  if (!n) return { tone: "none", text: t("No Bluetooth receivers found yet. Add an ESPHome Bluetooth proxy (or use your Home Assistant machine's own Bluetooth) and it shows up here within a minute.") };
+  if (!areas) return { tone: "warn", text: tn(n, "Your receiver has no Home Assistant area yet, so PadSpan can tell home from away but not rooms. Give each receiver the area it's in.",
+    "None of your {n} receivers has a Home Assistant area yet, so PadSpan can tell home from away but not rooms. Give each receiver the area it's in.") };
+  if (areas === 1) return { tone: "ok", text: tn(n, "Your receiver covers one room, so you get home or away. Put one in each room you want told apart.",
+    "Your {n} receivers cover one room, so you get home or away. Put one in each room you want told apart.") };
+  return { tone: "ok", text: t("Your {n} receivers cover {areas} rooms. Each device goes to the room whose receiver hears it best. With three or more placed on a floor plan, PadSpan can also place devices between them, even in rooms with no receiver of their own.", { n, areas }) };
 }
 
 /** Rooms and who is in them, for a snapshot's objects:
@@ -87,7 +91,7 @@ export function whoIsWhere(snap, scanners, opts = {}){
     const phone = !known && o.kind === "private_ble" && o.private_ble_name;
     const r = okRoom(o.room) ? roomOf(o.room) : (known || phone) ? noRoom : null;
     if (!r) continue;
-    if (known) r.people.push({ name: String(deviceName(o, "a device")), key, track: false });
+    if (known) r.people.push({ name: String(deviceName(o, t("a device"))), key, track: false });
     else if (phone) r.people.push({ name: String(o.private_ble_name), key, track: true });
     else r.others += 1;
   }
@@ -104,7 +108,7 @@ export function followedObj(o, followedHas){
   return [o && o.address, o && o.entity_id, o && o.key, o && o.canonical_id].some(k => k && followedHas(k));
 }
 
-const othersText = (n) => `${n} other Bluetooth device${n === 1 ? "" : "s"}`;
+const othersText = (n) => tn(n, "{n} other Bluetooth device", "{n} other Bluetooth devices");
 
 /** Phones in Private BLE Device that no one tracks yet and that aren't heard
  *  right now (the snapshot only holds phones in range): [{name, key}]. */
@@ -114,7 +118,7 @@ export function phonesNotHeard(devices, labels, heardKeys, followed){
   return (devices || [])
     .filter(d => d && d.canonical_id && d.source === "private_ble_device")
     .filter(d => !lab.has(up(d.canonical_id)) && !heard.has(up(d.canonical_id)) && !(followed && followed(d.canonical_id)))
-    .map(d => ({ name: String(d.name || "Phone"), key: d.canonical_id }))
+    .map(d => ({ name: String(d.name || t("Phone")), key: d.canonical_id }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -132,8 +136,8 @@ export function whosWhereCard(ctx){
 
   const card = el("div", { class: "card", style: "border-color:#2d6a4f;margin-bottom:10px", "data-whos-where": "1" });
   card.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:10px;flex-wrap:wrap" }, [
-    el("div", { class: "h2", style: "margin:0" }, "Who's where now"),
-    el("span", { class: "muted", style: "font-size:12px" }, "From your Bluetooth receivers and the Home Assistant area each one is in. No floor plan needed."),
+    el("div", { class: "h2", style: "margin:0" }, t("Who's where now")),
+    el("span", { class: "muted", style: "font-size:12px" }, t("From your Bluetooth receivers and the Home Assistant area each one is in. No floor plan needed.")),
     ctx.helpers.helpBtn ? ctx.helpers.helpBtn("whos_where") : null,
   ].filter(Boolean)));
   const lineEl = el("div", { style: "font-size:12px;margin:8px 0" });
@@ -151,22 +155,22 @@ export function whosWhereCard(ctx){
   const canTrack = !(ctx.state.settings?.enhanced_security === true && ctx.hass?.user?.is_admin === false);
   const track = async (btn, p) => {
     btn.disabled = true;
-    btn.textContent = "Tracking…";
+    btn.textContent = t("Tracking…");
     try {
       await ctx.actions.wsCall("padspan_ha/object_label_set", { address: p.key, label: p.name });
       // Before the toggle: it redraws at once, and the new card must re-read.
       ctx.state._whosWherePhones = null;
       if (!ctx.actions.followedHas(p.key)) ctx.actions.followedToggle(p.key);
-      ctx.toast(`Tracking ${p.name}: it now has its own room and home/away sensors in Home Assistant.`);
+      ctx.toast(t("Tracking {name}: it now has its own room and home/away sensors in Home Assistant.", { name: p.name }));
     } catch (e) {
       btn.disabled = false;
-      btn.textContent = "Track";
-      ctx.toast(`Couldn't track ${p.name}: ${ctx.helpers.errorText(e)}`, true);
+      btn.textContent = t("Track");
+      ctx.toast(t("Couldn't track {name}: {why}", { name: p.name, why: ctx.helpers.errorText(e) }), true);
     }
   };
   const trackBtn = (p) => {
     if (!canTrack) return null;
-    const b = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px;margin-left:4px", title: "Name it in PadSpan and follow it: room and home/away sensors in Home Assistant" }, "Track");
+    const b = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px;margin-left:4px", title: t("Name it in PadSpan and follow it: room and home/away sensors in Home Assistant") }, t("Track"));
     b.addEventListener("click", () => track(b, p));
     return b;
   };
@@ -212,15 +216,16 @@ export function whosWhereCard(ctx){
     lineEl.style.color = line.tone === "ok" ? "#cbd5e1" : "#fbbf24";
     const noArea = scanners.filter(x => !x.area);
     if (noArea.length && noArea.length < scanners.length) {
-      lineEl.textContent += ` ${noArea.length === 1 ? "One receiver has" : `${noArea.length} receivers have`} no Home Assistant area yet, so ${noArea.length === 1 ? "it gives" : "they give"} no room: ${noArea.map(x => x.name).join(", ")}.`;
+      lineEl.textContent += " " + tn(noArea.length, "One receiver has no Home Assistant area yet, so it gives no room: {names}.",
+        "{n} receivers have no Home Assistant area yet, so they give no room: {names}.", { names: noArea.map(x => x.name).join(", ") });
     }
     drawPicks(noArea);
     roomsEl.replaceChildren();
     for (const r of rows) {
       const row = el("div", { style: "display:flex;align-items:baseline;gap:10px;padding:6px 10px;border-radius:6px;background:#071008;flex-wrap:wrap" });
-      row.appendChild(el("span", { style: `font-weight:700;min-width:7em;color:${r.room ? "#e2e8f0" : "#fbbf24"}` }, r.room || "Heard, no room yet"));
+      row.appendChild(el("span", { style: `font-weight:700;min-width:7em;color:${r.room ? "#e2e8f0" : "#fbbf24"}` }, r.room || t("Heard, no room yet")));
       const who = el("span", { style: "flex:1;min-width:0;font-size:13px;color:#cbd5e1" });
-      if (!r.people.length && !r.others) who.appendChild(el("span", { class: "muted" }, "empty"));
+      if (!r.people.length && !r.others) who.appendChild(el("span", { class: "muted" }, t("empty")));
       r.people.forEach((p, i) => {
         if (i) who.appendChild(document.createTextNode(" · "));
         who.appendChild(el("span", { style: p.track ? "color:#5eead4" : "font-weight:600;color:#d8f3dc" }, p.name));
@@ -238,10 +243,10 @@ export function whosWhereCard(ctx){
     awayEl.replaceChildren();
     if (!canTrack && (notHeard.length || rows.some(r => r.people.some(x => x.track)))) {
       awayEl.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:4px" },
-        "Enhanced security is on: an administrator can track these phones."));
+        t("Enhanced security is on: an administrator can track these phones.")));
     }
     if (notHeard.length) {
-      const line2 = el("div", { style: "font-size:12px;color:#94a3b8" }, "Not heard right now: ");
+      const line2 = el("div", { style: "font-size:12px;color:#94a3b8" }, t("Not heard right now:") + " ");
       notHeard.forEach((p, i) => {
         if (i) line2.appendChild(document.createTextNode(" · "));
         line2.appendChild(el("span", { style: "color:#5eead4" }, p.name));
@@ -266,11 +271,11 @@ export function whosWhereCard(ctx){
   }
 
   const foot = el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" });
-  const mapBtn = el("button", { class: "btn inline", style: "font-size:12px", title: "Upload a floor plan (or a photo of one) and trace your rooms" }, "Make it a map");
+  const mapBtn = el("button", { class: "btn inline", style: "font-size:12px", title: t("Upload a floor plan (or a photo of one) and trace your rooms") }, t("Make it a map"));
   // The guided Setup (views/setup.js): plan, scale, floors, rooms, receivers,
   // calibration, in order, each opening its own tool.
   mapBtn.addEventListener("click", () => ctx.actions.showView("setup"));
-  const demoBtn = el("button", { class: "btn inline", style: "font-size:12px", title: "A sample house with every feature set up. Your own house is one click away." }, "Preview a finished house");
+  const demoBtn = el("button", { class: "btn inline", style: "font-size:12px", title: t("A sample house with every feature set up. Your own house is one click away.") }, t("Preview a finished house"));
   demoBtn.addEventListener("click", () => ctx.actions.setDataMode("sample"));
   foot.appendChild(mapBtn);
   foot.appendChild(demoBtn);

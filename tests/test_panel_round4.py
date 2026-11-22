@@ -75,7 +75,8 @@ def test_the_phone_wizard_can_save_an_irk_unverified():
     the wizard had no way to save it anyway, and Retry sent the same call."""
     s = _src("views/overview.js")
     assert s.count("force: irkSaveBtn._force === true,") == 2
-    assert s.count('if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }') == 2
+    # Through t() (views/i18n.js), the English source.
+    assert s.count('if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = t("Save unverified"); }') == 2
 
 
 def test_no_re_anchor_button_that_does_nothing():
@@ -90,7 +91,7 @@ def test_follows_movement_log_refreshes():
 
 
 def test_buttons_come_back_after_a_failed_call():
-    assert 'cancelBtn.disabled = false; cancelBtn.textContent = "Resume Normal";' in _src("views/overview.js")
+    assert 'cancelBtn.disabled = false; cancelBtn.textContent = t("Resume Normal");' in _src("views/overview.js")   # through t()
     assert "try { await ctx.actions.mapsRefreshQuiet(); }" in _src("views/manage.js")
     assert "ctx.state._notifyServices = null;" in _src("views/follow.js")
 

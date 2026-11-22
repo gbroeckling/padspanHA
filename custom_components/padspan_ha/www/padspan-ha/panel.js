@@ -4987,17 +4987,17 @@ class PadSpanHaApp extends HTMLElement {
       el("span", {style:`display:inline-block;width:20px;height:20px;border-radius:50%;background:${rc};flex-shrink:0`}),
       el("div", {}, [
         el("div", {style:"font-weight:700;font-size:16px"}, roomName),
-        el("div", {class:"muted", style:"font-size:12px"}, `Floor: ${floorName}`),
+        el("div", {class:"muted", style:"font-size:12px"}, t("Floor: {floor}", { floor: floorName })),
       ]),
     ]));
 
     // Objects in room
     const objSection = el("div", {}, [
-      el("div", {style:"font-weight:600;margin-bottom:6px"}, `Objects now (${objects.length})`),
+      el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Objects now ({n})", { n: objects.length })),
     ]);
     if(objects.length){
       for(const o of objects){
-        const oName = DEVICE_NAME ? DEVICE_NAME.pickName(o, "Unknown") : (o.best_name || o.user_label || o.name || o.entity_id || o.address || "Unknown");
+        const oName = DEVICE_NAME ? DEVICE_NAME.pickName(o, t("Unknown")) : (o.best_name || o.user_label || o.name || o.entity_id || o.address || t("Unknown"));
         const oKey = (o.address || o.entity_id || "").toUpperCase();
         const isFollowed = oKey && this.state.followedAddrs.has(oKey);
         const oc = isFollowed ? "#fbbf24" : (o.identified ? "#5eead4" : "#f59e0b");
@@ -5006,25 +5006,25 @@ class PadSpanHaApp extends HTMLElement {
         const oRow = el("div", {style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1f12"}, [
           el("span", {style:`width:8px;height:8px;border-radius:50%;background:${oc};flex-shrink:0`}),
           el("div", {style:"flex:1"}, oName),
-          isFollowed ? el("span", {class:"badge", style:"background:#fbbf2422;color:#fbbf24;border-color:#fbbf24"}, "Following") : null,
+          isFollowed ? el("span", {class:"badge", style:"background:#fbbf2422;color:#fbbf24;border-color:#fbbf24"}, t("Following")) : null,
           rssiTxt ? el("span", {class:"badge"}, rssiTxt) : null,
           ageTxt ? el("span", {class:"muted", style:"font-size:11px"}, ageTxt) : null,
-          el("button", {class:"btn tiny", onclick:()=>{ this._closeModal(); this._showObjectDetail(o); }}, "Details"),
+          el("button", {class:"btn tiny", onclick:()=>{ this._closeModal(); this._showObjectDetail(o); }}, t("Details")),
         ].filter(Boolean));
         objSection.appendChild(oRow);
       }
     } else {
-      objSection.appendChild(el("div", {class:"muted", style:"font-size:12px"}, "No objects currently detected in this room."));
+      objSection.appendChild(el("div", {class:"muted", style:"font-size:12px"}, t("No objects currently detected in this room.")));
     }
     body.appendChild(objSection);
 
     // Radios in room
     const radioSection = el("div", {}, [
-      el("div", {style:"font-weight:600;margin-bottom:6px"}, `Bluetooth scanners (${radios.length})`),
+      el("div", {style:"font-weight:600;margin-bottom:6px"}, t("Bluetooth scanners ({n})", { n: radios.length })),
     ]);
     if(radios.length){
       for(const r of radios){
-        const rName = r.display_name || r.name || r.source || "Scanner";
+        const rName = r.display_name || r.name || r.source || t("Scanner");
         const sid = radioShortId(r.source || "");
         const rRow = el("div", {style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1f12"}, [
           el("span", {style:"font-family:monospace;font-weight:700;font-size:12px;letter-spacing:.04em;color:#52b788;flex-shrink:0"}, sid),
@@ -5033,12 +5033,12 @@ class PadSpanHaApp extends HTMLElement {
             r.source ? el("div", {class:"muted", style:"font-size:11px;font-family:monospace"}, r.source) : null,
           ].filter(Boolean)),
           (()=>{ const ss = scannerStatus(r, snap?.ble?.advertisements); const b = el("span",{class:ss.cls,title:ss.title},ss.label); if(ss.style) b.style.cssText+=ss.style; return b; })(),
-          el("button", {class:"btn tiny", onclick:()=>{ this._closeModal(); this._showScannerDetail(r); }}, "Details"),
+          el("button", {class:"btn tiny", onclick:()=>{ this._closeModal(); this._showScannerDetail(r); }}, t("Details")),
         ].filter(Boolean));
         radioSection.appendChild(rRow);
       }
     } else {
-      radioSection.appendChild(el("div", {class:"muted", style:"font-size:12px"}, "No Bluetooth scanners assigned to this room."));
+      radioSection.appendChild(el("div", {class:"muted", style:"font-size:12px"}, t("No Bluetooth scanners assigned to this room.")));
     }
     body.appendChild(radioSection);
 
@@ -5046,12 +5046,12 @@ class PadSpanHaApp extends HTMLElement {
     const entities = Object.keys(this.state.roomTagMap?.[roomName] || {});
     if(entities.length){
       body.appendChild(el("div", {}, [
-        el("div", {style:"font-weight:600;margin-bottom:6px"}, `HA Entities (${entities.length})`),
+        el("div", {style:"font-weight:600;margin-bottom:6px"}, t("HA Entities ({n})", { n: entities.length })),
         el("div", {style:"display:flex;flex-wrap:wrap;gap:6px"}, entities.map(eid => el("span", {class:"pill"}, eid))),
       ]));
     }
 
-    this._openModal(roomName, body, `Room · ${floorName}`);
+    this._openModal(roomName, body, t("Room · {floor}", { floor: floorName }));
   }
 
   /** Show a detail modal for a BLE scanner: status, network info, area, visible devices. */

@@ -41,6 +41,7 @@ import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { install, flush } from "./dom_shim.mjs";
+import { panelT } from "./panel_t.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: dialog_keys.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -423,7 +424,9 @@ await tryCase("modal", async () => {
   const src = readFileSync(join(WWW, "panel.js"), "utf8");
   const methods = ["_openModal", "_closeModal"].map((n) => extractMethod(src, n)).join("\n");
   const el = (tag, attrs = {}, kids) => { const n = mk(tag, attrs); for (const c of [].concat(kids === undefined ? [] : kids)) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); return n; };
-  const Host = new Function("el", "DIALOG_KEYS", "window", `return class { ${methods} };`)(el, K, globalThis);
+  // panel.js's own t() (tests/js/panel_t.mjs): the modal's Close, in English.
+  const { t } = panelT(src);
+  const Host = new Function("el", "DIALOG_KEYS", "window", "t", `return class { ${methods} };`)(el, K, globalThis, t);
   const p = new Host();
   p.$modal = mk("div", { id: "modal", class: "modal hidden" });
   const opener = mk("button", { id: "details" }, "Details");

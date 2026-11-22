@@ -63,7 +63,7 @@ def test_help_translations_follow_the_new_name():
 
 def test_switch_label_and_report_keys():
     ov = _read(WWW / "views" / "overview.js")
-    assert '"⚡ Live Tracker"' in ov
+    assert '"⚡ " + t("Live Tracker")' in ov   # its words through t() (views/i18n.js), the English source
     assert '"live_switch_purelive"' in ov  # report event name unchanged
     ib = _read(WWW / "views" / "installbase.js")
     assert 'purelive: "Live Tracker"' in ib

@@ -49,8 +49,8 @@ TN_RE = re.compile(r"(?<![\w.$])tn\(\s*[^,()]+,\s*" + _JS_STR + r"\s*,\s*" + _JS
 # The files of each group but panel and help, relative to www/padspan-ha/.
 GROUPS: dict[str, tuple[str, ...]] = {
     "setup": ("views/setup.js", "views/setup_status.js", "views/maps.js", "views/iphone_irk.js"),
-    "screens": ("views/overview.js", "views/whos_where.js", "views/receiver_room.js",
-                "views/follow.js", "views/occupancy.js"),
+    "screens": ("views/overview.js", "views/whos_where.js", "views/receiver_room.js", "views/map_text.js",
+                "views/follow.js", "views/locate.js", "views/occupancy.js"),
     "health": ("views/health.js", "views/diagnostics.js"),
     "devices": ("views/bluetooth.js", "views/receivers.js", "views/devices.js", "views/objects.js",
                 "views/device_name.js"),

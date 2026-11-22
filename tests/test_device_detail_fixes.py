@@ -207,7 +207,7 @@ async def test_the_window_asks_for_how_known(house) -> None:  # noqa: F811
     ("presence.js", "const label = o ? pickName(o, d.addr) : (d.name || d.addr);"),
     ("monitor.js", 'const label = pickName(o, "Unknown");'),
     ("locate.js", 'label: pickName(o, "?"), room: o.room,'),
-    ("../panel.js", 'DEVICE_NAME.pickName(o, "Unknown")'),
+    ("../panel.js", 'DEVICE_NAME.pickName(o, t("Unknown"))'),   # through t() (views/i18n.js), the English source
 ])
 def test_where_people_pick_a_device_the_rows_differ(view, line) -> None:
     assert line in (_VIEWS / view).read_text(encoding="utf-8")

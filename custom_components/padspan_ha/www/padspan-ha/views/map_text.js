@@ -17,12 +17,15 @@
 
 /** A box no one sees and a screen reader still reads. */
 const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+
 export const SR_ONLY = "position:fixed;top:0;left:0;width:1px;height:1px;margin:0;padding:0;border:0;"
   + "overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none";
 /** At most one announcement this often (ms). */
 export const EVERY_MS = 10000;
 
-const nameOf = (o) => deviceName(o, "").trim() || "an unnamed device";
+const nameOf = (o) => deviceName(o, "").trim() || t("an unnamed device");
 const okRoom = (r) => typeof r === "string" && r !== "" && r !== "unknown" && r !== "not_home";
 
 /** [[room, line]] from [{room, name}]: every room on the map (rooms, in order)
@@ -36,7 +39,7 @@ export function roomLines(entries, rooms){
     by.get(e.room).push(String(e.name));
   }
   return [...by.entries()].map(([room, names]) =>
-    [room, `${room}: ${names.length ? names.sort((a, b) => a.localeCompare(b)).join(", ") : "empty"}.`]);
+    [room, `${room}: ${names.length ? names.sort((a, b) => a.localeCompare(b)).join(", ") : t("empty")}.`]);
 }
 
 /** The Overview map's objects, as its map takes them (overview.js
@@ -72,8 +75,8 @@ export function wantedEntries(wants, hideNames){
   const out = [];
   for (const w of wants || []) {
     if (!w) continue;
-    if (w.kind === "person" && w.person && w.person.at) out.push({ room: w.person.at.room, name: String(w.person.name || "someone") });
-    else if (w.kind === "beacon") out.push({ room: w.room, name: hideNames ? "a tag" : String(w.name || "a tag") });
+    if (w.kind === "person" && w.person && w.person.at) out.push({ room: w.person.at.room, name: String(w.person.name || t("someone")) });
+    else if (w.kind === "beacon") out.push({ room: w.room, name: hideNames ? t("a tag") : String(w.name || t("a tag")) });
   }
   return out;
 }
@@ -93,7 +96,7 @@ export function createMapText(id, label){
   const box = document.createElement("div");
   if (id) box.id = id;
   box.setAttribute("role", "region");
-  box.setAttribute("aria-label", label || "Who is in which room");
+  box.setAttribute("aria-label", label || t("Who is in which room"));
   box.setAttribute("aria-live", "off");
   box.setAttribute("aria-atomic", "false");
   box.setAttribute("data-map-text", "");
