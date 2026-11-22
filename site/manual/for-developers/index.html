@@ -179,7 +179,7 @@ Enhanced security is on (<a href="/manual/users-and-security/">chapter 21</a>). 
 a request inside it. These are the panel's own commands, not a stable public interface: they change
 between versions. For automations, use the entities, services and events in
 <a href="/manual/home-assistant-reference/">chapter 14</a>. More: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md">Websocket API</a>.</p>
-<p>267 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
+<p>268 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Command</th><th>Fields</th><th>Administrator</th><th>Module</th><th>What it does (its handler's first sentence)</th></tr>
@@ -450,6 +450,7 @@ between versions. For automations, use the entities, services and events in
   <tr><td><code>padspan_ha/wled_team_mode</code></td><td><code>team_id</code>, <code>mode</code></td><td>always</td><td><code>wled_exact.py</code></td><td>Run this team by WLED sync or by PadSpan.</td></tr>
   <tr><td><code>padspan_ha/wled_teams_get</code></td><td>–</td><td>–</td><td><code>ws_wled.py</code></td><td></td></tr>
   <tr><td><code>padspan_ha/wled_teams_set</code></td><td><code>teams</code>, <code>base_hash</code> (optional)</td><td>always</td><td><code>ws_wled.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/zigbee_twin_use</code></td><td><code>entity_id</code>, <code>twin</code></td><td>with Enhanced security</td><td><code>zigbee_twins.py</code></td><td>Use the Zigbee2MQTT copy's entity wherever PadSpan uses its duplicate's (async_use_twin): {ok, moved, settings}.</td></tr>
 </table>
 </div>
 <div class="pager"><span><a href="/manual/accuracy-benchmark/">← Appendix C. Accuracy benchmark</a></span><span><a href="/manual/">Contents</a></span><span><span></span></span></div>
