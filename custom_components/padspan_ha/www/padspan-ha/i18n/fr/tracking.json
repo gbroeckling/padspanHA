@@ -209,6 +209,61 @@
 "hours": "heures",
 "Current: {value}. Default: off (0). Range: 0.5 – 48 h.": "Actuel : {value}. Par défaut : désactivé (0). Plage : 0,5 – 48 h.",
 "off (same as the away timeout)": "désactivé (comme le délai d’absence)",
+"BLE timeout set to {seconds}s": "Délai BLE réglé sur {seconds} s",
+"BLE Advertisement Timeout": "Délai des annonces BLE",
+"How long to keep a BLE device visible after its last advertisement. Higher values show more devices (especially slow-broadcasting ones). Lower values keep the list cleaner but may drop intermittent devices.": "Combien de temps un appareil BLE reste visible après sa dernière annonce. Des valeurs plus hautes montrent plus d’appareils (surtout ceux qui émettent lentement). Des valeurs plus basses gardent la liste plus nette mais peuvent perdre des appareils intermittents.",
+"Max age": "Âge maximal",
+"Current: {seconds}s. Default: 14400s (4 h). Range: 60s – 14400s (4 h).": "Actuel : {seconds} s. Par défaut : 14400 s (4 h). Plage : 60 s – 14400 s (4 h).",
+"Low-memory mode holds it to 900s (15 min).": "Le mode mémoire réduite le limite à 900 s (15 min).",
+"Phone Tracking (Private BLE)": "Suivi des téléphones (Private BLE)",
+"Track phones and watches with rotating MAC addresses using their IRK (Identity Resolving Key). PadSpan scans system Bluetooth bonds automatically, or you can paste an IRK manually.": "Suivez les téléphones et les montres aux adresses MAC tournantes grâce à leur IRK (Identity Resolving Key). PadSpan parcourt automatiquement les associations Bluetooth du système, ou vous pouvez coller une IRK à la main.",
+"Auto-Detect IRKs": "Détecter les IRK",
+"Scanning...": "Recherche...",
+"No IRKs found in system Bluetooth bonds. Pair your phone via Bluetooth first, or paste the IRK manually below.": "Aucune IRK trouvée dans les associations Bluetooth du système. Associez d’abord votre téléphone en Bluetooth, ou collez l’IRK à la main ci-dessous.",
+"Verifying against live BLE...": "Vérification sur le BLE en direct...",
+"Verified": "Vérifiée",
+"Unverified": "Non vérifiée",
+"Unknown": "Inconnu",
+"System BT bond": "Association BT du système",
+"Add": "Ajouter",
+"Adding...": "Ajout...",
+"Added": "Ajoutée",
+"Error": "Erreur",
+"Auto-detect failed: {error}": "Échec de la détection : {error}",
+"Loading...": "Chargement...",
+"Name": "Nom",
+"Canonical ID": "ID canonique",
+"Source": "Source",
+"Delete from HA": "Supprimer de HA",
+"Delete \"{name}\" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.": "Supprimer « {name} » de Home Assistant ? Cela retire l’entrée de l’intégration Private BLE Device elle-même — l’appareil disparaît de HA, pas seulement de PadSpan.",
+"device": "appareil",
+"Are you sure? \"{name}\" will be deleted from Home Assistant. You would need its IRK to re-add it.": "Vous êtes sûr ? « {name} » sera supprimé de Home Assistant. Il faudrait son IRK pour le rajouter.",
+"Delete": "Supprimer",
+"Managed by HA — delete from Settings → Devices & Services": "Géré par HA — supprimez-le dans Paramètres → Appareils et services",
+"No IRKs registered and no rotating addresses detected.": "Aucune IRK enregistrée et aucune adresse tournante détectée.",
+"Could not load status": "Impossible de charger l’état",
+"Paste IRK (hex or base64)": "Collez l’IRK (hex ou base64)",
+"Device name (e.g., Alice's iPhone)": "Nom de l’appareil (p. ex. iPhone d’Alice)",
+"Add IRK": "Ajouter l’IRK",
+"Already registered": "Déjà enregistrée",
+"IRK added successfully": "IRK ajoutée",
+"Failed to add IRK": "Impossible d’ajouter l’IRK",
+"Please paste an IRK": "Collez une IRK",
+"Validating...": "Validation...",
+"Scanning for device...": "Recherche de l’appareil...",
+"Cancel": "Annuler",
+"Scanning for device... {elapsed}s / {total}s": "Recherche de l’appareil... {elapsed} s / {total} s",
+"Invalid IRK format": "Format d’IRK non valide",
+"Validation cancelled.": "Validation annulée.",
+"(format: {format})": "(format : {format})",
+"No match found after {seconds}s ({count} rotating addresses scanned). The device may be off, out of range, or the key may be incorrect.": "Aucune correspondance après {seconds} s ({count} adresses tournantes examinées). L’appareil est peut-être éteint, hors de portée, ou la clé est incorrecte.",
+"No rotating addresses detected. Make sure BLE scanners are online and the device is nearby.": "Aucune adresse tournante détectée. Vérifiez que les scanners BLE sont en ligne et que l’appareil est à proximité.",
+"Save Anyway": "Enregistrer quand même",
+"Retry": "Réessayer",
+"Saving...": "Enregistrement...",
+"Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.": "Collez l’IRK de votre appareil ci-dessus et PadSpan s’occupe du reste. Important : l’appareil doit émettre activement (réveillé, Bluetooth activé) et être à portée d’un scanner quand vous ajoutez son IRK. Cliquez ci-dessous pour des instructions pas à pas pour chaque type d’appareil.",
+"Detailed Setup Guide": "Guide de configuration détaillé",
+"Hide Guide": "Masquer le guide",
 "Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.": {
 "one": "Actuel : {delay} s → il faut ~{n} relevé de {poll} s d’accord à la suite.",
 "other": "Actuel : {delay} s → il faut ~{n} relevés de {poll} s d’accord à la suite."
@@ -224,5 +279,33 @@
 "Current: {n} days. Default: 1 day.": {
 "one": "Actuel : {n} jour. Par défaut : 1 jour.",
 "other": "Actuel : {n} jours. Par défaut : 1 jour."
+},
+"All {n} bonded devices are already registered.": {
+"one": "L’appareil associé est déjà enregistré.",
+"other": "Les {n} appareils associés sont déjà enregistrés."
+},
+"{n} new IRKs found!": {
+"one": "{n} nouvelle IRK trouvée !",
+"other": "{n} nouvelles IRK trouvées !"
+},
+"{n} RPA matches": {
+"one": "{n} correspondance RPA",
+"other": "{n} correspondances RPA"
+},
+"{n} IRKs registered": {
+"one": "{n} IRK enregistrée",
+"other": "{n} IRK enregistrées"
+},
+"{n} rotating addresses detected": {
+"one": "{n} adresse tournante détectée",
+"other": "{n} adresses tournantes détectées"
+},
+"No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.": {
+"one": "Aucune IRK enregistrée pour l’instant — {n} adresse MAC tournante détectée. Ajoutez des IRK ci-dessous pour suivre des téléphones.",
+"other": "Aucune IRK enregistrée pour l’instant — {n} adresses MAC tournantes détectées. Ajoutez des IRK ci-dessous pour suivre des téléphones."
+},
+"Verified — matched {n} rotating addresses{note}. Saving...": {
+"one": "Vérifiée — {n} adresse tournante reconnue{note}. Enregistrement...",
+"other": "Vérifiée — {n} adresses tournantes reconnues{note}. Enregistrement..."
 }
 }

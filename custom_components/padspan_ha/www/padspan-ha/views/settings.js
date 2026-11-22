@@ -1680,30 +1680,28 @@ function _settingsPresence(ctx, el){
   const bleAgeInp = el("input", {
     type: "number", min: "60", max: "14400", step: "60", value: String(currentBleAge), style: inpStyle,
   });
-  const bleAgeSaveBtn = el("button", { class: "btn" }, "Save");
+  const bleAgeSaveBtn = el("button", { class: "btn" }, t("Save"));
   bleAgeSaveBtn.addEventListener("click", async () => {
     const v = Math.max(60, Math.min(14400, parseInt(bleAgeInp.value) || 14400));
     try {
       await ctx.actions.settingsSet({ ble_max_age_s: v });
-      ctx.toast(`BLE timeout set to ${v}s`);
-    } catch(e) { ctx.toast("Failed to save setting", true); }
+      ctx.toast(t("BLE timeout set to {seconds}s", { seconds: v }));
+    } catch(e) { ctx.toast(t("Failed to save setting"), true); }
   });
   put("shown", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "BLE Advertisement Timeout"),
+    el("div", { class: "h2" }, t("BLE Advertisement Timeout")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "How long to keep a BLE device visible after its last advertisement. " +
-      "Higher values show more devices (especially slow-broadcasting ones). " +
-      "Lower values keep the list cleaner but may drop intermittent devices."
+      t("How long to keep a BLE device visible after its last advertisement. Higher values show more devices (especially slow-broadcasting ones). Lower values keep the list cleaner but may drop intermittent devices.")
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Max age"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, t("Max age")),
       bleAgeInp,
-      el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
+      el("div", { class: "muted", style: "font-size:12px" }, t("seconds")),
       bleAgeSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentBleAge}s. Default: 14400s (4 h). Range: 60s – 14400s (4 h).` +
-      (settings.low_memory_mode ? " Low-memory mode holds it to 900s (15 min)." : "")
+      t("Current: {seconds}s. Default: 14400s (4 h). Range: 60s – 14400s (4 h).", { seconds: currentBleAge }) +
+      (settings.low_memory_mode ? " " + t("Low-memory mode holds it to 900s (15 min).") : "")
     ),
   ]));
 
@@ -1711,17 +1709,16 @@ function _settingsPresence(ctx, el){
   {
     const irkCard = el("div", { class: "card" });
     irkCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
-      el("div", { class: "h2", style: "margin:0" }, "Phone Tracking (Private BLE)"),
+      el("div", { class: "h2", style: "margin:0" }, t("Phone Tracking (Private BLE)")),
       helpBtn("private_ble"),
     ]));
     irkCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Track phones and watches with rotating MAC addresses using their IRK (Identity Resolving Key). " +
-      "PadSpan scans system Bluetooth bonds automatically, or you can paste an IRK manually."
+      t("Track phones and watches with rotating MAC addresses using their IRK (Identity Resolving Key). PadSpan scans system Bluetooth bonds automatically, or you can paste an IRK manually.")
     ));
 
     // ── Auto-Detect section ──────────────────────────────────────────────
     const autoDetectRow = el("div", { style: "margin-bottom:14px" });
-    const autoBtn = el("button", { class: "btn", style: "margin-right:8px" }, "Auto-Detect IRKs");
+    const autoBtn = el("button", { class: "btn", style: "margin-right:8px" }, t("Auto-Detect IRKs"));
     const autoMsg = el("span", { style: "font-size:12px;color:#94a3b8" });
     autoDetectRow.appendChild(autoBtn);
     autoDetectRow.appendChild(autoMsg);
@@ -1730,7 +1727,7 @@ function _settingsPresence(ctx, el){
 
     autoBtn.addEventListener("click", async () => {
       autoBtn.disabled = true;
-      autoBtn.textContent = "Scanning...";
+      autoBtn.textContent = t("Scanning...");
       autoMsg.textContent = "";
       autoResults.innerHTML = "";
       try {
@@ -1739,37 +1736,37 @@ function _settingsPresence(ctx, el){
         const newOnes = found.filter(f => !f.already_registered);
         if (!found.length) {
           autoMsg.style.color = "#94a3b8";
-          autoMsg.textContent = "No IRKs found in system Bluetooth bonds. Pair your phone via Bluetooth first, or paste the IRK manually below.";
+          autoMsg.textContent = t("No IRKs found in system Bluetooth bonds. Pair your phone via Bluetooth first, or paste the IRK manually below.");
         } else if (!newOnes.length) {
           autoMsg.style.color = "#52b788";
-          autoMsg.textContent = "All " + found.length + " bonded device(s) are already registered.";
+          autoMsg.textContent = tn(found.length, "The bonded device is already registered.", "All {n} bonded devices are already registered.");
         } else {
           autoMsg.style.color = "#fbbf24";
-          autoMsg.textContent = newOnes.length + " new IRK(s) found! " + (res.rpa_count > 0 ? "Verifying against live BLE..." : "");
+          autoMsg.textContent = tn(newOnes.length, "{n} new IRK found!", "{n} new IRKs found!") + " " + (res.rpa_count > 0 ? t("Verifying against live BLE...") : "");
           // Show each found IRK with an "Add" button
           for (const item of newOnes) {
             const row = el("div", { style: "display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #1b3526" });
             const badge = el("span", { style: "font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;" +
               (item.verified ? "background:#052e16;color:#52b788;border:1px solid #2d6a4f" : "background:#1a0d00;color:#fbbf24;border:1px solid #92400e") },
-              item.verified ? "Verified" : "Unverified");
-            const nameLbl = el("span", { style: "font-weight:600;color:#e2e8f0;font-size:13px" }, item.name || item.device_mac || "Unknown");
-            const srcLbl = el("span", { style: "font-size:11px;color:#64748b" }, item.source === "bluetooth_bond" ? "System BT bond" : item.source);
+              item.verified ? t("Verified") : t("Unverified"));
+            const nameLbl = el("span", { style: "font-weight:600;color:#e2e8f0;font-size:13px" }, item.name || item.device_mac || t("Unknown"));
+            const srcLbl = el("span", { style: "font-size:11px;color:#64748b" }, item.source === "bluetooth_bond" ? t("System BT bond") : item.source);
             const matchLbl = el("span", { style: "font-size:11px;color:#94a3b8" },
-              item.matched_count > 0 ? item.matched_count + " RPA match(es)" : "");
-            const addIrkBtn = el("button", { class: "btn inline", style: "margin-left:auto;font-size:11px;padding:2px 10px" }, "Add");
+              item.matched_count > 0 ? tn(item.matched_count, "{n} RPA match", "{n} RPA matches") : "");
+            const addIrkBtn = el("button", { class: "btn inline", style: "margin-left:auto;font-size:11px;padding:2px 10px" }, t("Add"));
             addIrkBtn.addEventListener("click", async () => {
               addIrkBtn.disabled = true;
-              addIrkBtn.textContent = "Adding...";
+              addIrkBtn.textContent = t("Adding...");
               try {
                 await ctx.actions.wsCall("padspan_ha/private_ble_add_irk", { irk: item.irk_hex, name: item.name || "Phone" });
-                addIrkBtn.textContent = "Added";
+                addIrkBtn.textContent = t("Added");
                 addIrkBtn.style.color = "#52b788";
                 await _refreshIrkStatus();
               } catch(e) {
-                addIrkBtn.textContent = "Error";
+                addIrkBtn.textContent = t("Error");
                 addIrkBtn.style.color = "#f87171";
                 addIrkBtn.title = e.message || String(e);
-                setTimeout(() => { addIrkBtn.textContent = "Add"; addIrkBtn.disabled = false; addIrkBtn.style.color = ""; }, 3000);
+                setTimeout(() => { addIrkBtn.textContent = t("Add"); addIrkBtn.disabled = false; addIrkBtn.style.color = ""; }, 3000);
               }
             });
             row.appendChild(badge);
@@ -1782,16 +1779,16 @@ function _settingsPresence(ctx, el){
         }
       } catch(e) {
         autoMsg.style.color = "#f87171";
-        autoMsg.textContent = "Auto-detect failed: " + (e.message || String(e));
+        autoMsg.textContent = t("Auto-detect failed: {error}", { error: e.message || String(e) });
       }
       autoBtn.disabled = false;
-      autoBtn.textContent = "Auto-Detect IRKs";
+      autoBtn.textContent = t("Auto-Detect IRKs");
     });
     irkCard.appendChild(autoDetectRow);
 
     // Status: load current IRKs
     const irkStatus = el("div", { style: "margin-bottom:12px" });
-    irkStatus.textContent = "Loading...";
+    irkStatus.textContent = t("Loading...");
     async function _refreshIrkStatus() {
       try {
         const st = await ctx.actions.wsCall("padspan_ha/private_ble_status", {});
@@ -1801,7 +1798,7 @@ function _settingsPresence(ctx, el){
         if (devices.length) {
           irkStatus.innerHTML = "";
           const tbl = el("table", { class: "table", style: "font-size:12px;margin-bottom:8px" });
-          const thead = el("thead", {}, el("tr", {}, [el("th",{},"Name"), el("th",{},"Canonical ID"), el("th",{},"Source"), el("th",{},"")]));
+          const thead = el("thead", {}, el("tr", {}, [el("th",{},t("Name")), el("th",{},t("Canonical ID")), el("th",{},t("Source")), el("th",{},"")]));
           tbl.appendChild(thead);
           const tbody = el("tbody", {});
           for (const d of devices) {
@@ -1809,24 +1806,24 @@ function _settingsPresence(ctx, el){
             const delBtn = el("button", {
               class: "btn inline",
               style: "font-size:10px;padding:1px 6px;color:#f87171;border-color:#5c2020;background:none",
-            }, "Delete from HA");
+            }, t("Delete from HA"));
             if (d.entry_id) {
               delBtn.addEventListener("click", async () => {
-                if (!confirm(`Delete "${d.name || "device"}" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.`)) return;
-                if (!confirm(`Are you sure? "${d.name || "device"}" will be deleted from Home Assistant. You would need its IRK to re-add it.`)) return;
+                if (!confirm(t("Delete \"{name}\" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.", { name: d.name || t("device") }))) return;
+                if (!confirm(t("Are you sure? \"{name}\" will be deleted from Home Assistant. You would need its IRK to re-add it.", { name: d.name || t("device") }))) return;
                 delBtn.disabled = true;
                 delBtn.textContent = "...";
                 try {
                   await ctx.actions.wsCall("padspan_ha/private_ble_delete_irk", { entry_id: d.entry_id });
                   await _refreshIrkStatus();
                 } catch(e) {
-                  delBtn.textContent = "Error";
-                  setTimeout(() => { delBtn.textContent = "Delete"; delBtn.disabled = false; }, 2000);
+                  delBtn.textContent = t("Error");
+                  setTimeout(() => { delBtn.textContent = t("Delete"); delBtn.disabled = false; }, 2000);
                 }
               });
             } else {
               delBtn.disabled = true;
-              delBtn.title = "Managed by HA — delete from Settings → Devices & Services";
+              delBtn.title = t("Managed by HA — delete from Settings → Devices & Services");
             }
             tbody.appendChild(el("tr", {}, [
               el("td", {}, d.name || "—"),
@@ -1838,17 +1835,17 @@ function _settingsPresence(ctx, el){
           tbl.appendChild(tbody);
           irkStatus.appendChild(tbl);
           irkStatus.appendChild(el("div", { class: "muted", style: "font-size:11px" },
-            `${devices.length} IRK(s) registered` + (rpas > 0 ? ` · ${rpas} rotating address(es) detected` : "")));
+            tn(devices.length, "{n} IRK registered", "{n} IRKs registered") + (rpas > 0 ? " · " + tn(rpas, "{n} rotating address detected", "{n} rotating addresses detected") : "")));
         } else {
           irkStatus.innerHTML = "";
           irkStatus.appendChild(el("div", { style: "color:#fbbf24;font-size:12px;margin-bottom:4px" },
             rpas > 0
-              ? `No IRKs registered yet — ${rpas} rotating MAC address(es) detected. Add IRKs below to track phones.`
-              : "No IRKs registered and no rotating addresses detected."
+              ? tn(rpas, "No IRKs registered yet — {n} rotating MAC address detected. Add IRKs below to track phones.", "No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.")
+              : t("No IRKs registered and no rotating addresses detected.")
           ));
         }
       } catch(e) {
-        irkStatus.textContent = "Could not load status";
+        irkStatus.textContent = t("Could not load status");
       }
     }
     _refreshIrkStatus();
@@ -1856,14 +1853,14 @@ function _settingsPresence(ctx, el){
 
     // Add IRK form
     const irkInp = el("input", {
-      type: "text", placeholder: "Paste IRK (hex or base64)",
+      type: "text", placeholder: t("Paste IRK (hex or base64)"),
       style: "flex:1;min-width:200px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:13px;font-family:monospace",
     });
     const nameInp = el("input", {
-      type: "text", placeholder: "Device name (e.g., Alice's iPhone)",
+      type: "text", placeholder: t("Device name (e.g., Alice's iPhone)"),
       style: "flex:1;min-width:160px;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:13px",
     });
-    const addBtn = el("button", { class: "btn" }, "Add IRK");
+    const addBtn = el("button", { class: "btn" }, t("Add IRK"));
     // Progress bar container — hidden until validation starts
     const irkProgress = el("div", { style: "display:none;margin-top:6px" });
     const irkMsg = el("div", { style: "font-size:11px;margin-top:6px;min-height:16px" });
@@ -1876,17 +1873,17 @@ function _settingsPresence(ctx, el){
         const res = await ctx.actions.wsCall("padspan_ha/private_ble_add_irk", { irk, name: name || "PadSpan Device" });
         if (res.duplicate) {
           irkMsg.style.color = "#fbbf24";
-          irkMsg.textContent = res.message || "Already registered";
+          irkMsg.textContent = res.message || t("Already registered");
         } else {
           irkMsg.style.color = "#52b788";
-          irkMsg.textContent = res.message || "IRK added successfully";
+          irkMsg.textContent = res.message || t("IRK added successfully");
           irkInp.value = "";
           nameInp.value = "";
         }
         await _refreshIrkStatus();
       } catch(e) {
         irkMsg.style.color = "#f87171";
-        irkMsg.textContent = e.message || "Failed to add IRK";
+        irkMsg.textContent = e.message || t("Failed to add IRK");
       }
     };
 
@@ -1898,11 +1895,11 @@ function _settingsPresence(ctx, el){
     addBtn.addEventListener("click", async () => {
       const irk = irkInp.value.trim();
       const name = nameInp.value.trim();
-      if (!irk) { irkMsg.textContent = "Please paste an IRK"; irkMsg.style.color = "#f87171"; return; }
+      if (!irk) { irkMsg.textContent = t("Please paste an IRK"); irkMsg.style.color = "#f87171"; return; }
 
       // Reset UI state
       addBtn.disabled = true;
-      addBtn.textContent = "Validating...";
+      addBtn.textContent = t("Validating...");
       irkMsg.textContent = "";
       irkOverrideRow.style.display = "none";
       _validationAborted = false;
@@ -1912,7 +1909,7 @@ function _settingsPresence(ctx, el){
       const POLL_INTERVAL_S = 5;
       irkProgress.style.display = "block";
       irkProgress.innerHTML = "";
-      const progressLabel = el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:3px" }, "Scanning for device...");
+      const progressLabel = el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:3px" }, t("Scanning for device..."));
       const barOuter = el("div", { style: "height:6px;border-radius:3px;background:#1a2a1a;overflow:hidden;position:relative" });
       const barInner = el("div", { style: "height:100%;width:0%;background:#52b788;border-radius:3px;transition:width 0.4s ease" });
       barOuter.appendChild(barInner);
@@ -1920,7 +1917,7 @@ function _settingsPresence(ctx, el){
       irkProgress.appendChild(barOuter);
 
       // Cancel button inside progress area
-      const cancelBtn = el("button", { class: "btn inline", style: "font-size:10px;margin-top:4px;padding:2px 10px;color:#f87171;border-color:#7f1d1d" }, "Cancel");
+      const cancelBtn = el("button", { class: "btn inline", style: "font-size:10px;margin-top:4px;padding:2px 10px;color:#f87171;border-color:#7f1d1d" }, t("Cancel"));
       cancelBtn.addEventListener("click", () => { _validationAborted = true; });
       irkProgress.appendChild(cancelBtn);
 
@@ -1933,7 +1930,7 @@ function _settingsPresence(ctx, el){
         const elapsed = i * POLL_INTERVAL_S;
         const pct = Math.min(100, Math.round((elapsed / VALIDATE_DURATION_S) * 100));
         barInner.style.width = pct + "%";
-        progressLabel.textContent = `Scanning for device... ${elapsed}s / ${VALIDATE_DURATION_S}s`;
+        progressLabel.textContent = t("Scanning for device... {elapsed}s / {total}s", { elapsed, total: VALIDATE_DURATION_S });
 
         try {
           lastResult = await ctx.actions.wsCall("padspan_ha/irk_validate", { irk_hex: irk });
@@ -1944,10 +1941,10 @@ function _settingsPresence(ctx, el){
         } catch(e) {
           // Parse error — key is malformed
           irkMsg.style.color = "#f87171";
-          irkMsg.textContent = e.message || "Invalid IRK format";
+          irkMsg.textContent = e.message || t("Invalid IRK format");
           irkProgress.style.display = "none";
           addBtn.disabled = false;
-          addBtn.textContent = "Add IRK";
+          addBtn.textContent = t("Add IRK");
           return;
         }
 
@@ -1964,9 +1961,9 @@ function _settingsPresence(ctx, el){
         // User cancelled
         irkProgress.style.display = "none";
         irkMsg.style.color = "#94a3b8";
-        irkMsg.textContent = "Validation cancelled.";
+        irkMsg.textContent = t("Validation cancelled.");
         addBtn.disabled = false;
-        addBtn.textContent = "Add IRK";
+        addBtn.textContent = t("Add IRK");
         return;
       }
 
@@ -1978,54 +1975,54 @@ function _settingsPresence(ctx, el){
         const validatedHex = lastResult.irk_hex || irk;
         progressLabel.textContent = "";
         irkMsg.style.color = "#52b788";
-        const fmtNote = lastResult.matched_format ? ` (format: ${lastResult.matched_format})` : "";
-        irkMsg.textContent = `Verified — matched ${n} rotating address${n !== 1 ? "es" : ""}${fmtNote}. Saving...`;
+        const fmtNote = lastResult.matched_format ? " " + t("(format: {format})", { format: lastResult.matched_format }) : "";
+        irkMsg.textContent = tn(n, "Verified — matched {n} rotating address{note}. Saving...", "Verified — matched {n} rotating addresses{note}. Saving...", { note: fmtNote });
         await _commitIrk(validatedHex, name);
         addBtn.disabled = false;
-        addBtn.textContent = "Add IRK";
+        addBtn.textContent = t("Add IRK");
       } else {
         // No match — warn + offer override
         const rpas = lastResult ? lastResult.rpa_count : 0;
         irkMsg.style.color = "#fbbf24";
         irkMsg.textContent = rpas > 0
-          ? `No match found after ${VALIDATE_DURATION_S}s (${rpas} rotating addresses scanned). The device may be off, out of range, or the key may be incorrect.`
-          : `No rotating addresses detected. Make sure BLE scanners are online and the device is nearby.`;
+          ? t("No match found after {seconds}s ({count} rotating addresses scanned). The device may be off, out of range, or the key may be incorrect.", { seconds: VALIDATE_DURATION_S, count: rpas })
+          : t("No rotating addresses detected. Make sure BLE scanners are online and the device is nearby.");
 
         // Show override buttons
         irkOverrideRow.style.display = "flex";
         irkOverrideRow.innerHTML = "";
-        const saveAnywayBtn = el("button", { class: "btn", style: "font-size:11px;background:#1a0d00;border-color:#d97706;color:#fbbf24" }, "Save Anyway");
-        const retryBtn = el("button", { class: "btn inline", style: "font-size:11px" }, "Retry");
-        const cancelBtn2 = el("button", { class: "btn inline", style: "font-size:11px;color:#94a3b8" }, "Cancel");
+        const saveAnywayBtn = el("button", { class: "btn", style: "font-size:11px;background:#1a0d00;border-color:#d97706;color:#fbbf24" }, t("Save Anyway"));
+        const retryBtn = el("button", { class: "btn inline", style: "font-size:11px" }, t("Retry"));
+        const cancelBtn2 = el("button", { class: "btn inline", style: "font-size:11px;color:#94a3b8" }, t("Cancel"));
 
         saveAnywayBtn.addEventListener("click", async () => {
           irkOverrideRow.style.display = "none";
           addBtn.disabled = true;
-          addBtn.textContent = "Saving...";
+          addBtn.textContent = t("Saving...");
           irkMsg.textContent = "";
           await _commitIrk(irk, name);
           addBtn.disabled = false;
-          addBtn.textContent = "Add IRK";
+          addBtn.textContent = t("Add IRK");
         });
         retryBtn.addEventListener("click", () => {
           irkOverrideRow.style.display = "none";
           irkMsg.textContent = "";
           addBtn.disabled = false;
-          addBtn.textContent = "Add IRK";
+          addBtn.textContent = t("Add IRK");
           addBtn.click();  // re-trigger validation
         });
         cancelBtn2.addEventListener("click", () => {
           irkOverrideRow.style.display = "none";
           irkMsg.textContent = "";
           addBtn.disabled = false;
-          addBtn.textContent = "Add IRK";
+          addBtn.textContent = t("Add IRK");
         });
 
         irkOverrideRow.appendChild(saveAnywayBtn);
         irkOverrideRow.appendChild(retryBtn);
         irkOverrideRow.appendChild(cancelBtn2);
         addBtn.disabled = false;
-        addBtn.textContent = "Add IRK";
+        addBtn.textContent = t("Add IRK");
       }
     });
 
@@ -2037,247 +2034,234 @@ function _settingsPresence(ctx, el){
 
     // Brief help
     irkCard.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:12px;line-height:1.6" },
-      "Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type."
+      t("Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.")
     ));
 
     // Detailed guide toggle
-    const guideBtn = el("button", { class: "btn inline", style: "margin-top:8px;font-size:12px;color:#60a5fa;border-color:#1e4976" }, "Detailed Setup Guide");
+    const guideBtn = el("button", { class: "btn inline", style: "margin-top:8px;font-size:12px;color:#60a5fa;border-color:#1e4976" }, t("Detailed Setup Guide"));
     const guidePanel = el("div", { style: "display:none;margin-top:12px;border:1px solid #1e3a2a;border-radius:8px;padding:14px;background:#060d08;line-height:1.7;font-size:12px;color:#cbd5e1" });
     guideBtn.addEventListener("click", () => {
       const open = guidePanel.style.display !== "none";
       guidePanel.style.display = open ? "none" : "block";
-      guideBtn.textContent = open ? "Detailed Setup Guide" : "Hide Guide";
+      guideBtn.textContent = open ? t("Detailed Setup Guide") : t("Hide Guide");
     });
     irkCard.appendChild(guideBtn);
 
+    // i18n part: -
+    // i18n part: tracking2
+    const md = (s) => s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");   // the guide's bold, kept out of the words
     guidePanel.innerHTML = `
-<div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:10px">What is an IRK and why do you need it?</div>
+<div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:10px">${t("What is an IRK and why do you need it?")}</div>
 <p style="margin:0 0 10px">
-  Modern phones, watches, and tablets use <b>BLE Privacy</b> — they constantly rotate their Bluetooth MAC address
-  (called a <b>Random Private Address</b> or <b>RPA</b>) every ~15 minutes to prevent tracking.
-  This means a single phone looks like dozens of different devices to your BLE scanners.
+  ${md(t("Modern phones, watches, and tablets use **BLE Privacy** — they constantly rotate their Bluetooth MAC address (called a **Random Private Address** or **RPA**) every ~15 minutes to prevent tracking. This means a single phone looks like dozens of different devices to your BLE scanners."))}
 </p>
 <p style="margin:0 0 10px">
-  The <b>IRK (Identity Resolving Key)</b> is a secret 128-bit key stored on the device. Anyone who knows the IRK
-  can mathematically verify that a rotating MAC belongs to that specific device. By giving PadSpan your device's IRK,
-  it can resolve all those rotating addresses back to one identity — enabling reliable room-level tracking.
+  ${md(t("The **IRK (Identity Resolving Key)** is a secret 128-bit key stored on the device. Anyone who knows the IRK can mathematically verify that a rotating MAC belongs to that specific device. By giving PadSpan your device's IRK, it can resolve all those rotating addresses back to one identity — enabling reliable room-level tracking."))}
 </p>
 <p style="margin:0 0 16px">
-  PadSpan uses Home Assistant's <b>Private BLE Device</b> integration under the hood. You just paste the IRK here
-  and PadSpan creates the integration entry automatically — no manual HA configuration needed.
+  ${md(t("PadSpan uses Home Assistant's **Private BLE Device** integration under the hood. You just paste the IRK here and PadSpan creates the integration entry automatically — no manual HA configuration needed."))}
 </p>
 
 <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:8px;border-top:1px solid #1e3a2a;padding-top:12px">
-  Getting the IRK: By Device Type
+  ${t("Getting the IRK: By Device Type")}
 </div>
 
 <!-- ── iPhone / iPad ── -->
 <div style="margin-bottom:16px">
   <div style="font-weight:700;color:#60a5fa;font-size:13px;margin-bottom:4px">Apple iPhone / iPad / Apple Watch</div>
-  <p style="margin:0 0 6px">Apple does NOT expose the IRK in iOS settings. You need a <b>Mac</b> signed into the <b>same iCloud account</b>.</p>
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Method 1: Mac Keychain Access (recommended)</div>
+  <p style="margin:0 0 6px">${md(t("Apple does NOT expose the IRK in iOS settings. You need a **Mac** signed into the **same iCloud account**."))}</p>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Method 1: Mac Keychain Access (recommended)")}</div>
   <ol style="margin:0 0 8px;padding-left:20px">
-    <li>On your Mac, open <b>Keychain Access</b> (search in Spotlight).</li>
-    <li>In the top menu, select <b>Keychain Access → Preferences → Show Keychain Status in Menu Bar</b> (if needed).</li>
-    <li>Ensure you're viewing the <b>iCloud</b> or <b>login</b> keychain (sidebar).</li>
-    <li>In the search bar, type <b>BluetoothLE</b> or <b>GattServer</b>.</li>
-    <li>Look for entries like <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">com.apple.bluetooth.…LTK</code> or similar.</li>
-    <li>Double-click each entry → click <b>Show password</b> (enter your Mac password).</li>
-    <li>The data contains a <b>plist</b> or binary blob. Look for a 16-byte (32 hex character) value labeled <b>IRK</b> or <b>IdentityResolvingKey</b>.</li>
-    <li>Copy the 32-character hex string and paste it above.</li>
+    <li>${md(t("On your Mac, open **Keychain Access** (search in Spotlight)."))}</li>
+    <li>${md(t("In the top menu, select **Keychain Access → Preferences → Show Keychain Status in Menu Bar** (if needed)."))}</li>
+    <li>${md(t("Ensure you're viewing the **iCloud** or **login** keychain (sidebar)."))}</li>
+    <li>${md(t("In the search bar, type **BluetoothLE** or **GattServer**."))}</li>
+    <li>${t("Look for entries like {c1} or similar.", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">com.apple.bluetooth.\u2026LTK</code>" })}</li>
+    <li>${md(t("Double-click each entry → click **Show password** (enter your Mac password)."))}</li>
+    <li>${md(t("The data contains a **plist** or binary blob. Look for a 16-byte (32 hex character) value labeled **IRK** or **IdentityResolvingKey**."))}</li>
+    <li>${t("Copy the 32-character hex string and paste it above.")}</li>
   </ol>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Method 2: macOS Terminal (faster if you know your way around)</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Method 2: macOS Terminal (faster if you know your way around)")}</div>
   <ol style="margin:0 0 8px;padding-left:20px">
-    <li>Open <b>Terminal</b> on your Mac.</li>
-    <li>Run: <code style="background:#1a2a1a;padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0">
+    <li>${md(t("Open **Terminal** on your Mac."))}</li>
+    <li>${t("Run:")} <code style="background:#1a2a1a;padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0">
       sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist</code></li>
-    <li>Enter your admin password.</li>
-    <li>Search the output for your iPhone/iPad/Watch name. Under its entry, find the <b>IRK</b> field.</li>
-    <li>The IRK will be shown as a <b>base64</b> string (e.g., <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">aBcDeFgHiJkLmNoPqRsTuA==</code>)
-        or as hex data inside angle brackets (<code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">&lt;a1b2c3d4 e5f6a7b8…&gt;</code>).</li>
-    <li>Paste either format — PadSpan accepts both hex and base64.</li>
+    <li>${t("Enter your admin password.")}</li>
+    <li>${md(t("Search the output for your iPhone/iPad/Watch name. Under its entry, find the **IRK** field."))}</li>
+    <li>${md(t("The IRK will be shown as a **base64** string (e.g., {c1}) or as hex data inside angle brackets ({c2}).", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">aBcDeFgHiJkLmNoPqRsTuA==</code>", c2: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">&lt;a1b2c3d4 e5f6a7b8\u2026&gt;</code>" }))}</li>
+    <li>${t("Paste either format — PadSpan accepts both hex and base64.")}</li>
   </ol>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Method 3: ESP32 BLE IRK Sniffer</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Method 3: ESP32 BLE IRK Sniffer")}</div>
   <ol style="margin:0 0 8px;padding-left:20px">
-    <li>If you don't have a Mac, use an ESP32 running a BLE bond/pairing sketch.</li>
-    <li>Flash the ESP32 with a BLE pairing firmware (search for <b>"ESP32 IRK capture"</b> — several open-source tools exist).</li>
-    <li>Put your phone in Bluetooth pairing mode and pair it with the ESP32.</li>
-    <li>After pairing completes, the ESP32 serial output shows the exchanged keys including the IRK.</li>
-    <li>Copy the 32-hex-character IRK and paste it above.</li>
+    <li>${t("If you don't have a Mac, use an ESP32 running a BLE bond/pairing sketch.")}</li>
+    <li>${md(t("Flash the ESP32 with a BLE pairing firmware (search for **\"ESP32 IRK capture\"** — several open-source tools exist)."))}</li>
+    <li>${t("Put your phone in Bluetooth pairing mode and pair it with the ESP32.")}</li>
+    <li>${t("After pairing completes, the ESP32 serial output shows the exchanged keys including the IRK.")}</li>
+    <li>${t("Copy the 32-hex-character IRK and paste it above.")}</li>
   </ol>
 
   <div style="background:#1a1a0a;border:1px solid #92400e;border-radius:6px;padding:8px 10px;margin-top:4px">
-    <div style="font-weight:600;color:#fbbf24;font-size:11px;margin-bottom:2px">Apple Watch Note</div>
+    <div style="font-weight:600;color:#fbbf24;font-size:11px;margin-bottom:2px">${t("Apple Watch Note")}</div>
     <div style="font-size:11px;color:#d4d4aa">
-      Apple Watch has its own separate IRK (different from the paired iPhone). You need to find and add it separately.
-      Look for the Watch's Bluetooth name in the Keychain/plist data. Each Watch will appear as a separate device.
+      ${t("Apple Watch has its own separate IRK (different from the paired iPhone). You need to find and add it separately. Look for the Watch's Bluetooth name in the Keychain/plist data. Each Watch will appear as a separate device.")}
     </div>
   </div>
 </div>
 
 <!-- ── Android ── -->
 <div style="margin-bottom:16px">
-  <div style="font-weight:700;color:#4ade80;font-size:13px;margin-bottom:4px">Android Phones / Tablets</div>
+  <div style="font-weight:700;color:#4ade80;font-size:13px;margin-bottom:4px">${t("Android Phones / Tablets")}</div>
 
   <div style="background:#0a1a2a;border:1px solid #2563eb;border-radius:6px;padding:8px 10px;margin-bottom:10px">
-    <div style="font-weight:600;color:#60a5fa;font-size:11px;margin-bottom:2px">Do you need an IRK for Android?</div>
+    <div style="font-weight:600;color:#60a5fa;font-size:11px;margin-bottom:2px">${t("Do you need an IRK for Android?")}</div>
     <div style="font-size:11px;color:#a5c8d4">
-      If the HA Companion App's <b>BLE Transmitter</b> sensor is enabled, your phone already broadcasts an <b>iBeacon signal</b>
-      that PadSpan tracks automatically — no IRK needed. Check the <b>Overview → Track My Phone</b> section: if your phone
-      shows as "visible" or "BLE active", it's already being tracked. IRK adds enhanced tracking when iBeacon is not broadcasting
-      (screen off for extended periods, app killed, etc.).
+      ${md(t("If the HA Companion App's **BLE Transmitter** sensor is enabled, your phone already broadcasts an **iBeacon signal** that PadSpan tracks automatically — no IRK needed. Check the **Overview → Track My Phone** section: if your phone shows as \"visible\" or \"BLE active\", it's already being tracked. IRK adds enhanced tracking when iBeacon is not broadcasting (screen off for extended periods, app killed, etc.)."))}
     </div>
   </div>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Method 1: HA Private BLE Device Integration (recommended)</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Method 1: HA Private BLE Device Integration (recommended)")}</div>
   <ol style="margin:0 0 8px;padding-left:20px">
-    <li>In Home Assistant, go to <b>Settings → Devices & Services → Add Integration</b>.</li>
-    <li>Search for <b>"Private BLE Device"</b> and add it.</li>
-    <li>HA will scan for nearby BLE devices with rotating addresses and offer to add them.</li>
-    <li>Select your phone from the list — HA handles the IRK extraction automatically.</li>
-    <li>PadSpan picks up the IRK from this integration within 60 seconds.</li>
+    <li>${md(t("In Home Assistant, go to **Settings → Devices & Services → Add Integration**."))}</li>
+    <li>${md(t("Search for **\"Private BLE Device\"** and add it."))}</li>
+    <li>${t("HA will scan for nearby BLE devices with rotating addresses and offer to add them.")}</li>
+    <li>${t("Select your phone from the list — HA handles the IRK extraction automatically.")}</li>
+    <li>${t("PadSpan picks up the IRK from this integration within 60 seconds.")}</li>
   </ol>
   <div style="background:#0a1a1a;border:1px solid #164e63;border-radius:6px;padding:8px 10px;margin-bottom:8px">
-    <div style="font-weight:600;color:#22d3ee;font-size:11px;margin-bottom:2px">Important: BLE Transmitter should be enabled</div>
+    <div style="font-weight:600;color:#22d3ee;font-size:11px;margin-bottom:2px">${t("Important: BLE Transmitter should be enabled")}</div>
     <div style="font-size:11px;color:#a5c8d4">
-      Enable the HA Companion App's <b>BLE Transmitter</b> sensor for the best tracking coverage.
-      This makes Android broadcast a consistent iBeacon identity that PadSpan tracks natively.
-      Battery impact is minimal (~1-2%).
+      ${md(t("Enable the HA Companion App's **BLE Transmitter** sensor for the best tracking coverage. This makes Android broadcast a consistent iBeacon identity that PadSpan tracks natively. Battery impact is minimal (~1-2%)."))}
     </div>
   </div>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Method 2: ADB / Root Access (advanced)</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Method 2: ADB / Root Access (advanced)")}</div>
   <ol style="margin:0 0 8px;padding-left:20px">
-    <li>On a rooted Android device (or via ADB with root): <code style="background:#1a2a1a;padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0">
+    <li>${t("On a rooted Android device (or via ADB with root):")} <code style="background:#1a2a1a;padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0">
       adb shell su -c "cat /data/misc/bluedroid/bt_config.conf"</code></li>
-    <li>Find the <b>[Local]</b> section → look for <b>LE_LOCAL_KEY_IRK</b>.</li>
-    <li>The value is your IRK in hex. Copy and paste above.</li>
+    <li>${md(t("Find the **[Local]** section → look for **LE_LOCAL_KEY_IRK**."))}</li>
+    <li>${t("The value is your IRK in hex. Copy and paste above.")}</li>
   </ol>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Method 3: ESP32 Pairing (same as iPhone method)</div>
-  <p style="margin:0 0 8px;padding-left:20px">Pair the Android phone with an ESP32 running BLE pairing firmware. The IRK is exchanged during pairing and shown in the serial output.</p>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Method 3: ESP32 Pairing (same as iPhone method)")}</div>
+  <p style="margin:0 0 8px;padding-left:20px">${t("Pair the Android phone with an ESP32 running BLE pairing firmware. The IRK is exchanged during pairing and shown in the serial output.")}</p>
 </div>
 
 <!-- ── Wear OS / Samsung Galaxy Watch ── -->
 <div style="margin-bottom:16px">
   <div style="font-weight:700;color:#c4b5fd;font-size:13px;margin-bottom:4px">Wear OS / Samsung Galaxy Watch</div>
-  <p style="margin:0 0 6px">Smart watches have their own BLE identity, separate from the phone they're paired with.</p>
+  <p style="margin:0 0 6px">${t("Smart watches have their own BLE identity, separate from the phone they're paired with.")}</p>
   <ol style="margin:0 0 8px;padding-left:20px">
-    <li>If the watch runs <b>Wear OS</b> and has the <b>HA Companion App</b> installed, use the same BLE Transmitter method as Android above.</li>
-    <li>For <b>Samsung Galaxy Watch</b> without HA app: Use the ESP32 pairing method. Put the watch in pairing mode and pair with the ESP32.</li>
-    <li>Alternatively, on the paired phone, the watch's IRK may be stored in the Bluetooth bond data:
+    <li>${md(t("If the watch runs **Wear OS** and has the **HA Companion App** installed, use the same BLE Transmitter method as Android above."))}</li>
+    <li>${md(t("For **Samsung Galaxy Watch** without HA app: Use the ESP32 pairing method. Put the watch in pairing mode and pair with the ESP32."))}</li>
+    <li>${t("Alternatively, on the paired phone, the watch's IRK may be stored in the Bluetooth bond data:")}
       <code style="background:#1a2a1a;padding:2px 6px;border-radius:3px;display:inline-block;margin:2px 0">
       adb shell su -c "cat /data/misc/bluedroid/bt_config.conf"</code>
-      — look for the watch's MAC under <b>[Bonded Devices]</b> section.</li>
+      ${md(t("— look for the watch's MAC under **[Bonded Devices]** section."))}</li>
   </ol>
 </div>
 
 <!-- ── BLE Tags / Trackers ── -->
 <div style="margin-bottom:16px">
-  <div style="font-weight:700;color:#fb923c;font-size:13px;margin-bottom:4px">BLE Tags & Trackers (Tile, AirTag, SmartTag, Chipolo, etc.)</div>
+  <div style="font-weight:700;color:#fb923c;font-size:13px;margin-bottom:4px">${t("BLE Tags & Trackers (Tile, AirTag, SmartTag, Chipolo, etc.)")}</div>
 
   <div style="background:#1a1a0a;border:1px solid #92400e;border-radius:6px;padding:8px 10px;margin-bottom:8px">
-    <div style="font-weight:600;color:#fbbf24;font-size:11px;margin-bottom:2px">Do you actually need an IRK for tags?</div>
+    <div style="font-weight:600;color:#fbbf24;font-size:11px;margin-bottom:2px">${t("Do you actually need an IRK for tags?")}</div>
     <div style="font-size:11px;color:#d4d4aa">
-      Many BLE tags use <b>iBeacon</b> or fixed MAC addresses — PadSpan already tracks these natively without
-      needing an IRK. Check the <b>Devices</b> screen: if your tag shows up as an "iBeacon" or "BLE" object with a
-      consistent address, you're already set. IRKs are only needed for tags that use <b>rotating random MACs</b>.
+      ${md(t("Many BLE tags use **iBeacon** or fixed MAC addresses — PadSpan already tracks these natively without needing an IRK. Check the **Devices** screen: if your tag shows up as an \"iBeacon\" or \"BLE\" object with a consistent address, you're already set. IRKs are only needed for tags that use **rotating random MACs**."))}
     </div>
   </div>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Apple AirTag and other Find My tags</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Apple AirTag and other Find My tags")}</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>AirTags and tags sold as "works with Apple Find My" change their Bluetooth address every 15 minutes near their owner's iPhone, and once a day (at about 4 am) when away from it. Nothing else in what they send stays the same, and they have <b>no IRK</b> — so neither an IRK nor iBeacon grouping can follow them.</li>
-    <li>PadSpan recognises them (the <b>Find My</b> badge) and, with <b>Settings → Features → MAC Rotation Bridging</b> on, carries a tag you've named or followed onto its next address when it's clear which one it is: the same kind of tag, the old address has stopped, and your scanners hear the new one in the same place. Its name, room and Follow carry on.</li>
-    <li>It won't guess. Two tags lying together that change at the same moment stay unlinked — give the new one its name again. A tag that was out of range when it changed is a new object too.</li>
-    <li>For a tag that never changes, use an iBeacon tag or the Home Assistant Companion app's iBeacon.</li>
+    <li>${md(t("AirTags and tags sold as \"works with Apple Find My\" change their Bluetooth address every 15 minutes near their owner's iPhone, and once a day (at about 4 am) when away from it. Nothing else in what they send stays the same, and they have **no IRK** — so neither an IRK nor iBeacon grouping can follow them."))}</li>
+    <li>${md(t("PadSpan recognises them (the **Find My** badge) and, with **Settings → Features → MAC Rotation Bridging** on, carries a tag you've named or followed onto its next address when it's clear which one it is: the same kind of tag, the old address has stopped, and your scanners hear the new one in the same place. Its name, room and Follow carry on."))}</li>
+    <li>${t("It won't guess. Two tags lying together that change at the same moment stay unlinked — give the new one its name again. A tag that was out of range when it changed is a new object too.")}</li>
+    <li>${t("For a tag that never changes, use an iBeacon tag or the Home Assistant Companion app's iBeacon.")}</li>
   </ul>
 
   <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Samsung SmartTag / SmartTag2</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>SmartTags use Samsung's SmartThings Find network and rotate MACs.</li>
-    <li>They often broadcast a fixed <b>service UUID</b> that PadSpan can group via dedup.</li>
-    <li>For IRK extraction: pair the SmartTag with an ESP32, or extract from the SmartThings app data on a rooted phone.</li>
+    <li>${t("SmartTags use Samsung's SmartThings Find network and rotate MACs.")}</li>
+    <li>${md(t("They often broadcast a fixed **service UUID** that PadSpan can group via dedup."))}</li>
+    <li>${t("For IRK extraction: pair the SmartTag with an ESP32, or extract from the SmartThings app data on a rooted phone.")}</li>
   </ul>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Tile Trackers</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Tile Trackers")}</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>Tile trackers typically use a <b>fixed public MAC</b> — PadSpan tracks them directly without an IRK.</li>
-    <li>If your Tile uses a rotating MAC (newer models), the IRK can be extracted via ESP32 pairing.</li>
+    <li>${md(t("Tile trackers typically use a **fixed public MAC** — PadSpan tracks them directly without an IRK."))}</li>
+    <li>${t("If your Tile uses a rotating MAC (newer models), the IRK can be extracted via ESP32 pairing.")}</li>
   </ul>
 
-  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Chipolo, Nutfind, and Other Tags</div>
+  <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">${t("Chipolo, Nutfind, and Other Tags")}</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>Most use fixed MACs or iBeacon — check Devices → By Room first.</li>
-    <li>If rotating: pair with ESP32 to extract IRK.</li>
+    <li>${t("Most use fixed MACs or iBeacon — check Devices → By Room first.")}</li>
+    <li>${t("If rotating: pair with ESP32 to extract IRK.")}</li>
   </ul>
 </div>
 
 <!-- ── Laptops / Bluetooth Headphones ── -->
 <div style="margin-bottom:16px">
-  <div style="font-weight:700;color:#f472b6;font-size:13px;margin-bottom:4px">Laptops, Headphones & Other BLE Devices</div>
+  <div style="font-weight:700;color:#f472b6;font-size:13px;margin-bottom:4px">${t("Laptops, Headphones & Other BLE Devices")}</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li><b>Windows laptops</b>: Usually use a fixed public MAC for Bluetooth. Check Devices → By Room — if it appears with a consistent address, no IRK needed.</li>
-    <li><b>Mac laptops</b>: Use BLE privacy with rotating MACs. Extract IRK from the macOS Bluetooth plist (same Terminal method as iPhone above, look for the Mac's own entry).</li>
-    <li><b>Bluetooth headphones/earbuds</b>: Most use a <b>fixed MAC</b> when actively connected/broadcasting. No IRK needed — PadSpan tracks them directly.</li>
-    <li><b>Fitness bands</b>: Varies by manufacturer. Check Devices → By Room first. If rotating MAC, try ESP32 pairing method.</li>
+    <li>${md(t("**Windows laptops**: Usually use a fixed public MAC for Bluetooth. Check Devices → By Room — if it appears with a consistent address, no IRK needed."))}</li>
+    <li>${md(t("**Mac laptops**: Use BLE privacy with rotating MACs. Extract IRK from the macOS Bluetooth plist (same Terminal method as iPhone above, look for the Mac's own entry)."))}</li>
+    <li>${md(t("**Bluetooth headphones/earbuds**: Most use a **fixed MAC** when actively connected/broadcasting. No IRK needed — PadSpan tracks them directly."))}</li>
+    <li>${md(t("**Fitness bands**: Varies by manufacturer. Check Devices → By Room first. If rotating MAC, try ESP32 pairing method."))}</li>
   </ul>
 </div>
 
 <!-- ── IRK Format ── -->
 <div style="margin-bottom:16px;border-top:1px solid #1e3a2a;padding-top:12px">
-  <div style="font-weight:700;color:#e2e8f0;font-size:13px;margin-bottom:6px">IRK Format</div>
-  <p style="margin:0 0 6px">PadSpan accepts IRKs in two formats — paste either one:</p>
+  <div style="font-weight:700;color:#e2e8f0;font-size:13px;margin-bottom:6px">${t("IRK Format")}</div>
+  <p style="margin:0 0 6px">${t("PadSpan accepts IRKs in two formats — paste either one:")}</p>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li><b>Hex</b>: 32 hexadecimal characters (e.g., <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6</code>)</li>
-    <li><b>Base64</b>: 24 characters ending in <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">=</code> or <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">==</code> (e.g., <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">obLD1OX2p7jJ0OHyo7TF1g==</code>)</li>
+    <li>${md(t("**Hex**: 32 hexadecimal characters (e.g., {c1})", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6</code>" }))}</li>
+    <li>${md(t("**Base64**: 24 characters ending in {c1} or {c2} (e.g., {c3})", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">=</code>", c2: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">==</code>", c3: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">obLD1OX2p7jJ0OHyo7TF1g==</code>" }))}</li>
   </ul>
-  <p style="margin:0 0 6px">Both represent the same 16-byte (128-bit) key. Hex is more common from Android; base64 from macOS.</p>
+  <p style="margin:0 0 6px">${t("Both represent the same 16-byte (128-bit) key. Hex is more common from Android; base64 from macOS.")}</p>
   <p style="margin:0">
-    <b>Spaces, colons, and dashes are stripped automatically</b> — so formats like
-    <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">a1:b2:c3:d4:…</code> or
-    <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">a1 b2 c3 d4 …</code> also work.
+    ${md(t("**Spaces, colons, and dashes are stripped automatically** — so formats like {c1} or {c2} also work.", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">a1:b2:c3:d4:\u2026</code>", c2: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">a1 b2 c3 d4 \u2026</code>" }))}
   </p>
 </div>
 
 <!-- ── Troubleshooting ── -->
 <div style="margin-bottom:8px;border-top:1px solid #1e3a2a;padding-top:12px">
-  <div style="font-weight:700;color:#e2e8f0;font-size:13px;margin-bottom:6px">Troubleshooting</div>
+  <div style="font-weight:700;color:#e2e8f0;font-size:13px;margin-bottom:6px">${t("Troubleshooting")}</div>
   <div style="margin-bottom:8px">
-    <div style="font-weight:600;color:#f87171;font-size:12px">"IRK added but device not showing up"</div>
+    <div style="font-weight:600;color:#f87171;font-size:12px">${t("\"IRK added but device not showing up\"")}</div>
     <ul style="margin:4px 0 0;padding-left:20px;font-size:11px">
-      <li>Make sure the device is <b>within BLE range</b> of at least one ESPHome proxy / HA Bluetooth adapter.</li>
-      <li>The device must be <b>actively advertising</b> BLE — phones in airplane mode or with Bluetooth off won't appear.</li>
-      <li>Wait 1-2 minutes after adding the IRK. The Private BLE Device integration needs time to match rotating addresses.</li>
-      <li>On Android, ensure <b>BLE Transmitter is enabled</b> in the HA Companion App.</li>
-      <li>Check <b>Developer Tools → States</b> in HA — search for <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">device_tracker.private_ble_</code> entities.</li>
+      <li>${md(t("Make sure the device is **within BLE range** of at least one ESPHome proxy / HA Bluetooth adapter."))}</li>
+      <li>${md(t("The device must be **actively advertising** BLE — phones in airplane mode or with Bluetooth off won't appear."))}</li>
+      <li>${t("Wait 1-2 minutes after adding the IRK. The Private BLE Device integration needs time to match rotating addresses.")}</li>
+      <li>${md(t("On Android, ensure **BLE Transmitter is enabled** in the HA Companion App."))}</li>
+      <li>${md(t("Check **Developer Tools → States** in HA — search for {c1} entities.", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">device_tracker.private_ble_</code>" }))}</li>
     </ul>
   </div>
   <div style="margin-bottom:8px">
-    <div style="font-weight:600;color:#f87171;font-size:12px">"IRK invalid" error</div>
+    <div style="font-weight:600;color:#f87171;font-size:12px">${t("\"IRK invalid\" error")}</div>
     <ul style="margin:4px 0 0;padding-left:20px;font-size:11px">
-      <li>Ensure the IRK is exactly <b>32 hex characters</b> or a valid <b>base64 string</b> (24 chars with padding).</li>
-      <li>Remove any surrounding quotes, brackets, or whitespace.</li>
-      <li>If you copied from macOS plist data inside angle brackets like <code style="background:#1a2a1a;padding:1px 4px;border-radius:3px">&lt;a1b2c3d4…&gt;</code>, remove the angle brackets.</li>
+      <li>${md(t("Ensure the IRK is exactly **32 hex characters** or a valid **base64 string** (24 chars with padding)."))}</li>
+      <li>${t("Remove any surrounding quotes, brackets, or whitespace.")}</li>
+      <li>${t("If you copied from macOS plist data inside angle brackets like {c1}, remove the angle brackets.", { c1: "<code style=\"background:#1a2a1a;padding:1px 4px;border-radius:3px\">&lt;a1b2c3d4\u2026&gt;</code>" })}</li>
     </ul>
   </div>
   <div style="margin-bottom:8px">
-    <div style="font-weight:600;color:#f87171;font-size:12px">"Device shows in wrong room / jumps between rooms"</div>
+    <div style="font-weight:600;color:#f87171;font-size:12px">${t("\"Device shows in wrong room / jumps between rooms\"")}</div>
     <ul style="margin:4px 0 0;padding-left:20px;font-size:11px">
-      <li>This is a <b>signal strength issue</b>, not an IRK issue. The IRK only resolves identity — room assignment uses RSSI from your scanners.</li>
-      <li>Add more <b>ESPHome BLE proxies</b> to improve coverage. Ideally one per room you want to track.</li>
-      <li>Use the <b>Calibration</b> tab to create reference points — this dramatically improves room accuracy.</li>
-      <li>Adjust <b>Distance Calibration</b> settings (below) if distance estimates are way off.</li>
+      <li>${md(t("This is a **signal strength issue**, not an IRK issue. The IRK only resolves identity — room assignment uses RSSI from your scanners."))}</li>
+      <li>${md(t("Add more **ESPHome BLE proxies** to improve coverage. Ideally one per room you want to track."))}</li>
+      <li>${md(t("Use the **Calibration** tab to create reference points — this dramatically improves room accuracy."))}</li>
+      <li>${md(t("Adjust **Distance Calibration** settings (below) if distance estimates are way off."))}</li>
     </ul>
   </div>
   <div>
-    <div style="font-weight:600;color:#f87171;font-size:12px">"Multiple entries for the same phone"</div>
+    <div style="font-weight:600;color:#f87171;font-size:12px">${t("\"Multiple entries for the same phone\"")}</div>
     <ul style="margin:4px 0 0;padding-left:20px;font-size:11px">
-      <li>If you see both a Private BLE entry AND regular BLE entries for the same phone, PadSpan's dedup engine should merge them automatically.</li>
-      <li>Check the <b>Devices</b> screen — look for objects with a "N MACs merged" badge.</li>
-      <li>If duplicates persist, the phone may be advertising on <b>multiple protocols simultaneously</b> (e.g., iBeacon + regular BLE). PadSpan handles this.</li>
+      <li>${t("If you see both a Private BLE entry AND regular BLE entries for the same phone, PadSpan's dedup engine should merge them automatically.")}</li>
+      <li>${md(t("Check the **Devices** screen — look for objects with a \"N MACs merged\" badge."))}</li>
+      <li>${md(t("If duplicates persist, the phone may be advertising on **multiple protocols simultaneously** (e.g., iBeacon + regular BLE). PadSpan handles this."))}</li>
     </ul>
   </div>
 </div>

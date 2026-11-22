@@ -66,6 +66,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "bluetooth": ("views/bluetooth.js",),
     "settings": ("views/settings.js",),
     "tracking": ("views/settings.js#tracking",),
+    "tracking2": ("views/settings.js#tracking2",),
 }
 SERVER = "server"
 

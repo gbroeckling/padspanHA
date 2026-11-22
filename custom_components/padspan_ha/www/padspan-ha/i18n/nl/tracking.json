@@ -209,6 +209,61 @@
 "hours": "uur",
 "Current: {value}. Default: off (0). Range: 0.5 – 48 h.": "Huidig: {value}. Standaard: uit (0). Bereik: 0,5 – 48 u.",
 "off (same as the away timeout)": "uit (zelfde als de afwezigheidstime-out)",
+"BLE timeout set to {seconds}s": "BLE-time-out ingesteld op {seconds} s",
+"BLE Advertisement Timeout": "Time-out voor BLE-advertenties",
+"How long to keep a BLE device visible after its last advertisement. Higher values show more devices (especially slow-broadcasting ones). Lower values keep the list cleaner but may drop intermittent devices.": "Hoe lang een BLE-apparaat zichtbaar blijft na zijn laatste advertentie. Hogere waarden tonen meer apparaten (vooral traag uitzendende). Lagere waarden houden de lijst schoner maar kunnen apparaten kwijtraken die af en toe uitzenden.",
+"Max age": "Maximale leeftijd",
+"Current: {seconds}s. Default: 14400s (4 h). Range: 60s – 14400s (4 h).": "Huidig: {seconds} s. Standaard: 14400 s (4 u). Bereik: 60 s – 14400 s (4 u).",
+"Low-memory mode holds it to 900s (15 min).": "Geheugenbesparing houdt het op 900 s (15 min).",
+"Phone Tracking (Private BLE)": "Telefoons volgen (Private BLE)",
+"Track phones and watches with rotating MAC addresses using their IRK (Identity Resolving Key). PadSpan scans system Bluetooth bonds automatically, or you can paste an IRK manually.": "Volg telefoons en horloges met wisselende MAC-adressen via hun IRK (Identity Resolving Key). PadSpan doorzoekt de Bluetooth-koppelingen van het systeem automatisch, of je plakt een IRK met de hand.",
+"Auto-Detect IRKs": "IRK's automatisch zoeken",
+"Scanning...": "Zoeken...",
+"No IRKs found in system Bluetooth bonds. Pair your phone via Bluetooth first, or paste the IRK manually below.": "Geen IRK's gevonden in de Bluetooth-koppelingen van het systeem. Koppel je telefoon eerst via Bluetooth, of plak de IRK hieronder met de hand.",
+"Verifying against live BLE...": "Controleren met live BLE...",
+"Verified": "Geverifieerd",
+"Unverified": "Niet geverifieerd",
+"Unknown": "Onbekend",
+"System BT bond": "BT-koppeling van systeem",
+"Add": "Toevoegen",
+"Adding...": "Toevoegen...",
+"Added": "Toegevoegd",
+"Error": "Fout",
+"Auto-detect failed: {error}": "Automatisch zoeken mislukt: {error}",
+"Loading...": "Laden...",
+"Name": "Naam",
+"Canonical ID": "Canonieke ID",
+"Source": "Bron",
+"Delete from HA": "Verwijderen uit HA",
+"Delete \"{name}\" from Home Assistant? This removes the Private BLE Device integration entry itself — the device disappears from HA, not just from PadSpan.": "“{name}” uit Home Assistant verwijderen? Dit haalt de vermelding van de integratie Private BLE Device zelf weg — het apparaat verdwijnt uit HA, niet alleen uit PadSpan.",
+"device": "apparaat",
+"Are you sure? \"{name}\" will be deleted from Home Assistant. You would need its IRK to re-add it.": "Weet je het zeker? “{name}” wordt uit Home Assistant verwijderd. Om hem opnieuw toe te voegen heb je zijn IRK nodig.",
+"Delete": "Verwijderen",
+"Managed by HA — delete from Settings → Devices & Services": "Beheerd door HA — verwijder het via Instellingen → Apparaten & diensten",
+"No IRKs registered and no rotating addresses detected.": "Geen IRK's geregistreerd en geen wisselende adressen gedetecteerd.",
+"Could not load status": "Status kon niet worden geladen",
+"Paste IRK (hex or base64)": "IRK plakken (hex of base64)",
+"Device name (e.g., Alice's iPhone)": "Apparaatnaam (bijv. iPhone van Alice)",
+"Add IRK": "IRK toevoegen",
+"Already registered": "Al geregistreerd",
+"IRK added successfully": "IRK toegevoegd",
+"Failed to add IRK": "IRK toevoegen mislukt",
+"Please paste an IRK": "Plak een IRK",
+"Validating...": "Valideren...",
+"Scanning for device...": "Zoeken naar het apparaat...",
+"Cancel": "Annuleren",
+"Scanning for device... {elapsed}s / {total}s": "Zoeken naar het apparaat... {elapsed} s / {total} s",
+"Invalid IRK format": "Ongeldig IRK-formaat",
+"Validation cancelled.": "Validatie geannuleerd.",
+"(format: {format})": "(formaat: {format})",
+"No match found after {seconds}s ({count} rotating addresses scanned). The device may be off, out of range, or the key may be incorrect.": "Geen overeenkomst na {seconds} s ({count} wisselende adressen gescand). Het apparaat staat misschien uit, is buiten bereik, of de sleutel klopt niet.",
+"No rotating addresses detected. Make sure BLE scanners are online and the device is nearby.": "Geen wisselende adressen gedetecteerd. Zorg dat de BLE-scanners online zijn en het apparaat in de buurt is.",
+"Save Anyway": "Toch opslaan",
+"Retry": "Opnieuw",
+"Saving...": "Opslaan...",
+"Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.": "Plak hierboven de IRK van je apparaat en PadSpan doet de rest. Belangrijk: het apparaat moet actief uitzenden (wakker, Bluetooth aan) en binnen bereik van een scanner zijn als je de IRK toevoegt. Klik hieronder voor stapsgewijze instructies voor elk type apparaat.",
+"Detailed Setup Guide": "Uitgebreide installatiegids",
+"Hide Guide": "Gids verbergen",
 "Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.": {
 "one": "Nu: {delay} s → vraagt ~{n} overeenstemmende ronde van {poll} s achter elkaar.",
 "other": "Nu: {delay} s → vraagt ~{n} overeenstemmende rondes van {poll} s achter elkaar."
@@ -224,5 +279,33 @@
 "Current: {n} days. Default: 1 day.": {
 "one": "Huidig: {n} dag. Standaard: 1 dag.",
 "other": "Huidig: {n} dagen. Standaard: 1 dag."
+},
+"All {n} bonded devices are already registered.": {
+"one": "Het gekoppelde apparaat is al geregistreerd.",
+"other": "Alle {n} gekoppelde apparaten zijn al geregistreerd."
+},
+"{n} new IRKs found!": {
+"one": "{n} nieuwe IRK gevonden!",
+"other": "{n} nieuwe IRK's gevonden!"
+},
+"{n} RPA matches": {
+"one": "{n} RPA-overeenkomst",
+"other": "{n} RPA-overeenkomsten"
+},
+"{n} IRKs registered": {
+"one": "{n} IRK geregistreerd",
+"other": "{n} IRK's geregistreerd"
+},
+"{n} rotating addresses detected": {
+"one": "{n} wisselend adres gedetecteerd",
+"other": "{n} wisselende adressen gedetecteerd"
+},
+"No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.": {
+"one": "Nog geen IRK's geregistreerd — {n} wisselend MAC-adres gedetecteerd. Voeg hieronder IRK's toe om telefoons te volgen.",
+"other": "Nog geen IRK's geregistreerd — {n} wisselende MAC-adressen gedetecteerd. Voeg hieronder IRK's toe om telefoons te volgen."
+},
+"Verified — matched {n} rotating addresses{note}. Saving...": {
+"one": "Geverifieerd — {n} wisselend adres herkend{note}. Opslaan...",
+"other": "Geverifieerd — {n} wisselende adressen herkend{note}. Opslaan..."
 }
 }
