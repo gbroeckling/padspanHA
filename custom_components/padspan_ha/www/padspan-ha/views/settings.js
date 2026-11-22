@@ -2810,8 +2810,8 @@ function _settingsPresence(ctx, el){
       try {
         await ctx.actions.settingsSet({ padspan_automations: newRules });
         ctx.state.settings = { ...ctx.state.settings, padspan_automations: newRules };
-        ctx.toast("Automation saved");
-      } catch(e) { ctx.toast("Save failed: " + ctx.helpers.errorText(e), true); }
+        ctx.toast(t("Automation saved"));
+      } catch(e) { ctx.toast(t("Save failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
     };
 
     const _deleteRule = (idx) => {
@@ -2829,45 +2829,45 @@ function _settingsPresence(ctx, el){
     const ruleEls = rules.map((r, idx) => {
       const lbl = r.device_label || r.device_key || "?";
       const arrow = r.trigger === "arrive" ? "\u2192" : "\u2190";
-      const actionLbl = r.action === "turn_on" ? "ON" : r.action === "turn_off" ? "OFF" : r.action;
+      const actionLbl = r.action === "turn_on" ? t("ON") : r.action === "turn_off" ? t("OFF") : r.action;
       const entShort = (r.entity_id || "").split(".").pop() || "?";
       const opacity = r.enabled ? "1" : "0.4";
       const row = el("div",{style:`display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1b3526;opacity:${opacity}`},[
-        el("span",{style:"font-size:11px;min-width:50px;color:#94a3b8"}, r.trigger === "arrive" ? "ARRIVE" : "DEPART"),
+        el("span",{style:"font-size:11px;min-width:50px;color:#94a3b8"}, r.trigger === "arrive" ? t("ARRIVE") : t("DEPART")),
         el("span",{style:"font-size:12px;color:#e2e8f0;flex:1"}, `${lbl} ${arrow} ${actionLbl} ${entShort}`),
-        el("button",{style:"background:none;border:none;color:#60a5fa;cursor:pointer;font-size:11px",title:"Toggle"}, r.enabled ? "ON" : "OFF"),
-        el("button",{style:"background:none;border:none;color:#f87171;cursor:pointer;font-size:11px",title:"Delete"}, "\u2715"),
+        el("button",{style:"background:none;border:none;color:#60a5fa;cursor:pointer;font-size:11px",title:t("Toggle")}, r.enabled ? t("ON") : t("OFF")),
+        el("button",{style:"background:none;border:none;color:#f87171;cursor:pointer;font-size:11px",title:t("Delete")}, "\u2715"),
       ]);
       row.children[2].addEventListener("click", () => _toggleRule(idx));
-      row.children[3].addEventListener("click", () => { if(confirm("Delete this automation?")) _deleteRule(idx); });
+      row.children[3].addEventListener("click", () => { if(confirm(t("Delete this automation?"))) _deleteRule(idx); });
       return row;
     });
 
     // Add new rule form
     const triggerSel = el("select",{style:"font-size:12px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:4px;padding:4px"},[
-      el("option",{value:"depart"},"When device DEPARTS"),
-      el("option",{value:"arrive"},"When device ARRIVES"),
+      el("option",{value:"depart"},t("When device DEPARTS")),
+      el("option",{value:"arrive"},t("When device ARRIVES")),
     ]);
     const deviceSel = el("select",{style:"font-size:12px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:4px;padding:4px"},[
-      el("option",{value:""},"— Select device —"),
+      el("option",{value:""},t("— Select device —")),
       ...deviceOpts.map(d => el("option",{value:d.label}, d.label)),
     ]);
     const actionSel = el("select",{style:"font-size:12px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:4px;padding:4px"},[
-      el("option",{value:"turn_off"},"Turn OFF"),
-      el("option",{value:"turn_on"},"Turn ON"),
+      el("option",{value:"turn_off"},t("Turn OFF")),
+      el("option",{value:"turn_on"},t("Turn ON")),
     ]);
     const entitySel = el("select",{style:"font-size:12px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:4px;padding:4px;max-width:200px"},[
-      el("option",{value:""},"— Select entity —"),
+      el("option",{value:""},t("— Select entity —")),
       ..._entities.map(e => el("option",{value:e}, e.split(".").pop())),
     ]);
 
-    const addBtn = el("button",{class:"btn",style:"background:#065f46;border-color:#065f46;font-size:12px;padding:4px 12px"},"Add Rule");
+    const addBtn = el("button",{class:"btn",style:"background:#065f46;border-color:#065f46;font-size:12px;padding:4px 12px"},t("Add Rule"));
     addBtn.addEventListener("click", () => {
       const dev = deviceSel.value;
       const ent = entitySel.value;
-      if (!dev || !ent) { ctx.toast("Select a device and entity", true); return; }
+      if (!dev || !ent) { ctx.toast(t("Select a device and entity"), true); return; }
       if (ent.startsWith("scene.") && actionSel.value === "turn_off") {
-        ctx.toast("A scene can only be turned on - Home Assistant has no way to turn one off", true); return;
+        ctx.toast(t("A scene can only be turned on - Home Assistant has no way to turn one off"), true); return;
       }
       const devOpt = deviceOpts.find(d => d.label === dev);
       const newRule = {
@@ -2883,17 +2883,14 @@ function _settingsPresence(ctx, el){
     });
 
     const cardChildren = [
-      el("div",{class:"h2",style:"margin-bottom:4px"},"Automations"),
+      el("div",{class:"h2",style:"margin-bottom:4px"},t("Automations")),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Simple arrive/depart rules. PadSpan also fires HA events (padspan_device_arrived, " +
-        "padspan_device_departed) for labelled devices, so you can build complex automations " +
-        "in HA. Unlabelled devices don't fire events — every rotating-MAC rotation would " +
-        "register as a new arrival and flood the event bus — but the rules above still match them."),
+        t("Simple arrive/depart rules. PadSpan also fires HA events (padspan_device_arrived, padspan_device_departed) for labelled devices, so you can build complex automations in HA. Unlabelled devices don't fire events — every rotating-MAC rotation would register as a new arrival and flood the event bus — but the rules above still match them.")),
     ];
     if (ruleEls.length) {
       cardChildren.push(el("div",{style:"margin-bottom:10px"}, ruleEls));
     } else {
-      cardChildren.push(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px;font-style:italic"}, "No rules yet"));
+      cardChildren.push(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px;font-style:italic"}, t("No rules yet")));
     }
     cardChildren.push(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px"},[
       triggerSel, deviceSel, actionSel, entitySel, addBtn,
@@ -2908,14 +2905,12 @@ function _settingsPresence(ctx, el){
     const _remS = _snap?.suspend_remaining_s ?? 0;
     const _mm = Math.floor(_remS / 60);
     const _ss = _remS % 60;
-    const _countdownStr = _remS > 0 ? `${_mm}:${String(_ss).padStart(2,"0")} remaining` : "";
+    const _countdownStr = _remS > 0 ? t("{time} remaining", { time: `${_mm}:${String(_ss).padStart(2,"0")}` }) : "";
 
     const cardChildren = [
-      el("div",{class:"h2",style:"margin-bottom:4px"},"Positioning Test Mode"),
+      el("div",{class:"h2",style:"margin-bottom:4px"},t("Positioning Test Mode")),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Temporarily suspend all learned databases (Kalman state, vote windows, scanner reliability, k-NN cache, adaptive learning) " +
-        "and use only raw radio RSSI with spatial weighted-centroid positioning. Useful for diagnosing whether accumulated state is " +
-        "causing incorrect room assignments. Calibration data and settings are preserved — only in-memory smoothing state is cleared."),
+        t("Temporarily suspend all learned databases (Kalman state, vote windows, scanner reliability, k-NN cache, adaptive learning) and use only raw radio RSSI with spatial weighted-centroid positioning. Useful for diagnosing whether accumulated state is causing incorrect room assignments. Calibration data and settings are preserved — only in-memory smoothing state is cleared.")),
     ];
 
     if (_isActive) {
@@ -2926,42 +2921,42 @@ function _settingsPresence(ctx, el){
       },[
         el("span",{style:"font-size:18px"}, "\u26a0\ufe0f"),
         el("div",{style:"flex:1"},[
-          el("div",{style:"color:#fbbf24;font-weight:700;font-size:13px"}, "SUSPENDED — Raw Radio Mode Active"),
+          el("div",{style:"color:#fbbf24;font-weight:700;font-size:13px"}, t("SUSPENDED — Raw Radio Mode Active")),
           el("div",{style:"color:#fde68a;font-size:12px;margin-top:2px"},
             _countdownStr
-              ? `All learned databases bypassed \u00b7 ${_countdownStr}`
-              : "All learned databases bypassed \u00b7 ending soon"),
+              ? t("All learned databases bypassed · {left}", { left: _countdownStr })
+              : t("All learned databases bypassed \u00b7 ending soon")),
         ]),
       ]);
       cardChildren.push(statusRow);
 
-      const cancelBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},"Resume Normal Pipeline");
+      const cancelBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},t("Resume Normal Pipeline"));
       cancelBtn.addEventListener("click", async()=>{
-        cancelBtn.disabled=true; cancelBtn.textContent="Resuming\u2026";
+        cancelBtn.disabled=true; cancelBtn.textContent=t("Resuming\u2026");
         try {
           // The handler answers {ok:false} (not an error) when the coordinator
           // isn't ready yet; that read as success.
           const r = await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
-          if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); return; }
-          ctx.toast("Normal pipeline resumed \u2014 smoothing state cleared for fresh start");
+          if (r && r.ok === false) { ctx.toast(t("Not resumed: {why}", { why: r.error || t("try again in a moment") }), true); return; }
+          ctx.toast(t("Normal pipeline resumed \u2014 smoothing state cleared for fresh start"));
           await ctx.actions.refreshSnapshot();   // refreshLive never existed: the card kept offering the old state
-        } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
-        finally{ cancelBtn.disabled=false; cancelBtn.textContent="Resume Normal Pipeline"; }
+        } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+        finally{ cancelBtn.disabled=false; cancelBtn.textContent=t("Resume Normal Pipeline"); }
       });
       cardChildren.push(cancelBtn);
     } else {
       // ── Inactive: show activate button ──
-      const suspendBtn = el("button",{class:"btn",style:"background:#0369a1;border-color:#0369a1"},"Suspend All Databases (60 min)");
+      const suspendBtn = el("button",{class:"btn",style:"background:#0369a1;border-color:#0369a1"},t("Suspend All Databases (60 min)"));
       suspendBtn.addEventListener("click", async()=>{
-        if(!confirm("Suspend all learned databases for 60 minutes?\n\nThis clears Kalman filters, vote windows, scanner reliability, and cached positions.\nOnly raw radio RSSI + spatial centroid positioning will be used.\n\nCalibration data and settings are NOT deleted.")) return;
-        suspendBtn.disabled=true; suspendBtn.textContent="Suspending\u2026";
+        if(!confirm(t("Suspend all learned databases for 60 minutes?\n\nThis clears Kalman filters, vote windows, scanner reliability, and cached positions.\nOnly raw radio RSSI + spatial centroid positioning will be used.\n\nCalibration data and settings are NOT deleted."))) return;
+        suspendBtn.disabled=true; suspendBtn.textContent=t("Suspending\u2026");
         try {
           const r = await ctx.actions.wsCall("padspan_ha/suspend_databases",{minutes:60});
-          if (r && r.ok === false) { ctx.toast("Not suspended: " + (r.error || "try again in a moment"), true); return; }
-          ctx.toast("Databases suspended \u2014 raw radio mode for 60 minutes");
+          if (r && r.ok === false) { ctx.toast(t("Not suspended: {why}", { why: r.error || t("try again in a moment") }), true); return; }
+          ctx.toast(t("Databases suspended \u2014 raw radio mode for 60 minutes"));
           await ctx.actions.refreshSnapshot();   // refreshLive never existed: the card kept offering the old state
-        } catch(e){ ctx.toast("Failed: "+ctx.helpers.errorText(e), true); }
-        finally{ suspendBtn.disabled=false; suspendBtn.textContent="Suspend All Databases (60 min)"; }
+        } catch(e){ ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+        finally{ suspendBtn.disabled=false; suspendBtn.textContent=t("Suspend All Databases (60 min)"); }
       });
       cardChildren.push(suspendBtn);
     }
@@ -2980,8 +2975,8 @@ function _settingsPresence(ctx, el){
     roomEvtToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ tags_room_events_enabled: roomEvtToggle.checked });
-        ctx.toast(roomEvtToggle.checked ? "Room-change tag events enabled" : "Room-change tag events disabled");
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(roomEvtToggle.checked ? t("Room-change tag events enabled") : t("Room-change tag events disabled"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
 
     const nfcToggle = el("input",{type:"checkbox",id:"tagsNfcToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
@@ -2989,8 +2984,8 @@ function _settingsPresence(ctx, el){
     nfcToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ tags_nfc_identify_enabled: nfcToggle.checked });
-        ctx.toast(nfcToggle.checked ? "NFC tap-to-identify enabled" : "NFC tap-to-identify disabled");
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(nfcToggle.checked ? t("NFC tap-to-identify enabled") : t("NFC tap-to-identify disabled"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
 
     const autolinkToggle = el("input",{type:"checkbox",id:"tagsAutolinkToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
@@ -2998,8 +2993,8 @@ function _settingsPresence(ctx, el){
     autolinkToggle.addEventListener("change", async()=>{
       try {
         await ctx.actions.settingsSet({ tags_phone_autolink_enabled: autolinkToggle.checked });
-        ctx.toast(autolinkToggle.checked ? "Phone auto-link enabled" : "Phone auto-link disabled");
-      } catch(e){ ctx.toast("Failed to save", true); }
+        ctx.toast(autolinkToggle.checked ? t("Phone auto-link enabled") : t("Phone auto-link disabled"));
+      } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
 
     // Tag mappings info (async load)
@@ -3010,60 +3005,57 @@ function _settingsPresence(ctx, el){
         if (!res.tag_available) {
           mappingsDiv.style.display = "";
           mappingsDiv.appendChild(el("div",{style:"font-size:12px;color:#fbbf24;padding:6px 10px;background:#422006;border-radius:4px"},
-            "HA Tags component not loaded. Add a Tag in HA Settings \u2192 Tags to enable it."));
+            t("HA Tags component not loaded. Add a Tag in HA Settings \u2192 Tags to enable it.")));
           return;
         }
         const maps = res.followed_tag_mappings || [];
         if (maps.length && tagsRoomEvt) {
           mappingsDiv.style.display = "";
           mappingsDiv.appendChild(el("div",{style:"font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:4px"},
-            `Tag IDs for ${maps.length} followed object(s):`));
+            tn(maps.length, "Tag ID for {n} followed object:", "Tag IDs for {n} followed objects:")));
           for (const m of maps.slice(0, 10)) {
             mappingsDiv.appendChild(el("div",{style:"font-size:11px;color:#64748b;padding:2px 0"},
               `${m.label} \u2192 tag_id: "${m.tag_id}"`));
           }
           mappingsDiv.appendChild(el("div",{style:"font-size:11px;color:#64748b;margin-top:4px"},
-            "Use these tag_ids in HA Automations to trigger actions on room changes."));
+            t("Use these tag_ids in HA Automations to trigger actions on room changes.")));
         }
       } catch(e) {}
     })();
 
     put("integrations", el("div",{class:"card"},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"},[
-        el("div",{class:"h2",style:"margin:0;color:#60a5fa"}, "HA Tags Integration"),
+        el("div",{class:"h2",style:"margin:0;color:#60a5fa"}, t("HA Tags Integration")),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:12px"},
-        "Connect PadSpan to Home Assistant's Tags system for automations and easy object setup."),
+        t("Connect PadSpan to Home Assistant's Tags system for automations and easy object setup.")),
       el("div",{style:"display:flex;flex-direction:column;gap:10px"},[
         el("div",{style:"padding:10px;background:#071008;border-radius:6px"},[
           el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
             roomEvtToggle,
             el("label",{for:"tagsRoomEvtToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-              "Room-change tag events"),
+              t("Room-change tag events")),
           ]),
           el("div",{style:"font-size:11px;color:#64748b"},
-            "Fires a tag_scanned event when a followed object changes rooms. " +
-            "Build HA automations that trigger on room transitions (e.g. turn on lights when you enter a room)."),
+            t("Fires a tag_scanned event when a followed object changes rooms. Build HA automations that trigger on room transitions (e.g. turn on lights when you enter a room).")),
         ]),
         el("div",{style:"padding:10px;background:#071008;border-radius:6px"},[
           el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
             nfcToggle,
             el("label",{for:"tagsNfcToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-              "NFC tap-to-identify"),
+              t("NFC tap-to-identify")),
           ]),
           el("div",{style:"font-size:11px;color:#64748b"},
-            "Scan an NFC tag near an unidentified BLE object to auto-label and follow it. " +
-            "PadSpan matches the scanning phone's room to the nearest unidentified BLE signal."),
+            t("Scan an NFC tag near an unidentified BLE object to auto-label and follow it. PadSpan matches the scanning phone's room to the nearest unidentified BLE signal.")),
         ]),
         el("div",{style:"padding:10px;background:#071008;border-radius:6px"},[
           el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
             autolinkToggle,
             el("label",{for:"tagsAutolinkToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-              "Phone auto-link on NFC scan"),
+              t("Phone auto-link on NFC scan")),
           ]),
           el("div",{style:"font-size:11px;color:#64748b"},
-            "When a phone scans any NFC tag, PadSpan auto-discovers and follows that phone's BLE Transmitter. " +
-            "A quick way to onboard new phones without visiting the Overview page."),
+            t("When a phone scans any NFC tag, PadSpan auto-discovers and follows that phone's BLE Transmitter. A quick way to onboard new phones without visiting the Overview page.")),
         ]),
       ]),
       mappingsDiv,
@@ -3080,41 +3072,39 @@ function _settingsPresence(ctx, el){
   bermudaToggle.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({ bermuda_ignore: bermudaToggle.checked });
-      ctx.toast(bermudaToggle.checked ? "Bermuda data will be ignored" : "Bermuda data re-enabled");
-      bermudaStatusEl.textContent = "Saved — refresh snapshot to apply";
+      ctx.toast(bermudaToggle.checked ? t("Bermuda data will be ignored") : t("Bermuda data re-enabled"));
+      bermudaStatusEl.textContent = t("Saved — refresh snapshot to apply");
       bermudaStatusEl.style.color = "#fbbf24";
       ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed to save setting", true); }
+    } catch(e){ ctx.toast(t("Failed to save setting"), true); }
   });
 
-  const refreshBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:3px 10px"}, "Refresh Snapshot");
+  const refreshBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:3px 10px"}, t("Refresh Snapshot"));
   refreshBtn.addEventListener("click", async()=>{
-    refreshBtn.disabled = true; refreshBtn.textContent = "Refreshing…";
+    refreshBtn.disabled = true; refreshBtn.textContent = t("Refreshing…");
     try {
       await ctx.actions.refreshSnapshot();
-      bermudaStatusEl.textContent = "Snapshot refreshed";
+      bermudaStatusEl.textContent = t("Snapshot refreshed");
       bermudaStatusEl.style.color = "#52b788";
-      ctx.toast("Snapshot refreshed");
-    } catch(e){ ctx.toast("Refresh failed: "+ctx.helpers.errorText(e), true); }
-    finally { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh Snapshot"; }
+      ctx.toast(t("Snapshot refreshed"));
+    } catch(e){ ctx.toast(t("Refresh failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
+    finally { refreshBtn.disabled = false; refreshBtn.textContent = t("Refresh Snapshot"); }
   });
 
   put("integrations", _voiceQuestionsCard(ctx, el));
 
   put("integrations", el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-      el("div",{class:"h2",style:"margin:0"},"Ignore Bermuda"),
-      el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),
+      el("div",{class:"h2",style:"margin:0"},t("Ignore Bermuda")),
+      el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},t("EXPERIMENTAL")),
     ]),
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       bermudaToggle,
       el("label",{for:"bermudaIgnoreToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer"},
-        "Ignore all Bermuda integration data"),
+        t("Ignore all Bermuda integration data")),
     ]),
     el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-      "When enabled, PadSpan completely ignores all data from the Bermuda integration — no Bermuda devices, " +
-      "receivers, or entity candidates will appear in snapshots. Useful for troubleshooting to isolate whether " +
-      "unexpected activity originates from Bermuda."),
+      t("When enabled, PadSpan completely ignores all data from the Bermuda integration — no Bermuda devices, receivers, or entity candidates will appear in snapshots. Useful for troubleshooting to isolate whether unexpected activity originates from Bermuda.")),
     el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
       refreshBtn,
       bermudaStatusEl,
