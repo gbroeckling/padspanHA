@@ -3067,7 +3067,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     _oth = max((r for k, r in _best.items() if k != _geo_room), default=-999.0)
                                     if _own is not None and _own - _oth >= float(_v[2:]):
                                         _hm = 0.0
-                                elif _v.startswith("cl"):
+                                elif _v.startswith("ld"):
                                     # off while the new room's own scanner leads the SHOWN room's by X dB
                                     _best = {}
                                     for _s, _r in ema.items():
