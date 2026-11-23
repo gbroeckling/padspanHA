@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.283",
+  "title": "Wi-Fi coverage keeps itself up to date",
+  "date": "2026-11-23",
+  "body_markdown": "### Fixed\n- **Wi-Fi coverage (test) updates by itself.** It loaded its readings once and then stayed as it was until a button was pressed; it now asks UniFi Blocker again each minute while it is open, and waits while a picker is open.\n- **Both bands have their button from the start.** 2.4 and 5 GHz are always there, so 5 GHz no longer seems to be missing before the first phone reading; the screen opens on a floor that has readings in the band it shows.\n- **The access point picker is as wide as its names**, not the whole screen."
+ },
+ {
   "version": "0.38.282",
   "title": "The German guides name the German panel's buttons; The German manual names the German panel's labels; Wi-Fi coverage from UniFi Blocker (a test)",
   "date": "2026-11-23",
@@ -76,11 +82,5 @@
   "title": "A ready-made Christmas tree in Build",
   "date": "2026-11-19",
   "body_markdown": "### New\n- **Build has a ready-made Christmas tree.** In Live Aboard's Furnish, Build now lists \"Christmas tree\" after Plant: a 2 m fir with no pot, placed with one tap like the other ready-made pieces."
- },
- {
-  "version": "0.38.268",
-  "title": "A fir for the plant, so a Christmas tree looks like one",
-  "date": "2026-11-19",
-  "body_markdown": "### New\n- **A plant can be a fir.** In Live Aboard's Build, Plant now offers \"fir\" beside bush, tree, palm and cactus: tiers of green that narrow to a point, on a short trunk, with or without a pot. It is the shape for a Christmas tree; a bush stretched to that height ended in a dark dome. A plant already in your house is unchanged."
  }
 ]
