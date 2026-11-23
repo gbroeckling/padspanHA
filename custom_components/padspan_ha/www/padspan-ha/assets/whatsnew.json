@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.281",
+  "title": "The manual says what the panel says",
+  "date": "2026-11-22",
+  "body_markdown": "### Fixed\n- **The manual names what the panel shows.** Its translators found places where the English disagreed with the panel, and each is now fixed in English and German, here and on padspan.traks.ca/manual/. Troubleshooting names Health's ROOMS MIXED UP and FLOOR PLAN cards, the IRK Manager's Test only button and a receiver's Silent … min. The update check is switched off in Settings → Tracking → Privacy, updates and feedback → Update Check. Whole house presets is spelled as the Atlas spells it. A busy house's full update is about 2.2 MB a screen in both the wall-screen and the performance chapters. The AI chapter's only COMING SOON row is Ask your voice assistant where someone is. The accuracy benchmark says that Record asks for the minutes first (1 to 60, 5 unless you change it), and says plainly how live smoothing differs from the per-reading score. Chapter 1 links the manual's own Pro chapter. The German chapters also give the robot vacuum switch its German labels and Room Change Delay's new 40-second default."
+ },
+ {
   "version": "0.38.280",
   "title": "Why rooms jump: the guide says how the vote works with 40 seconds; The manual on the website, in English and German; Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow; Manage and Training in German, French and Dutch; The rest of Settings in German, French and Dutch; Steadier rooms",
   "date": "2026-11-22",
@@ -76,11 +82,5 @@
   "title": "A fir for the plant, so a Christmas tree looks like one",
   "date": "2026-11-19",
   "body_markdown": "### New\n- **A plant can be a fir.** In Live Aboard's Build, Plant now offers \"fir\" beside bush, tree, palm and cactus: tiers of green that narrow to a point, on a short trunk, with or without a pot. It is the shape for a Christmas tree; a bush stretched to that height ended in a dark dome. A plant already in your house is unchanged."
- },
- {
-  "version": "0.38.267",
-  "title": "A wall that arranges its own floors covers no room; A wall stacks its floors as saved again",
-  "date": "2026-11-19",
-  "body_markdown": "### Changed\n- **A wall draws its floors one on top of the other, with the saved Spacing and L/R, as before.** For about an hour a wall arranged its floors for its own screen and stepped them sideways. That made the house larger and broke what a stack is for: reading the floors as one building. The stack is back as every wall's default. The arrangement stays for a wall whose link carries `?arrange=1`.\n- **The wall still measures how large the house is drawn** against what its screen allows, but it only moves in by itself on an arrangement it made, never on a saved stack.\n\n### Fixed\n- **On a wall whose link carries `?arrange=1`, no room sits under the floor above.** The arrangement allowed 2% of the whole house under a higher floor's plate, which on a real house was a third of one deck. No single room may now lose more than a sliver."
  }
 ]

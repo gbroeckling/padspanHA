@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.281 — The manual says what the panel says (2026-11-22)
+
+### Fixed
+- **The manual names what the panel shows.** Its translators found places where the English disagreed with the panel, and each is now fixed in English and German, here and on padspan.traks.ca/manual/. Troubleshooting names Health's ROOMS MIXED UP and FLOOR PLAN cards, the IRK Manager's Test only button and a receiver's Silent … min. The update check is switched off in Settings → Tracking → Privacy, updates and feedback → Update Check. Whole house presets is spelled as the Atlas spells it. A busy house's full update is about 2.2 MB a screen in both the wall-screen and the performance chapters. The AI chapter's only COMING SOON row is Ask your voice assistant where someone is. The accuracy benchmark says that Record asks for the minutes first (1 to 60, 5 unless you change it), and says plainly how live smoothing differs from the per-reading score. Chapter 1 links the manual's own Pro chapter. The German chapters also give the robot vacuum switch its German labels and Room Change Delay's new 40-second default.
+
+---
+
 ## 0.38.280 — Why rooms jump: the guide says how the vote works with 40 seconds; The manual on the website, in English and German; Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow; Manage and Training in German, French and Dutch; The rest of Settings in German, French and Dutch; Steadier rooms (2026-11-22)
 
 ### New
