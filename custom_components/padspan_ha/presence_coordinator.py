@@ -471,6 +471,30 @@ _POSITION_MAX_SIGMA_M = 5.0
 # the metre twin of the strongest-scanner path's 3 dB.
 _SPATIAL_HYST_M: float = 0.75
 
+# STUDY HOOK (hall-hysteresis, WIP): the spatial hysteresis rule. "asis" = 0.75 m.
+_HELD_VARIANT = "asis"
+
+
+def _study_hyst_m(new_geo, cur_geo) -> float:
+    v = _HELD_VARIANT
+    if v == "asis" or not v:
+        return _SPATIAL_HYST_M
+    if v == "h0":
+        return 0.0
+    if v.startswith("c"):
+        return float(v[1:])
+    bb = _fabric_truth.geom_bbox_m(new_geo) if isinstance(new_geo, dict) else None
+    if not bb:
+        return _SPATIAL_HYST_M
+    if v.startswith("f"):          # a share of the new room's narrow side
+        return min(_SPATIAL_HYST_M, float(v[1:]) * min(bb[2] - bb[0], bb[3] - bb[1]))
+    if v.startswith("d"):          # a share of how deep the new room goes from the current one
+        corners = ((bb[0], bb[1]), (bb[2], bb[1]), (bb[2], bb[3]), (bb[0], bb[3]))
+        ds = [_fabric_truth.room_distance_m(cur_geo, x, y) for x, y in corners]
+        ds = [d for d in ds if d is not None]
+        return min(_SPATIAL_HYST_M, float(v[1:]) * max(ds)) if ds else _SPATIAL_HYST_M
+    return _SPATIAL_HYST_M
+
 # The standard error of a single range, in metres, below which we do not
 # believe our own measurements.
 #
@@ -2972,10 +2996,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             # with the noise, and with no margin every wander
                             # across a wall was a vote for next door.
                             if _geo_room and _cur_confirmed and _geo_room != _cur_confirmed:
+                                _fl_rooms_h = self._floor_rooms.get(str(_best_floor or "main")) or {}
                                 _d_cur = _fabric_truth.room_distance_m(
-                                    (self._floor_rooms.get(str(_best_floor or "main")) or {}).get(_cur_confirmed),
+                                    _fl_rooms_h.get(_cur_confirmed),
                                     _est_x, _est_y)
-                                if _d_cur is not None and _d_cur < _SPATIAL_HYST_M:
+                                if _d_cur is not None and _d_cur < _study_hyst_m(
+                                        _fl_rooms_h.get(_geo_room), _fl_rooms_h.get(_cur_confirmed)):
                                     self._spatial_debug[key] += f">{_geo_room}(held:{_d_cur:.1f}m)"
                                     _geo_room = _cur_confirmed
                             if _geo_room:
