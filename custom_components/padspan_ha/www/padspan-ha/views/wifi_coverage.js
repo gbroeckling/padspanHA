@@ -277,7 +277,8 @@ export function render(ctx) {
   root.appendChild(el("div", { "data-wifi": "counts", style: "font-size:12px;color:#94a3b8;margin-top:8px;line-height:1.6" },
     `This floor, ${s.band} GHz: ${minutes} minute${minutes === 1 ? "" : "s"} of still-phone readings in ${cellsHere.length} spot${cellsHere.length === 1 ? "" : "s"}, ` +
     `and ${fixedHere.length} placed smart device${fixedHere.length === 1 ? "" : "s"}. ` +
-    (s.band === "2.4" ? "Most smart devices use 2.4 GHz; most phones use 5 GHz, so each band is its own map." : "Phones mostly use 5 GHz; smart devices show on the 2.4 GHz map.")));
+    (s.band === "2.4" ? "Most smart devices use 2.4 GHz; most phones use 5 GHz, so each band is its own map." : "Phones mostly use 5 GHz; smart devices show on the 2.4 GHz map.") +
+    (fixedHere.length ? " Each dot is a placed device, coloured by how strongly its own access point hears it: a red dot beside green ones is a device holding on to a far access point. Pick one access point above to see its reach alone." : "")));
 
   const roomRows = (D.rooms || []).filter((r) => r.floor === s.floor && r.band === s.band).sort((a, b) => a.median - b.median);
   if (roomRows.length) {
