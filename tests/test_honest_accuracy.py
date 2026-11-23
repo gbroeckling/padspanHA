@@ -400,8 +400,8 @@ def test_a_big_calibration_is_sampled_across_rooms_the_same_way_every_run():
     t0 = _t.perf_counter()
     ho = H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A)
     took = _t.perf_counter() - t0
-    assert ho["knn"]["spots"] == H.MAX_TEST_SPOTS == 60
-    assert took < 5.0          # was ~20 s for 5000 points before the sample + sums
+    assert ho["knn"]["spots"] <= H.MAX_TEST_SPOTS == 400
+    assert took < 10.0         # was ~20 s for 5000 points before the sample + sums (60 spots then, 400 now)
     assert H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A) == ho
     spots = list(range(len(pts)))
     picked = H.sample_spots(pts, spots)
@@ -525,7 +525,7 @@ def test_fusion_on_in_a_house_with_no_sensors_changes_nothing():
 def test_report_buckets_are_words_from_the_list():
     pts = calibration_points()
     b = H.report_buckets(H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A))
-    assert set(b) <= {"knn_room", "knn_med", "sp_room", "sp_med", "better"}
+    assert set(b) <= {"knn_room", "knn_med", "sp_room", "sp_med", "better", "untest", "disagree"}
     assert b["better"] in H.BETTER_WORDS and b["knn_room"] in H.ROOM_BUCKETS
     assert H.report_buckets(None) is None
     assert H.room_bucket(94.9) == "85_95" and H.median_bucket(0.4) == "lt1"
@@ -533,9 +533,11 @@ def test_report_buckets_are_words_from_the_list():
 
 def test_the_report_refuses_a_heldout_word_off_the_list():
     import pytest
-    T.assert_shareable({"install_id": "", "env": {"heldout": {"knn_room": "ge95", "better": "knn"}}})
+    T.assert_shareable({"install_id": "", "env": {"heldout": {"knn_room": "ge95", "better": "knn", "untest": "3_5", "disagree": "0"}}})
     with pytest.raises(ValueError):
         T.assert_shareable({"install_id": "", "env": {"heldout": {"knn_room": "97"}}})
+    with pytest.raises(ValueError):
+        T.assert_shareable({"install_id": "", "env": {"heldout": {"untest": "Garage"}}})
 
 
 def test_the_settings_are_reported_as_on_only():

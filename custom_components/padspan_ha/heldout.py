@@ -23,6 +23,20 @@ points. Both methods are scored on the same spots:
 A spot either method could not place counts against its rooms-right share;
 the median error is over the spots it did place. Nothing here writes
 anything: calibration points and models are read, never changed.
+
+What a spot counts for (2026-11-23, after a house read 4 % rooms right where
+32 of 49 room spots could not be right):
+  - its true room is the room drawn where it stands, the same lookup the
+    guess uses, and only without a drawn room its label (a spot labelled
+    one room but standing in another counts as where it stands; how many do
+    is reported as label_disagrees, so the data can be put right);
+  - a room with no point left once the spot is held out can't be tested:
+    the spot is not a room spot, its room goes in untestable_rooms (its
+    position error still counts);
+  - a spot heard by fewer than MIN_LIVE_SCANNERS receivers is not tested,
+    as live tracking never asks k-NN with fewer;
+  - past MAX_TEST_SPOTS, each floor and room gets places in proportion to
+    its spots (at least one each), so the score means the same at any size.
 """
 
 from __future__ import annotations
@@ -40,7 +54,10 @@ HELDOUT_RADIUS_M = 1.5
 # Spots tested per run, at most. Each spot is a k-NN pass over every point,
 # so the cost is spots x points; past this a fixed sample is drawn, spread
 # over every floor and room (the same sample each run for the same points).
-MAX_TEST_SPOTS = 60
+MAX_TEST_SPOTS = 400
+# presence_coordinator._KNN_MIN_LIVE_SCANNERS: live tracking never asks k-NN
+# with fewer receivers, so a spot heard by fewer is not a test of it.
+MIN_LIVE_SCANNERS = 2
 _SAMPLE_SEED = 165
 # k-NN candidates kept per spot before knn_locate itself picks the k: a few
 # spare so a rounding difference in the quick distance cannot drop one.
@@ -268,9 +285,10 @@ def _strongest_area(readings: dict[str, float], source_area: dict[str, str]) -> 
 def sample_spots(pts: list[dict[str, Any]], spots: list[int],
                  limit: int | None = None) -> list[int]:
     """At most limit test spots, spread over every floor and room: each
-    (floor, room) group is shuffled with a fixed seed and the groups take
-    turns, so a small room still gets tested and the same points give the
-    same sample every run. Under the limit every spot is tested."""
+    (floor, room) group is shuffled with a fixed seed and gets places in
+    proportion to its spots, at least one each, so a small room still gets
+    tested, the score means the same at any size, and the same points give
+    the same sample every run. Under the limit every spot is tested."""
     limit = MAX_TEST_SPOTS if limit is None else limit
     if len(spots) <= limit:
         return list(spots)
@@ -279,19 +297,28 @@ def sample_spots(pts: list[dict[str, Any]], spots: list[int],
         p = pts[i]
         groups.setdefault((str(p.get("floor_id") or ""), str(p.get("room") or "")), []).append(i)
     rng = random.Random(_SAMPLE_SEED)
-    queues = []
-    for key in sorted(groups):
-        g = groups[key]
-        rng.shuffle(g)
-        queues.append(g)
-    picked: list[int] = []
-    depth = 0
-    while len(picked) < limit:
-        for g in queues:
-            if depth < len(g) and len(picked) < limit:
-                picked.append(g[depth])
-        depth += 1
-    return sorted(picked)
+    keys = sorted(groups)
+    for key in keys:
+        rng.shuffle(groups[key])
+    total = len(spots)
+    # Largest remainder: each group's share of the places, at least one.
+    share = {k: max(1, int(limit * len(groups[k]) / total)) for k in keys}
+    rest = sorted(keys, key=lambda k: -(limit * len(groups[k]) / total - int(limit * len(groups[k]) / total)))
+    while sum(share.values()) > limit:          # more groups than places: the biggest give way first
+        big = max((k for k in keys if share[k] > 1), key=lambda k: share[k], default=None)
+        if big is None:
+            break
+        share[big] -= 1
+    i = 0
+    while sum(share.values()) < limit and rest:
+        k = rest[i % len(rest)]
+        if share[k] < len(groups[k]):
+            share[k] += 1
+        i += 1
+        if i > 4 * len(rest) + limit:
+            break
+    picked = [j for k in keys for j in groups[k][:share[k]]]
+    return sorted(picked[:limit] if len(picked) > limit else picked)
 
 
 class _Fingerprints:
@@ -437,20 +464,31 @@ def evaluate(points: list[dict[str, Any]], *,
             _quiet_error("heldout:room_of")
             return ""
 
+    # Each point's room: the room drawn where it stands (the lookup the guess
+    # uses), its label only where no room is drawn.
+    drawn = [room_of(xy[j][0], xy[j][1], str(p.get("floor_id") or "")) for j, p in enumerate(pts)]
+    pt_room = [drawn[j] or str(p.get("room") or "") for j, p in enumerate(pts)]
+    by_room: dict[str, list[int]] = {}
+    for j, r in enumerate(pt_room):
+        if r:
+            by_room.setdefault(r, []).append(j)
+
     k_err: list[float] = []
     s_err: list[float] = []
-    k_right = s_right = labelled = tested = 0
+    k_right = s_right = labelled = tested = disagree = 0
+    untestable: set[str] = set()
     for i in tests:
         t = pts[i]
         query = fps[i]
-        if not query:
+        if not query or len(query) < MIN_LIVE_SCANNERS:
             continue
         tested += 1
-        true_room = str(t.get("room") or "")
+        true_room = pt_room[i]
+        label = str(t.get("room") or "")
+        if label and drawn[i] and label != drawn[i]:
+            disagree += 1
         fl = str(t.get("floor_id") or "")
         tx, ty = xy[i]
-        if true_room:
-            labelled += 1
         # The points held_in() leaves out, by index.
         out_idx = {i}
         if _is_auto(t):
@@ -459,6 +497,12 @@ def evaluate(points: list[dict[str, Any]], *,
             dx, dy = xy[j][0] - tx, xy[j][1] - ty
             if dx * dx + dy * dy <= r_sq:
                 out_idx.add(j)
+        # A room with nothing left to answer for it can't be tested here.
+        if true_room and not any(j not in out_idx for j in by_room.get(true_room, ())):
+            untestable.add(true_room)
+            true_room = ""
+        if true_room:
+            labelled += 1
 
         cand = prints.nearest(query, out_idx, KNN_K + _KNN_SPARE)
         k = CalibrationStore.knn_locate(_HeldIn([pts[j] for j in cand], excluded), query) \
@@ -487,6 +531,11 @@ def evaluate(points: list[dict[str, Any]], *,
         "radius_m": radius_m,
         "knn": _summary(k_err, k_right, labelled, tested),
         "spatial": _summary(s_err, s_right, labelled, tested) if site is not None else None,
+        # Rooms calibrated at one spot only (or whose only points are a
+        # beacon's copies): not counted; calibrating one more spot there tests them.
+        "untestable_rooms": sorted(untestable),
+        # Spots labelled one room but standing in another room's drawing.
+        "label_disagrees": disagree,
     }
     out["better"] = better_method(out)
     return out
@@ -557,4 +606,19 @@ def report_buckets(res: dict[str, Any] | None) -> dict[str, str] | None:
             out[f"{word}_med"] = mb
     if res.get("better") in BETTER_WORDS:
         out["better"] = res["better"]
+    # 2026-11-23: how many rooms couldn't be tested and spots disagree with
+    # their drawing, as a count bucket (whether the fix explains other houses' scores).
+    for word, n in (("untest", len(res.get("untestable_rooms") or ())), ("disagree", res.get("label_disagrees"))):
+        cb = count_bucket(n)
+        if cb:
+            out[word] = cb
     return out or None
+
+
+COUNT_BUCKETS = ("0", "1_2", "3_5", "6_10", "gt10")
+
+
+def count_bucket(n: Any) -> str | None:
+    if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+        return None
+    return "0" if n == 0 else "1_2" if n <= 2 else "3_5" if n <= 5 else "6_10" if n <= 10 else "gt10"

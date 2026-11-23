@@ -324,6 +324,19 @@ export function renderResults(ctx, el, cs, calData, deps) {
     if (line) { line.setAttribute("data-cal-results", "how"); accCard.appendChild(line); }
     else accCard.appendChild(el("div", { class: "muted", "data-cal-results": "how", style: "font-size:12px;line-height:1.5;margin-top:8px" },
       acc.method === "spatial" ? t("Tested on spots it hasn't seen, using receiver positions (spatial).") : t("Tested on spots it hasn't seen, using your calibration points (fingerprints).")));
+    // What the test left out, and why (heldout.py): rooms with one calibrated
+    // spot can't be tested on a spot they haven't seen, so they aren't counted.
+    const ho = data.heldout || {};
+    const unt = Array.isArray(ho.untestable_rooms) ? ho.untestable_rooms : [];
+    if (unt.length) {
+      const names = unt.slice(0, 6).join(", ") + (unt.length > 6 ? ", …" : "");
+      accCard.appendChild(el("div", { class: "muted", "data-cal-results": "untestable", style: "font-size:12px;line-height:1.5;margin-top:6px" },
+        t("Not counted: {n} rooms calibrated at one spot only ({rooms}). They can't be tested on a spot they haven't seen.", { n: unt.length, rooms: names })));
+    }
+    if (ho.label_disagrees > 0) {
+      accCard.appendChild(el("div", { class: "muted", "data-cal-results": "disagree", style: "font-size:12px;line-height:1.5;margin-top:4px" },
+        t("{n} calibration spots carry another room's name than the room drawn where they stand. They count as the drawn room.", { n: ho.label_disagrees })));
+    }
   } else if (acc.kind === "estimate") {
     stats.appendChild(big(`~${acc.mean_m} m`, t("estimated distance off"), acc.mean_m < 2 ? "#52b788" : "#f59e0b"));
     stats.appendChild(big(String(pts.length), t("calibration points"), "#a7f3d0"));

@@ -468,5 +468,7 @@
 "{samples} samples from {n} receivers over {polls} polls.": {
 "one": "{samples} Proben von 1 Empfänger über {polls} Abfragen.",
 "other": "{samples} Proben von {n} Empfängern über {polls} Abfragen."
-}
+},
+"Not counted: {n} rooms calibrated at one spot only ({rooms}). They can't be tested on a spot they haven't seen.": "Nicht gezählt: {n} Räume mit nur einem kalibrierten Punkt ({rooms}). Sie lassen sich nicht an einer Stelle testen, die sie noch nicht kennen.",
+"{n} calibration spots carry another room's name than the room drawn where they stand. They count as the drawn room.": "{n} Kalibrierpunkte tragen den Namen eines anderen Raums als des Raums, der an ihrer Stelle gezeichnet ist. Sie zählen als der gezeichnete Raum."
 }

@@ -3202,10 +3202,11 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
     if isinstance(env, dict) and "quiet_hidden" in env and env["quiet_hidden"] not in QUIET_HIDDEN_BUCKETS:
         raise ValueError("env.quiet_hidden not in the vocabulary")
     if isinstance(env, dict) and "heldout" in env:
-        from .heldout import BETTER_WORDS, MEDIAN_BUCKETS, ROOM_BUCKETS  # noqa: PLC0415
+        from .heldout import BETTER_WORDS, COUNT_BUCKETS, MEDIAN_BUCKETS, ROOM_BUCKETS  # noqa: PLC0415
         ho = env["heldout"]
         words = {"knn_room": ROOM_BUCKETS, "sp_room": ROOM_BUCKETS, "knn_med": MEDIAN_BUCKETS,
-                 "sp_med": MEDIAN_BUCKETS, "better": BETTER_WORDS}
+                 "sp_med": MEDIAN_BUCKETS, "better": BETTER_WORDS,
+                 "untest": COUNT_BUCKETS, "disagree": COUNT_BUCKETS}
         if not isinstance(ho, dict) or not all(k in words and v in words[k] for k, v in ho.items()):
             raise ValueError("env.heldout not in the vocabulary")
     if isinstance(env, dict) and "room_walk" in env:
