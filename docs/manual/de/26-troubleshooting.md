@@ -19,8 +19,8 @@ Hilft nichts davon, sagt [Kapitel 27](27-getting-help.md), was du schicken solls
 ## Ein Gerät zeigt den falschen Raum oder springt zwischen Räumen
 
 **Zuerst ansehen:** die Seite **Empfänger** (wird jeder Empfänger gehört, und ist er im richtigen
-Raum?), dann **Zustand → Gefundene Probleme** (RÄUME VERWECHSELT nennt die beiden Räume, zwischen
-denen es immer wieder wechselt).
+Raum?), dann **Zustand → Gefundene Probleme** (eine Karte RÄUME VERWECHSELT nennt die beiden Räume,
+zwischen denen es immer wieder wechselt).
 
 Wahrscheinliche Ursachen, die häufigste zuerst:
 
@@ -45,8 +45,8 @@ Wahrscheinliche Ursachen, die häufigste zuerst:
 
 Dann, wenn es an einer Grenze immer noch flackert:
 
-- Erhöhe **Verzögerung beim Raumwechsel** (Einstellungen → Ortung → Räume und Zeiten; 20 Sekunden,
-  wenn du es nicht geändert hast). 20 bis 60 Sekunden beruhigen die meisten Grenzen; eine längere
+- Erhöhe **Verzögerung beim Raumwechsel** (Einstellungen → Ortung → Räume und Zeiten; 40 Sekunden,
+  wenn du es nicht geändert hast). 40 bis 60 Sekunden beruhigen die meisten Grenzen; eine längere
   Verzögerung ist ruhiger und langsamer.
 - Schalte im selben Abschnitt **Warum dieser Raum (Sensor-Attribut)** ein. Der Bereichssensor sagt
   dann in seinem Attribut `room_reason`, wie viele Abfragen für den Raum gestimmt haben und warum ein
@@ -124,8 +124,9 @@ dazu, wie PadSpan Räume ruhig hält:
 ## Ein Empfänger ist still
 
 **Zuerst ansehen:** die Spalte Status auf der Seite **Empfänger**, und Zustand. Ein Empfänger zeigt
-**Seit … Min. still**, wenn er 10 Minuten lang nicht gehört wurde, oder **Hört weniger**, wenn er
-viel weniger Geräte hört als sonst, während die anderen normal laufen.
+**Seit … Min. still** (die Minuten, seit er zuletzt gehört wurde), wenn seit über 10 Minuten nichts
+von ihm kam, oder **Hört weniger**, wenn er viel weniger Geräte hört als sonst, während die anderen
+normal laufen.
 
 1. **Starte ihn neu.** Prüf bei ESPHome auch seine Version und sein WLAN.
 2. **Prüf, ob er in Home Assistant noch ein Empfänger ist**: Einstellungen → Geräte & Dienste →
