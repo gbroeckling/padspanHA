@@ -15,8 +15,9 @@ PadSpan HA bundles the following third-party software under its own licence, unm
 
 ## PDF.js 6.5.438
 
-- Files: `custom_components/padspan_ha/www/padspan-ha/vendor/pdfjs/`, from the npm package `pdfjs-dist@6.5.438`:
-  - `pdf.min.js` and `pdf.worker.min.js`: its legacy build (`legacy/build/pdf.min.mjs` and
+- Files: in `vendor/pdfjs/`, from the npm package `pdfjs-dist@6.5.438`:
+  - `custom_components/padspan_ha/www/padspan-ha/vendor/pdfjs/pdf.min.js` and
+    `custom_components/padspan_ha/www/padspan-ha/vendor/pdfjs/pdf.worker.min.js`: its legacy build (`legacy/build/pdf.min.mjs` and
     `pdf.worker.min.mjs`, renamed to `.js` so Home Assistant serves them as JavaScript), and its `LICENSE`.
   - `wasm/`: the image decoders for black-and-white scans (JBIG2, CCITT) and JPEG 2000, with their
     JavaScript fallbacks, the colour-profile module, and their licences (`LICENSE_*`). The JavaScript

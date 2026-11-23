@@ -37,7 +37,7 @@ def test_pdfjs_is_vendored_with_its_licence_and_notice():
     assert 'wasmUrl: _vendor("wasm/")' in PDF and 'standardFontDataUrl: _vendor("standard_fonts/")' in PDF
     assert "Apache License" in (d / "LICENSE").read_text(encoding="utf-8")
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
-    assert "## PDF.js" in notices and "www/padspan-ha/vendor/pdfjs/" in notices and "`pdf.min.js`" in notices and "standard_fonts/" in notices and "wasm/" in notices
+    assert "## PDF.js" in notices and "www/padspan-ha/vendor/pdfjs/pdf.min.js" in notices and "standard_fonts/" in notices and "wasm/" in notices
 
 
 def test_pdfjs_loads_only_when_a_pdf_is_picked():

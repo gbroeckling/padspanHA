@@ -153,6 +153,7 @@ def reset() -> None:
 # when you add its line (tests/test_quiet_errors.py says which is missing).
 SITES: frozenset[str] = frozenset("""
 screens:send
+presence:heldout_job_rooms
 adaptive_store:summary
 ai_usage:bump
 ai_usage:check_warning
