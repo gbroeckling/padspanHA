@@ -1,7 +1,7 @@
 {
  "two_floors": {
-  "sha256": "216801a1fe2f90ebc4450e82b395f47c73c2abdfac8fa312afe4cb4443547f44",
-  "sha256_exact": "5c7136d3f8ee707f6b6161b3a4ac4f370c42597e23016706bba767a8315f3b65",
+  "sha256": "73d5bb42807ad0eec02a119a750446eff445b75344eba9192b5bcda5a1a16c3a",
+  "sha256_exact": "0ac27e3780aae1c80a6092e1222e17a521f4d8256902806a01268209d998c999",
   "exact_on": "ee91f523c509c73f",
   "records": 300,
   "polls": 300,
@@ -9,8 +9,8 @@
   "object_polls": 2527
  },
  "two_floors_other_settings": {
-  "sha256": "8d73411c883984fa1dfc0822d3b490c13b44e587602c54c1232df7e31c8bdc25",
-  "sha256_exact": "64da7f6f91fb3aa65073d1f17999d429f1435b75aae24621825cb929c4d5f58a",
+  "sha256": "dda3c695670eeab5943dc24c3ab14ce0819462512480f03548b21034839edf03",
+  "sha256_exact": "5545ff720c555c4767c3e395d97f48624e403ca8c8ea8e8308249b18a612df11",
   "exact_on": "ee91f523c509c73f",
   "records": 150,
   "polls": 150,

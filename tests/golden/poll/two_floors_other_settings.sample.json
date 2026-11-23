@@ -743,7 +743,7 @@
       "canonical_id": "irk:5ca1ab1e",
       "room": "Bath",
       "_smoothed": true,
-      "room_confidence": 0.67,
+      "room_confidence": 1.0,
       "rssi_margin_confidence": 1.0,
       "knn_confidence": 1.0,
       "x_m": 7.803,
@@ -779,11 +779,11 @@
       "_away_miss": 0,
       "_kalman_addr_key": "IRK:5CA1AB1E",
       "_room_votes": {
-       "__deque__": ["Bedroom", "Bath", "Bath"],
+       "__deque__": ["Bath", "Bath", "Bath"],
        "maxlen": 3
       },
       "_confirmed_room": "Bath",
-      "_room_confidence": 0.67,
+      "_room_confidence": 1.0,
       "_rssi_margin_confidence": 1.0,
       "_knn_position": {
        "x_m": 6.879,
@@ -799,7 +799,6 @@
        "shared_scanners": 7
       },
       "_smooth_xy": [6.87933806, 8.84693458, 0.00427898784, 0.00841029399, 0],
-      "_clear_run": ["Bath", 2],
       "_spatial_position": {
        "x_m": 7.803,
        "y_m": 8.865,
@@ -829,17 +828,21 @@
         ["Bedroom", -79.3341549]
        ]
       },
-      "_last_room_change_mono": 10602.5,
-      "_room_dwell_start": 10602.5,
+      "_last_room_change_mono": 10462.5,
+      "_room_dwell_start": 10462.5,
       "_device_floor": "main",
-      "_adaptive_last_obs": 10482.5,
+      "_adaptive_last_obs": 10582.5,
       "_adaptive_last_vec": {
-       "AA:00:00:00:00:03": -77.9483805,
-       "AA:00:00:00:00:05": -78.7441485,
-       "AA:00:00:00:02:01": -85.6459961,
-       "AA:00:00:00:01:01": -91.6705926,
-       "AA:00:00:00:01:04": -85.0498329,
-       "AA:00:00:00:00:06": -63.2601719
+       "AA:00:00:00:00:03": -78.5126992,
+       "AA:00:00:00:00:05": -81.3450291,
+       "AA:00:00:00:01:03": -92.4617473,
+       "AA:00:00:00:02:01": -84.1894059,
+       "AA:00:00:00:01:01": -92.2684775,
+       "AA:00:00:00:01:04": -84.329911,
+       "AA:00:00:00:00:01": -94.8243078,
+       "AA:00:00:00:00:06": -63.4154402,
+       "AA:00:00:00:00:04": -89.1163372,
+       "AA:00:00:00:00:02": -84.5149554
       },
       "_ema_rssi": {
        "AA:00:00:00:00:03": -78.9552734,
@@ -1027,8 +1030,8 @@
      "room": "Hall"
     },
     "AA:00:00:00:00:06": {
-     "reliability": 0.625,
-     "agree_pct": 40.0,
+     "reliability": 0.882,
+     "agree_pct": 87.0,
      "polls": 30,
      "room": "Bath"
     },
@@ -1057,11 +1060,7 @@
      "room": "Garden"
     }
    },
-   "events": {
-    "room_changes": [
-     ["irk:5ca1ab1e", "Bedroom", "Bath"]
-    ]
-   },
+   "events": {},
    "shared": {
     "_adverts_used": {
      "C0:FF:EE:00:00:01|AA:00:00:00:00:05": "2026-09-21T14:23:22.429487+00:00",
@@ -1137,7 +1136,7 @@
       "maxlen": 30
      },
      "AA:00:00:00:00:06": {
-      "__deque__": [false, false, false, false, false, false, false, true, true, true, false, true, false, true, false, true, false, true, false, true, false, true, false, false, false, false, true, false, true, true],
+      "__deque__": [false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
       "maxlen": 30
      },
      "AA:00:00:00:01:01": {
@@ -1162,7 +1161,7 @@
      "AA:00:00:00:01:03": 1.0,
      "AA:00:00:00:00:05": 0.968,
      "AA:00:00:00:00:03": 0.556,
-     "AA:00:00:00:00:06": 0.625,
+     "AA:00:00:00:00:06": 0.882,
      "AA:00:00:00:01:01": 1.0,
      "AA:00:00:00:00:04": 1.0,
      "AA:00:00:00:00:02": 1.0,
@@ -1206,14 +1205,14 @@
     "_fusion_nudges": 0,
     "_preferred_method": "spatial",
     "_corr_cache": {
-     "Hall": [10582.5, null],
-     "Bath": [10582.5, null],
+     "Hall": [10552.5, null],
+     "Bath": [10552.5, null],
      "Office": [10392.5, null],
      "Kitchen": [10332.5, null],
-     "Bedroom": [10582.5, null],
+     "Bedroom": [10552.5, null],
      "Loft": [10352.5, null],
      "Garden": [10522.5, null],
-     "Landing": [10582.5, null],
+     "Landing": [10332.5, null],
      "Lounge": [10392.5, null],
      "Study": [10352.5, null]
     },
@@ -1225,7 +1224,7 @@
    "filter_state_with_no_object": {},
    "saved_points": [],
    "calibration_points": 42,
-   "learned": "cb948f44b4"
+   "learned": "860ec64b33"
   }
  }
 }
