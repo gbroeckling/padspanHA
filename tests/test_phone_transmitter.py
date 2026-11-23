@@ -53,7 +53,17 @@ def test_the_guide_says_what_to_set_in_both_languages() -> None:
     de = (_GUIDE / "de" / "index.html").read_text(encoding="utf-8")
     assert "Start with its settings as they are" not in en
     assert "Lass seine Einstellungen erst einmal, wie sie sind" not in de
-    for page in (en, de):
+    # The card the warning is on, as the panel names it in each language.
+    for page, card in ((en, "Track Your Phone"), (de, _german("Track Your Phone"))):
         assert "<b>Transmit power</b> auf <b>High</b>" in page or "<b>Transmit power</b> to <b>High</b>" in page
         assert "<b>Advertise mode</b> auf <b>Low latency</b>" in page or "<b>Advertise mode</b> to <b>Low latency</b>" in page
-        assert "Track Your Phone" in page
+        assert card in page
+
+
+def _german(english: str) -> str:
+    """The German panel's words for `english`: i18n/de, every group the panel loads (all but the help)."""
+    for p in sorted((_ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "i18n" / "de").glob("*.json")):
+        word = json.loads(p.read_text(encoding="utf-8")).get(english) if p.name != "help.json" else None
+        if isinstance(word, str):
+            return word
+    return english
