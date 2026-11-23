@@ -207,6 +207,7 @@ export const SURFACE_CLASS = Object.freeze({
   // The developer's install-base dashboard is about BOTH builds' installs,
   // but it is a presence-build surface: Bright has no Pro key to present.
   installbase: "presence",
+  wifi: "presence",           // Wi-Fi coverage: needs the presence side's tracked phones and its floor model
 });
 
 /**

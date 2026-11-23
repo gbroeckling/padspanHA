@@ -227,6 +227,8 @@ const _VIEW_PATHS = {
   occupancy:    "./views/occupancy.js",
   guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
+  // Wi-Fi coverage (test, 2026-11-22): drawn from UniFi Blocker's survey; in the menu only while it answers.
+  wifi:         "./views/wifi_coverage.js",
   // The guided Setup (plan → … → calibration): a menu tab at the top of the
   // build group until every step is done (owner's D4, 2026-11-13, _setupInMenu),
   // and always reached from the Overview's Getting started and from Mapping.
@@ -381,6 +383,7 @@ const MENU = [
   ["occupancy","Occupancy","mdi:account-group-outline"],
   ["guests","Guests","mdi:account-clock-outline"],
   ["health","Health","mdi:heart-pulse"],
+  ["wifi","Wi-Fi coverage","mdi:wifi"],
   ["qa","QA","mdi:clipboard-check-outline"],
   ["sandbox","Sandbox","mdi:flask-outline"],
   ["installbase","Install Base","mdi:chart-box-outline"],
@@ -438,6 +441,7 @@ const MENU_COLORS = {
   sandbox: "#9ccc65",
   purelive: "#7c3aed",
   installbase: "#38bdf8",
+  wifi: "#60a5fa",
 };
 
 // ── 2025 skin: nav icons and groups ──────────────────────────────────────────
@@ -472,6 +476,7 @@ const MENU_ICONS = {
   qa:          '<rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 4.5V3.6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v.9"/><path d="M9 13l2.2 2.2L15.5 11"/>',
   sandbox:     '<path d="M10 3v6.2L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M9 3h6"/><path d="M7.4 14.5h9.2"/>',
   installbase: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16v-5M12 16V8M17 16v-3"/>',
+  wifi:        '<path d="M2.5 9a14 14 0 0 1 19 0"/><path d="M6 12.5a9 9 0 0 1 12 0"/><path d="M9.3 16a4.4 4.4 0 0 1 5.4 0"/><circle cx="12" cy="19.3" r="1.2"/>',
 };
 
 // Sidebar grouping for the 2025 skin. Order here drives render order; any MENU
@@ -480,7 +485,7 @@ const MENU_ICONS = {
 const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy","guests"]],
   ["Build",     ["setup","maps","rooms","receivers","calibration","training","manage","settings"]],
-  ["Diagnose",  ["traceback","health","forensics","monitor"]],
+  ["Diagnose",  ["traceback","health","wifi","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
 
@@ -493,7 +498,7 @@ function menuWord(english){
     Bluetooth: t("Bluetooth"), Presence: t("Presence"), Monitor: t("Monitor"), Setup: t("Setup"), Mapping: t("Mapping"),
     Rooms: t("Rooms"), Receivers: t("Receivers"), Settings: t("Settings"), Manage: t("Manage"), Training: t("Training"),
     Calibration: t("Calibration"), Traceback: t("Traceback"), Forensics: t("Forensics"), Occupancy: t("Occupancy"),
-    Guests: t("Guests"), Health: t("Health"), QA: t("QA"), Sandbox: t("Sandbox"), "Install Base": t("Install Base"),
+    Guests: t("Guests"), Health: t("Health"), QA: t("QA"), Sandbox: t("Sandbox"), "Install Base": t("Install Base"), "Wi-Fi coverage": t("Wi-Fi coverage"),
     History: t("History"), Events: t("Events"), Debug: t("Debug"), Diagnostics: t("Diagnostics"),
     "Claude draws rooms": t("Claude draws rooms"),
     Live: t("Live"), Build: t("Build"), Diagnose: t("Diagnose"), Internals: t("Internals"), More: t("More"),
@@ -3649,6 +3654,8 @@ class PadSpanHaApp extends HTMLElement {
     let out = new Set(MENU.map(x => x[0]));
     if (!forensicsOn) out.delete("forensics");
     if (!guestsOn) out.delete("guests");
+    // Wi-Fi coverage only while UniFi Blocker's survey answers (_wifiProbe).
+    if (!this.state._wifiSurveyOn) out.delete("wifi");
     if (!this._setupInMenu()) out.delete("setup");
     // The EDITION decides last: a Bright build shows its lighting surfaces
     // (and the rest only behind the reveal switch). The full edition is
@@ -5208,6 +5215,19 @@ class PadSpanHaApp extends HTMLElement {
    *  map"): loaded now and drawn when it lands, once. Review 2026-11-11: nothing else asked for it (the deferred
    *  loads draw nothing when they land, and the poll does not redraw Mapping's or Settings' tabs), so the
    *  placeholder stayed until a menu click. */
+  /** Is UniFi Blocker's Wi-Fi survey there? Asked on the house's own data, never on a wall screen: once a
+   *  page load, again every ten minutes while the answer is no. The Wi-Fi coverage tab follows the answer. */
+  _wifiProbe(){
+    const st = this.state;
+    if (st.dataMode !== "live" || st.kioskMode || !this._callWS || st._wifiSurveyOn) return;
+    const now = Date.now();
+    if (this._wifiProbeAt && now - this._wifiProbeAt < 600000) return;
+    this._wifiProbeAt = now;
+    this._callWS({ type: "unifiblocker/wifi_heatmap" })
+      .then(r => { const on = !!(r && r.version >= 1); if (on !== !!st._wifiSurveyOn) { st._wifiSurveyOn = on; this._renderNav(); } })
+      .catch(() => {});
+  }
+
   _loadMissingView(v){
     if (!_VIEW_PATHS[v] || this._viewAsked === v) return;
     this._viewAsked = v;
@@ -5221,6 +5241,7 @@ class PadSpanHaApp extends HTMLElement {
     if(this.state.view !== this._visitView){ this._visitView = this.state.view; this.state._viewVisit = (this.state._viewVisit || 0) + 1; }
     // Setup steps into or out of the menu as the house's steps get done (_setupInMenu): the menu follows.
     { const _inMenu = this._setupInMenu(); if(_inMenu !== this._setupMenuShown){ this._setupMenuShown = _inMenu; this._renderNav(); } }
+    this._wifiProbe();
     // Training is the manual: its translated help is fetched on first open.
     if(this.state.view === "training" && !this._helpLoad) this._loadHelpLanguage();
     // Left the Overview holding a slim snapshot (Optimize for scale): fetch
