@@ -1634,35 +1634,7 @@ class ModelStore:
 
     def beacon_room_from_geometry(self, x_m: float, y_m: float, floor_id: str) -> str:
         """Determine which room a metre-space point falls in, from the fabric."""
-        for room, geo in self.room_geometry_m().items():
-            if not isinstance(geo, dict):
-                continue
-            if geo.get("floor_id") != floor_id:
-                continue
-            gtype = geo.get("type", "")
-            if gtype == "poly":
-                pts = geo.get("points_m") or []
-                if len(pts) < 3:
-                    continue
-                # Ray-casting point-in-polygon
-                inside = False
-                n = len(pts)
-                j = n - 1
-                for i in range(n):
-                    xi, yi = float(pts[i][0]), float(pts[i][1])
-                    xj, yj = float(pts[j][0]), float(pts[j][1])
-                    if ((yi > y_m) != (yj > y_m)) and (x_m < (xj - xi) * (y_m - yi) / (yj - yi) + xi):
-                        inside = not inside
-                    j = i
-                if inside:
-                    return str(room)
-            elif gtype == "circle":
-                cx = float(geo.get("cx_m", 0))
-                cy = float(geo.get("cy_m", 0))
-                r = float(geo.get("r_m", 0))
-                if (x_m - cx) ** 2 + (y_m - cy) ** 2 <= r ** 2:
-                    return str(room)
-        return ""
+        return room_from_geometry(self.room_geometry_m(), x_m, y_m, floor_id)
 
     # ── Batch spatial save (fabric authority) ────────────────────────────────
 
@@ -2293,3 +2265,38 @@ class ModelStore:
 
         await self.store.async_save(self.data)
         return self.snapshot()
+
+
+def room_from_geometry(geometry: dict, x_m: float, y_m: float, floor_id: str) -> str:
+    """The room a metre-space point falls in, from a room -> geometry mapping
+    (ModelStore.room_geometry_m(), or a copy of it taken on the event loop
+    for a run in the executor, as heldout does)."""
+    for room, geo in (geometry or {}).items():
+        if not isinstance(geo, dict):
+            continue
+        if geo.get("floor_id") != floor_id:
+            continue
+        gtype = geo.get("type", "")
+        if gtype == "poly":
+            pts = geo.get("points_m") or []
+            if len(pts) < 3:
+                continue
+            # Ray-casting point-in-polygon
+            inside = False
+            n = len(pts)
+            j = n - 1
+            for i in range(n):
+                xi, yi = float(pts[i][0]), float(pts[i][1])
+                xj, yj = float(pts[j][0]), float(pts[j][1])
+                if ((yi > y_m) != (yj > y_m)) and (x_m < (xj - xi) * (y_m - yi) / (yj - yi) + xi):
+                    inside = not inside
+                j = i
+            if inside:
+                return str(room)
+        elif gtype == "circle":
+            cx = float(geo.get("cx_m", 0))
+            cy = float(geo.get("cy_m", 0))
+            r = float(geo.get("r_m", 0))
+            if (x_m - cx) ** 2 + (y_m - cy) ** 2 <= r ** 2:
+                return str(room)
+    return ""

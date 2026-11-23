@@ -15,13 +15,20 @@ PadSpan HA bundles the following third-party software under its own licence, unm
 
 ## PDF.js 6.5.438
 
-- Files: `custom_components/padspan_ha/www/padspan-ha/vendor/pdfjs/pdf.min.js` and `pdf.worker.min.js`
-  (the `build/pdf.min.mjs` and `build/pdf.worker.min.mjs` of the npm package `pdfjs-dist@6.5.438`,
-  renamed to `.js` so Home Assistant serves them as JavaScript) and its `LICENSE`.
+- Files: `custom_components/padspan_ha/www/padspan-ha/vendor/pdfjs/`, from the npm package `pdfjs-dist@6.5.438`:
+  - `pdf.min.js` and `pdf.worker.min.js`: its legacy build (`legacy/build/pdf.min.mjs` and
+    `pdf.worker.min.mjs`, renamed to `.js` so Home Assistant serves them as JavaScript), and its `LICENSE`.
+  - `wasm/`: the image decoders for black-and-white scans (JBIG2, CCITT) and JPEG 2000, with their
+    JavaScript fallbacks, the colour-profile module, and their licences (`LICENSE_*`). The JavaScript
+    engine for PDF forms (quickjs) is not included.
+  - `standard_fonts/`: the Foxit and Liberation fonts PDF.js draws unembedded standard fonts with,
+    with `LICENSE_FOXIT` and `LICENSE_LIBERATION`.
 - Used by: Mapping → Upload, to turn one page of a PDF floor plan into a picture in the browser.
   Loaded only when a PDF is picked.
 - Source: https://github.com/mozilla/pdf.js
-- Licence: Apache License, Version 2.0 (the full text is in `vendor/pdfjs/LICENSE`)
+- Licences: PDF.js, Apache License 2.0 (`vendor/pdfjs/LICENSE`). The decoders and fonts carry their own
+  licences in the files named above: BSD (PDFium JBIG2, OpenJPEG), MIT (qcms), the Foxit font licence
+  and GPL-2.0 with a font exception (Liberation Sans, Red Hat).
 
 ## three.js r170
 

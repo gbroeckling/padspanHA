@@ -415,10 +415,14 @@ def evaluate(points: list[dict[str, Any]], *,
              site: SpatialSite | None = None,
              source_area: dict[str, str] | None = None,
              radius_m: float = HELDOUT_RADIUS_M,
-             floor_id: str | None = None) -> dict[str, Any] | None:
+             floor_id: str | None = None,
+             truth: str = "drawn") -> dict[str, Any] | None:
     """Held-out scores for k-NN and (given a site) the spatial solve.
     `floor_id`: test spots only from that floor, every point still held in
-    (the rooms gate of Build from plans scores one floor's rooms)."""
+    (the rooms gate of Build from plans scores one floor's rooms).
+    `truth`: "drawn" (a spot's room is the room drawn where it stands) or
+    "label" (its stored room): the gate scores candidate outlines, so their
+    own drawing can't be the truth they are judged by."""
     from .calibration_store import KNN_K, CalibrationStore  # noqa: PLC0415
     pts = [p for p in points if p.get("x_m") is not None and p.get("y_m") is not None]
     if len(pts) < KNN_K + 1:
@@ -467,7 +471,10 @@ def evaluate(points: list[dict[str, Any]], *,
     # Each point's room: the room drawn where it stands (the lookup the guess
     # uses), its label only where no room is drawn.
     drawn = [room_of(xy[j][0], xy[j][1], str(p.get("floor_id") or "")) for j, p in enumerate(pts)]
-    pt_room = [drawn[j] or str(p.get("room") or "") for j, p in enumerate(pts)]
+    if truth == "label":
+        pt_room = [str(p.get("room") or "") or drawn[j] for j, p in enumerate(pts)]
+    else:
+        pt_room = [drawn[j] or str(p.get("room") or "") for j, p in enumerate(pts)]
     by_room: dict[str, list[int]] = {}
     for j, r in enumerate(pt_room):
         if r:
@@ -477,6 +484,7 @@ def evaluate(points: list[dict[str, Any]], *,
     s_err: list[float] = []
     k_right = s_right = labelled = tested = disagree = 0
     untestable: set[str] = set()
+    counted: set[str] = set()          # rooms with at least one spot that was tested
     for i in tests:
         t = pts[i]
         query = fps[i]
@@ -503,6 +511,7 @@ def evaluate(points: list[dict[str, Any]], *,
             true_room = ""
         if true_room:
             labelled += 1
+            counted.add(true_room)
 
         cand = prints.nearest(query, out_idx, KNN_K + _KNN_SPARE)
         k = CalibrationStore.knn_locate(_HeldIn([pts[j] for j in cand], excluded), query) \
@@ -533,7 +542,7 @@ def evaluate(points: list[dict[str, Any]], *,
         "spatial": _summary(s_err, s_right, labelled, tested) if site is not None else None,
         # Rooms calibrated at one spot only (or whose only points are a
         # beacon's copies): not counted; calibrating one more spot there tests them.
-        "untestable_rooms": sorted(untestable),
+        "untestable_rooms": sorted(untestable - counted),
         # Spots labelled one room but standing in another room's drawing.
         "label_disagrees": disagree,
     }

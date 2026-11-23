@@ -4006,7 +4006,17 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not pts:
             return None
         model = dom.get(DATA_MODEL)
-        room_at = getattr(model, "beacon_room_from_geometry", None) if model else None
+        # The rooms copied here, on the event loop: the run reads only the copy,
+        # never the live fabric from the executor thread.
+        room_at = None
+        if model is not None and hasattr(model, "room_geometry_m"):
+            try:
+                import copy as _copy  # noqa: PLC0415
+                from .model_store import room_from_geometry  # noqa: PLC0415
+                room_at = partial(room_from_geometry, _copy.deepcopy(model.room_geometry_m()))
+            except Exception:
+                _quiet_error("presence:heldout_job_rooms")
+                room_at = None
         site = None
         if self._scanner_positions:
             try:

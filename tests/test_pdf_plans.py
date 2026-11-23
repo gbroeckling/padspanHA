@@ -27,11 +27,17 @@ def test_the_picker_takes_a_pdf():
 
 def test_pdfjs_is_vendored_with_its_licence_and_notice():
     d = WWW / "vendor" / "pdfjs"
-    for f in ("pdf.min.js", "pdf.worker.min.js", "LICENSE"):
+    for f in ("pdf.min.js", "pdf.worker.min.js", "LICENSE",
+              # the image decoders a scanned plan needs, and the standard fonts
+              "wasm/jbig2.wasm", "wasm/jbig2_nowasm_fallback.js", "wasm/openjpeg.wasm", "wasm/openjpeg_nowasm_fallback.js",
+              "wasm/LICENSE_JBIG2", "wasm/LICENSE_OPENJPEG", "standard_fonts/LICENSE_FOXIT", "standard_fonts/LICENSE_LIBERATION"):
         assert (d / f).is_file(), f
+    # The legacy build: it carries what older tablets and WebViews lack.
+    assert "getOrInsertComputed" in (d / "pdf.worker.min.js").read_text(encoding="utf-8")
+    assert 'wasmUrl: _vendor("wasm/")' in PDF and 'standardFontDataUrl: _vendor("standard_fonts/")' in PDF
     assert "Apache License" in (d / "LICENSE").read_text(encoding="utf-8")
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
-    assert "## PDF.js" in notices and "vendor/pdfjs/pdf.min.js" in notices
+    assert "## PDF.js" in notices and "www/padspan-ha/vendor/pdfjs/" in notices and "`pdf.min.js`" in notices and "standard_fonts/" in notices and "wasm/" in notices
 
 
 def test_pdfjs_loads_only_when_a_pdf_is_picked():
@@ -49,11 +55,18 @@ def test_pdfjs_loads_only_when_a_pdf_is_picked():
 def test_a_pdf_goes_on_as_a_png():
     assert 'new File([blob], name, { type: "image/png" })' in PDF
     assert "_showPicked(r.file);" in MAPS
-    assert "isEvalSupported: false" in PDF       # no eval of PDF content
+    assert "quickjs" not in " ".join(p.name for p in (WWW / "vendor" / "pdfjs").rglob("*"))   # no JS-in-PDF engine shipped
 
 
 def test_an_unreadable_pdf_says_why_and_is_counted():
-    assert "This PDF can't be used:" in PDF and "password-protected" in PDF
+    for code in ("password", "unreadable", "empty", "render"):
+        assert f'_fail("{code}"' in PDF and f"    {code}: t(" in MAPS
     assert '_upTel("bad_pdf");' in MAPS and '_upTel("pdf");' in MAPS
     from custom_components.padspan_ha import telemetry as T
     assert {"plan_upload:pdf", "plan_upload:bad_pdf"} <= T.PLAN_UPLOAD_EVENTS
+
+
+def test_only_the_latest_pick_counts_and_upload_waits_for_the_read():
+    assert "if(seq !== ctx.state._mapsPdfSeq) return;" in MAPS
+    assert "if(ctx.state._mapsPdfReading){" in MAPS
+    assert "_drawPdfPicker();" in MAPS            # the page picker comes back after a redraw

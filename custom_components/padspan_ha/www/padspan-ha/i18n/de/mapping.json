@@ -469,5 +469,10 @@
 "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG, PDF.": "Wähle zuerst eine Bilddatei. Unterstützt: PNG, JPG, GIF, BMP, WebP, SVG, PDF.",
 "Reading the PDF…": "PDF wird gelesen…",
 "Page {n}": "Seite {n}",
-"This PDF has {n} pages. The plan is on:": "Dieses PDF hat {n} Seiten. Der Grundriss ist auf:"
+"This PDF has {n} pages. The plan is on:": "Dieses PDF hat {n} Seiten. Der Grundriss ist auf:",
+"This PDF is password-protected. Save it without a password, or as a picture, and pick it again.": "Dieses PDF ist passwortgeschützt. Speichere es ohne Passwort oder als Bild und wähle es noch einmal.",
+"This file could not be read as a PDF.": "Diese Datei ließ sich nicht als PDF lesen.",
+"This PDF has no pages.": "Dieses PDF hat keine Seiten.",
+"This PDF page could not be drawn. Try another page, or save the plan as a picture.": "Diese PDF-Seite ließ sich nicht zeichnen. Versuch eine andere Seite oder speichere den Grundriss als Bild.",
+"Still reading the PDF… Upload once its preview shows.": "Das PDF wird noch gelesen… Lade hoch, sobald die Vorschau erscheint."
 }

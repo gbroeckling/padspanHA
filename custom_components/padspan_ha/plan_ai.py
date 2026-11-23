@@ -4114,8 +4114,9 @@ def rooms_gate(points: list[dict], floor_id: str, rooms_now: dict[str, dict], ou
         out.update(now=round(100 * now / len(mine), 1), spots=len(mine), inside_now=now, inside_with=wth, scored=len(mine) >= S2_GATE_SPOTS)
         out["with"] = round(100 * wth / len(mine), 1)
     try:
-        a = heldout.evaluate(points, excluded=frozenset(excluded or ()), room_at=_room_lookup(rooms_now), floor_id=floor_id)
-        b = heldout.evaluate(points, excluded=frozenset(excluded or ()), room_at=_room_lookup(new), floor_id=floor_id) if a else None
+        # truth="label": the spots' own rooms are the truth, not the outlines being judged.
+        a = heldout.evaluate(points, excluded=frozenset(excluded or ()), room_at=_room_lookup(rooms_now), floor_id=floor_id, truth="label")
+        b = heldout.evaluate(points, excluded=frozenset(excluded or ()), room_at=_room_lookup(new), floor_id=floor_id, truth="label") if a else None
         ka, kb = (a or {}).get("knn") or {}, (b or {}).get("knn") or {}
         if ka.get("rooms_right_pc") is not None and kb.get("rooms_right_pc") is not None:
             out["held_out"] = {"now": ka["rooms_right_pc"], "with": kb["rooms_right_pc"], "spots": ka.get("room_spots")}

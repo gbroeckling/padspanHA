@@ -469,5 +469,10 @@
 "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG, PDF.": "Kies eerst een afbeeldingsbestand. Ondersteund: PNG, JPG, GIF, BMP, WebP, SVG, PDF.",
 "Reading the PDF…": "PDF wordt gelezen…",
 "Page {n}": "Pagina {n}",
-"This PDF has {n} pages. The plan is on:": "Deze PDF heeft {n} pagina's. De plattegrond staat op:"
+"This PDF has {n} pages. The plan is on:": "Deze PDF heeft {n} pagina's. De plattegrond staat op:",
+"This PDF is password-protected. Save it without a password, or as a picture, and pick it again.": "Deze PDF is met een wachtwoord beveiligd. Sla hem op zonder wachtwoord, of als afbeelding, en kies hem opnieuw.",
+"This file could not be read as a PDF.": "Dit bestand kon niet als PDF worden gelezen.",
+"This PDF has no pages.": "Deze PDF heeft geen pagina's.",
+"This PDF page could not be drawn. Try another page, or save the plan as a picture.": "Deze PDF-pagina kon niet worden getekend. Probeer een andere pagina, of sla de plattegrond op als afbeelding.",
+"Still reading the PDF… Upload once its preview shows.": "De PDF wordt nog gelezen… Upload zodra het voorbeeld verschijnt."
 }

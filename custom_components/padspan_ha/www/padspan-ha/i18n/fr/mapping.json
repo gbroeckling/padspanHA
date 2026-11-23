@@ -469,5 +469,10 @@
 "Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG, PDF.": "Choisissez d’abord un fichier image. Pris en charge : PNG, JPG, GIF, BMP, WebP, SVG, PDF.",
 "Reading the PDF…": "Lecture du PDF…",
 "Page {n}": "Page {n}",
-"This PDF has {n} pages. The plan is on:": "Ce PDF a {n} pages. Le plan est sur la :"
+"This PDF has {n} pages. The plan is on:": "Ce PDF a {n} pages. Le plan est sur la :",
+"This PDF is password-protected. Save it without a password, or as a picture, and pick it again.": "Ce PDF est protégé par un mot de passe. Enregistrez-le sans mot de passe, ou en image, puis choisissez-le à nouveau.",
+"This file could not be read as a PDF.": "Ce fichier n'a pas pu être lu comme PDF.",
+"This PDF has no pages.": "Ce PDF n'a aucune page.",
+"This PDF page could not be drawn. Try another page, or save the plan as a picture.": "Cette page du PDF n'a pas pu être dessinée. Essayez une autre page, ou enregistrez le plan en image.",
+"Still reading the PDF… Upload once its preview shows.": "Lecture du PDF en cours… Téléversez dès que l'aperçu s'affiche."
 }

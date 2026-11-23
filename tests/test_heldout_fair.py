@@ -17,8 +17,11 @@ tracking never asks k-NN about. What must hold now:
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 from custom_components.padspan_ha import heldout as H
+
+ROOT_CC = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
 
 SCANNERS = {"s_a": (1.0, 1.0), "s_b": (9.0, 1.0), "s_c": (5.0, 8.0), "s_d": (1.0, 8.0)}
 ROOMS = {"West": (0.0, 0.0, 4.0, 10.0), "East": (4.0, 0.0, 10.0, 10.0)}
@@ -104,3 +107,24 @@ def test_the_report_carries_counts_only():
     b = H.report_buckets(res)
     assert b["untest"] == "3_5" and b["disagree"] == "6_10"
     assert "Pantry" not in str(b)
+
+
+def test_a_room_tested_at_some_spot_is_not_listed_as_untestable():
+    # Three West spots in a row 1.4 m apart: the middle one has nothing left,
+    # the ends do. West was tested, so it isn't "calibrated at one spot only".
+    west = [_pt(2.0, 2.0 + 1.4 * i, "West", i) for i in range(3)] + [_pt(1.0, 8.5, "West", 9)]
+    east = _spread("East", 4.5, 9.5, 9)
+    res = H.evaluate(west + east, room_at=room_at)
+    assert "West" not in res["untestable_rooms"]
+
+
+def test_the_plan_gate_judges_outlines_by_the_spots_own_rooms():
+    # An outline drawn over the whole floor must not score every spot right.
+    pts = _spread("West", 0.0, 4.0, 6) + _spread("East", 4.5, 9.5, 9)
+    everything = lambda x, y, fl: "East"
+    drawn = H.evaluate(pts, room_at=everything)
+    label = H.evaluate(pts, room_at=everything, truth="label")
+    assert drawn["label_disagrees"] > 0
+    assert label["knn"]["rooms_right_pc"] < 100
+    src = (ROOT_CC / "plan_ai.py").read_text(encoding="utf-8")
+    assert src.count('floor_id=floor_id, truth="label")') == 2

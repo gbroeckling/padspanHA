@@ -1330,48 +1330,71 @@ function _upload(ctx, helpBtn, isBasic){
   // and nothing said whether an upload was tried). Words only (telemetry.PLAN_UPLOAD_WORDS); never on the demo house.
   const _upTel = (w)=>{ if(ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("plan_upload:" + w); };
   // A picked PDF: page n drawn as a PNG, which then goes on as a picture would.
-  const _fromPdf = async (pdf, pageNo)=>{
-    status.textContent = t("Reading the PDF…");
+  // Each pick or page change takes a number; only the latest one's result is
+  // used, so a slow page finishing after a newer pick never replaces it.
+  // While it reads, _mapsPdfReading holds Upload back. The page picker is
+  // drawn from ctx.state._mapsUploadPdf, so it is there again after a redraw.
+  const _pdfWords = {
+    password: t("This PDF is password-protected. Save it without a password, or as a picture, and pick it again."),
+    unreadable: t("This file could not be read as a PDF."),
+    empty: t("This PDF has no pages."),
+    render: t("This PDF page could not be drawn. Try another page, or save the plan as a picture."),
+  };
+  const _drawPdfPicker = ()=>{
+    const st = ctx.state._mapsUploadPdf;
+    pdfPage.textContent = "";
+    if(!st || !(st.pages > 1)){ pdfPage.style.display = "none"; return; }
+    const sel = document.createElement("select");
+    sel.className = "select";
+    sel.style.cssText = "width:auto;margin-left:6px";
+    for(let i = 1; i <= st.pages; i++){ const o = document.createElement("option"); o.value = String(i); o.textContent = t("Page {n}", { n: i }); sel.appendChild(o); }
+    sel.value = String(st.page);
+    sel.disabled = !!ctx.state._mapsPdfReading;
+    sel.addEventListener("change", ()=>{ _fromPdf(st.src, parseInt(sel.value, 10) || 1, false); });
+    pdfPage.appendChild(el("span",{class:"muted"}, t("This PDF has {n} pages. The plan is on:", { n: st.pages })));
+    pdfPage.appendChild(sel);
+    pdfPage.style.display = "";
+  };
+  const _fromPdf = async (pdf, pageNo, firstRead)=>{
+    const seq = ctx.state._mapsPdfSeq = (ctx.state._mapsPdfSeq || 0) + 1;
+    ctx.state._mapsPdfReading = true;
+    ctx.state._mapsUploadFile = pdf;            // holds the card (no redraw under the read)
+    _drawPdfPicker();
+    status.textContent = t("Reading the PDF\u2026");
     status.style.color = "";
     try{
       const PDF = await import(`./pdf_plan.js${new URL(import.meta.url).search}`);
       const r = await PDF.pdfPageToPng(pdf, pageNo);
+      if(seq !== ctx.state._mapsPdfSeq) return;     // a newer pick or page took over
+      ctx.state._mapsPdfReading = false;
       ctx.state._mapsUploadPdf = { src: pdf, pages: r.pages, page: r.page };
-      _upTel("pdf");
-      pdfPage.textContent = "";
-      if(r.pages > 1){
-        const sel = document.createElement("select");
-        sel.className = "select";
-        sel.style.cssText = "width:auto;margin-left:6px";
-        for(let i = 1; i <= r.pages; i++){ const o = document.createElement("option"); o.value = String(i); o.textContent = t("Page {n}", { n: i }); sel.appendChild(o); }
-        sel.value = String(r.page);
-        sel.addEventListener("change", ()=>{ _fromPdf(pdf, parseInt(sel.value, 10) || 1); });
-        pdfPage.appendChild(el("span",{class:"muted"}, t("This PDF has {n} pages. The plan is on:", { n: r.pages })));
-        pdfPage.appendChild(sel);
-        pdfPage.style.display = "";
-      } else {
-        pdfPage.style.display = "none";
-      }
-      status.textContent = "—";
+      if(firstRead) _upTel("pdf");
+      _drawPdfPicker();
+      status.textContent = "\u2014";
       _showPicked(r.file);
     }catch(e){
+      if(seq !== ctx.state._mapsPdfSeq) return;
+      ctx.state._mapsPdfReading = false;
       ctx.state._mapsUploadFile = null;
       ctx.state._mapsUploadPdf = null;
-      pdfPage.style.display = "none";
-      _upTel("bad_pdf");
-      status.textContent = ctx.helpers.errorText(e);
+      _drawPdfPicker();
+      if(firstRead) _upTel("bad_pdf");
+      status.textContent = _pdfWords[e && e.code] || ctx.helpers.errorText(e);
       status.style.color = "#f87171";
     }
   };
+  _drawPdfPicker();
   file.addEventListener("change", async ()=>{
     if(!file.files||!file.files[0]) return;
     _upTel("picked");
     const picked = file.files[0];
     if(!name.value) name.value=picked.name.replace(/\.[^.]+$/,"");
     ctx.state._mapsUploadPdf = null;
-    pdfPage.style.display = "none";
-    const PDF = /\.pdf$/i.test(picked.name || "") || picked.type === "application/pdf";
-    if(PDF){ ctx.state._mapsUploadFile = picked; await _fromPdf(picked, 1); return; }
+    const isPdf = /\.pdf$/i.test(picked.name || "") || picked.type === "application/pdf";
+    if(isPdf){ await _fromPdf(picked, 1, true); return; }
+    ctx.state._mapsPdfSeq = (ctx.state._mapsPdfSeq || 0) + 1;   // a picture picked while a PDF reads wins
+    ctx.state._mapsPdfReading = false;
+    _drawPdfPicker();
     _showPicked(picked);
   });
   function _showPicked(picked){
@@ -1405,6 +1428,7 @@ function _upload(ctx, helpBtn, isBasic){
 
   const btn = el("button",{class:"btn inline", onclick: async ()=>{
     // Use file from ctx.state (survives re-renders), with file input as fallback
+    if(ctx.state._mapsPdfReading){ status.textContent = t("Still reading the PDF\u2026 Upload once its preview shows."); return; }
     const f = ctx.state._mapsUploadFile || (file.files && file.files[0]);
     if(!f){ _upTel("no_file"); status.textContent = t("Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG, PDF."); return; }
     // The floor the user actually chose, not whatever this <select> happens to
@@ -1456,6 +1480,7 @@ function _upload(ctx, helpBtn, isBasic){
       if (ctx.state._mapsUploadSketch) _upTel("sketch");
       ctx.state._mapsUploadSketch = false;
       ctx.state._mapsUploadFile = null;
+      ctx.state._mapsUploadPdf = null;
       ctx.state._mapsUploadFloorId = null;
       const _newMap = uploadRes?.map?.id ? (ctx.state.maps?.list || []).find(m => m.id === uploadRes.map.id) || uploadRes.map : null;
       if(_askScale && isBasic && _newMap && NUDGE && NUDGE.offered(ctx, _newMap)){ _openMeasure(ctx, _newMap.id, "upload"); return; }

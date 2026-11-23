@@ -224,7 +224,8 @@ def test_nothing_but_the_3d_file_reads_the_figures():
     php = [p.name for p in (_ROOT / "server").rglob("*.php") if "figure" in p.read_text(encoding="utf-8").lower()]
     assert php == [], "no PadSpan server code knows about people figures"
     js_readers = sorted(p.name for p in (_CC / "www").rglob("*.js")
-                        if re.search(r"""\.figures\b|["']figures["']|\bfigures\s*:""", p.read_text(encoding="utf-8")))
+                        if "vendor" not in p.parts           # third-party code (PDF.js draws meshes with this.figures)
+                        and re.search(r"""\.figures\b|["']figures["']|\bfigures\s*:""", p.read_text(encoding="utf-8")))
     assert set(js_readers) <= {"live_aboard_people.js", "live_aboard_furnish.js", "live_aboard.js",
                                "live_aboard_house.js", "live_aboard_live.js",
                                "live_aboard_draft.js",      # the 3D file's own rules (ownedOf)
