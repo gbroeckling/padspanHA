@@ -185,6 +185,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.284</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">23 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Open screens (off until you turn it on).</b> Settings → Atlas → 📣 Open screens lists every PadSpan page open right now (wall tablets, TVs, desktops): its name, what it shows, its device, and whether it runs an older PadSpan. You can reload one screen or all of them from there, and rename one ("Kitchen tablet"). Off, PadSpan keeps no list.</li>
+          <li><b>Announcements on your screens.</b> The new action <code>padspan_ha.announce</code> puts a message big over the open PadSpan screens for a few seconds, with a chime. It can read the message aloud and can go to only the screens you name. Use it for the doorbell, the washing machine or dinner. <code>padspan_ha.reload_screens</code> reloads them from an automation. Both need Open screens switched on.</li>
+          <li><b>Links to a room or a person.</b> <code>/padspan-ha?room=Kitchen</code> opens that room's card, and <code>/padspan-ha?follow=Alex</code> opens Follow on that tag. Both work from a notification on your phone.</li>
+          <li><b>A presence sensor for a sub-zone.</b> In Mapping → Edit → Sub-zones, a bed, couch or desk can have its own presence sensor, such as an mmWave zone like an Aqara FP2's "Sofa". While that sensor is on, a tagged person in that room counts as in the sub-zone even before their position gets there. Bluetooth says who, the sensor says when. It only ever adds, and how positions and rooms are worked out doesn't change. Sub-zones themselves stay off until you turn them on.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.283</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">23 November 2026</span>

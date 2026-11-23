@@ -1,7 +1,0 @@
-# Open screens, announcements, links to a room or a person, and a presence sensor per sub-zone
-
-### New
-- **Open screens (off until you turn it on).** Settings → Atlas → 📣 Open screens lists every PadSpan page open right now (wall tablets, TVs, desktops): its name, what it shows, its device, and whether it runs an older PadSpan. You can reload one screen or all of them from there, and rename one ("Kitchen tablet"). Off, PadSpan keeps no list.
-- **Announcements on your screens.** The new action `padspan_ha.announce` puts a message big over the open PadSpan screens for a few seconds, with a chime. It can read the message aloud and can go to only the screens you name. Use it for the doorbell, the washing machine or dinner. `padspan_ha.reload_screens` reloads them from an automation. Both need Open screens switched on.
-- **Links to a room or a person.** `/padspan-ha?room=Kitchen` opens that room's card, and `/padspan-ha?follow=Alex` opens Follow on that tag. Both work from a notification on your phone.
-- **A presence sensor for a sub-zone.** In Mapping → Edit → Sub-zones, a bed, couch or desk can have its own presence sensor, such as an mmWave zone like an Aqara FP2's "Sofa". While that sensor is on, a tagged person in that room counts as in the sub-zone even before their position gets there. Bluetooth says who, the sensor says when. It only ever adds, and how positions and rooms are worked out doesn't change. Sub-zones themselves stay off until you turn them on.
