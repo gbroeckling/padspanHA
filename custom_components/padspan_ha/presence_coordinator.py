@@ -3067,6 +3067,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     _oth = max((r for k, r in _best.items() if k != _geo_room), default=-999.0)
                                     if _own is not None and _own - _oth >= float(_v[2:]):
                                         _hm = 0.0
+                                elif _v.startswith("cl"):
+                                    # off while the new room's own scanner leads the SHOWN room's by X dB
+                                    _best = {}
+                                    for _s, _r in ema.items():
+                                        if _miss.get(_s, 0) > _grace(_s):
+                                            continue
+                                        _rm = source_to_area.get(_s)
+                                        if _rm and _r > _best.get(_rm, -999.0):
+                                            _best[_rm] = _r
+                                    _own = _best.get(_geo_room)
+                                    if _own is not None and _own - _best.get(_cur_confirmed, _EMA_SILENCE_DBM) >= float(_v[2:]):
+                                        _hm = 0.0
                                 if _d_cur is not None and _d_cur < _hm:
                                     self._spatial_debug[key] += f">{_geo_room}(held:{_d_cur:.1f}m)"
                                     _geo_room = _cur_confirmed
