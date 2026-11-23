@@ -2544,6 +2544,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # drop that size elsewhere in the same poll (the scanner it walked away
         # from). A drop alone may be a fade and keeps the ordinary gain.
         _moved = any(src in ema and _jump(src, rssi) > _RISE_SIGMAS for src, rssi in live_srcs.items())
+        if _moved:   # STUDY HOOK (hall-hysteresis)
+            self.__dict__.setdefault("_study_moved_t", {})[key] = _t_now
         _first_heard = {src for src in live_srcs if src not in ema}
 
         # Kalman update for sources that reported this poll.
@@ -3000,8 +3002,27 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 _d_cur = _fabric_truth.room_distance_m(
                                     _fl_rooms_h.get(_cur_confirmed),
                                     _est_x, _est_y)
-                                if _d_cur is not None and _d_cur < _study_hyst_m(
-                                        _fl_rooms_h.get(_geo_room), _fl_rooms_h.get(_cur_confirmed)):
+                                _hm = _study_hyst_m(_fl_rooms_h.get(_geo_room), _fl_rooms_h.get(_cur_confirmed))
+                                _v = _HELD_VARIANT or ""
+                                if _v.startswith("mv"):
+                                    # off for N s after a poll that saw the device move
+                                    _mt = self.__dict__.get("_study_moved_t", {}).get(key)
+                                    if _mt is not None and _t_now - _mt <= float(_v[2:]):
+                                        _hm = 0.0
+                                elif _v.startswith("rb"):
+                                    # off while the new room's own scanner leads every other room by X dB
+                                    _best: dict = {}
+                                    for _s, _r in ema.items():
+                                        if _miss.get(_s, 0) > _grace(_s):
+                                            continue
+                                        _rm = source_to_area.get(_s)
+                                        if _rm and _r > _best.get(_rm, -999.0):
+                                            _best[_rm] = _r
+                                    _own = _best.get(_geo_room)
+                                    _oth = max((r for k, r in _best.items() if k != _geo_room), default=-999.0)
+                                    if _own is not None and _own - _oth >= float(_v[2:]):
+                                        _hm = 0.0
+                                if _d_cur is not None and _d_cur < _hm:
                                     self._spatial_debug[key] += f">{_geo_room}(held:{_d_cur:.1f}m)"
                                     _geo_room = _cur_confirmed
                             if _geo_room:
