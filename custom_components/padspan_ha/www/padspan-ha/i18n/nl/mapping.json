@@ -461,5 +461,10 @@
 "{n} outliers outside consensus cluster": {
 "one": "1 uitschieter buiten de overeenstemmende groep",
 "other": "{n} uitschieters buiten de overeenstemmende groep"
-}
+},
+"Could not save the sensor: {why}": "De sensor kon niet worden opgeslagen: {why}",
+"While this sensor is on, a tagged person in {room} counts as in {name} even before their position gets there.": "Zolang deze sensor aan staat, telt een persoon met een tag in {room} als in {name}, ook voordat de positie daar is.",
+"its room": "de kamer",
+"No presence sensor": "Geen aanwezigheidssensor",
+"Draw it inside a room to give it a presence sensor.": "Teken hem binnen een kamer om hem een aanwezigheidssensor te geven."
 }

@@ -36,6 +36,46 @@
           "description": "Övertoningstid i sekunder. Lämna tomt för den sparade övertoningen."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Ladda om skärmar",
+      "description": "Laddar om de öppna PadSpan-sidorna, så att ny kod når även en skärm som ingen står vid. Kräver att ”Öppna skärmar” är på i PadSpans inställningar.",
+      "fields": {
+        "screens": {
+          "name": "Skärmar",
+          "description": "Namn eller id för skärmarna som laddas om. Lämna tomt för alla."
+        }
+      }
+    },
+    "announce": {
+      "name": "Utrop på skärmar",
+      "description": "Visar ett meddelande stort över de öppna PadSpan-sidorna i några sekunder, med en ljudsignal, och läser upp det om du vill. Kräver att ”Öppna skärmar” är på i PadSpans inställningar.",
+      "fields": {
+        "message": {
+          "name": "Meddelande",
+          "description": "Det som visas (högst 300 tecken)."
+        },
+        "title": {
+          "name": "Rubrik",
+          "description": "En kort rad ovanför meddelandet."
+        },
+        "screens": {
+          "name": "Skärmar",
+          "description": "Namn eller id för skärmarna där det visas. Lämna tomt för alla."
+        },
+        "seconds": {
+          "name": "Sekunder",
+          "description": "Hur länge det visas."
+        },
+        "chime": {
+          "name": "Ljudsignal",
+          "description": "Spela först en kort ljudsignal."
+        },
+        "speak": {
+          "name": "Läs upp",
+          "description": "Läs upp meddelandet med skärmens webbläsarröst."
+        }
+      }
     }
   },
   "issues": {

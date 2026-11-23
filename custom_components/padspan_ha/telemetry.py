@@ -160,6 +160,12 @@ EVENTS: frozenset[str] = frozenset({
     # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
     # and honest): whether anyone looks, once per opening.
     "stale_receivers_listed",
+    # Open screens (screens.py, off by default): a reload or an announcement
+    # that reached at least one screen, once per call. Never the message.
+    "screens_reload_sent", "screens_announce_sent", "screens_announce_test_sent",
+    # A sub-zone's presence sensor (subzones.py) put a tag in it that its
+    # position alone had not: whether "the sensor says when" ever helps.
+    "subzone_sensor_assist",
     # The top bar's status dot (views/status_dot.js) clicked through to
     # Health: whether a dot that says something is wrong gets looked at.
     "status_dot_open",
@@ -514,6 +520,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "device_name",
+    "screens_card", "screens_client",               # Open screens (screens.py): Settings' card, and the page as a screen
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
     "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
     "plan_carry",                                   # a moved plan's line in the Library, and what could move with it
@@ -1425,6 +1432,8 @@ _FEATURE_FLAGS: tuple[str, ...] = (
 _FEATURE_ON_ONLY: dict[str, str] = {
     "atlas_live_colours": "live_colours", "atlas_alert_pulse": "alert_pulse",
     "atlas_heatmap_enabled": "heatmap", "subzones_enabled": "subzones",
+    # 2026-11-23, off by default: open screens reloaded and spoken to (screens.py).
+    "screens_remote_enabled": "screens_remote",
     "room_reason_attribute": "room_reason", "roomplan_import_enabled": "plan_scan_import",
     "wall_fully": "wall_fully", "hold_last_room_s": "room_hold",
     "wall_floor_cycle_s": "wall_floor_cycle", "atlas_3d_director": "director",

@@ -36,6 +36,46 @@
           "description": "Durée du fondu en secondes. Laisser vide pour le fondu mémorisé."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Recharger les écrans",
+      "description": "Recharge les pages PadSpan ouvertes, pour que le nouveau code atteigne aussi un écran devant lequel personne ne se trouve. « Écrans ouverts » doit être activé dans les paramètres de PadSpan.",
+      "fields": {
+        "screens": {
+          "name": "Écrans",
+          "description": "Noms ou identifiants des écrans à recharger. Laisser vide pour tous."
+        }
+      }
+    },
+    "announce": {
+      "name": "Annonce sur les écrans",
+      "description": "Affiche un message en grand sur les pages PadSpan ouvertes pendant quelques secondes, avec un carillon, et le lit à voix haute si demandé. « Écrans ouverts » doit être activé dans les paramètres de PadSpan.",
+      "fields": {
+        "message": {
+          "name": "Message",
+          "description": "Ce qu'il faut afficher (300 caractères au plus)."
+        },
+        "title": {
+          "name": "Titre",
+          "description": "Une courte ligne au-dessus du message."
+        },
+        "screens": {
+          "name": "Écrans",
+          "description": "Noms ou identifiants des écrans où l'afficher. Laisser vide pour tous."
+        },
+        "seconds": {
+          "name": "Secondes",
+          "description": "Combien de temps il reste affiché."
+        },
+        "chime": {
+          "name": "Carillon",
+          "description": "Jouer d'abord un court carillon."
+        },
+        "speak": {
+          "name": "Lire à voix haute",
+          "description": "Lire le message avec la voix du navigateur de l'écran."
+        }
+      }
     }
   },
   "issues": {

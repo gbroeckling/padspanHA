@@ -36,6 +36,46 @@
           "description": "Overgangstid i sekunder. La feltet stå tomt for den lagrede overgangen."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Last inn skjermer på nytt",
+      "description": "Laster inn de åpne PadSpan-sidene på nytt, så ny kode også når en skjerm ingen står ved. Krever at «Åpne skjermer» er slått på i PadSpans innstillinger.",
+      "fields": {
+        "screens": {
+          "name": "Skjermer",
+          "description": "Navn eller id-er på skjermene som lastes inn på nytt. La stå tomt for alle."
+        }
+      }
+    },
+    "announce": {
+      "name": "Kunngjøring på skjermer",
+      "description": "Viser en melding stort over de åpne PadSpan-sidene i noen sekunder, med et klokkesignal, og leser den høyt om du vil. Krever at «Åpne skjermer» er slått på i PadSpans innstillinger.",
+      "fields": {
+        "message": {
+          "name": "Melding",
+          "description": "Det som vises (opptil 300 tegn)."
+        },
+        "title": {
+          "name": "Tittel",
+          "description": "En kort linje over meldingen."
+        },
+        "screens": {
+          "name": "Skjermer",
+          "description": "Navn eller id-er på skjermene den vises på. La stå tomt for alle."
+        },
+        "seconds": {
+          "name": "Sekunder",
+          "description": "Hvor lenge den blir stående."
+        },
+        "chime": {
+          "name": "Klokkesignal",
+          "description": "Spill først et kort klokkesignal."
+        },
+        "speak": {
+          "name": "Les høyt",
+          "description": "Les meldingen høyt med skjermens nettleserstemme."
+        }
+      }
     }
   },
   "issues": {

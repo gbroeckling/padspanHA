@@ -194,6 +194,7 @@ folding heading on that tab.
 | Wall screens: Show each floor | 0 | 0 (off), or 10 to 600 | Seconds between floors while nobody touches the wall. 0: off. | `wall_floor_cycle_s` |
 | Wall screens: On Fully Kiosk tablets | off | on or off | Dims by the tablet's own brightness, and its motion detection turns the screen on. | `wall_fully` |
 | Overview — the Atlas as your main map: Show the Atlas as Overview | off | on or off | Pro: the Overview shows the Atlas; the classic Overview is under Live Tracker. | `overview_atlas` |
+| 📣 Open screens: List open screens, and let Home Assistant reload them and show announcements | off | on or off | Off by default. Open PadSpan pages are listed; padspan_ha.reload_screens and padspan_ha.announce reach them. | `screens_remote_enabled` |
 
 ### Settings → UI Structure
 

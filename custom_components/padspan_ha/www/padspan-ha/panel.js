@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.283";
-const RELEASE_BUILD_ID = "20261123T174610Z";
+const APP_VERSION = "0.38.284";
+const RELEASE_BUILD_ID = "20261123T184001Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -680,6 +680,12 @@ const { buildEvidenceSvg, roomScoreBars } =
 // A push subscription kept across HA restarts (motion_reconnects, below).
 const { keepSubscribed } =
   await import(`./views/push_subscription.js?b=${BUILD_ID}`);
+// This page as an open screen (screens.py, off by default). Optional: if it
+// fails to load, the page simply isn't listed.
+let SCREENS = null;
+import(`./views/screens_client.js?b=${BUILD_ID}`)
+  .then(m => { SCREENS = m; })
+  .catch(err => { console.warn("PadSpan: screens_client failed to load", err); });
 // The panel's translations (views/i18n.js), the same module help_content.js
 // imports. English, or a language not shipped, loads nothing. Not awaited:
 // if it fails to load, the help simply stays English.
@@ -834,6 +840,8 @@ class PadSpanHaApp extends HTMLElement {
       this._reconnectsStop = keepSubscribed(hass.connection, { type: "padspan_ha/motion_reconnects" },
         m => { this.state._motionReconnects = m || {}; });
     }
+    // Listed as an open screen while Settings → Wall screens → Open screens is on (screens_client.js).
+    this._screenSync();
     if(!this._booted){
       this._booted = true;
       // Wait for critical view modules (overview + follow), then render immediately.
@@ -849,6 +857,7 @@ class PadSpanHaApp extends HTMLElement {
         // first boot (live data only began after a later set-hass re-entry).
         this._refreshAll(false).finally(() => {
           if(this.state.dataMode === "live") this._startDataPoll();
+          this._openUrlTargets();
         });
       });
     } else if(hass && prevHass && hass !== prevHass && hass.connection !== prevHass.connection){
@@ -1149,6 +1158,17 @@ class PadSpanHaApp extends HTMLElement {
         this.state.maps._selLight = { eid: reqLight, mapId: null };
         this.state.maps._focusRow = reqLight;
       }
+      // ?follow=<tag> (its key, address or name) opens Follow on it, and
+      // ?room=<area id or name> that room's card once the house has loaded
+      // (_openUrlTargets): a notification's link lands on the person or room.
+      const reqFollow = (q.get("follow") || "").trim();
+      if (reqFollow && reqFollow.length <= 100) {
+        this.state._followRequest = reqFollow;
+        if (!reqView) { this.state.view = "follow"; this._urlPinnedView = "follow"; }
+      }
+      const reqRoom = (q.get("room") || "").trim();
+      if (reqRoom && reqRoom.length <= 100) this._urlRoom = reqRoom;
+      this._urlLinksSeen = window.location.search;   // _urlLinks: this load's link is handled here
       this.state.kioskMode = q.get("kiosk") === "1";
     } catch(e) { /* ignore */ }
 
@@ -1774,6 +1794,7 @@ class PadSpanHaApp extends HTMLElement {
     this._pollInFlight = false;
     if(this._reconnectsStop) this._reconnectsStop();
     this._reconnectsStop = null; this._reconnectsConn = null;
+    if(this._screen) this._screen.leave();
     if(this._activityTimer){ clearInterval(this._activityTimer); this._activityTimer = null; }
     if(this._watchdogTimer){ clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
     if(this._visibilityHandler){
@@ -2025,7 +2046,7 @@ class PadSpanHaApp extends HTMLElement {
     if(!this._haLocationHandler){
       this._haLocationHandler = ()=>{
         // Only wake if we're actually connected (HA re-attached our element)
-        if(this.isConnected) this._wakeUp("ha-location");
+        if(this.isConnected){ this._wakeUp("ha-location"); this._urlLinks(); }
       };
       window.addEventListener("location-changed", this._haLocationHandler);
     }
@@ -5234,8 +5255,66 @@ class PadSpanHaApp extends HTMLElement {
     _loadView(v).then(m => { this._viewAsked = null; if (m && this.state.view === v) this._scheduleRender(); });
   }
 
+  /** A link followed while PadSpan is already open (a notification's tap):
+   *  Home Assistant only changes the route, so ?follow= and ?room= are read
+   *  again here, once per new link. */
+  _urlLinks(){
+    let q;
+    try { q = new URLSearchParams(window.location.search); } catch(e) { return; }
+    if(window.location.search === this._urlLinksSeen) return;
+    this._urlLinksSeen = window.location.search;
+    const f = (q.get("follow") || "").trim(), r = (q.get("room") || "").trim();
+    if(f && f.length <= 100){
+      this.state._followRequest = f;
+      this._urlPinnedView = "follow";
+      this._openCountedView("follow");
+    }
+    if(r && r.length <= 100){
+      this._urlRoom = r;
+      if(this.state.model) this._openUrlTargets();
+    }
+  }
+
+  /** ?room= from the page's link, once the house (model) has loaded: that
+   *  room's card, found by its HA area id or its name (any case). Once. */
+  _openUrlTargets(){
+    const want = this._urlRoom;
+    if(!want) return;
+    this._urlRoom = null;
+    const w = want.toLowerCase();
+    const area = (this.state.model?.areas || []).find(a => String(a.area_id || a.id || "").toLowerCase() === w || String(a.name || "").toLowerCase() === w);
+    if(area) this._showRoomDetail(area.name);
+    else this._toast(t("No room called \"{room}\" in this house.", { room: want }), true);
+  }
+
+  /** Join or leave the open screens (screens.py) as the setting says. Cheap:
+   *  called on every hass update, it does nothing unless something changed. */
+  _screenSync(){
+    if(!SCREENS) return;
+    if(!this._screen) this._screen = SCREENS.createScreen("panel",
+      () => ({ build: RELEASE_BUILD_ID, kiosk: !!this.state.kioskMode, view: this.state.view }), keepSubscribed,
+      // A reload sent from Home Assistant waits while someone is mid-work here
+      // (the same guards _checkBuild keeps): it is skipped, and Settings shows
+      // the screen still on its old build, to send again later.
+      { beforeReload: () => !this._screenBusy() });
+    const on = this.state?.settings?.screens_remote_enabled === true && this.state.dataMode !== "sample";
+    this._screen.sync(this.isConnected && this._hass ? this._hass.connection : null, on);
+  }
+
+  /** Someone may be mid-work on this page: touched in the last two minutes, a
+   *  drag or a confirm, an upload or an edit in Mapping, or Calibration open
+   *  (a walk records while nobody touches the page). */
+  _screenBusy(){
+    const s = this.state || {};
+    return !untouchedFor(120000) || s.view === "calibration"
+      || !!(s._calibTune?._dragging || s._calibBeacon?._dragging || s._calibTune?._confirming || s._calibBeacon?._confirming
+      || s.maps?._stackDragging || s.maps?._editDragging || s.maps?._drawing || s.maps?._szDrawing
+      || (s.view === "maps" && (s.mapsTab === "upload" || s.mapsTab === "stack" || s.mapsTab === "edit")));
+  }
+
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
+    if(this._screen) this._screen.view(this.state.view);
     // A visit to a view: counted each time a view is drawn after another one (the rooms helper's "came back later",
     // views/ai_wizard_offer.js stepSeen, means a later visit, not only a reload).
     if(this.state.view !== this._visitView){ this._visitView = this.state.view; this.state._viewVisit = (this.state._viewVisit || 0) + 1; }

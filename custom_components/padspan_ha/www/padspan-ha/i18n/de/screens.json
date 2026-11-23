@@ -632,5 +632,6 @@
 "{n} receivers have no Home Assistant area yet, so they give no room: {names}.": {
 "one": "Ein Empfänger hat noch keinen Home-Assistant-Bereich und liefert daher keinen Raum: {names}.",
 "other": "{n} Empfänger haben noch keinen Home-Assistant-Bereich und liefern daher keinen Raum: {names}."
-}
+},
+"No tag called \"{tag}\" to follow.": "Kein Tag namens „{tag}“ zum Folgen."
 }

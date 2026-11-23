@@ -190,6 +190,7 @@ VALUES: dict[str, list[tuple[str, Any]]] = {
     "ha_entity_scanner_distance_enabled": BOOL,
     "ha_entity_occupancy_enabled": BOOL,
     "subzones_enabled": BOOL,
+    "screens_remote_enabled": BOOL,
     "mqtt_publish_enabled": BOOL,
     "espresense_mqtt_enabled": BOOL,
     "espresense_topic_prefix": one("/home/espresense#/"),

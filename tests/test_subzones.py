@@ -354,3 +354,61 @@ def test_mapping_tool_hidden_unless_on():
     assert "const _szOn = () => ctx.state.settings?.subzones_enabled === true;" in js
     assert '...(_szOn() ? [el("button"' in js
     assert 'ctx.state.maps._mode==="subzones" && _szOn()' in js
+
+
+# ── A sub-zone's presence sensor: Bluetooth says who, the sensor says when ──
+
+SOFA = {**BED, "id": "sz_2", "name": "Sofa", "room": "Living", "sensor": "binary_sensor.fp2_sofa"}
+
+
+def test_sensor_optional_and_must_be_a_binary_sensor():
+    assert SZ.normalise_zone("sz_1", BED)["sensor"] is None
+    assert SZ.normalise_zone("sz_2", SOFA)["sensor"] == "binary_sensor.fp2_sofa"
+    for bad in ("light.sofa", "binary_sensor.Sofa", "binary_sensor.x; drop"):
+        with pytest.raises(SZ.ZoneError):
+            SZ.normalise_zone("sz_2", {**SOFA, "sensor": bad})
+
+
+def test_sensor_on_adds_tags_in_its_room_only():
+    objs = {"a": _tag(5, 5, room="Living"),                      # in the room, position not on the sofa yet
+            "b": _tag(5, 5, label="Sam", room="Kitchen"),        # another room
+            "c": _tag(5, 5, label="Jo", room="Living", floor="up"),   # another floor
+            "d": _tag(5, 5, label="Old", room="Living", age_s=9999.0),  # away
+            "e": {"kind": "ble", "room": "Living", "x_m": 5, "y_m": 5, "floor_id": "main"}}  # no label
+    zones = {"sz_2": SZ.normalise_zone("sz_2", SOFA)}
+    assert SZ.sensor_assist(zones, {"sz_2": []}, objs, {"sz_2": True}, 300.0) == {"sz_2": ["Alex"]}
+    assert SZ.sensor_assist(zones, {"sz_2": []}, objs, {"sz_2": False}, 300.0) == {"sz_2": []}
+
+
+def test_sensor_only_adds_never_removes_and_never_touches_positions():
+    objs = {"a": _tag(1, 1, room="Living")}
+    before = copy.deepcopy(objs)
+    zones = {"sz_2": SZ.normalise_zone("sz_2", SOFA), "sz_1": SZ.normalise_zone("sz_1", BED)}
+    out = SZ.sensor_assist(zones, {"sz_2": ["Alex"], "sz_1": ["Alex"]}, objs, {"sz_2": False, "sz_1": True}, 300.0)
+    assert out == {"sz_2": ["Alex"], "sz_1": ["Alex"]}        # off keeps the positions' answer; no sensor: untouched
+    assert objs == before
+
+
+def test_monitor_reads_the_sensor_state(monkeypatch):
+    hass, coord = _hass(monkeypatch, on=True, data={"a": _tag(5, 5, room="Living")})
+    store = SZ.SubzoneStore(hass)
+    store._data = {"zones": {"sz_2": SZ.normalise_zone("sz_2", SOFA)}}
+    hass.data[DOMAIN][DATA_SUBZONES] = store
+    state = {"binary_sensor.fp2_sofa": SimpleNamespace(state="off")}
+    hass.states = SimpleNamespace(get=state.get)
+    mon = SZ.SubzoneMonitor()
+    assert mon.current(hass, coord) == {"sz_2": []}
+    state["binary_sensor.fp2_sofa"] = SimpleNamespace(state="on")
+    coord.data = dict(coord.data)          # a new update
+    assert mon.current(hass, coord) == {"sz_2": ["Alex"]}
+
+
+def test_own_sensors_refused(monkeypatch):
+    """A sub-zone fed by PadSpan's own occupied sensor would hold itself on."""
+    from homeassistant.helpers import entity_registry as er
+    reg = SimpleNamespace(async_get=lambda eid: SimpleNamespace(platform=DOMAIN) if "padspan" in eid else None)
+    monkeypatch.setattr(er, "async_get", lambda hass: reg, raising=False)
+    assert WS._own_sensor(None, "binary_sensor.padspan_sofa_occupied") is True
+    assert WS._own_sensor(None, "binary_sensor.fp2_sofa") is False
+    js = (ROOT / "www" / "padspan-ha" / "views" / "maps.js").read_text(encoding="utf-8")
+    assert 'ctx.hass.entities[eid].platform === "padspan_ha"' in js

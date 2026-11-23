@@ -65,3 +65,56 @@ wled_off:
           max: 300
           step: 0.1
           unit_of_measurement: "s"
+
+reload_screens:
+  name: "Reload screens"
+  description: >
+    Loads the open PadSpan pages again (wall tablets, TVs, desktops), so new code reaches a
+    screen nobody is standing at. Needs Settings → Atlas → Open screens switched on.
+  fields:
+    screens:
+      description: "Names or ids of the screens to reload (Settings → Atlas → Open screens). Leave empty for every screen."
+      selector:
+        text:
+          multiple: true
+
+announce:
+  name: "Announce on screens"
+  description: >
+    Shows a message big over the open PadSpan pages for a few seconds, with a chime, and reads
+    it aloud if asked. Needs Settings → Atlas → Open screens switched on.
+  fields:
+    message:
+      required: true
+      description: "What to show (up to 300 characters)."
+      example: "Someone is at the door"
+      selector:
+        text:
+    title:
+      description: "A short line above the message."
+      example: "Doorbell"
+      selector:
+        text:
+    screens:
+      description: "Names or ids of the screens to show it on. Leave empty for every screen."
+      selector:
+        text:
+          multiple: true
+    seconds:
+      description: "How long it stays up."
+      default: 15
+      selector:
+        number:
+          min: 3
+          max: 300
+          unit_of_measurement: "s"
+    chime:
+      description: "Play a short chime first."
+      default: true
+      selector:
+        boolean:
+    speak:
+      description: "Read the message aloud with the screen's own browser voice."
+      default: false
+      selector:
+        boolean:

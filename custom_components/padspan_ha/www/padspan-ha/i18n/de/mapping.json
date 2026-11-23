@@ -461,5 +461,10 @@
 "{n} outliers outside consensus cluster": {
 "one": "1 Ausreißer außerhalb der übereinstimmenden Gruppe",
 "other": "{n} Ausreißer außerhalb der übereinstimmenden Gruppe"
-}
+},
+"Could not save the sensor: {why}": "Der Sensor ließ sich nicht speichern: {why}",
+"While this sensor is on, a tagged person in {room} counts as in {name} even before their position gets there.": "Solange dieser Sensor an ist, zählt eine Person mit Tag in {room} als in {name}, auch bevor ihre Position dort ankommt.",
+"its room": "ihrem Raum",
+"No presence sensor": "Kein Präsenzsensor",
+"Draw it inside a room to give it a presence sensor.": "Zeichne ihn innerhalb eines Raums, um ihm einen Präsenzsensor zu geben."
 }

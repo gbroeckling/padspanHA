@@ -36,6 +36,46 @@
           "description": "Duración de la transición en segundos. Déjalo vacío para usar la transición recordada."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Recargar pantallas",
+      "description": "Vuelve a cargar las páginas de PadSpan abiertas, para que el código nuevo llegue también a una pantalla ante la que no hay nadie. Necesita «Pantallas abiertas» activado en los ajustes de PadSpan.",
+      "fields": {
+        "screens": {
+          "name": "Pantallas",
+          "description": "Nombres o identificadores de las pantallas que se recargan. Déjalo vacío para todas."
+        }
+      }
+    },
+    "announce": {
+      "name": "Aviso en pantallas",
+      "description": "Muestra un mensaje en grande sobre las páginas de PadSpan abiertas durante unos segundos, con un timbre, y lo lee en voz alta si se pide. Necesita «Pantallas abiertas» activado en los ajustes de PadSpan.",
+      "fields": {
+        "message": {
+          "name": "Mensaje",
+          "description": "Lo que se muestra (hasta 300 caracteres)."
+        },
+        "title": {
+          "name": "Título",
+          "description": "Una línea corta encima del mensaje."
+        },
+        "screens": {
+          "name": "Pantallas",
+          "description": "Nombres o identificadores de las pantallas donde se muestra. Déjalo vacío para todas."
+        },
+        "seconds": {
+          "name": "Segundos",
+          "description": "Cuánto tiempo se queda."
+        },
+        "chime": {
+          "name": "Timbre",
+          "description": "Tocar antes un timbre corto."
+        },
+        "speak": {
+          "name": "Leer en voz alta",
+          "description": "Leer el mensaje con la voz del navegador de la pantalla."
+        }
+      }
     }
   },
   "issues": {

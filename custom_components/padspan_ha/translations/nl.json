@@ -36,6 +36,46 @@
           "description": "Overgangstijd in seconden. Laat leeg voor de onthouden overgang."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Schermen herladen",
+      "description": "Laadt de open PadSpan-pagina's opnieuw, zodat nieuwe code ook een scherm bereikt waar niemand voor staat. Zet daarvoor ‘Open schermen’ aan in de instellingen van PadSpan.",
+      "fields": {
+        "screens": {
+          "name": "Schermen",
+          "description": "Namen of id's van de schermen die herladen worden. Leeg laten voor alle schermen."
+        }
+      }
+    },
+    "announce": {
+      "name": "Omroepen op schermen",
+      "description": "Toont een bericht een paar seconden groot over de open PadSpan-pagina's, met een belletje, en leest het voor als je dat vraagt. Zet daarvoor ‘Open schermen’ aan in de instellingen van PadSpan.",
+      "fields": {
+        "message": {
+          "name": "Bericht",
+          "description": "Wat er getoond wordt (tot 300 tekens)."
+        },
+        "title": {
+          "name": "Titel",
+          "description": "Een korte regel boven het bericht."
+        },
+        "screens": {
+          "name": "Schermen",
+          "description": "Namen of id's van de schermen waarop het verschijnt. Leeg laten voor alle schermen."
+        },
+        "seconds": {
+          "name": "Seconden",
+          "description": "Hoe lang het blijft staan."
+        },
+        "chime": {
+          "name": "Belletje",
+          "description": "Eerst een kort belletje laten horen."
+        },
+        "speak": {
+          "name": "Voorlezen",
+          "description": "Het bericht voorlezen met de stem van de browser op het scherm."
+        }
+      }
     }
   },
   "issues": {

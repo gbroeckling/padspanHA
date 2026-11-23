@@ -2666,6 +2666,19 @@ function _edit(ctx, map, allMaps, opts){
       ctx.toast(t("Sub-zone \"{name}\" added", { name }));
     } catch (e) { ctx.toast(t("Could not add sub-zone: {why}", { why: ctx.helpers.errorText(e) }), true); }
   };
+  // A sub-zone's own presence sensor (subzones.py sensor_assist): picked here,
+  // "" for none. Only presence and occupancy binary sensors are offered (an
+  // mmWave zone, not a motion sensor that goes off while someone sits still).
+  const _szSetSensor = async (id, sensor) => {
+    try { _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_update", zone_id: id, zone: { sensor } })); }
+    catch (e) { ctx.toast(t("Could not save the sensor: {why}", { why: ctx.helpers.errorText(e) }), true); }
+  };
+  const _szSensors = () => Object.entries((ctx.hass && ctx.hass.states) || {})
+    .filter(([eid, st]) => eid.startsWith("binary_sensor.") && ["presence", "occupancy"].includes(st && st.attributes && st.attributes.device_class))
+    // Never PadSpan's own (a sub-zone's occupied sensor would hold itself on).
+    .filter(([eid]) => !(ctx.hass.entities && ctx.hass.entities[eid] && ctx.hass.entities[eid].platform === "padspan_ha"))
+    .map(([eid, st]) => [eid, (st.attributes && st.attributes.friendly_name) || eid])
+    .sort((a, b) => a[1].localeCompare(b[1]));
   const _szRemove = async (id) => {
     try { _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_remove", zone_id: id })); }
     catch (e) { ctx.toast(t("Could not remove sub-zone: {why}", { why: ctx.helpers.errorText(e) }), true); }
@@ -3236,11 +3249,25 @@ function _edit(ctx, map, allMaps, opts){
       }
       const szList = _szHere();
       if(!szList.length) right.appendChild(el("div",{class:"muted", style:"margin-top:6px;font-size:11px"}, t("No sub-zones on this floor yet.")));
+      const szSensors = szList.length ? _szSensors() : [];
       for(const z of szList){
         right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px"},[
           el("div",{style:"flex:1"}, `${z.name}${z.room ? " · " + z.room : ""} — ${(z.people || []).length ? z.people.join(", ") : t("nobody")}`),
           el("button",{class:"btn tiny", onclick:()=>{ if(confirm(t("Delete sub-zone \"{name}\" and its two sensors?", { name: z.name }))) _szRemove(z.id); }}, t("Delete")),
         ]));
+        // Its presence sensor: "Bluetooth says who, the sensor says when".
+        const sel = document.createElement("select");
+        sel.className = "select";
+        sel.style.cssText = "width:100%;font-size:12px";
+        sel.title = t("While this sensor is on, a tagged person in {room} counts as in {name} even before their position gets there.", { room: z.room || t("its room"), name: z.name });
+        const sensorOpts = [["", t("No presence sensor")], ...szSensors];
+        if (z.sensor && !szSensors.some(([eid]) => eid === z.sensor)) sensorOpts.push([z.sensor, z.sensor]);
+        for (const [eid, label] of sensorOpts) { const o = document.createElement("option"); o.value = eid; o.textContent = label; sel.appendChild(o); }
+        sel.value = z.sensor || "";
+        sel.disabled = !z.room;
+        sel.addEventListener("change", () => _szSetSensor(z.id, sel.value));
+        right.appendChild(el("div",{style:"margin:2px 0 0 0"}, [sel]));
+        if (!z.room) right.appendChild(el("div",{class:"muted", style:"font-size:11px"}, t("Draw it inside a room to give it a presence sensor.")));
       }
     } else if(ctx.state.maps._mode==="barriers"){
       right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, t("Signal wall tools")));

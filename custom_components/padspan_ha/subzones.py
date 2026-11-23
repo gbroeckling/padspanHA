@@ -18,16 +18,25 @@ enter_m inside the edge, leaves only once it is leave_m outside it (or has
 no position, is away or on another floor), and either change has to hold
 for dwell_s before it counts.
 
+A sub-zone can also have a presence sensor of its own (an mmWave zone such
+as an Aqara FP2's "Sofa", or an LD2450 zone): "Bluetooth says who, the
+sensor says when". While that sensor is on, a labelled tag whose room is the
+sub-zone's room counts as in it even if its position isn't (yet) there; with
+the sensor off, the position decides as before. It only ever adds: nothing
+positioning or calibration reads changes. Per sub-zone, and unset unless
+someone picks a sensor.
+
 Off by default: settings.subzones_enabled. Nothing is written (no file in
 .storage, so backups are as they were) and no entity exists until a user
 adds a sub-zone.
 
 Data layout in .storage/padspan_ha.subzones:
   {"zones": {"sz_<8 hex>": {
-      "id", "name", "floor_id", "room",         # room: where it was drawn (shown, not used)
+      "id", "name", "floor_id", "room",         # room: where it was drawn (its presence sensor's room)
       "type": "poly"|"circle", "points_m" | "cx_m"/"cy_m"/"r_m",
       "enter_m", "leave_m", "dwell_s",
-      "piece_id": "fur_…"|None}}}               # made from that Live Aboard piece
+      "piece_id": "fur_…"|None,                 # made from that Live Aboard piece
+      "sensor": "binary_sensor.…"|None}}}       # its presence sensor (see above)
 
 WebSocket (ws_subzones.py, admin): padspan_ha/subzones_list, subzone_add,
 subzone_update, subzone_remove, subzone_from_piece.
@@ -36,6 +45,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 import secrets
 import time
 from typing import Any
@@ -51,6 +61,7 @@ MARGIN_MAX_M, DWELL_MAX_S = 3.0, 600.0
 _TRACKED_KINDS = ("ble", "private_ble", "ibeacon")   # sensor._should_track: the labelled ones
 _MONITOR = "subzone_monitor"
 _LOAD_LOCK = "_subzones_load_lock"
+_SENSOR_RE = re.compile(r"^binary_sensor\.[a-z0-9_]{1,120}$")
 
 
 class ZoneError(ValueError):
@@ -131,11 +142,15 @@ def normalise_zone(zid: str, z: Any) -> dict[str, Any]:
     if geo["type"] == "poly" and len(geo["points_m"]) > 64:
         raise ZoneError("a sub-zone has at most 64 points")
     piece = z.get("piece_id")
+    sensor = str(z.get("sensor") or "").strip()
+    if sensor and not _SENSOR_RE.match(sensor):
+        raise ZoneError("a sub-zone's presence sensor must be a binary_sensor")
     return {"id": zid, "name": name, "floor_id": floor_id, "room": str(z.get("room") or "")[:64], **geo,
             "enter_m": _num(z.get("enter_m", ENTER_M), 0.0, MARGIN_MAX_M, "enter_m"),
             "leave_m": _num(z.get("leave_m", LEAVE_M), 0.0, MARGIN_MAX_M, "leave_m"),
             "dwell_s": _num(z.get("dwell_s", DWELL_S), 0.0, DWELL_MAX_S, "dwell_s"),
-            "piece_id": piece if isinstance(piece, str) and piece else None}
+            "piece_id": piece if isinstance(piece, str) and piece else None,
+            "sensor": sensor or None}
 
 
 def room_at(rooms_flat: dict, floor_id: str, x: float, y: float) -> str:
@@ -230,6 +245,31 @@ def _depth_of(zone: dict, obj: dict, away_s: float) -> float | None:
     return depth_m(zone, float(x), float(y))
 
 
+def sensor_assist(zones: dict[str, dict], members: dict[str, list[str]], objects: dict[str, dict] | None,
+                  sensor_on: dict[str, bool], away_s: float) -> dict[str, list[str]]:
+    """members with each sub-zone whose presence sensor is on given the
+    labelled tags its room has (same floor, not away). Adds only: a sub-zone
+    with no sensor, or its sensor off, keeps exactly what its positions said."""
+    out = dict(members)
+    for zid, z in zones.items():
+        room = str(z.get("room") or "")
+        if not z.get("sensor") or not sensor_on.get(zid) or not room:
+            continue
+        names = set(out.get(zid, []))
+        for obj in (objects or {}).values():
+            if not _tracked(obj) or obj.get("outside") or str(obj.get("room") or "") != room:
+                continue
+            age = obj.get("age_s")
+            if isinstance(age, (int, float)) and age > away_s:
+                continue
+            fl = str(obj.get("floor_id") or "")
+            if fl and fl != z.get("floor_id"):
+                continue
+            names.add(str(obj.get("user_label")))
+        out[zid] = sorted(names)
+    return out
+
+
 class SubzoneMonitor:
     """One per install: the membership both entity platforms read, worked
     out once per coordinator update."""
@@ -239,6 +279,7 @@ class SubzoneMonitor:
         self.members: dict[str, list[str]] = {}
         self._seen: Any = None
         self._at = 0.0
+        self._assisted: set[tuple[str, str]] = set()
 
     def current(self, hass: HomeAssistant, coordinator: Any) -> dict[str, list[str]]:
         data, now = getattr(coordinator, "data", None), time.monotonic()
@@ -252,7 +293,20 @@ class SubzoneMonitor:
             self.members = {}
             return self.members
         from .presence_rules import away_timeout_s  # noqa: PLC0415
-        self.members = self.tracker.evaluate(zones, data, now, away_timeout_s(hass))
+        away = away_timeout_s(hass)
+        by_position = self.tracker.evaluate(zones, data, now, away)
+        sensor_on = {}
+        for zid, z in zones.items():
+            st = hass.states.get(z["sensor"]) if z.get("sensor") else None
+            sensor_on[zid] = st is not None and st.state == "on"
+        self.members = sensor_assist(zones, by_position, data, sensor_on, away) if any(sensor_on.values()) else by_position
+        # The field signal: a tag the sensor put in that its position had not, counted once per arrival.
+        assisted = {(zid, n) for zid, ns in self.members.items() for n in ns if n not in by_position.get(zid, [])}
+        new = assisted - self._assisted
+        self._assisted = assisted
+        if new:
+            from .telemetry import bump  # noqa: PLC0415
+            bump(hass, "subzone_sensor_assist", len(new))
         return self.members
 
 

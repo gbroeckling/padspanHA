@@ -32,7 +32,7 @@ VIEWS = WWW / "views"
 SETTINGS_JS = (VIEWS / "settings.js").read_text(encoding="utf-8")
 WIZARD_JS = (VIEWS / "aboard_wizard.js").read_text(encoding="utf-8")
 
-ATLAS_CARDS = ("💡 Atlas — Mapped Light Control", "📺 Wall screens", "🗺️ Overview — the Atlas as your main map")
+ATLAS_CARDS = ("💡 Atlas — Mapped Light Control", "📺 Wall screens", "📣 Open screens", "🗺️ Overview — the Atlas as your main map")
 
 
 @pytest.fixture(scope="module")

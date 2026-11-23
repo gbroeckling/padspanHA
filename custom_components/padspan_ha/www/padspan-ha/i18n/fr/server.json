@@ -227,6 +227,9 @@
 "Only an administrator can open a WLED backup": "Seul un administrateur peut ouvrir une sauvegarde WLED",
 "Pick a backup first.": "Choisissez d’abord une sauvegarde.",
 "Home Assistant can't reach this WLED at {address} — check it's powered on and on the network (if its address changed, Home Assistant's WLED integration needs the new one)": "Home Assistant n’arrive pas à joindre ce WLED à l’adresse {address} — vérifiez qu’il est allumé et sur le réseau (si son adresse a changé, l’intégration WLED de Home Assistant a besoin de la nouvelle)",
-"That light is not a power team": "Cette lumière n’est pas une équipe Power",
-"That is no longer a duplicate of that device. Refresh the page and try again.": "Ce n’est plus un doublon de cet appareil. Actualisez la page et réessayez."
+"That is no longer a duplicate of that device. Refresh the page and try again.": "Ce n’est plus un doublon de cet appareil. Actualisez la page et réessayez.",
+"Open screens is off. Turn it on in Settings → Atlas → Open screens.": "« Écrans ouverts » est désactivé. Activez-le dans Paramètres → Atlas → Écrans ouverts.",
+"Renaming needs the screen and its new name.": "Pour renommer, il faut l'écran et son nouveau nom.",
+"An announcement needs a message.": "Une annonce a besoin d'un message.",
+"A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "Le capteur de présence d'une sous-zone ne peut pas être l'un des capteurs de PadSpan."
 }

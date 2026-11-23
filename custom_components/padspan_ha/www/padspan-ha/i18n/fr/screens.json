@@ -632,5 +632,6 @@
 "{n} receivers have no Home Assistant area yet, so they give no room: {names}.": {
 "one": "Un récepteur n’a pas encore de pièce Home Assistant et ne donne donc aucune pièce : {names}.",
 "other": "{n} récepteurs n’ont pas encore de pièce Home Assistant et ne donnent donc aucune pièce : {names}."
-}
+},
+"No tag called \"{tag}\" to follow.": "Aucun tag nommé « {tag} » à suivre."
 }

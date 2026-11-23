@@ -36,6 +36,46 @@
           "description": "Fade time in seconds. Leave empty for the remembered fade."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Reload screens",
+      "description": "Loads the open PadSpan pages again, so new code reaches a screen nobody is standing at. Needs Open screens switched on in PadSpan's Settings.",
+      "fields": {
+        "screens": {
+          "name": "Screens",
+          "description": "Names or ids of the screens to reload. Leave empty for every screen."
+        }
+      }
+    },
+    "announce": {
+      "name": "Announce on screens",
+      "description": "Shows a message big over the open PadSpan pages for a few seconds, with a chime, and reads it aloud if asked. Needs Open screens switched on in PadSpan's Settings.",
+      "fields": {
+        "message": {
+          "name": "Message",
+          "description": "What to show (up to 300 characters)."
+        },
+        "title": {
+          "name": "Title",
+          "description": "A short line above the message."
+        },
+        "screens": {
+          "name": "Screens",
+          "description": "Names or ids of the screens to show it on. Leave empty for every screen."
+        },
+        "seconds": {
+          "name": "Seconds",
+          "description": "How long it stays up."
+        },
+        "chime": {
+          "name": "Chime",
+          "description": "Play a short chime first."
+        },
+        "speak": {
+          "name": "Speak",
+          "description": "Read the message aloud with the screen's own browser voice."
+        }
+      }
     }
   },
   "issues": {

@@ -31,6 +31,7 @@ _HA_MODULE_NAMES: list[str] = [
     "homeassistant.components.websocket_api",
     "homeassistant.config_entries",
     "homeassistant.core",
+    "homeassistant.exceptions",
     "homeassistant.helpers",
     "homeassistant.helpers.aiohttp_client",
     "homeassistant.helpers.area_registry",
@@ -74,6 +75,13 @@ def _callback(fn):
 
 
 _core.callback = _callback   # type: ignore[attr-defined]
+
+# homeassistant.exceptions — what a service raises to tell the caller why (screens.py)
+class _HomeAssistantError(Exception):
+    pass
+
+
+_ha_mods["homeassistant.exceptions"].HomeAssistantError = _HomeAssistantError   # type: ignore[attr-defined]
 
 # homeassistant.config_entries
 _ce = _ha_mods["homeassistant.config_entries"]

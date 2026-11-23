@@ -476,7 +476,7 @@ def registered_services() -> set[str]:
     """The service names the code registers with hass.services.async_register."""
     out: set[str] = set()
     consts = _module_constants("__init__.py")
-    for mod in ("__init__.py", "wled_exact.py"):
+    for mod in ("__init__.py", "wled_exact.py", "screens.py"):
         for node in ast.walk(_tree(mod)):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                     and node.func.attr == "async_register" and ast.unparse(node.func.value) == "hass.services"):
@@ -1287,7 +1287,7 @@ def _default_words(key: str) -> str:
 
 # The panel's text, for checking a label is really there.
 PLACE_FILES = {
-    "Settings": ("views/settings.js", "views/wall_card.js", "views/power_teams.js"),
+    "Settings": ("views/settings.js", "views/wall_card.js", "views/screens_card.js", "views/power_teams.js"),
     "Manage": ("views/manage.js",),
     "Mapping": ("views/maps.js", "views/lights_map.js", "views/iso_lights.js"),
     "Atlas": ("lights_panel.js", "views/lights_map.js", "views/iso_lights.js"),
@@ -1467,6 +1467,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "ha_entity_distance_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.{label}_distance", "A distance sensor for each named device."),
     "ha_entity_scanner_distance_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.{label}_distance_{scanner}", "A distance sensor for each named device and receiver."),
     "ha_entity_occupancy_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "sensor.padspan_occupancy_occupancy", "The house's occupancy sensor. Takes a reload."),
+    "screens_remote_enabled": ("Settings → Atlas", "📣 Open screens", "List open screens, and let Home Assistant reload them and show announcements", "Off by default. Open PadSpan pages are listed; padspan_ha.reload_screens and padspan_ha.announce reach them."),
     "subzones_enabled": ("Manage → HA Entities", "Entity Publishing Controls", "binary_sensor.padspan_{sub-zone}_occupied", "Sub-zones: the Sub-zones tool in Mapping → Edit, and two entities for each."),
     "mqtt_publish_enabled": ("Manage → HA Entities", "MQTT Publishing", "Enable experimental MQTT publishing", "Publishes each named device to MQTT ([chapter 14](14-home-assistant-reference.md))."),
     "espresense_mqtt_enabled": ("Manage → HA Entities", "ESPresense MQTT", "Enable ESPresense MQTT ingestion", "Reads ESPresense receivers over MQTT."),

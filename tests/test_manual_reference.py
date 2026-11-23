@@ -62,7 +62,7 @@ def test_every_entity_class_has_words() -> None:
 def test_the_services_described_are_the_ones_registered() -> None:
     import yaml
     listed = set(yaml.safe_load((ROOT / "custom_components" / "padspan_ha" / "services.yaml").read_text(encoding="utf-8")))
-    assert listed == B.registered_services() == {"set_room_tag_map", "dump_devices", "wled_on", "wled_off"}
+    assert listed == B.registered_services() == {"set_room_tag_map", "dump_devices", "wled_on", "wled_off", "reload_screens", "announce"}
 
 
 def test_every_event_is_described() -> None:
