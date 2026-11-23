@@ -2991,6 +2991,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _in_building = _fabric_truth.inside_building_footprint(
                                 _est_x, _est_y, self._floor_rooms.get(str(_best_floor or "main"))
                             )
+                            # STUDY HOOK (hall-hysteresis): the raw geo room per poll
+                            _gh = self.__dict__.setdefault("_study_geo_hist", {}).setdefault(key, [])
+                            _gh.append(_geo_room)
+                            del _gh[:-20]
                             # Hysteresis, as the strongest-scanner path has in
                             # dB: a position only just over the line into the
                             # next room is still the room it is in. A still
@@ -3008,6 +3012,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     # off for N s after a poll that saw the device move
                                     _mt = self.__dict__.get("_study_moved_t", {}).get(key)
                                     if _mt is not None and _t_now - _mt <= float(_v[2:]):
+                                        _hm = 0.0
+                                elif _v.startswith("pk"):
+                                    # off when the new room was where the solve put the device in N of the last M polls
+                                    _n, _m = (int(p) for p in _v[2:].split("_"))
+                                    _hist = self.__dict__.setdefault("_study_geo_hist", {}).setdefault(key, [])
+                                    if sum(1 for g in _hist[-_m:] if g == _geo_room) >= _n:
                                         _hm = 0.0
                                 elif _v.startswith("mr"):
                                     # off when moved within N s AND the new room's own scanner leads by X dB
