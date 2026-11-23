@@ -35,7 +35,7 @@ def _hass(on=True):
     return SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={"screens_remote_enabled": on})}})
 
 
-def _conn(user="Garry"):
+def _conn(user="Alex"):
     return SimpleNamespace(subscriptions={}, send_message=MagicMock(), send_result=MagicMock(),
                            send_error=MagicMock(), user=SimpleNamespace(name=user))
 
@@ -74,7 +74,7 @@ def test_join_lists_and_socket_close_leaves():
     _join(hass, conn, 5, "abcd1234", name="Kitchen tablet")
     conn.send_result.assert_called_once_with(5)
     [s] = S.listed(hass)
-    assert s["name"] == "Kitchen tablet" and s["user"] == "Garry" and s["kiosk"] is True and "send" not in s
+    assert s["name"] == "Kitchen tablet" and s["user"] == "Alex" and s["kiosk"] is True and "send" not in s
     conn.subscriptions[5]()          # the socket closed: HA calls the unsubscribe
     assert S.listed(hass) == []
 
