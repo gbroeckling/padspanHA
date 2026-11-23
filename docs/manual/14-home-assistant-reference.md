@@ -282,6 +282,27 @@ Target: `light` entities of the `wled` integration.
 | Field | Required | Takes | Default | What it does |
 |---|---|---|---|---|
 | `transition` | no | number, 0 to 300 s |  | Fade time in seconds. Leave empty for the remembered fade. |
+
+### `padspan_ha.reload_screens`: Reload screens
+
+Loads the open PadSpan pages again (wall tablets, TVs, desktops), so new code reaches a screen nobody is standing at. Needs Settings → Atlas → Open screens switched on.
+
+| Field | Required | Takes | Default | What it does |
+|---|---|---|---|---|
+| `screens` | no | text |  | Names or ids of the screens to reload (Settings → Atlas → Open screens). Leave empty for every screen. |
+
+### `padspan_ha.announce`: Announce on screens
+
+Shows a message big over the open PadSpan pages for a few seconds, with a chime, and reads it aloud if asked. Needs Settings → Atlas → Open screens switched on.
+
+| Field | Required | Takes | Default | What it does |
+|---|---|---|---|---|
+| `message` | yes | text |  | What to show (up to 300 characters). |
+| `title` | no | text |  | A short line above the message. |
+| `screens` | no | text |  | Names or ids of the screens to show it on. Leave empty for every screen. |
+| `seconds` | no | number, 3 to 300 s | 15 | How long it stays up. |
+| `chime` | no | true or false | true | Play a short chime first. |
+| `speak` | no | true or false | false | Read the message aloud with the screen's own browser voice. |
 <!-- /generated:services -->
 
 `padspan_ha.dump_devices` can return its list to the caller: in a script, give the action a

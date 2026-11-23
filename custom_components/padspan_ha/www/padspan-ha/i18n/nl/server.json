@@ -227,6 +227,9 @@
 "Only an administrator can open a WLED backup": "Alleen een beheerder kan een WLED-back-up openen",
 "Pick a backup first.": "Kies eerst een back-up.",
 "Home Assistant can't reach this WLED at {address} — check it's powered on and on the network (if its address changed, Home Assistant's WLED integration needs the new one)": "Home Assistant kan deze WLED op {address} niet bereiken — controleer of hij aan staat en op het netwerk zit (als zijn adres veranderd is, heeft de WLED-integratie van Home Assistant het nieuwe nodig)",
-"That light is not a power team": "Dit licht is geen powerteam",
-"That is no longer a duplicate of that device. Refresh the page and try again.": "Dit is geen duplicaat van dat apparaat meer. Vernieuw de pagina en probeer het opnieuw."
+"That is no longer a duplicate of that device. Refresh the page and try again.": "Dit is geen duplicaat van dat apparaat meer. Vernieuw de pagina en probeer het opnieuw.",
+"Open screens is off. Turn it on in Settings → Atlas → Open screens.": "‘Open schermen’ staat uit. Zet het aan in Instellingen → Atlas → Open schermen.",
+"Renaming needs the screen and its new name.": "Hernoemen heeft het scherm en zijn nieuwe naam nodig.",
+"An announcement needs a message.": "Een omroep heeft een bericht nodig.",
+"A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "De aanwezigheidssensor van een subzone kan geen van PadSpans eigen sensoren zijn."
 }

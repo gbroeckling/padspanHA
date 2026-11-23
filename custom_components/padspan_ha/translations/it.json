@@ -36,6 +36,46 @@
           "description": "Durata della dissolvenza in secondi. Lascia vuoto per la dissolvenza memorizzata."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Ricarica gli schermi",
+      "description": "Ricarica le pagine PadSpan aperte, così il nuovo codice arriva anche a uno schermo davanti a cui non c'è nessuno. Serve «Schermi aperti» attivo nelle impostazioni di PadSpan.",
+      "fields": {
+        "screens": {
+          "name": "Schermi",
+          "description": "Nomi o ID degli schermi da ricaricare. Lascia vuoto per tutti."
+        }
+      }
+    },
+    "announce": {
+      "name": "Annuncio sugli schermi",
+      "description": "Mostra un messaggio in grande sulle pagine PadSpan aperte per qualche secondo, con un campanello, e lo legge ad alta voce se richiesto. Serve «Schermi aperti» attivo nelle impostazioni di PadSpan.",
+      "fields": {
+        "message": {
+          "name": "Messaggio",
+          "description": "Cosa mostrare (fino a 300 caratteri)."
+        },
+        "title": {
+          "name": "Titolo",
+          "description": "Una breve riga sopra il messaggio."
+        },
+        "screens": {
+          "name": "Schermi",
+          "description": "Nomi o ID degli schermi su cui mostrarlo. Lascia vuoto per tutti."
+        },
+        "seconds": {
+          "name": "Secondi",
+          "description": "Per quanto resta visibile."
+        },
+        "chime": {
+          "name": "Campanello",
+          "description": "Suona prima un breve campanello."
+        },
+        "speak": {
+          "name": "Leggi ad alta voce",
+          "description": "Legge il messaggio con la voce del browser dello schermo."
+        }
+      }
     }
   },
   "issues": {

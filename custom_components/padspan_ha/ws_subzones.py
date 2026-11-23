@@ -60,9 +60,21 @@ async def ws_subzones_list(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], _payload(hass, store))
 
 
+def _own_sensor(hass: HomeAssistant, eid: str) -> bool:
+    """One of PadSpan's own entities (a sub-zone's occupied sensor among them):
+    a sub-zone fed by its own output would hold itself on."""
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+    ent = er.async_get(hass).async_get(eid)
+    return bool(ent is not None and getattr(ent, "platform", None) == DOMAIN)
+
+
 async def _write(hass: HomeAssistant, connection, msg, zid: str | None, zone: dict) -> None:
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
+        return
+    sensor = str(zone.get("sensor") or "").strip()
+    if sensor and _own_sensor(hass, sensor):
+        connection.send_error(msg["id"], "invalid", "A sub-zone's presence sensor can't be one of PadSpan's own sensors.")
         return
     store = await async_get_store(hass)
     try:

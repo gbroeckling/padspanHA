@@ -360,6 +360,27 @@ und <code>&lt;sub-zone&gt;</code> für den Namen der Teilzone.</p>
   <tr><td><code>transition</code></td><td>no</td><td>number, 0 to 300 s</td><td></td><td>Fade time in seconds. Leave empty for the remembered fade.</td></tr>
 </table>
 </div>
+<h3 id="padspan_hareload_screens-reload-screens"><code>padspan_ha.reload_screens</code>: Reload screens</h3>
+<p>Loads the open PadSpan pages again (wall tablets, TVs, desktops), so new code reaches a screen nobody is standing at. Needs Settings → Atlas → Open screens switched on.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>Required</th><th>Takes</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>screens</code></td><td>no</td><td>text</td><td></td><td>Names or ids of the screens to reload (Settings → Atlas → Open screens). Leave empty for every screen.</td></tr>
+</table>
+</div>
+<h3 id="padspan_haannounce-announce-on-screens"><code>padspan_ha.announce</code>: Announce on screens</h3>
+<p>Shows a message big over the open PadSpan pages for a few seconds, with a chime, and reads it aloud if asked. Needs Settings → Atlas → Open screens switched on.</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Field</th><th>Required</th><th>Takes</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>message</code></td><td>yes</td><td>text</td><td></td><td>What to show (up to 300 characters).</td></tr>
+  <tr><td><code>title</code></td><td>no</td><td>text</td><td></td><td>A short line above the message.</td></tr>
+  <tr><td><code>screens</code></td><td>no</td><td>text</td><td></td><td>Names or ids of the screens to show it on. Leave empty for every screen.</td></tr>
+  <tr><td><code>seconds</code></td><td>no</td><td>number, 3 to 300 s</td><td>15</td><td>How long it stays up.</td></tr>
+  <tr><td><code>chime</code></td><td>no</td><td>true or false</td><td>true</td><td>Play a short chime first.</td></tr>
+  <tr><td><code>speak</code></td><td>no</td><td>true or false</td><td>false</td><td>Read the message aloud with the screen's own browser voice.</td></tr>
+</table>
+</div>
 <p><code>padspan_ha.dump_devices</code> kann seine Liste an den Aufrufer zurückgeben: Gib der Aktion in einem
 Skript eine <code>response_variable</code> und lies daraus <code>devices</code> (die Daten jedes Geräts, unter PadSpans
 Schlüssel dafür), <code>count</code>, <code>version</code> und <code>timestamp</code>. Mit <code>notify: false</code> gibt er nur die Liste

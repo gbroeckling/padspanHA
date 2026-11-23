@@ -461,5 +461,10 @@
 "{n} outliers outside consensus cluster": {
 "one": "1 valeur aberrante hors du groupe concordant",
 "other": "{n} valeurs aberrantes hors du groupe concordant"
-}
+},
+"Could not save the sensor: {why}": "Impossible d'enregistrer le capteur : {why}",
+"While this sensor is on, a tagged person in {room} counts as in {name} even before their position gets there.": "Tant que ce capteur est actif, une personne avec un tag dans {room} compte comme dans {name}, même avant que sa position y arrive.",
+"its room": "sa pièce",
+"No presence sensor": "Aucun capteur de présence",
+"Draw it inside a room to give it a presence sensor.": "Dessinez-la à l'intérieur d'une pièce pour lui donner un capteur de présence."
 }

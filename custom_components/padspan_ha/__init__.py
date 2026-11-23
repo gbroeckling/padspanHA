@@ -577,6 +577,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         return result
 
+    # padspan_ha.reload_screens and padspan_ha.announce (screens.py, off by default).
+    from .screens import register_services as _screens_services  # noqa: PLC0415
+    _screens_services(hass)
+
     # Register dump_devices with response support (HA 2023.7+)
     try:
         from homeassistant.core import SupportsResponse  # noqa: PLC0415

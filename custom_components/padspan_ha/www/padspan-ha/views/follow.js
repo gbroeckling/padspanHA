@@ -33,6 +33,18 @@ export function render(ctx) {
   if (!ctx.state.followAddr) ctx.state.followAddr = "";
   if (!ctx.state.followAlertConfig) ctx.state.followAlertConfig = {}; // addr → {email, on_change, watch_rooms:[]}
 
+  // ?follow=<tag> in the page's link (panel.js): once the tags are in, the one
+  // whose key, address or name it is becomes the followed one, for this page
+  // only (nothing saved). Not found: say so once and keep what was there.
+  if (ctx.state._followRequest && allObjects.length) {
+    const want = String(ctx.state._followRequest), w = want.toUpperCase();
+    ctx.state._followRequest = null;
+    const hit = allObjects.find(o => [o.key, o.canonical_id, o.address, o.entity_id].some(v => v && String(v).toUpperCase() === w))
+      || allObjects.find(o => [o.user_label, o.label, o.name].some(v => v && String(v).toUpperCase() === w));
+    if (hit) ctx.state.followAddr = hit.key || hit.address || hit.entity_id || "";
+    else if (ctx.toast) ctx.toast(t("No tag called \"{tag}\" to follow.", { tag: want }), true);
+  }
+
   // ── Resolve chosen object ────────────────────────────────────────────────────
   const addr   = ctx.state.followAddr || "";
   const chosen = addr ? (allObjects.find(o => {

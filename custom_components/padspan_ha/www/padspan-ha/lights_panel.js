@@ -38,6 +38,10 @@ const KEYS = await import(`./views/dialog_keys.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: dialog_keys failed to load", err); return null; });
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${STAMP}`);
+// This page as an open screen (screens.py, off by default). Optional: if it
+// fails to load, the page simply isn't listed.
+const SCREENS = await import(`./views/screens_client.js${STAMP}`)
+  .catch(err => { console.warn("PadSpan: screens_client failed to load", err); return null; });
 // Wall mode's numbers. Optional: if the file can't load, the Atlas page runs
 // as an ordinary page (no wall mode) rather than not at all.
 const WALLS = await import(`./views/wall_scale.js${STAMP}`)
@@ -222,6 +226,16 @@ class PadSpanLightsApp extends HTMLElement {
       this._reconnectsStop = keepSubscribed(hass.connection, { type:"padspan_ha/motion_reconnects" },
         m => { this.state._motionReconnects = m || {}; if(this._settingsTs) this._poll(); });
     }
+    this._screenSync();
+  }
+
+  /** Join or leave the open screens (screens.py) as the setting says. Not as
+   *  the panel's Overview (_embedded): the panel is the screen there. */
+  _screenSync(){
+    if(!SCREENS || this._embedded) return;
+    if(!this._screen) this._screen = SCREENS.createScreen("atlas",
+      () => ({ build: BUILD_ID, kiosk: this._kiosk(), view: "atlas" }), keepSubscribed);
+    this._screen.sync(this.isConnected && this._hass ? this._hass.connection : null, this._screensOn === true);
   }
 
   async _boot(){
@@ -377,6 +391,7 @@ class PadSpanLightsApp extends HTMLElement {
     try{
       const res = await this._ws({ type:"padspan_ha/settings_get" });
       s = res?.settings || {};
+      if(res && res.settings){ this._screensOn = s.screens_remote_enabled === true; this._screenSync(); }
     }catch(e){}
     try{
       if(applyView){
@@ -1877,6 +1892,7 @@ class PadSpanLightsApp extends HTMLElement {
     }
     if(this._reconnectsStop) this._reconnectsStop();
     this._reconnectsStop = null; this._reconnectsConn = null;
+    if(this._screen) this._screen.leave();
     if(this._emergCard) this._emergCard.close();
     clearTimeout(this._emergArmTimer);
   }

@@ -336,5 +336,6 @@
 "{name} is the {via} copy of {device}, which is also in {twin_via}. Pick the {twin_via} one in the list.": "{name} ist die {via}-Kopie von {device}, das auch in {twin_via} vorhanden ist. Wähle in der Liste das von {twin_via}.",
 "Use the {twin_via} one": "Das von {twin_via} verwenden",
 "{name} is used now.": "{name} wird jetzt verwendet.",
-"Could not switch to it: {why}": "Umstellen ging nicht: {why}"
+"Could not switch to it: {why}": "Umstellen ging nicht: {why}",
+"No room called \"{room}\" in this house.": "Kein Raum namens „{room}“ in diesem Haus."
 }

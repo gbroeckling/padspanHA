@@ -36,6 +36,46 @@
           "description": "Überblendzeit in Sekunden. Leer lassen für die gespeicherte Überblendzeit."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Bildschirme neu laden",
+      "description": "Lädt die offenen PadSpan-Seiten neu, damit neuer Code auch einen Bildschirm erreicht, vor dem niemand steht. Dafür muss „Offene Bildschirme“ in den PadSpan-Einstellungen eingeschaltet sein.",
+      "fields": {
+        "screens": {
+          "name": "Bildschirme",
+          "description": "Namen oder IDs der Bildschirme, die neu geladen werden. Leer lassen für alle."
+        }
+      }
+    },
+    "announce": {
+      "name": "Durchsage auf Bildschirmen",
+      "description": "Zeigt eine Nachricht für einige Sekunden groß über den offenen PadSpan-Seiten, mit Gong, und liest sie auf Wunsch vor. Dafür muss „Offene Bildschirme“ in den PadSpan-Einstellungen eingeschaltet sein.",
+      "fields": {
+        "message": {
+          "name": "Nachricht",
+          "description": "Was angezeigt wird (bis 300 Zeichen)."
+        },
+        "title": {
+          "name": "Titel",
+          "description": "Eine kurze Zeile über der Nachricht."
+        },
+        "screens": {
+          "name": "Bildschirme",
+          "description": "Namen oder IDs der Bildschirme, auf denen sie erscheint. Leer lassen für alle."
+        },
+        "seconds": {
+          "name": "Sekunden",
+          "description": "Wie lange sie stehen bleibt."
+        },
+        "chime": {
+          "name": "Gong",
+          "description": "Zuerst einen kurzen Gong spielen."
+        },
+        "speak": {
+          "name": "Vorlesen",
+          "description": "Die Nachricht mit der Stimme des Browsers auf dem Bildschirm vorlesen."
+        }
+      }
     }
   },
   "issues": {

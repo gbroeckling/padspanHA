@@ -444,6 +444,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).
     from .motion_reconnects import ws_motion_reconnects
     websocket_api.async_register_command(hass, ws_motion_reconnects)
+    # Open screens: listed, reloaded and spoken to (screens.py, off by default).
+    from .screens import register_ws as _screens_ws
+    _screens_ws(hass)
     websocket_api.async_register_command(hass, ws_notify_services_list)
     websocket_api.async_register_command(hass, ws_notify_test)
     websocket_api.async_register_command(hass, ws_adaptive_status_get)

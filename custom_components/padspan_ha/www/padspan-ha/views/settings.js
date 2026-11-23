@@ -22,6 +22,8 @@ const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, BRIGHT_PRICE, BRI
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
 // leaves the rest of Settings as it is.
 const WALLCARD = await import(`./wall_card.js${new URL(import.meta.url).search}`).catch(() => null);
+// 📣 Open screens (screens.py): list, reload, announce. Off by default.
+const SCREENSCARD = await import(`./screens_card.js${new URL(import.meta.url).search}`).catch(() => null);
 // Basic's focused views: a link opens one card of a tab (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Optional: why Build from plans isn't offered, in the rooms helper's words (Settings → AI).
@@ -5119,6 +5121,9 @@ function _settingsAtlas(ctx, el){
   // Bright install that can't unlock it (wall mode is PadSpan Pro's).
   if (WALLCARD && !(String(settings.edition || "").toLowerCase() === "bright" && !tierAtLeast(currentTier(settings), "pro"))) {
     try { wrap.appendChild(WALLCARD.wallCard(ctx, el, settings)); } catch (e) { console.warn("PadSpan: wall screens card", e); }
+  }
+  if (SCREENSCARD) {
+    try { wrap.appendChild(SCREENSCARD.screensCard(ctx, el, settings, (ctx.state.versionInfo && ctx.state.versionInfo.build_id) || "")); } catch (e) { console.warn("PadSpan: open screens card", e); }
   }
 
   // ── The Atlas as Overview (Pro) ──

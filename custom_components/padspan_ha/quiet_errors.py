@@ -152,6 +152,7 @@ def reset() -> None:
 # Every site in the source, one per line, in order. Add a handler's name here
 # when you add its line (tests/test_quiet_errors.py says which is missing).
 SITES: frozenset[str] = frozenset("""
+screens:send
 adaptive_store:summary
 ai_usage:bump
 ai_usage:check_warning

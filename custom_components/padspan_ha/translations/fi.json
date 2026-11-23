@@ -36,6 +36,46 @@
           "description": "Häivytyksen kesto sekunteina. Jätä tyhjäksi, niin käytetään tallennettua häivytystä."
         }
       }
+    },
+    "reload_screens": {
+      "name": "Lataa näytöt uudelleen",
+      "description": "Lataa avoimet PadSpan-sivut uudelleen, jotta uusi koodi tavoittaa myös näytön, jonka ääressä ei ole ketään. Vaatii, että ”Avoimet näytöt” on päällä PadSpanin asetuksissa.",
+      "fields": {
+        "screens": {
+          "name": "Näytöt",
+          "description": "Uudelleen ladattavien näyttöjen nimet tai tunnukset. Jätä tyhjäksi kaikille."
+        }
+      }
+    },
+    "announce": {
+      "name": "Kuulutus näytöille",
+      "description": "Näyttää viestin isona avoimien PadSpan-sivujen päällä muutaman sekunnin ajan merkkiäänen kera ja lukee sen ääneen pyydettäessä. Vaatii, että ”Avoimet näytöt” on päällä PadSpanin asetuksissa.",
+      "fields": {
+        "message": {
+          "name": "Viesti",
+          "description": "Näytettävä teksti (enintään 300 merkkiä)."
+        },
+        "title": {
+          "name": "Otsikko",
+          "description": "Lyhyt rivi viestin yläpuolella."
+        },
+        "screens": {
+          "name": "Näytöt",
+          "description": "Näyttöjen nimet tai tunnukset, joilla viesti näytetään. Jätä tyhjäksi kaikille."
+        },
+        "seconds": {
+          "name": "Sekunnit",
+          "description": "Kuinka kauan viesti näkyy."
+        },
+        "chime": {
+          "name": "Merkkiääni",
+          "description": "Soita ensin lyhyt merkkiääni."
+        },
+        "speak": {
+          "name": "Lue ääneen",
+          "description": "Lue viesti ääneen näytön selaimen äänellä."
+        }
+      }
     }
   },
   "issues": {

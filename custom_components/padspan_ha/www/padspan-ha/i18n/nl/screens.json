@@ -632,5 +632,6 @@
 "{n} receivers have no Home Assistant area yet, so they give no room: {names}.": {
 "one": "Eén ontvanger heeft nog geen Home Assistant-ruimte en geeft dus geen kamer: {names}.",
 "other": "{n} ontvangers hebben nog geen Home Assistant-ruimte en geven dus geen kamer: {names}."
-}
+},
+"No tag called \"{tag}\" to follow.": "Geen tag met de naam ‘{tag}’ om te volgen."
 }

@@ -81,7 +81,10 @@ setup_tips rooms_overlap setup_phones
 EVERYDAY = {"emergency_test", "emergency_force_off", "emergency_member", "flood_reset", "wled_power",
             "wled_identify", "wled_live", "notify_test", "telemetry_event",
             "power_team_sleep",  # a team's "Sleep in 30 min": a light switched, as its light's own controls are
-            "radio_area_set"}    # the owner's standing rule: Assign stays open to non-admins
+            "radio_area_set",    # the owner's standing rule: Assign stays open to non-admins
+            # An open page listing itself (screens.py, off by default): a wall tablet is often a
+            # non-admin user. It changes only its own entry; listing and commanding screens is admin.
+            "screens_join", "screens_update"}
 
 
 def _commands() -> dict[str, tuple[str, bool, bool]]:
