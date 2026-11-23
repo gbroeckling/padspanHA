@@ -24,8 +24,9 @@ until you accept it. They never change your calibration or signal walls. What th
 plan's picture lined up, rooms) takes a backup first and has an undo. Turning a switch off hides the
 feature; it doesn't undo what you kept.
 
-**Ask your voice assistant where someone is** and **Rooms and walls… coming soon** are shown as
-coming. Assist's own "where is" sentences work today without an AI: [chapter 14](14-home-assistant-reference.md).
+**Ask your voice assistant where someone is** is the one row of **What it does for you** marked
+**COMING SOON**: it can't be switched on yet. Assist's own "where is" sentences work today without an
+AI: [chapter 14](14-home-assistant-reference.md).
 
 ## Connecting an AI
 

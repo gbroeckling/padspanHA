@@ -26,8 +26,8 @@ speichern können (das ausgerichtete Bild eines Grundrisses, Räume), legt vorhe
 lässt sich rückgängig machen. Einen Schalter auszuschalten blendet die Funktion aus; was du behalten
 hast, macht es nicht rückgängig.
 
-**Ask your voice assistant where someone is** und **Rooms and walls… coming soon** sind als
-angekündigt zu sehen. Die eigenen „Wo ist“-Sätze von Assist funktionieren schon heute ohne KI:
+**Frag deinen Sprachassistenten, wo jemand ist** ist die einzige Zeile unter **Was sie für dich
+tut**, die als **DEMNÄCHST** markiert ist: Sie lässt sich noch nicht einschalten. Die eigenen „Wo ist“-Sätze von Assist funktionieren schon heute ohne KI:
 [Kapitel 14](14-home-assistant-reference.md).
 
 ## Eine KI verbinden
