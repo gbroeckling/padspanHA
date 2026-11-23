@@ -57,6 +57,7 @@ function panel(lastInteraction) {
     shadowRoot: { querySelector: (q) => (q === ":focus" ? { tagName: "SELECT" } : null) },
     // 2026-11-13: each render first asks whether Setup is in the menu (owner's D4); not what this test is about.
     _setupInMenu: () => false, _setupMenuShown: false,
+    _wifiProbe: () => {},   // 2026-11-22: whether UniFi Blocker's Wi-Fi survey is there; not this test's business
   };
 }
 

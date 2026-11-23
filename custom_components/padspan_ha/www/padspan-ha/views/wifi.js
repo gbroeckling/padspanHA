@@ -211,7 +211,7 @@ function linksCard(ctx) {
       try {
         s.links = await ctx.actions.callWS({ type: "unifiblocker/wifi_link_set", mac: w.mac, padspan_id: sel.value || null });
         ctx.toast(sel.value ? `${w.name} is now linked.` : `${w.name} is no longer linked.`);
-      } catch (e) { ctx.toast(String((e && e.message) || e), true); }
+      } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     });
     box.appendChild(el("div", { style: "display:flex;gap:10px;align-items:center;margin:4px 0;font-size:12px" }, [

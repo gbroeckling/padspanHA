@@ -72,7 +72,7 @@ function host(o = {}) {
         calls.push(m);
         if (o.absent) throw new Error("Unknown command.");
         if (m.type === "unifiblocker/wifi_heatmap") return o.data || DATA;
-        if (m.type === "unifiblocker/wifi_links") return { wifi: [{ mac: "aa:00:00:00:00:02", name: "iPhone", band: "5", signal: -60, linked_to: null }], padspan: [{ id: "ps_1", label: "Garry's phone" }] };
+        if (m.type === "unifiblocker/wifi_links") return { wifi: [{ mac: "aa:00:00:00:00:02", name: "iPhone", band: "5", signal: -60, linked_to: null }], padspan: [{ id: "ps_1", label: "Alex's phone" }] };
         if (m.type === "unifiblocker/wifi_link_set") return { wifi: [], padspan: [] };
         return {};
       },
