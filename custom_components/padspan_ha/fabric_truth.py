@@ -166,6 +166,34 @@ def room_distance_m(geo: dict | None, x_m: float, y_m: float) -> float | None:
     return None
 
 
+def room_reach_m(geo: dict | None, from_geo: dict | None) -> float | None:
+    """How far one room goes beyond another: the greatest distance from
+    `from_geo` of any point of `geo`. A small room along one wall of a big one
+    reaches only its own depth past it; a corridor reaches its whole length.
+
+    Taken at the polygon's corners, which is exact when `from_geo` is convex
+    (distance to a convex shape is a convex function, so its largest value over
+    a polygon is at a corner). A circle is taken as its centre's distance plus
+    its radius. None when either geometry is missing or unusable."""
+    if not isinstance(geo, dict):
+        return None
+    try:
+        if geo.get("type") == "circle":
+            d = room_distance_m(from_geo, float(geo.get("cx_m", 0)), float(geo.get("cy_m", 0)))
+            return None if d is None else d + float(geo.get("r_m", 0.1))
+        if geo.get("type") == "poly":
+            pts = geo.get("points_m") or []
+            if len(pts) < 3:
+                return None
+            ds = [room_distance_m(from_geo, float(p[0]), float(p[1])) for p in pts]
+            if any(d is None for d in ds):
+                return None
+            return max(ds)
+    except (TypeError, ValueError, IndexError):
+        return None
+    return None
+
+
 # ── The world frame (mirror of makeStackXform) ───────────────────────────────
 #
 #     world = metres / gauge.m_per_unit
