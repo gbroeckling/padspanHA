@@ -137,7 +137,7 @@ ANNOUNCE_FIELDS = {
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/screens_join",
-    vol.Required("screen_id"): vol.All(str, vol.Length(min=4, max=40)),
+    vol.Required("screen_id"): vol.All(str, vol.Length(min=1, max=40)),
     vol.Optional("name", default=""): vol.All(str, vol.Length(max=NAME_MAX)),
     vol.Optional("page", default=""): vol.All(str, vol.Length(max=20)),
     vol.Optional("view", default=""): vol.All(str, vol.Length(max=40)),
@@ -172,7 +172,7 @@ def ws_screens_join(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({
     "type": "padspan_ha/screens_update",
-    vol.Required("screen_id"): vol.All(str, vol.Length(min=4, max=40)),
+    vol.Required("screen_id"): vol.All(str, vol.Length(min=1, max=40)),
     vol.Optional("view"): vol.All(str, vol.Length(max=40)),
     vol.Optional("name"): vol.All(str, vol.Length(max=NAME_MAX)),
 })
