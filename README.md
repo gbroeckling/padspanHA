@@ -156,7 +156,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 
 ### UI & Experience
 - **Live Tracker mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
-- **22 dedicated views** with Basic and Advanced modes
+- **23 dedicated views** with Basic and Advanced modes
 - **Guided setup** with progress tracking
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual

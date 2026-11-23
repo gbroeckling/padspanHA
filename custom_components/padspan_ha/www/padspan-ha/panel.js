@@ -228,7 +228,7 @@ const _VIEW_PATHS = {
   guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
   // Wi-Fi coverage (test, 2026-11-22): drawn from UniFi Blocker's survey; in the menu only while it answers.
-  wifi:         "./views/wifi_coverage.js",
+  wifi:         "./views/wifi.js",
   // The guided Setup (plan → … → calibration): a menu tab at the top of the
   // build group until every step is done (owner's D4, 2026-11-13, _setupInMenu),
   // and always reached from the Overview's Getting started and from Mapping.

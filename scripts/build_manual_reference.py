@@ -751,6 +751,7 @@ SCREENS = {
     "qa": "Checks on your setup, backups, and each receiver ranked.",
     "sandbox": "A look under the hood at the live data; changes nothing.",
     "installbase": "The developer's screen for the opt-in usage reports; asks for a PIN.",
+    "wifi": "A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Blocker.",
 }
 
 # When a screen the menu leaves out until something holds is there (_getVisibleTabs).
@@ -758,6 +759,7 @@ SHOWN_WHEN = {
     "forensics": "While Forensics is on (Settings → Features → Forensics)",
     "guests": "While guest tags are on (Settings → Tracking → Phones and guest tags)",
     "setup": "Until every step is done, or setup is skipped",
+    "wifi": "While UniFi Blocker's Wi-Fi survey answers",
 }
 
 

@@ -50,6 +50,8 @@ const p = {
   shadowRoot: { querySelector: () => null },
   // 2026-11-13: each render first asks whether Setup is in the menu (owner's D4); not what this test is about.
   _setupInMenu: () => false, _setupMenuShown: false,
+  // 2026-11-22: and whether UniFi Blocker's Wi-Fi survey is there (_wifiProbe); not what this test is about.
+  _wifiProbe: () => {},
 };
 const poll = () => {
   try { render.call(p, true); return "skipped"; }

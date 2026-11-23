@@ -605,7 +605,7 @@ const W_TAB = {
   overview: "Overview", maps: "Maps", calibration: "Calibration", follow: "Follow", purelive: "Live Tracker",
   settings: "Settings", manage: "Manage", training: "Training", devices: "Devices", occupancy: "Occupancy",
   health: "Health", bluetooth: "Bluetooth", monitor: "Monitor", traceback: "Traceback", presence: "Presence",
-  qa: "QA", rooms: "Rooms", receivers: "Receivers", installbase: "Install Base (this page)", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",
+  qa: "QA", rooms: "Rooms", receivers: "Receivers", installbase: "Install Base (this page)", wifi: "Wi-Fi coverage", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",
   "maps/edit": "Maps › Edit", "maps/rooms": "Maps › Rooms", "maps/stack": "Maps › Floor stack",
   "maps/library": "Maps › Library", "maps/upload": "Maps › Upload a plan", "maps/lights": "Maps › Lights",
   "maps/export": "Maps › Export", "maps/help": "Maps › Help",

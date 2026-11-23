@@ -1,9 +1,9 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Wi-Fi coverage (views/wifi_coverage.js, test 2026-11-22): UniFi Blocker's survey drawn on PadSpan's floor model.
+"""Wi-Fi coverage (views/wifi.js, test 2026-11-22): UniFi Blocker's survey drawn on PadSpan's floor model.
 
-tests/js/wifi_coverage.mjs runs the view under the DOM shim: the radio map's colours, the floor's rooms from
+tests/js/wifi.mjs runs the view under the DOM shim: the radio map's colours, the floor's rooms from
 the floor model, readings colouring only inside rooms and only near a reading, the floor and band choices,
 each room's reading, placed devices on their band, the counts, the links card for an administrator only, and
 no UniFi Blocker said in words. Held here: the tab is in the menu only while UniFi Blocker answers, and the
@@ -26,7 +26,7 @@ _NODE = shutil.which("node")
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def test_the_view_under_the_dom_shim():
-    res = subprocess.run([_NODE, str(_ROOT / "tests" / "js" / "wifi_coverage.mjs"), str(_WWW)],
+    res = subprocess.run([_NODE, str(_ROOT / "tests" / "js" / "wifi.mjs"), str(_WWW)],
                          capture_output=True, text=True, timeout=120)
     assert res.returncode == 0, res.stderr[-2000:]
     out = json.loads(res.stdout.strip().splitlines()[-1])
@@ -43,6 +43,6 @@ def test_the_tab_follows_unifi_blockers_answer():
 
 
 def test_the_view_asks_only_unifi_blocker():
-    v = (_WWW / "views" / "wifi_coverage.js").read_text(encoding="utf-8")
+    v = (_WWW / "views" / "wifi.js").read_text(encoding="utf-8")
     types = {t for t in __import__("re").findall(r'type: "([a-z_/]+)"', v)}
     assert types == {"unifiblocker/wifi_heatmap", "unifiblocker/wifi_links", "unifiblocker/wifi_link_set"}, types

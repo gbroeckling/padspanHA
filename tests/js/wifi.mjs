@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 //
-// Wi-Fi coverage (views/wifi_coverage.js, test 2026-11-22) under the DOM shim:
+// Wi-Fi coverage (views/wifi.js, test 2026-11-22) under the DOM shim:
 //
 //   colour   the radio map's ramp on the Wi-Fi scale; words for a reading
 //   rooms    a floor's rooms from PadSpan's own floor model, never a photograph
@@ -11,7 +11,7 @@
 //            the counts line, the links card for an administrator only
 //   answer   no UniFi Blocker: said in words, nothing drawn
 //
-// usage: wifi_coverage.mjs <www/padspan-ha dir>
+// usage: wifi.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
 
 import { pathToFileURL } from "node:url";
@@ -20,7 +20,7 @@ import { readFileSync } from "node:fs";
 import * as shim from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
-if (!WWW) { console.error("usage: wifi_coverage.mjs <www/padspan-ha dir>"); process.exit(2); }
+if (!WWW) { console.error("usage: wifi.mjs <www/padspan-ha dir>"); process.exit(2); }
 shim.install();
 
 const src = readFileSync(join(WWW, "panel.js"), "utf-8").replace(/\r\n/g, "\n");
@@ -31,7 +31,7 @@ const grab = (head) => {
 const esc = new Function(`return ${grab("function esc(s){").replace(/^function esc/, "function")}`)();
 const el = new Function("esc", `return ${grab("function el(tag, attrs={}, children=[]){").replace(/^function el/, "function")}`)(esc);
 
-const W = await import(pathToFileURL(join(WWW, "views", "wifi_coverage.js")).href + "?b=test");
+const W = await import(pathToFileURL(join(WWW, "views", "wifi.js")).href + "?b=test");
 const cases = {}, failures = [];
 const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
 const tick = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };

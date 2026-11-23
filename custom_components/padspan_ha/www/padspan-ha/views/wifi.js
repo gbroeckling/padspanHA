@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
- * Wi-Fi coverage (test, 2026-11-22): how strong the Wi-Fi is around the house, measured in everyday
+ * Wi-Fi coverage (views/wifi.js, test 2026-11-22): how strong the Wi-Fi is around the house, measured in everyday
  * use. The readings come from UniFi Blocker (unifiblocker/wifi_heatmap): how strongly each access
  * point hears a phone while it sits still somewhere, and each placed smart device where PadSpan
  * has it. PadSpan only draws them, on its own floor model (rooms in metres, never a photograph),
