@@ -32,7 +32,7 @@ tut**, die als **DEMNÄCHST** markiert ist: Sie lässt sich noch nicht einschalt
 
 ## Eine KI verbinden
 
-**Einstellungen → KI → Your AI**:
+**Einstellungen → KI → Deine KI**:
 
 - **AI Task**: Wähl einen, dessen Modell Bilder lesen kann (ein Vision-Modell). Er braucht Home
   Assistant 2025.8 oder neuer. Hat Home Assistant noch keinen, füg zuerst eine KI-Integration mit
@@ -64,7 +64,7 @@ etwa 15 Minuten, einmal.
 5. **In PadSpan**: Der Bildschirm **Connect Claude** des Helfers prüft von selbst noch einmal, wenn
    du zurückkommst (oder wähl **Check again**). Hat Home Assistant ein nutzbares Claude, das noch
    nicht PadSpans KI ist, bietet er **Use it for PadSpan** an, und dein bisheriger AI Task bleibt als
-   Backup. Oder wähl es selbst unter **Einstellungen → KI → Your AI**.
+   Backup. Oder wähl es selbst unter **Einstellungen → KI → Deine KI**.
 
 Bevor irgendetwas gelesen wird, schickt der Helfer einen winzigen Lesevorgang ohne Plan darin (ein
 leeres Bild aus einem Pixel und die Worte „This is a connection check. Reply with the single word

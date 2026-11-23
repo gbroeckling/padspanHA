@@ -111,7 +111,7 @@ Der Handy-Schritt der Einrichtung und **Bluetooth → IRK-Verwaltung** im Modus 
 im Panel.
 
 Bei einer Installation von vor 0.38.165 zeigt die Karte **Dein Handy verfolgen** der Übersicht
-iPhones die Android-Schritte, außer **Einstellungen → Funktionen → iPhone Setup Path** ist
+iPhones die Android-Schritte, außer **Einstellungen → Funktionen → iPhone-Einrichtungsweg** ist
 eingeschaltet. Neuere Installationen starten mit eingeschaltetem Schalter. **Phone Setup Wizard**
 auf demselben Reiter schaltet den Assistenten selbst ein oder aus.
 

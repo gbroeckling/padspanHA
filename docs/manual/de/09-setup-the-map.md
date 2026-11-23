@@ -252,7 +252,7 @@ Der Schritt öffnet den Handy-Assistenten, **Dein Handy verfolgen** (im Modus Er
   dann die Kopplung vor dem nächsten Gerät.
 
 Bei einer älteren Installation, bei der beide Handy-Schalter aus sind (**Phone Setup Wizard** und
-**iPhone Setup Path**, unter **Einstellungen → Funktionen**), öffnet der Schritt stattdessen die
+**iPhone-Einrichtungsweg**, unter **Einstellungen → Funktionen**), öffnet der Schritt stattdessen die
 Karte **Dein Handy verfolgen** der Übersicht.
 [In welchem Raum ist mein Handy?](https://padspan.traks.ca/guides/phone-room-presence/) hat jeden
 Schritt, mit Bildern.

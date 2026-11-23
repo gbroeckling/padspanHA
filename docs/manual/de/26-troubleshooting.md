@@ -88,7 +88,7 @@ dazu, wie PadSpan Räume ruhig hält:
 4. **Es hat seine Adresse geändert.** Handys, Uhren und Find-My-Tags wechseln ihre
    Bluetooth-Adresse, also erscheint ein unbenanntes jedes Mal als neues Gerät. Ein Handy braucht
    seinen Schlüssel (nächster Abschnitt). Für einen benannten AirTag oder einen anderen Find-My-Tag
-   schalte **MAC Rotation Bridging** unter Einstellungen → Funktionen ein.
+   schalte **MAC-Wechsel überbrücken** unter Einstellungen → Funktionen ein.
 5. **Ein iBeacon zerfällt in mehrere Geräte.** Deine Empfänger müssen das ganze Advertisement
    weitergeben (Firma 0x004C mit iBeacon-Nutzdaten). Einem Tracker, der seine UUID selbst wechselt,
    lässt sich so nicht folgen.

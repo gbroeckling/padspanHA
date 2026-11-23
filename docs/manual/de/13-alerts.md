@@ -176,7 +176,7 @@ Speichern das nächste Mal bestätigt wird. Er bleibt über einen Neustart erhal
   [Kapitel 3](03-install-update-uninstall.md).
 - **PadSpan: AI credit**, einmal im Monat, wenn Claudes Lesevorgänge durch PadSpan den Anteil
   überschreiten, den du für das Monatsguthaben gewählt hast, das du unter **Einstellungen → KI**
-  eingetragen hast (**Your AI: Warn me**). Aus, solange du nicht beides einstellst.
+  eingetragen hast (**Deine KI: Warne mich**). Aus, solange du nicht beides einstellst.
 - **padspan_ha.dump_devices**: die Liste der benannten Geräte, wenn du diesen Dienst selbst aufrufst.
 
 ## Nur im Panel

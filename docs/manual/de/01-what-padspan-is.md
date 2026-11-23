@@ -62,7 +62,7 @@ sich ab. Wenn du verlängerst, kommt alles so zurück, wie du es verlassen hast.
 
 ### Der kostenlose Testzeitraum
 
-Ist kein Schlüssel auf der Installation, hat **Einstellungen → Funktionen → PadSpan licence** den
+Ist kein Schlüssel auf der Installation, hat **Einstellungen → Funktionen → PadSpan-Lizenz** den
 Knopf **Start 90-day free trial**: ganz Pro für 90 Tage, ohne Kreditkarte, ein Testzeitraum pro
 Zuhause. Ein Administrator startet ihn. Dafür muss der Nutzungsbericht an sein, und er bleibt an, bis
 der Testzeitraum endet. Schlüssel und Preise stehen auf [padspan.traks.ca](https://padspan.traks.ca).
@@ -93,7 +93,7 @@ PadSpan passt gut, wenn:
 - **deine Geräte ihre Bluetooth-Adresse wechseln und keinen Schlüssel haben, an den du kommst.** Ein
   AirTag, ein Samsung SmartTag oder ein Handy ohne die Companion App oder seinen IRK ist zu hören,
   lässt sich aber nicht lange auseinanderhalten. PadSpan hat einen experimentellen Schalter für
-  AirTags (MAC Rotation Bridging), kann sie aber nicht versprechen.
+  AirTags (MAC-Wechsel überbrücken), kann sie aber nicht versprechen.
 - **dein Home Assistant auf einem Rechner mit 2 GB an einer belebten Straße läuft.** PadSpan hört
   jedes vorbeikommende Gerät. Mehr als 2 GB Speicher werden empfohlen. Siehe
   [Kapitel 2](02-requirements.md).

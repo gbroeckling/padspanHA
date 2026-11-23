@@ -97,7 +97,7 @@ PadSpan folgt dem, was jede Person bei sich trägt. Jede Art braucht einmal eine
 | **Android-Handy** | Die Home Assistant Companion App mit eingeschaltetem Sensor **BLE Transmitter**. PadSpan kann ihn für dich einschalten. |
 | **iPhone, iPad oder Apple Watch** | Einmal seinen Schlüssel, den IRK, in der Integration Private BLE Device von Home Assistant. Ein übriger ESP32 mit irk-capture ist ein Weg, ihn zu bekommen. |
 | **Ein Beacon oder Schlüsselanhänger mit fester Adresse** | Nichts: Benenne ihn in PadSpan, und der Name bleibt. |
-| **AirTag, Samsung SmartTag** | Sie wechseln ihre Adresse, ohne Schlüssel zum Auslesen. AirTags funktionieren nur zum Teil, mit dem experimentellen **MAC Rotation Bridging** (Einstellungen → Funktionen); SmartTags nicht zuverlässig. |
+| **AirTag, Samsung SmartTag** | Sie wechseln ihre Adresse, ohne Schlüssel zum Auslesen. AirTags funktionieren nur zum Teil, mit dem experimentellen **MAC-Wechsel überbrücken** (Einstellungen → Funktionen); SmartTags nicht zuverlässig. |
 
 [In welchem Raum ist mein Handy?](https://padspan.traks.ca/guides/phone-room-presence/) hat die
 Schritte für Handys, und [Welcher Bluetooth-Tracker funktioniert mit Home Assistant?](https://padspan.traks.ca/guides/bluetooth-tags/)

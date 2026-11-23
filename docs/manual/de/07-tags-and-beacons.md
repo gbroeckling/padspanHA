@@ -123,7 +123,7 @@ erhöh auch diesen Wert.
 
 - **Zu Hause oder weg**: Find My weiß, wo sie sind, und manche bringen das auf anderen Wegen nach
   Home Assistant. Das ergibt Zonen, keine Räume.
-- **In PadSpan (experimentell)**: Schalte **Einstellungen → Funktionen → MAC Rotation Bridging** ein
+- **In PadSpan (experimentell)**: Schalte **Einstellungen → Funktionen → MAC-Wechsel überbrücken** ein
   (ab Werk aus) und benenne den Tag. Wechselt der Tag seine Adresse, übernimmt PadSpan Namen, Raum
   und Verlauf, wenn klar ist, welcher es ist: dieselbe Art Tag, die alte Adresse ist verstummt, die
   neue tauchte genau in dem Moment auf und wird am selben Ort gehört. Zwei Tags, die zusammen liegen

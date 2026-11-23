@@ -26,7 +26,7 @@ PadSpan hat zwei Seiten in der Seitenleiste von Home Assistant:
 
 - **PadSpan HA** (`/padspan-ha`): alles, mit seinem Menü.
 - **Atlas** (`/padspan-lights`): die Gerätekarte allein, gemacht für einen Bildschirm. Sie ist ab
-  Werk an; **Einstellungen → Atlas → Show the Atlas in the Home Assistant sidebar** schaltet sie aus
+  Werk an; **Einstellungen → Atlas → Den Atlas in der Seitenleiste von Home Assistant zeigen** schaltet sie aus
   oder ein (starte Home Assistant danach neu).
 
 Für eine Wand ist meist die Atlas-Seite die richtige: Die Karte füllt den Bildschirm, und die

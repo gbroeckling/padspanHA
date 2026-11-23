@@ -14,7 +14,7 @@ für Leuchten heißt immer noch **Lights**.
 - **PadSpan Pro**: echte Platzierung, Formen und Größen, Sensoren, Automorph, Showcase, die
   Advanced-Steuerung für WLED, Whole house presets, Vacation Mode und Öffner aus Relais.
 
-**Einstellungen → Funktionen → PadSpan licence** hat einen einmaligen kostenlosen Testzeitraum von
+**Einstellungen → Funktionen → PadSpan-Lizenz** hat einen einmaligen kostenlosen Testzeitraum von
 90 Tagen ([Kapitel 25](25-padspan-pro.md)). PadSpan Bright ist derselbe Atlas für sich allein, ohne
 Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel.
 

@@ -100,7 +100,7 @@ auf den anderen Bildschirmen. Es ändert, was gezeigt wird, nicht, was verfolgt 
 Andere Karten kommen und gehen: **Erste Schritte**, solange die Einrichtung nicht fertig ist,
 **Genauigkeit verbessern** mit einem letzten Tipp oder zwei, sobald sie es ist, der Pro-Testzeitraum,
 was sich nach einem Update geändert hat, und **Ortungsdiagnose** (zugeklappt) für den Support. Mit
-PadSpan Pro setzt **Einstellungen → Atlas → Show the Atlas as Overview** stattdessen den Atlas
+PadSpan Pro setzt **Einstellungen → Atlas → Den Atlas als Übersicht zeigen** stattdessen den Atlas
 hierher.
 
 ## Live-Tracker
@@ -208,7 +208,7 @@ Welche Bluetooth-Geräte zwischen zwei Zeitpunkten in der Nähe deiner Empfänge
 Einbruch oder einem gestohlenen Paket, oder um einen unbekannten Tracker zu entdecken, der immer
 wiederkommt. Es ist eine Funktion von PadSpan Pro und aus, bis du es einschaltest.
 
-**Einschalten**: **Einstellungen → Funktionen → Forensics → Enable presence-session recording**. Es
+**Einschalten**: **Einstellungen → Funktionen → Forensik → Aufzeichnung von Anwesenheitssitzungen einschalten**. Es
 bittet dich, das zu bestätigen. Solange es an ist, prüft PadSpan alle 60 Sekunden, welche Geräte es
 hört, und zeichnet **Anwesenheitssitzungen** auf: Zeitspannen, in denen ein Gerät gehört wurde. Mehr
 als 5 Minuten Stille beenden eine Sitzung. Forensik steht dann in jedem Modus in der Hauptliste.

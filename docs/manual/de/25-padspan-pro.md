@@ -20,7 +20,7 @@ dass du etwas neu installierst:
 Ein PadSpan-Pro-Schlüssel schaltet auch die Werkzeuge von PadSpan Bright frei. Preise und wo du
 einen Schlüssel kaufst: [padspan.traks.ca](https://padspan.traks.ca).
 
-Alles unten steht unter **Einstellungen → Funktionen → PadSpan licence**, wenn nichts anderes
+Alles unten steht unter **Einstellungen → Funktionen → PadSpan-Lizenz**, wenn nichts anderes
 dasteht. Einen Testzeitraum starten, einen Schlüssel eintragen und sich als Tester anmelden braucht
 einen Administrator von Home Assistant.
 
