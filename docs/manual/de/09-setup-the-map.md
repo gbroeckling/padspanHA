@@ -290,9 +290,9 @@ zuerst. Je weiter unten in der Liste, desto grober der Grundriss.
    Bildschirm nach dem anderen, fürs Handy gemacht, und gibt dir eine Adresse, die du dem schicken
    kannst, der den Scan macht.
 3. **Die Karte deines Saugroboters nutzen.** Ein Valetudo-, Dreame- oder Xiaomi-Roboter, den Home
-   Assistant sieht. Schalte **Einstellungen → Funktionen → Experimental Features → Robot Vacuum
-   Import** ein, nimm dann **Karten → Aufteilung → 🤖 Import from a robot vacuum** und **Add as a
-   new map**. Daraus wird ein Grundriss mit seinen Räumen; Räume, die du schon hast, bleiben
+   Assistant sieht. Schalte **Einstellungen → Funktionen → Experimentelle Funktionen →
+   Saugroboter-Import** ein, nimm dann **Karten → Aufteilung → 🤖 Import from a robot vacuum** und
+   **Add as a new map**. Daraus wird ein Grundriss mit seinen Räumen; Räume, die du schon hast, bleiben
    erhalten.
 4. **Selbst zeichnen und fotografieren.** Auf weißem Papier, zuerst die Außenwände, dann die Wände
    zwischen den Räumen, mit einer Lücke für jede Tür. Schreib die Länge einer langen Wand quer und

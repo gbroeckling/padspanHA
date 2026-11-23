@@ -189,7 +189,7 @@ die nur die Versionsnummer mitschickt.
 Verlauf von Home Assistant, während du weg bist (Karten → Atlas-Editor, Pro).
 
 **Verzögerung beim Raumwechsel.** Wie lange ein neuer Raum immer wieder gewinnen muss, bevor ein Gerät
-dorthin wechselt (20 Sekunden, wenn du es nicht änderst).
+dorthin wechselt (40 Sekunden, wenn du es nicht änderst).
 
 **Wandbildschirm, Kiosk.** Ein Tablet oder Bildschirm an der Wand, der den Atlas zeigt, geöffnet mit
 `?kiosk=1` (Einstellungen → Atlas → Wall screens).

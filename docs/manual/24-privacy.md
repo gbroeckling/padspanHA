@@ -11,7 +11,7 @@ README's [Updates & Privacy](../../README.md#updates--privacy).
 
 | What | Goes to | When | Carries | Off |
 |---|---|---|---|---|
-| **Update check** | `padspan.traks.ca` | Once a day | Your PadSpan version only | **Settings → Tracking → Update Check → Disabled** |
+| **Update check** | `padspan.traks.ca` | Once a day | Your PadSpan version only | **Settings → Tracking → Privacy, updates and feedback → Update Check → Disabled** |
 | **Licence check** | `traks.ca` | Once a day, only with a licence key entered | The key, Home Assistant's instance ID, this home's token, the version, the home's name, whether the usage report is on | Remove the key |
 | **Usage report** | `padspan.traks.ca` | At most once a day, only if you opt in | Counts, versions and flags | Off unless you turn it on |
 | **Tester sign-up** | `padspan.traks.ca` | Only when you press **Send sign-up** | What you type, and the setup lines you leave ticked | Never sent unless you sign up |

@@ -11,7 +11,7 @@ Liste, Feld für Feld, steht im README unter [Updates & Privacy](../../../README
 
 | Was | Geht an | Wann | Enthält | Aus |
 |---|---|---|---|---|
-| **Update-Prüfung** | `padspan.traks.ca` | Einmal am Tag | Nur deine PadSpan-Version | **Einstellungen → Ortung → Update-Prüfung → Deaktiviert** |
+| **Update-Prüfung** | `padspan.traks.ca` | Einmal am Tag | Nur deine PadSpan-Version | **Einstellungen → Ortung → Datenschutz, Updates und Feedback → Update-Prüfung → Deaktiviert** |
 | **Lizenzprüfung** | `traks.ca` | Einmal am Tag, nur mit eingetragenem Lizenzschlüssel | Den Schlüssel, die Instanz-ID von Home Assistant, das Token dieses Zuhauses, die Version, den Namen des Zuhauses, ob der Nutzungsbericht an ist | Den Schlüssel entfernen |
 | **Nutzungsbericht** | `padspan.traks.ca` | Höchstens einmal am Tag, nur wenn du zustimmst | Zahlen, Versionen und Flags | Aus, solange du ihn nicht einschaltest |
 | **Tester-Anmeldung** | `padspan.traks.ca` | Nur wenn du **Send sign-up** drückst | Was du eintippst, und die Zeilen zur Einrichtung, die du angehakt lässt | Wird nie gesendet, außer du meldest dich an |

@@ -93,8 +93,10 @@ the room).</p>
 <h2 id="recording-a-walk-in-padspan">Recording a walk in PadSpan</h2>
 <ol>
 <li>Turn on <b>Settings → Features → RSSI Vector Capture</b> (off by default).</li>
-<li>In <b>Health</b>, under <b>RSSI Vector Capture</b>, choose <b>⏺ Record</b> and give it a label: the label
-becomes the walk's name.</li>
+<li>In <b>Health</b>, under <b>RSSI Vector Capture</b>, choose <b>⏺ Record</b>. It asks first how many
+minutes to record (1 to 60, 5 unless you change it): give enough for the whole walk, since the
+recording stops itself when the time is up. Then give it a label: the label becomes the walk's
+name.</li>
 <li>Carry the phone or tag. Each time you arrive in a room, pick it and choose <b>Mark room</b>. Typing
 the spot's x/y as well (metres, the map's own) gives metre errors and <code>--group-by position</code>.</li>
 <li>Stay 1 to 2 minutes in each room, moving around. <b>⏹ Stop</b>, then <b>Export .jsonl</b>.</li>
@@ -172,8 +174,12 @@ cleaner input than one reading.</li>
 </ul>
 <h2 id="limits-plainly">Limits, plainly</h2>
 <ul>
-<li>Each reading is scored on its own. Live PadSpan smooths rooms over time, so it usually does better
-on room changes and worse right after one; the <code>live</code> row from a capture shows the smoothed answer.</li>
+<li>Each reading is scored on its own, so one stray reading counts as a wrong room. Live PadSpan
+smooths rooms over time: a stray reading doesn't move a device, so while you stay in a room it is
+usually right more often than these scores say. But it moves a device only once the new room has
+kept winning for a while (up to the <b>Room Change Delay</b>, 40 seconds unless you changed it), so
+just after you walk into another room it still shows the one you left, and is wrong more often than they say.
+The <code>live</code> row from a capture shows the smoothed answer.</li>
 <li>A walk is one person, one device, one afternoon. Several walks on different days, with doors in
 different states, are what make the number mean something.</li>
 <li>The room you mark is only as true as your marking; <code>--settle</code> helps.</li>

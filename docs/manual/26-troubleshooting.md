@@ -18,7 +18,7 @@ If none of this helps, [chapter 27](27-getting-help.md) says what to send.
 ## A device shows the wrong room, or jumps between rooms
 
 **Look first:** the **Receivers** page (is every receiver heard, and in the right room?), then
-**Health → Problems found** (ROOM CONFUSION names the two rooms it keeps moving between).
+**Health → Problems found** (a ROOMS MIXED UP card names the two rooms it keeps moving between).
 
 Likely causes, most common first:
 
@@ -90,7 +90,7 @@ change is never sent twice running. More on how PadSpan keeps rooms steady:
 
 - **An iPhone or Apple Watch shows as many unknown devices.** Without its identity key (IRK), every
   address change looks like a new device. Add the key in Bluetooth → IRK Manager → **Add an IRK**;
-  **Test** checks a key without saving it. A key added in PadSpan works at once. One added in Home
+  **Test only** checks a key without saving it. A key added in PadSpan works at once. One added in Home
   Assistant's Private BLE Device is picked up within five minutes.
 - **"The provided IRK does not match any BLE devices that Home Assistant can see."** Wake the phone,
   bring it near a receiver, and try again.
@@ -109,9 +109,9 @@ change is never sent twice running. More on how PadSpan keeps rooms steady:
 
 ## A receiver is silent
 
-**Look first:** the **Receivers** page's Status column, and Health. A receiver shows **Silent** after
-10 minutes unheard, or **Hearing less** when it hears far fewer devices than usual while the others
-are fine.
+**Look first:** the **Receivers** page's Status column, and Health. A receiver shows **Silent … min**
+(the minutes since it was last heard) once nothing has come from it for over 10 minutes, or
+**Hearing less** when it hears far fewer devices than usual while the others are fine.
 
 1. **Restart it.** On ESPHome, also check its version and its Wi-Fi.
 2. **Check it is still a receiver in Home Assistant**: Settings → Devices & services → its integration
@@ -132,7 +132,7 @@ house.
 
 - Press **Put it on the map** (the last step of Setup, and on each room in Rooms), or in
   Mapping → Layout, **Commit this layout**.
-- **Health → Problems found → MAP GEOMETRY** says when no plan has its scale set yet: a plan needs its
+- **Health → Problems found → FLOOR PLAN** says when no plan has its scale set yet: a plan needs its
   scale before anything can be placed in metres.
 
 ## The panel isn't updating

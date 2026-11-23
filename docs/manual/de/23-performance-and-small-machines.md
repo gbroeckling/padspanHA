@@ -71,7 +71,7 @@ Alle unter **Einstellungen → Ortung → Leistung**:
   auf einem Kern, damit Home Assistant flüssig bleibt. **Eigener Kern** gibt ihr einen eigenen Kern.
   Das gilt ab der nächsten Aktualisierung, ohne Neustart.
 - **Für viele Bildschirme optimieren** (aus): für mehrere Bildschirme auf einmal. Die Übersicht und
-  die 3D-Personen bekommen nur, was sie zeichnen (etwa 50 KB pro Bildschirm statt etwa 2 MB in einem
+  die 3D-Personen bekommen nur, was sie zeichnen (etwa 50 KB pro Bildschirm statt etwa 2,2 MB in einem
   belebten Haus), Bildschirme, die im selben Moment fragen, teilen sich eine Zusammenstellung, und ein
   ausgeblendeter Bildschirm fragt nach nichts. Einzelheiten in
   [Kapitel 18](18-wall-screens-and-kiosks.md#mehrere-bildschirme-auf-einmal-für-viele-bildschirme-optimieren).

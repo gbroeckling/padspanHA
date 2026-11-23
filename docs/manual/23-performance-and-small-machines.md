@@ -68,7 +68,7 @@ All in **Settings → Tracking → Performance**:
   responsive. **Dedicated core** gives it a core of its own. It applies from the next update, no
   restart.
 - **Optimize for scale** (off): for several screens at once. The Overview and the 3D people get only
-  what they draw (about 50 KB a screen instead of about 2 MB in a busy house), screens asking at the
+  what they draw (about 50 KB a screen instead of about 2.2 MB in a busy house), screens asking at the
   same moment share one build, and a hidden screen asks for nothing. Details in
   [chapter 18](18-wall-screens-and-kiosks.md#several-screens-at-once-optimize-for-scale).
 

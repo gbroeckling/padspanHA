@@ -58,7 +58,7 @@ With no key on the install, **Settings → Features → PadSpan licence** has **
 trial**: all of Pro for 90 days, no card, one trial per home. An administrator starts it. It needs
 the usage report on, and the report stays on until the trial ends. Keys and prices are on
 [padspan.traks.ca](https://padspan.traks.ca). The trial, keys, homes and testers are explained in
-[PadSpan Pro](../PADSPAN_PRO.md).
+[chapter 25](25-padspan-pro.md).
 
 ## Is it for me?
 

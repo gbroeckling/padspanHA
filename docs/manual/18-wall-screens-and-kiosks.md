@@ -119,7 +119,7 @@ More in [chapter 16](16-live-aboard.md).
 ## Several screens at once: Optimize for scale
 
 Every screen showing the Overview, or the 3D view with people, asks Home Assistant for the whole live
-picture every 5 seconds: in a busy house, every passing Bluetooth device, about 2 MB a screen. Four
+picture every 5 seconds: in a busy house, every passing Bluetooth device, about 2.2 MB a screen. Four
 screens then move about 14 Mbit/s all day. The flat Atlas wall (`?kiosk=1`) doesn't ask for it.
 
 **Settings → Tracking → Performance → Optimize for scale** (off by default) cuts that down:

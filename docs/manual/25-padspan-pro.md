@@ -12,7 +12,7 @@ the paid parts on the same install, with nothing to reinstall:
 - Live Aboard, the 3D house, with Furnish ([chapter 16](16-live-aboard.md),
   [chapter 17](17-furnish.md));
 - wall mode ([chapter 18](18-wall-screens-and-kiosks.md));
-- Whole House Presets and Vacation Mode;
+- Whole house presets and Vacation Mode;
 - Forensics, Busy Times and Locate ([chapter 12](12-the-screens.md));
 - the AI features ([chapter 19](19-ai-features.md));
 - anything gated later.

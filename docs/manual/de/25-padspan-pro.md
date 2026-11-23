@@ -12,7 +12,7 @@ dass du etwas neu installierst:
 - Live Aboard, das 3D-Haus, mit Furnish ([Kapitel 16](16-live-aboard.md),
   [Kapitel 17](17-furnish.md));
 - der Wandmodus ([Kapitel 18](18-wall-screens-and-kiosks.md));
-- Whole House Presets und der Urlaubsmodus;
+- Whole house presets und der Urlaubsmodus;
 - Forensik, Busy Times und Finden ([Kapitel 12](12-the-screens.md));
 - die KI-Funktionen ([Kapitel 19](19-ai-features.md));
 - alles, was später hinter Pro kommt.
