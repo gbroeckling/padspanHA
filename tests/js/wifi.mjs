@@ -9,9 +9,10 @@
 //   raster   readings colour only inside the rooms and only near a reading
 //   view     floors with data, the band chips, room readings, placed devices,
 //            the counts line, the links card for an administrator only
-//   answer   no UniFi Blocker: said in words, nothing drawn
+//   answer   no UniFi Utopia: said in words, nothing drawn
 //   bands    2.4 and 5 GHz always have a button; a room-only reading counts for its floor
 //   refresh  it asks again each minute by itself while open, never under an open picker
+//   findings what to fix, on top; a click shows it on the plan; access points drawn, dragged, reset
 //
 // usage: wifi.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -73,9 +74,9 @@ function host(o = {}) {
       callWS: async (m) => {
         calls.push(m);
         if (o.absent) throw new Error("Unknown command.");
-        if (m.type === "unifiblocker/wifi_heatmap") return o.data || DATA;
-        if (m.type === "unifiblocker/wifi_links") return { wifi: [{ mac: "aa:00:00:00:00:02", name: "iPhone", band: "5", signal: -60, linked_to: null }], padspan: [{ id: "ps_1", label: "Alex's phone" }] };
-        if (m.type === "unifiblocker/wifi_link_set") return { wifi: [], padspan: [] };
+        if (m.type === "unifi_utopia/wifi_heatmap") return o.data || DATA;
+        if (m.type === "unifi_utopia/wifi_links") return { wifi: [{ mac: "aa:00:00:00:00:02", name: "iPhone", band: "5", signal: -60, linked_to: null }], padspan: [{ id: "ps_1", label: "Alex's phone" }] };
+        if (m.type === "unifi_utopia/wifi_link_set") return { wifi: [], padspan: [] };
         return {};
       },
     },
@@ -104,7 +105,7 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
 {
   const { ctx, calls } = host();
   let root = W.render(ctx);
-  check("first draw asks UniFi Blocker once and says it is loading", calls.length === 1 && calls[0].type === "unifiblocker/wifi_heatmap" && /Loading/.test(text(root)));
+  check("first draw asks UniFi Utopia once and says it is loading", calls.length === 1 && calls[0].type === "unifi_utopia/wifi_heatmap" && /Loading/.test(text(root)));
   await tick(); await tick();
   root = W.render(ctx);
   const floors = all(root, "[data-wifi-floor]").map((b) => b.getAttribute("data-wifi-floor"));
@@ -141,8 +142,8 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   const { ctx } = host({ absent: true });
   W.render(ctx); await tick(); await tick();
   const root = W.render(ctx);
-  check("no UniFi Blocker: said in words, nothing drawn", /didn't answer/.test(text(root)) && !q(root, '[data-wifi="map"]'));
-  check("probe: no UniFi Blocker is no", (await W.probe(ctx.actions.callWS)) === false);
+  check("no UniFi Utopia: said in words, nothing drawn", /didn't answer/.test(text(root)) && !q(root, '[data-wifi="map"]'));
+  check("probe: no UniFi Utopia is no", (await W.probe(ctx.actions.callWS)) === false);
   check("probe: an answer with a version is yes", (await W.probe(host().ctx.actions.callWS)) === true);
 }
 
@@ -166,6 +167,96 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   check("a room-only 5 GHz reading: starts on 5 GHz on that room's floor, in the room list",
     h2.ctx.state._wifi.band === "5" && h2.ctx.state._wifi.floor === "upper" && /Office/.test(text(q(r2, '[data-wifi="rooms"]'))), h2.ctx.state._wifi);
   check("the access point picker is as wide as its names", /width:auto/.test(q(r2, '[data-wifi="ap"]').getAttribute("style") || ""));
+}
+
+// What to fix (UniFi Utopia's findings) on top; access points on the plan; where they are.
+{
+  const FINDINGS = [
+    { id: "far_ap:WLED PillTaker", kind: "far_ap", level: "bad", title: "WLED PillTaker is on a far access point",
+      detail: "It is on AP Upstairs at -80 dBm; Kitchen valance, 1.4 m away, gets -39 dBm from AP Garage.",
+      advice: "Restart it (power off and on) so it chooses again.", floor: "main", x: 3, y: 2, band: "2.4" },
+    { id: "phone_weak:Alex's phone|upper|Office|5", kind: "phone_weak", level: "warn", title: "Office: weak Wi-Fi where Alex's phone spends time",
+      detail: "Alex's phone spent 2.0 hours there on weak Wi-Fi.", advice: "An access point nearer makes the most difference.",
+      floor: "upper", room: "Office", band: "5" },
+  ];
+  const APS = [{ mac: "f0:00:00:00:00:0a", name: "AP Upstairs", floor: "upper", x: 6, y: 2, placed: "estimated" },
+               { mac: "f0:00:00:00:00:0b", name: "AP Garage", floor: "main", x: 5, y: 4, placed: "you" },
+               { mac: "f0:00:00:00:00:0c", name: "AP Nowhere", floor: null, x: null, y: null, placed: null }];
+  const D2 = { ...DATA, findings: FINDINGS, aps: APS };
+  const apTag = (svg, mac) => { const i = svg.indexOf(`data-mac="${mac}"`); return i < 0 ? "" : svg.slice(i, svg.indexOf("</g>", i)); };
+  const { ctx, calls } = host({ data: D2 });
+  W.render(ctx); await tick(); await tick();
+  let root = W.render(ctx);
+  const fc = q(root, '[data-wifi="findings"]');
+  const rows = all(root, "[data-wifi-finding]");
+  check("what to fix: on top, most urgent first, each with what it is and what to do",
+    fc && root.children.indexOf(fc) === 1 && rows.length === 2 && rows[0].getAttribute("data-wifi-finding") === "far_ap:WLED PillTaker"
+    && /Restart it/.test(text(rows[0])) && /1.4 m away/.test(text(rows[0])), text(fc));
+  check("a far-access-point finding says neighbours' antennas differ", /strong sign, not proof/.test(text(fc)));
+  rows[1].click(); await tick();
+  root = W.render(ctx);
+  check("a click on a phone finding: its floor and band, its room ringed",
+    ctx.state._wifi.floor === "upper" && ctx.state._wifi.band === "5" && /<polygon data-wifi="focus"/.test(q(root, '[data-wifi="map"]').innerHTML), ctx.state._wifi);
+  check("the picked finding is marked in the list", /background:#13211a/.test(all(root, "[data-wifi-finding]")[1].getAttribute("style") || ""));
+  all(root, "[data-wifi-finding]")[0].click(); await tick();
+  root = W.render(ctx);
+  const map = q(root, '[data-wifi="map"]').innerHTML;
+  check("a click on a device finding: its floor and band, a ring at the device",
+    ctx.state._wifi.floor === "main" && ctx.state._wifi.band === "2.4" && /<circle data-wifi="focus" cx="3" cy="2"/.test(map), map.slice(0, 200));
+  const solid = apTag(map, "f0:00:00:00:00:0b");
+  check("access points on their floor, named; one put by you drawn solid",
+    solid && /AP Garage/.test(solid) && !/stroke-dasharray/.test(solid) && !apTag(map, "f0:00:00:00:00:0a"), solid.slice(0, 160));
+  ctx.state._wifi.floor = "upper"; ctx.state._wifi.focus = null;
+  root = W.render(ctx);
+  const est = apTag(q(root, '[data-wifi="map"]').innerHTML, "f0:00:00:00:00:0a");
+  check("an estimated access point is drawn dashed, and can be dragged by an administrator", /stroke-dasharray/.test(est) && /cursor:grab/.test(est), est.slice(0, 160));
+  const card = q(root, '[data-wifi="aps"]');
+  check("where the access points are: each with its floor, how it was placed, a reset for one put by you",
+    card && /AP Nowhere/.test(text(card)) && /no placed device hears it yet/.test(text(card)) && /put here by you/.test(text(card))
+    && all(card, "[data-wifi-ap-reset]").length === 1, text(card));
+  const before = calls.length;
+  q(card, "[data-wifi-ap-reset]").click(); await tick(); await tick();
+  const sent = calls.slice(before).find((m) => m.type === "unifi_utopia/wifi_ap_set");
+  check("back to the estimate: UniFi Utopia told, with no spot", sent && sent.mac === "f0:00:00:00:00:0b" && sent.floor === null, calls.slice(before));
+  const sel = q(card, '[data-wifi-ap-floor="f0:00:00:00:00:0c"]');
+  sel.value = "main"; sel.dispatchEvent({ type: "change" }); await tick(); await tick();
+  const moved = calls.slice(before).filter((m) => m.type === "unifi_utopia/wifi_ap_set").pop();
+  check("an access point given a floor: put in the middle of that floor's rooms, to drag from there",
+    moved && moved.mac === "f0:00:00:00:00:0c" && moved.floor === "main" && moved.x === 3 && moved.y === 2.5, moved);
+  // Not an administrator: the findings and the access points, nothing to change.
+  const viewer = host({ data: D2, admin: false });
+  W.render(viewer.ctx); await tick(); await tick();
+  viewer.ctx.state._wifi.floor = "upper";
+  const vr = W.render(viewer.ctx);
+  check("anyone else: findings and access points shown, no dragging, no access point list",
+    !!q(vr, '[data-wifi="findings"]') && /data-wifi="ap-mark"/.test(q(vr, '[data-wifi="map"]').innerHTML)
+    && !/cursor:grab/.test(q(vr, '[data-wifi="map"]').innerHTML) && !q(vr, '[data-wifi="aps"]'));
+  // Many findings: six, then all on asking. None yet: said so. An older UniFi Utopia: no list.
+  const many = Array.from({ length: 8 }, (_, i) => ({ id: `weak:d${i}`, kind: "weak", level: "bad", title: `d${i} has very weak Wi-Fi`, detail: "-87 dBm", advice: "", floor: "main", x: 1, y: 1, band: "2.4" }));
+  const hm = host({ data: { ...DATA, findings: many, aps: [] } });
+  W.render(hm.ctx); await tick(); await tick();
+  let mr = W.render(hm.ctx);
+  const six = all(mr, "[data-wifi-finding]").length;
+  q(mr, '[data-wifi="findings-more"]').click();
+  mr = W.render(hm.ctx);
+  check("more than six findings: six, then all of them on asking", six === 6 && all(mr, "[data-wifi-finding]").length === 8, six);
+  const twice = host({ data: { ...DATA, aps: [], findings: [
+    { id: "far_ap:a", kind: "far_ap", level: "warn", title: "a", detail: "da", advice: "Restart it.", floor: "main", x: 1, y: 1, band: "2.4" },
+    { id: "far_ap:b", kind: "far_ap", level: "warn", title: "b", detail: "db", advice: "Restart it.", floor: "main", x: 2, y: 1, band: "2.4" },
+    { id: "weak:c", kind: "weak", level: "warn", title: "c", detail: "dc", advice: "Move it.", floor: "main", x: 3, y: 1, band: "2.4" }] } });
+  W.render(twice.ctx); await tick(); await tick();
+  const tw = text(q(W.render(twice.ctx), '[data-wifi="findings"]'));
+  check("the same advice for findings in a row is said once", (tw.match(/Restart it\./g) || []).length === 1 && /Move it\./.test(tw), tw);
+  const none = host({ data: { ...DATA, findings: [], aps: [] } });
+  W.render(none.ctx); await tick(); await tick();
+  check("nothing found yet: said in words", /Nothing found yet/.test(text(q(W.render(none.ctx), '[data-wifi="findings"]'))));
+  const older = host({ data: DATA });
+  W.render(older.ctx); await tick(); await tick();
+  check("an older UniFi Utopia without findings: no list, the rest as before", !q(W.render(older.ctx), '[data-wifi="findings"]'));
+  const bad = host({ data: { ...DATA, findings: [{ id: "x", level: "bad", title: "<img src=x onerror=1>", detail: "<b>x</b>", advice: "" }], aps: [] } });
+  W.render(bad.ctx); await tick(); await tick();
+  const br = q(W.render(bad.ctx), '[data-wifi="findings"]');
+  check("a finding's words are text, never markup", !all(br, "img").length && !all(br, "b").length && /<img src=x/.test(text(br)));
 }
 
 // It asks again by itself each minute while it is open (the panel's poll redraws only live views).

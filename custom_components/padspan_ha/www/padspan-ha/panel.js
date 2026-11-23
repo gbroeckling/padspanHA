@@ -227,7 +227,7 @@ const _VIEW_PATHS = {
   occupancy:    "./views/occupancy.js",
   guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
-  // Wi-Fi coverage (test, 2026-11-22): drawn from UniFi Blocker's survey; in the menu only while it answers.
+  // Wi-Fi coverage (test, 2026-11-22): drawn from UniFi Utopia's survey; in the menu only while it answers.
   wifi:         "./views/wifi.js",
   // The guided Setup (plan → … → calibration): a menu tab at the top of the
   // build group until every step is done (owner's D4, 2026-11-13, _setupInMenu),
@@ -3675,7 +3675,7 @@ class PadSpanHaApp extends HTMLElement {
     let out = new Set(MENU.map(x => x[0]));
     if (!forensicsOn) out.delete("forensics");
     if (!guestsOn) out.delete("guests");
-    // Wi-Fi coverage only while UniFi Blocker's survey answers (_wifiProbe).
+    // Wi-Fi coverage only while UniFi Utopia's survey answers (_wifiProbe).
     if (!this.state._wifiSurveyOn) out.delete("wifi");
     if (!this._setupInMenu()) out.delete("setup");
     // The EDITION decides last: a Bright build shows its lighting surfaces
@@ -5236,7 +5236,7 @@ class PadSpanHaApp extends HTMLElement {
    *  map"): loaded now and drawn when it lands, once. Review 2026-11-11: nothing else asked for it (the deferred
    *  loads draw nothing when they land, and the poll does not redraw Mapping's or Settings' tabs), so the
    *  placeholder stayed until a menu click. */
-  /** Is UniFi Blocker's Wi-Fi survey there? Asked on the house's own data, never on a wall screen: once a
+  /** Is UniFi Utopia's Wi-Fi survey there? Asked on the house's own data, never on a wall screen: once a
    *  page load, again every ten minutes while the answer is no. The Wi-Fi coverage tab follows the answer. */
   _wifiProbe(){
     const st = this.state;
@@ -5244,7 +5244,7 @@ class PadSpanHaApp extends HTMLElement {
     const now = Date.now();
     if (this._wifiProbeAt && now - this._wifiProbeAt < 600000) return;
     this._wifiProbeAt = now;
-    this._callWS({ type: "unifiblocker/wifi_heatmap" })
+    this._callWS({ type: "unifi_utopia/wifi_heatmap" })
       .then(r => { const on = !!(r && r.version >= 1); if (on !== !!st._wifiSurveyOn) { st._wifiSurveyOn = on; this._renderNav(); } })
       .catch(() => {});
   }

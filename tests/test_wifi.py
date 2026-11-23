@@ -1,12 +1,12 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Wi-Fi coverage (views/wifi.js, test 2026-11-22): UniFi Blocker's survey drawn on PadSpan's floor model.
+"""Wi-Fi coverage (views/wifi.js, test 2026-11-22): UniFi Utopia's survey drawn on PadSpan's floor model.
 
 tests/js/wifi.mjs runs the view under the DOM shim: the radio map's colours, the floor's rooms from
 the floor model, readings colouring only inside rooms and only near a reading, the floor and band choices,
 each room's reading, placed devices on their band, the counts, the links card for an administrator only, and
-no UniFi Blocker said in words. Held here: the tab is in the menu only while UniFi Blocker answers, and the
+no UniFi Utopia said in words. Held here: the tab is in the menu only while UniFi Utopia answers, and the
 panel never asks on a wall screen or in Sample mode.
 """
 
@@ -33,16 +33,17 @@ def test_the_view_under_the_dom_shim():
     assert len(out["cases"]) >= 20 and not out["failures"], out["failures"]
 
 
-def test_the_tab_follows_unifi_blockers_answer():
+def test_the_tab_follows_unifi_utopias_answer():
     p = (_WWW / "panel.js").read_text(encoding="utf-8")
     assert '["wifi","Wi-Fi coverage","mdi:wifi"]' in p
     assert 'if (!this.state._wifiSurveyOn) out.delete("wifi");' in p
     probe = p[p.index("  _wifiProbe(){"):p.index("  _loadMissingView(v){")]
     assert 'st.dataMode !== "live" || st.kioskMode' in probe, "never asked on a wall screen or in Sample mode"
-    assert '"unifiblocker/wifi_heatmap"' in probe and "600000" in probe
+    assert '"unifi_utopia/wifi_heatmap"' in probe and "600000" in probe
 
 
-def test_the_view_asks_only_unifi_blocker():
+def test_the_view_asks_only_unifi_utopia():
     v = (_WWW / "views" / "wifi.js").read_text(encoding="utf-8")
     types = {t for t in __import__("re").findall(r'type: "([a-z_/]+)"', v)}
-    assert types == {"unifiblocker/wifi_heatmap", "unifiblocker/wifi_links", "unifiblocker/wifi_link_set"}, types
+    assert types == {"unifi_utopia/wifi_heatmap", "unifi_utopia/wifi_links", "unifi_utopia/wifi_link_set",
+                     "unifi_utopia/wifi_ap_set"}, types

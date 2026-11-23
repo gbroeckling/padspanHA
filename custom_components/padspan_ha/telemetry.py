@@ -487,7 +487,7 @@ VIEWS: frozenset[str] = frozenset({
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
     "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers", "setup", "ai_wizard",
-    "wifi",     # Wi-Fi coverage (test, 2026-11-22): only while UniFi Blocker's survey answers
+    "wifi",     # Wi-Fi coverage (test, 2026-11-22): only while UniFi Utopia's survey answers
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),

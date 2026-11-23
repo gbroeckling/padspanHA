@@ -4,10 +4,12 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 /**
  * Wi-Fi coverage (views/wifi.js, test 2026-11-22): how strong the Wi-Fi is around the house, measured in everyday
- * use. The readings come from UniFi Blocker (unifiblocker/wifi_heatmap): how strongly each access
+ * use. The readings come from UniFi Utopia (unifi_utopia/wifi_heatmap): how strongly each access
  * point hears a phone while it sits still somewhere, and each placed smart device where PadSpan
  * has it. PadSpan only draws them, on its own floor model (rooms in metres, never a photograph),
- * in the same colours as its radio map. The tab exists only while UniFi Blocker answers.
+ * in the same colours as its radio map. The tab exists only while UniFi Utopia answers.
+ * UniFi Utopia also says what is worth fixing (findings, most urgent first) and where its access
+ * points are (put there by an administrator, or estimated from the devices that hear them best).
  */
 
 const V = new URL(import.meta.url).search;
@@ -22,10 +24,10 @@ const REFRESH_MS = 60000;
 
 const st = (ctx) => ctx.state._wifi || (ctx.state._wifi = { data: null, ts: 0, floor: null, band: null, ap: "*", err: "", links: null });
 
-/** Is UniFi Blocker's Wi-Fi survey there? (the panel asks once and keeps the answer for its menu) */
+/** Is UniFi Utopia's Wi-Fi survey there? (the panel asks once and keeps the answer for its menu) */
 export async function probe(callWS) {
   try {
-    const r = await callWS({ type: "unifiblocker/wifi_heatmap" });
+    const r = await callWS({ type: "unifi_utopia/wifi_heatmap" });
     return !!(r && r.version >= 1);
   } catch (_e) {
     return false;
@@ -106,21 +108,28 @@ function rasterURL(r) {
   return RM.rasterPNG(px, r.w, r.h);
 }
 
-function bbox(rooms, pts) {
+function bbox(rooms, pts, extra = []) {
   const xs = [], ys = [];
   for (const r of rooms) for (const [x, y] of r.pts) { xs.push(x); ys.push(y); }
-  for (const p of pts) { xs.push(p.x); ys.push(p.y); }
+  for (const p of [...pts, ...extra]) { xs.push(p.x); ys.push(p.y); }
   if (!xs.length) return null;
   const pad = 1;
   return { x0: Math.min(...xs) - pad, y0: Math.min(...ys) - pad, x1: Math.max(...xs) + pad, y1: Math.max(...ys) + pad };
 }
 
-/** The floor drawing: rooms, the coloured coverage, each room's typical reading, the placed devices. */
-export function floorSVG(ctx, data, floor, band) {
+/** The access points with a spot on this floor (put there, or estimated). */
+export function floorAPs(data, floor) {
+  return (data.aps || []).filter((a) => a && a.floor === floor && Number.isFinite(a.x) && Number.isFinite(a.y));
+}
+
+/** The floor drawing: rooms, the coloured coverage, each room's typical reading, the placed devices,
+ *  the access points, and a ring round what the picked finding is about (opt.focus). */
+export function floorSVG(ctx, data, floor, band, opt = {}) {
   const { esc } = ctx.helpers;
   const rooms = floorRooms(ctx.state.model, floor);
   const pts = points(data, floor, band);
-  const bb = bbox(rooms, pts);
+  const aps = floorAPs(data, floor);
+  const bb = bbox(rooms, pts, aps);
   if (!bb) return "";
   const W = bb.x1 - bb.x0, H = bb.y1 - bb.y0, fs = Math.max(0.28, Math.min(W, H) / 38);
   const parts = [];
@@ -156,6 +165,22 @@ export function floorSVG(ctx, data, floor, band) {
     if (f.floor !== floor || f.band !== band) continue;
     parts.push(`<g data-wifi="device"><circle cx="${f.x}" cy="${f.y}" r="${fs * 0.42}" fill="${colour(f.median)}" stroke="#0b0f0c" stroke-width="${fs * 0.1}"><title>${esc(f.name || "")}: ${Math.round(f.median)} dBm</title></circle></g>`);
   }
+  const fo = opt.focus;
+  if (fo && fo.floor === floor) {
+    const fr = fo.room && rooms.find((r) => r.name === fo.room);
+    if (fr) parts.push(`<polygon data-wifi="focus" points="${fr.pts.map(([x, y]) => `${x},${y}`).join(" ")}" fill="none" stroke="#f8fafc" stroke-width="${fs * 0.22}" stroke-dasharray="${fs * 0.6} ${fs * 0.35}"/>`);
+    else if (Number.isFinite(fo.x) && Number.isFinite(fo.y)) parts.push(`<circle data-wifi="focus" cx="${fo.x}" cy="${fo.y}" r="${fs * 1.1}" fill="none" stroke="#f8fafc" stroke-width="${fs * 0.18}"/>`);
+  }
+  for (const a of aps) {
+    // A rounded square with three arcs; dashed while it is only an estimate.
+    const r = fs * 0.62, est = a.placed !== "you";
+    parts.push(`<g data-wifi="ap-mark" data-mac="${esc(a.mac)}" transform="translate(${a.x},${a.y})" style="${opt.drag ? "cursor:grab" : ""}">`
+      + `<rect x="${-r}" y="${-r}" width="${2 * r}" height="${2 * r}" rx="${r * 0.35}" fill="#0b1220" stroke="#60a5fa" stroke-width="${fs * 0.12}"${est ? ` stroke-dasharray="${fs * 0.25} ${fs * 0.18}"` : ""}/>`
+      + `<path d="M ${-r * 0.55} ${-r * 0.05} Q 0 ${-r * 0.6} ${r * 0.55} ${-r * 0.05} M ${-r * 0.32} ${r * 0.18} Q 0 ${-r * 0.15} ${r * 0.32} ${r * 0.18}" fill="none" stroke="#93c5fd" stroke-width="${fs * 0.1}" stroke-linecap="round"/>`
+      + `<circle cx="0" cy="${r * 0.42}" r="${fs * 0.09}" fill="#93c5fd"/>`
+      + `<text y="${r + fs * 1.0}" font-size="${fs * 0.85}" text-anchor="middle" fill="#93c5fd" style="paint-order:stroke" stroke="#0b0f0c" stroke-width="${fs * 0.22}">${esc(a.name || a.mac)}</text>`
+      + `<title>${esc(a.name || a.mac)}: ${est ? "estimated from the devices that hear it best" : "put here by you"}</title></g>`);
+  }
   return `<svg viewBox="${bb.x0} ${bb.y0} ${W} ${H}" style="width:100%;height:auto;max-height:72vh;background:#0b0f0c;border-radius:10px">${parts.join("")}</svg>`;
 }
 
@@ -164,10 +189,10 @@ async function load(ctx) {
   if (s.loading) return;
   s.loading = true;
   try {
-    s.data = await ctx.actions.callWS({ type: "unifiblocker/wifi_heatmap", ...(s.ap && s.ap !== "*" ? { ap: s.ap } : {}) });
+    s.data = await ctx.actions.callWS({ type: "unifi_utopia/wifi_heatmap", ...(s.ap && s.ap !== "*" ? { ap: s.ap } : {}) });
     s.err = "";
   } catch (e) {
-    s.err = String((e && e.message) || e || "No answer from UniFi Blocker.");
+    s.err = String((e && e.message) || e || "No answer from UniFi Utopia.");
   } finally {
     s.ts = Date.now();
     s.loading = false;
@@ -186,7 +211,7 @@ function again(ctx, ms) {
     if (ctx.state.view !== "wifi" || (s.root && s.root.isConnected === false)) return;  // the next visit loads afresh
     const rn = s.root && s.root.getRootNode ? s.root.getRootNode() : null;
     const a = rn && rn.activeElement;
-    if (a && a.tagName === "SELECT" && s.root.contains(a)) { again(ctx, 15000); return; }
+    if ((a && a.tagName === "SELECT" && s.root.contains(a)) || s.dragging) { again(ctx, 15000); return; }
     load(ctx);
   }, ms);
   if (s.timer && s.timer.unref) s.timer.unref();   // node (the tests): never what keeps it running
@@ -194,8 +219,144 @@ function again(ctx, ms) {
 
 async function loadLinks(ctx) {
   const s = st(ctx);
-  try { s.links = await ctx.actions.callWS({ type: "unifiblocker/wifi_links" }); } catch (_e) { s.links = { error: true }; }
+  try { s.links = await ctx.actions.callWS({ type: "unifi_utopia/wifi_links" }); } catch (_e) { s.links = { error: true }; }
   if (ctx.state.view === "wifi") ctx.actions.renderRooms();
+}
+
+const LEVEL = { bad: "#f87171", warn: "#fbbf24", good: "#4ade80", info: "#94a3b8" };
+const FINDINGS_SHOWN = 6;
+
+/** What UniFi Utopia found worth fixing, most urgent first; a click shows it on the plan. */
+function findingsCard(ctx, D) {
+  const { el } = ctx.helpers;
+  const s = st(ctx);
+  const F = Array.isArray(D.findings) ? D.findings : null;
+  if (!F) return null;                          // an older UniFi Utopia: no findings to show
+  const box = el("div", { "data-wifi": "findings", style: "border:1px solid #1f3328;border-radius:10px;padding:10px 12px;margin-bottom:12px" });
+  box.appendChild(el("div", { style: "font-weight:700;font-size:13px;margin-bottom:6px" }, F.length ? `What to fix (${F.length})` : "What to fix"));
+  if (!F.length) {
+    box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "Nothing found yet. Findings appear as your devices and phones are measured; the devices within the first hour, the phones over days."));
+    return box;
+  }
+  const list = s.allFindings ? F : F.slice(0, FINDINGS_SHOWN);
+  let said = null;                              // the same advice for the next finding too: said once
+  for (const f of list) {
+    const on = s.focus && s.focus.id === f.id;
+    const row = el("div", { "data-wifi-finding": f.id, style: `display:flex;gap:10px;align-items:flex-start;padding:6px 6px;border-radius:8px;${f.floor ? "cursor:pointer;" : ""}${on ? "background:#13211a;" : ""}` });
+    row.appendChild(el("span", { style: `flex:0 0 auto;width:9px;height:9px;border-radius:50%;margin-top:5px;background:${LEVEL[f.level] || LEVEL.info}` }));
+    row.appendChild(el("div", { style: "min-width:0" }, [
+      el("div", { style: "font-size:13px;font-weight:600" }, String(f.title || "")),
+      el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.5" }, String(f.detail || "")),
+      f.advice && f.advice !== said ? el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" }, String(f.advice)) : null,
+    ]));
+    said = f.advice || null;
+    if (f.floor) {
+      row.addEventListener("click", () => {
+        s.focus = on ? null : { id: f.id, floor: f.floor, room: f.room || null, x: f.x, y: f.y };
+        if (!on) { s.floor = f.floor; if (f.band) s.band = f.band; }
+        ctx.actions.renderRooms();
+      });
+    }
+    box.appendChild(row);
+  }
+  if (F.length > FINDINGS_SHOWN) {
+    box.appendChild(el("button", { class: "btn inline", "data-wifi": "findings-more", style: "font-size:12px;padding:3px 10px;margin-top:4px",
+      onclick: () => { s.allFindings = !s.allFindings; ctx.actions.renderRooms(); } }, s.allFindings ? "Show fewer" : `Show all ${F.length}`));
+  }
+  if (F.some((f) => f.kind === "far_ap")) {
+    box.appendChild(el("div", { style: "font-size:11px;color:#64748b;margin-top:6px" },
+      "Devices differ in their antennas: a gap of 15 dB or more between neighbours is a strong sign, not proof."));
+  }
+  return box;
+}
+
+/** An administrator drags an access point on the plan; UniFi Utopia keeps where it was put. */
+function dragAPs(ctx, pics) {
+  const s = st(ctx);
+  const svg = pics.querySelector && pics.querySelector("svg");
+  if (!svg || !svg.getScreenCTM) return;
+  const at = (ev) => {
+    const m = svg.getScreenCTM();
+    if (!m) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(m.inverse());
+  };
+  svg.addEventListener("pointerdown", (ev) => {
+    const g = ev.target && ev.target.closest ? ev.target.closest('[data-wifi="ap-mark"]') : null;
+    const p = g && at(ev);
+    if (!p) return;
+    ev.preventDefault();
+    s.dragging = { mac: g.getAttribute("data-mac"), g, x: p.x, y: p.y, x0: p.x, y0: p.y };
+    try { svg.setPointerCapture(ev.pointerId); } catch (_e) { /* capture is a nicety */ }
+  });
+  svg.addEventListener("pointermove", (ev) => {
+    const d = s.dragging, p = d && at(ev);
+    if (!p) return;
+    d.x = p.x; d.y = p.y;
+    d.g.setAttribute("transform", `translate(${p.x},${p.y})`);
+  });
+  const drop = async () => {
+    const d = s.dragging;
+    if (!d) return;
+    s.dragging = null;
+    if (Math.hypot(d.x - d.x0, d.y - d.y0) < 0.2) { ctx.actions.renderRooms(); return; }   // a click, not a move
+    try {
+      const r = await ctx.actions.callWS({ type: "unifi_utopia/wifi_ap_set", mac: d.mac, floor: s.floor, x: d.x, y: d.y });
+      if (r && Array.isArray(r.aps) && s.data) s.data.aps = r.aps;
+    } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
+    ctx.actions.renderRooms();
+  };
+  svg.addEventListener("pointerup", drop);
+  svg.addEventListener("pointercancel", drop);
+}
+
+/** Where each access point is: its floor, and back to the estimate. */
+function apCard(ctx, D, floors) {
+  const { el } = ctx.helpers;
+  const s = st(ctx);
+  const A = (D.aps || []).filter((a) => a && "placed" in a);
+  if (!A.length) return null;
+  const box = el("details", { "data-wifi": "aps", style: "margin-top:14px;border:1px solid #1f3328;border-radius:10px;padding:10px 12px" });
+  if (s.apsOpen) box.open = true;
+  box.addEventListener("toggle", () => { s.apsOpen = box.open; });
+  box.appendChild(el("summary", { style: "cursor:pointer;font-weight:600;font-size:13px" }, "Where the access points are"));
+  box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin:6px 0" },
+    "Dashed ones are estimated from the devices that hear them best. Drag one on the plan to where it really is; pick its floor here first if it is on another."));
+  const set = async (a, floor, x, y) => {
+    try {
+      const r = await ctx.actions.callWS({ type: "unifi_utopia/wifi_ap_set", mac: a.mac, floor, x, y });
+      if (r && Array.isArray(r.aps) && s.data) s.data.aps = r.aps;
+    } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
+    ctx.actions.renderRooms();
+  };
+  for (const a of A) {
+    const sel = el("select", { class: "select", style: "width:auto;font-size:12px;padding:3px 8px", "data-wifi-ap-floor": a.mac });
+    for (const [v, t] of [["", "No spot"], ...floors.map((f) => [f.id, f.name])]) {
+      const o = el("option", { value: v }, t);
+      if ((a.floor || "") === v) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener("change", () => {
+      if (!sel.value) { set(a, null, null, null); return; }
+      // Onto another floor: in the middle of its rooms, to drag from there.
+      const rooms = floorRooms(ctx.state.model, sel.value), bb = bbox(rooms, []);
+      const x = bb ? (bb.x0 + bb.x1) / 2 : 0, y = bb ? (bb.y0 + bb.y1) / 2 : 0;
+      s.floor = sel.value;
+      set(a, sel.value, Number.isFinite(a.x) && a.floor === sel.value ? a.x : x, Number.isFinite(a.y) && a.floor === sel.value ? a.y : y);
+    });
+    const how = a.placed === "you" ? "put here by you" : (a.placed === "estimated" ? "estimated" : "no placed device hears it yet");
+    const row = el("div", { style: "display:flex;gap:10px;align-items:center;margin:4px 0;font-size:12px;flex-wrap:wrap" }, [
+      el("span", { style: "min-width:180px;font-weight:600" }, String(a.name || a.mac)), sel,
+      el("span", { style: "color:#94a3b8" }, how),
+    ]);
+    if (a.placed === "you") {
+      row.appendChild(el("button", { class: "btn inline", style: "font-size:12px;padding:2px 8px", "data-wifi-ap-reset": a.mac,
+        onclick: () => set(a, null, null, null) }, "Back to the estimate"));
+    }
+    box.appendChild(row);
+  }
+  return box;
 }
 
 function chip(ctx, label, on, onClick, attrs = {}) {
@@ -211,7 +372,7 @@ function linksCard(ctx) {
   box.addEventListener("toggle", () => { if (box.open && !s.links) loadLinks(ctx); });
   const L = s.links;
   if (!L) return box;
-  if (L.error) { box.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-top:6px" }, "UniFi Blocker didn't answer.")); box.open = true; return box; }
+  if (L.error) { box.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-top:6px" }, "UniFi Utopia didn't answer.")); box.open = true; return box; }
   box.open = true;
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin:6px 0" },
     "A phone is linked when its Wi-Fi name matches its name in PadSpan. Pick one here when the names differ (an iPhone called \"iPhone\" on Wi-Fi, say)."));
@@ -226,7 +387,7 @@ function linksCard(ctx) {
     }
     sel.addEventListener("change", async () => {
       try {
-        s.links = await ctx.actions.callWS({ type: "unifiblocker/wifi_link_set", mac: w.mac, padspan_id: sel.value || null });
+        s.links = await ctx.actions.callWS({ type: "unifi_utopia/wifi_link_set", mac: w.mac, padspan_id: sel.value || null });
         ctx.toast(sel.value ? `${w.name} is now linked.` : `${w.name} is no longer linked.`);
       } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
@@ -245,14 +406,16 @@ export function render(ctx) {
   root.appendChild(el("div", { style: "margin-bottom:12px" }, [
     el("div", { style: "font-weight:700;font-size:16px;color:#38bdf8" }, "Wi-Fi coverage"),
     el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.5" },
-      "How strongly your access points hear the house, measured in everyday use: phones while they sit still for a minute, and your smart devices where PadSpan has them placed. From UniFi Blocker; it fills in over days."),
+      "How strongly your access points hear the house, measured in everyday use: phones while they sit still for a minute, and your smart devices where PadSpan has them placed. From UniFi Utopia; it fills in over days."),
   ]));
   if (!s.data || Date.now() - s.ts > REFRESH_MS) load(ctx);
   if (!s.data) {
-    root.appendChild(el("div", { style: "color:#94a3b8;padding:18px;text-align:center" }, s.err ? `UniFi Blocker didn't answer: ${s.err}` : "Loading…"));
+    root.appendChild(el("div", { style: "color:#94a3b8;padding:18px;text-align:center" }, s.err ? `UniFi Utopia didn't answer: ${s.err}` : "Loading…"));
     return root;
   }
   const D = s.data;
+  const fc = findingsCard(ctx, D);
+  if (fc) root.appendChild(fc);
   // 2.4 and 5 GHz always have their button, measured or not yet (a 6 GHz one when there are readings).
   const bands = [...new Set(["2.4", "5", ...(D.bands || [])])].sort((a, b) => Number(a) - Number(b));
   if (!s.band || !bands.includes(s.band)) s.band = (D.bands || []).includes("5") ? "5" : ((D.bands || [])[0] || "5");
@@ -278,9 +441,13 @@ export function render(ctx) {
   }
   root.appendChild(bar);
 
-  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band) : "";
+  const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus, drag: admin }) : "";
   const pics = el("div", { "data-wifi": "map" });
-  if (svg) pics.innerHTML = svg;
+  if (svg) {
+    pics.innerHTML = svg;
+    if (admin) dragAPs(ctx, pics);
+  }
   else pics.appendChild(el("div", { style: "color:#94a3b8;padding:18px" }, "This floor has no rooms drawn in PadSpan yet."));
   root.appendChild(pics);
 
@@ -310,6 +477,10 @@ export function render(ctx) {
     }
     root.appendChild(tbl);
   }
-  if (D.status && ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) root.appendChild(linksCard(ctx));
+  if (admin) {
+    const ac = apCard(ctx, D, floors);
+    if (ac) root.appendChild(ac);
+  }
+  if (D.status && admin) root.appendChild(linksCard(ctx));
   return root;
 }

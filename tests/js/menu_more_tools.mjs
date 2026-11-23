@@ -83,7 +83,7 @@ const afterMore = (p) => { const i = p.$nav.children.indexOf(moreBtn(p)); return
 const beforeMore = (p) => { const i = p.$nav.children.indexOf(moreBtn(p)); return navIds({ $nav: { children: i < 0 ? p.$nav.children : p.$nav.children.slice(0, i) } }); };
 const allIds = MENU.map(x => x[0]);
 // Setup is in the menu only while the house's steps are not all done (owner's D4, 2026-11-13; its own block below).
-const gated = new Set(["forensics", "guests", "setup", "wifi"]);   // wifi: only while UniFi Blocker answers
+const gated = new Set(["forensics", "guests", "setup", "wifi"]);   // wifi: only while UniFi Utopia answers
 const menus = {};
 
 for (const skin of ["2025", "classic"]) {

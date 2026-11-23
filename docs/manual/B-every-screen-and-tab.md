@@ -30,7 +30,7 @@ button explains it in the panel.
 | **Occupancy** | How many people are in the building, and how the number was reached. | – |
 | **Guests** | Guest tags: who is staying now, the tags you lend, and past stays. | – |
 | **Health** | Is PadSpan working? Its own checks, receivers' health, and Problems found. | – |
-| **Wi-Fi coverage** | A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Blocker. | – |
+| **Wi-Fi coverage** | A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia. | – |
 | **QA** | Checks on your setup, backups, and each receiver ranked. | – |
 | **Sandbox** | A look under the hood at the live data; changes nothing. | – |
 | **Install Base** | The developer's screen for the opt-in usage reports; asks for a PIN. | – |
