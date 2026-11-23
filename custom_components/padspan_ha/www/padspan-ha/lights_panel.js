@@ -13,7 +13,7 @@
 */
 
 const APP_VERSION = "0.38.284";
-const BUILD_ID = "20261123T184001Z";
+const BUILD_ID = "20261123T190620Z";
 
 // The stamp on every import below: the b of this module's own URL and nothing
 // else. Home Assistant loads this page with ?v=...&b=... and the panel's
