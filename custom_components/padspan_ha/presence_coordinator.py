@@ -2995,6 +2995,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _gh = self.__dict__.setdefault("_study_geo_hist", {}).setdefault(key, [])
                             _gh.append(_geo_room)
                             del _gh[:-20]
+                            _xh = self.__dict__.setdefault("_study_xy_hist", {}).setdefault(key, [])
+                            _xh.append((_est_x, _est_y))
+                            del _xh[:-20]
                             # Hysteresis, as the strongest-scanner path has in
                             # dB: a position only just over the line into the
                             # next room is still the room it is in. A still
@@ -3013,6 +3016,22 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     _mt = self.__dict__.get("_study_moved_t", {}).get(key)
                                     if _mt is not None and _t_now - _mt <= float(_v[2:]):
                                         _hm = 0.0
+                                elif _v.startswith("av"):
+                                    # the hysteresis judges the mean of the last K positions:
+                                    # avK_H (H metres) or avfK_F (F x the new room's narrow side, max 0.75)
+                                    _f = _v.startswith("avf")
+                                    _k, _h = _v[3 if _f else 2:].split("_")
+                                    _xh = self.__dict__.get("_study_xy_hist", {}).get(key) or [(_est_x, _est_y)]
+                                    _xs = _xh[-int(_k):]
+                                    _mx = sum(p[0] for p in _xs) / len(_xs)
+                                    _my = sum(p[1] for p in _xs) / len(_xs)
+                                    _d_cur = _fabric_truth.room_distance_m(_fl_rooms_h.get(_cur_confirmed), _mx, _my)
+                                    if _f:
+                                        _bb = _fabric_truth.geom_bbox_m(_fl_rooms_h.get(_geo_room) or {})
+                                        _hm = (min(_SPATIAL_HYST_M, float(_h) * min(_bb[2] - _bb[0], _bb[3] - _bb[1]))
+                                               if _bb else _SPATIAL_HYST_M)
+                                    else:
+                                        _hm = float(_h)
                                 elif _v.startswith("pk"):
                                     # off when the new room was where the solve put the device in N of the last M polls
                                     _n, _m = (int(p) for p in _v[2:].split("_"))
