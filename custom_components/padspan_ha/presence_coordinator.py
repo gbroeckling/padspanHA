@@ -3009,6 +3009,22 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     _mt = self.__dict__.get("_study_moved_t", {}).get(key)
                                     if _mt is not None and _t_now - _mt <= float(_v[2:]):
                                         _hm = 0.0
+                                elif _v.startswith("mr"):
+                                    # off when moved within N s AND the new room's own scanner leads by X dB
+                                    _n, _x = (float(p) for p in _v[2:].split("_"))
+                                    _mt = self.__dict__.get("_study_moved_t", {}).get(key)
+                                    if _mt is not None and _t_now - _mt <= _n:
+                                        _best = {}
+                                        for _s, _r in ema.items():
+                                            if _miss.get(_s, 0) > _grace(_s):
+                                                continue
+                                            _rm = source_to_area.get(_s)
+                                            if _rm and _r > _best.get(_rm, -999.0):
+                                                _best[_rm] = _r
+                                        _own = _best.get(_geo_room)
+                                        _oth = max((r for k, r in _best.items() if k != _geo_room), default=-999.0)
+                                        if _own is not None and _own - _oth >= _x:
+                                            _hm = 0.0
                                 elif _v.startswith("rb"):
                                     # off while the new room's own scanner leads every other room by X dB
                                     _best: dict = {}
