@@ -44,11 +44,12 @@ def _method(src: str, name: str) -> str:
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def test_the_overlay_opens_closes_every_way_and_never_parses_markup() -> None:
-    run = subprocess.run([_NODE, str(_SCRIPT), str(_MODULE), str(_NOTES)],
+    changelog_d = _INTEG.parents[1] / "changelog.d"
+    run = subprocess.run([_NODE, str(_SCRIPT), str(_MODULE), str(_NOTES), str(changelog_d)],
                          capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert run.returncode == 0, f"{run.stdout}\n{run.stderr[-2000:]}"
     m = re.search(r"(\d+) passed, (\d+) failed", run.stdout)
-    assert m and int(m.group(1)) >= 19, f"only part of the harness ran:\n{run.stdout}"
+    assert m and int(m.group(1)) >= 20, f"only part of the harness ran:\n{run.stdout}"
 
 
 def test_the_shipped_notes_are_the_newest_releases_in_order() -> None:
