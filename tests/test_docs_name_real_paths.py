@@ -40,6 +40,20 @@ The rules:
   4. A lower bound on Home Assistant ("2024.8 or newer", "HA 2024.8+") is never
      below hacs.json's, "PadSpan … needs/runs on …" names exactly it, and the
      README, GETTING_STARTED and MINIMUM_REQUIREMENTS each state it.
+
+In German (0.38.277 put most of the panel's own words into German; the German
+site guides and the German manual name them as the German panel shows them):
+the German names are read from i18n/de/*.json (English → German, every group
+the panel loads), never typed here. In the German guides and docs/manual/de:
+  5. "Einstellungen → X": X is a Settings tab or Basic-mode button as the German
+     panel names it, or a page of Home Assistant's (or the phone's) own Settings,
+     in German (HA_PAGES_DE) or English (HA_PAGES).
+  6. "Einstellungen → <tab> → X": X is on that tab, in German or, where the tab
+     still shows English (the wall screens card), in English.
+  7. "Karten → X": X is a Mapping tab as the German panel names it.
+  8. The English menu words name only what is still English there: "Settings → X"
+     only a page of Home Assistant's or the phone's own (an app's English docs),
+     and "Mapping → X" nothing, since the German menu says Einstellungen and Karten.
 """
 from __future__ import annotations
 
@@ -68,6 +82,11 @@ HA_PAGES = (
     "Automations & scenes", "Automations &amp; scenes", "Tools", "Companion App", "Companion app", "Bluetooth",
     "Tags", "About", "Updates",   # Settings → Updates: Home Assistant 2026.11's page for updates
 )
+# The same pages as Home Assistant names them in German.
+HA_PAGES_DE = (
+    "Geräte & Dienste", "Geräte &amp; Dienste", "Bereiche, Labels & Zonen", "Bereiche, Labels &amp; Zonen",
+    "Personen", "Automationen & Szenen", "Automationen &amp; Szenen", "Reparaturen", "Werkzeuge", "Info",
+)
 # The release note that announced the rename names the old tab on purpose.
 RENAME_NOTE = re.compile(r"Presence is (?:now )?Settings")
 # Where CHANGELOG's sections start being checked: the tabs were renamed in 0.38.202.
@@ -76,6 +95,8 @@ FIRST_CHECKED = (0, 38, 202)
 ARROW = r"\s*(?:→|&rarr;)\s*"
 SETTINGS_PATH = re.compile(r"\bSettings" + ARROW)
 MAPPING_PATH = re.compile(r"\bMapping" + ARROW)
+SETTINGS_PATH_DE = re.compile(r"\bEinstellungen" + ARROW)
+MAPPING_PATH_DE = re.compile(r"\bKarten" + ARROW)
 # Quotes, bold and a link may sit round a label.
 _LEAD = re.compile(r'^(?:[\s "“„«*]|<b>|<a [^>]*>)+')
 
@@ -118,8 +139,9 @@ def _tracking_sections() -> list[str]:
     return re.findall(r'\["[a-z]+",\s*(?:\(\) => t\()?"([^"]+)"\)?\]', block)   # the English, in a t() getter or not
 
 
-def _basic_buttons() -> list[str]:
-    return [b.rstrip(" →") for b in re.findall(r'"data-settings-open":"[a-z_]+"[^}]*\}\s*,\s*(?:t\()?"([^"]+)"', _settings_src())]
+def _basic_buttons(german: bool = False) -> list[str]:
+    found = re.findall(r'"data-settings-open":"[a-z_]+"[^}]*\}\s*,\s*(?:t\()?"([^"]+)"', _settings_src())
+    return [(_german(b) if german else b).rstrip(" →") for b in found]
 
 
 def _top_functions(src: str) -> dict[str, str]:
@@ -171,6 +193,34 @@ def _labels_ok(rest: str, labels) -> bool:
     return any(rest.startswith(lb) and not re.match(r"[\w&]", rest[len(lb):len(lb) + 1]) for lb in labels)
 
 
+# ── the German panel's labels ───────────────────────────────────────────────
+
+@lru_cache(maxsize=None)
+def _de() -> dict[str, str]:
+    """The German panel's words, English → German: i18n/de/*.json, every group the
+    panel loads (panel.js _loadPanelLanguage: all but the help). A string not there
+    shows in English."""
+    out = {}
+    for p in sorted((WWW / "i18n" / "de").glob("*.json")):
+        if p.name != "help.json":
+            out.update((k, v) for k, v in json.loads(p.read_text(encoding="utf-8")).items() if isinstance(v, str))
+    return out
+
+
+def _german(english: str) -> str:
+    return _de().get(english, english)
+
+
+def _german_tab_texts() -> dict[str, str]:
+    """Each Settings tab's German label → what it shows: its strings in German, and in
+    English as well, for a card the German panel still shows in English (Wall screens)."""
+    out = {}
+    for tab, text in _tab_texts().items():
+        lines = text.splitlines() + (_tracking_sections() if tab == "Tracking" else [])
+        out[_german(tab)] = "\n".join(lines + [_german(s) for s in lines])
+    return out
+
+
 # ── what users read ─────────────────────────────────────────────────────────
 
 def _strip_release_history(s: str) -> str:
@@ -211,6 +261,13 @@ def _sources(with_changelog: bool) -> list[tuple[str, str]]:
     return out
 
 
+def _german_sources() -> list[tuple[str, str]]:
+    """What German readers read about the panel: every German site guide and every
+    chapter of the German manual."""
+    paths = sorted((ROOT / "site" / "guides").glob("*/de/index.html")) + sorted((ROOT / "docs" / "manual" / "de").glob("*.md"))
+    return [(p.relative_to(ROOT).as_posix(), p.read_text(encoding="utf-8")) for p in paths]
+
+
 def _where(text: str, i: int) -> str:
     return text[max(0, i - 40):i + 80].replace("\n", " ")
 
@@ -241,8 +298,13 @@ def _starts(text: str, most: int = 6) -> set[str]:
 def _bad_deeper_settings(sources) -> list[str]:
     texts = dict(_tab_texts())
     texts["Tracking"] += "\n" + "\n".join(_tracking_sections())
+    return _not_on_the_tab(sources, "Settings", texts)
+
+
+def _not_on_the_tab(sources, menu: str, texts: dict[str, str]) -> list[str]:
+    """Each "<menu> → <tab> → X" whose X isn't on the tab: `texts` maps each tab's label to what it shows."""
     starts = {tab: _starts(t) for tab, t in texts.items()}
-    deeper = re.compile(r"\bSettings" + ARROW + "(" + "|".join(re.escape(t) for t in texts) + ")" + ARROW)
+    deeper = re.compile(r"\b" + menu + ARROW + "(" + "|".join(re.escape(t) for t in texts) + ")" + ARROW)
     bad = []
     for name, text in sources:
         for m in deeper.finditer(text):
@@ -261,6 +323,21 @@ def _bad_mapping_tabs(sources) -> list[str]:
     tabs = _mapping_tabs()
     return [f"{name}: …{_where(text, m.start())}…" for name, text in sources
             for m in MAPPING_PATH.finditer(text) if not _labels_ok(text[m.end():], tabs)]
+
+
+def _bad_german_paths(sources) -> list[str]:
+    """Rules 5 to 8: German text names Settings and Mapping as the German panel shows them."""
+    tabs = [_german(t) for t in _settings_tabs()] + _basic_buttons(german=True) + list(HA_PAGES_DE) + list(HA_PAGES)
+    mapping = [_german(t) for t in _mapping_tabs()]
+    checks = (
+        (SETTINGS_PATH_DE, tabs, "not a tab of the German panel's Settings"),
+        (MAPPING_PATH_DE, mapping, "not a tab of the German panel's Mapping"),
+        (SETTINGS_PATH, HA_PAGES, "the German panel's menu says Einstellungen"),
+        (MAPPING_PATH, (), "the German panel's menu says Karten"),
+    )
+    bad = [f"{name}: …{_where(text, m.start())}…  ({why})" for name, text in sources
+           for path, labels, why in checks for m in path.finditer(text) if not _labels_ok(text[m.end():], labels)]
+    return bad + _not_on_the_tab(sources, "Einstellungen", _german_tab_texts())
 
 
 def _ha_min() -> tuple[int, int]:
@@ -303,6 +380,12 @@ def test_the_labels_are_read_from_the_panel() -> None:
     names = [n for n, _ in _sources(True)]
     assert "site/guides/get-started/de/index.html" in names and "help_content.js" in names
     assert "docs/manual/README.md" in names and "docs/manual/03-install-update-uninstall.md" in names
+    # The German names, read from i18n/de: if a translation goes, the check below says so.
+    assert _german("Tracking") == "Ortung" and "Ortung" in _german_tab_texts() and "Leistung" in _german_tab_texts()["Ortung"]
+    assert "Gast-Tags" in _basic_buttons(german=True) and {"Aufteilung", "3D-Stapel", "Atlas-Editor"} <= {_german(t) for t in _mapping_tabs()}
+    assert "Wall screens" in _german_tab_texts()["Atlas"]   # still English there
+    de_names = [n for n, _ in _german_sources()]
+    assert "site/guides/get-started/de/index.html" in de_names and "docs/manual/de/README.md" in de_names
 
 
 def test_every_settings_path_names_a_real_tab() -> None:
@@ -314,6 +397,13 @@ def test_every_settings_path_names_a_real_tab() -> None:
 def test_every_deeper_settings_path_is_on_that_tab() -> None:
     bad = _bad_deeper_settings(_sources(True))
     assert not bad, "These name something in Settings on a tab that doesn't show it:\n" + "\n".join(bad)
+
+
+def test_every_german_path_names_what_the_german_panel_shows() -> None:
+    bad = _bad_german_paths(_german_sources())
+    assert not bad, ("These name a Settings or Mapping tab the German panel doesn't show (its Settings tabs: "
+                     f"{', '.join(_german(t) for t in _settings_tabs())}; its Mapping tabs: "
+                     f"{', '.join(_german(t) for t in _mapping_tabs())}):\n" + "\n".join(bad))
 
 
 def test_every_mapping_path_names_a_real_tab() -> None:
@@ -345,3 +435,28 @@ def test_it_catches_the_drift_it_was_written_for(sentence: str) -> None:
     src = [("example", sentence)]
     found = _bad_settings_tabs(src) + _bad_deeper_settings(src) + _bad_mapping_tabs(src) + _bad_ha_minimum(src)
     assert found, f"no check caught {sentence!r}"
+
+
+@pytest.mark.parametrize("sentence", [
+    "Schalte unter <b>Einstellungen → Tracking → Leistung</b> den Speichersparmodus ein.",   # the English tab
+    "Der Speichersparmodus ist unter Einstellungen → Präsenz.",
+    "Wähl in <b>Einstellungen → Atlas → 📺 Wandbildschirme</b> die Option Size for my room.",   # that card is English
+    "Einstellungen → Ortung → Wall screens",
+    "Räume ohne Bild legst du unter <b>Karten → Räume</b> an.",
+    "Die fünf Minuten änderst du unter <b>Settings → Tracking → Rooms and timing</b>.",   # the English menu
+    "Öffne <b>Mapping → Aufteilung</b>.",
+])
+def test_the_german_check_catches_a_wrong_name(sentence: str) -> None:
+    assert _bad_german_paths([("example", sentence)]), f"no check caught {sentence!r}"
+
+
+@pytest.mark.parametrize("sentence", [
+    "Schalte unter <b>Einstellungen → Ortung → Leistung</b> den <b>Speichersparmodus</b> ein.",
+    "Wähl in <b>Einstellungen → Atlas → 📺 Wall screens</b> die Option Size for my room.",
+    "Du kannst Pro unter <b>Einstellungen → Funktionen → PadSpan-Lizenz</b> testen.",
+    "Leg sie unter <b>Karten → Aufteilung</b> an und richte sie unter <b>Karten → 3D-Stapel</b> aus.",
+    "Prüf unter <b>Einstellungen → Bereiche, Labels &amp; Zonen</b>, ob sein Bereich stimmt.",
+    "in der Doku der App, auf Englisch: <b>Settings → Companion app → Manage sensors</b>",
+])
+def test_the_german_check_passes_a_german_name(sentence: str) -> None:
+    assert not _bad_german_paths([("example", sentence)])

@@ -16,7 +16,7 @@
   },
   {
    "en": "The most comprehensive BLE room-presence system for Home Assistant. It doesn't just know you're home — it knows <b>which room</b> every Bluetooth device is in, updated every 5 seconds.",
-   "de": "Das umfassendste BLE-System für Anwesenheit pro Raum in Home Assistant. Es weiß nicht nur, dass du zu Hause bist, sondern <b>in welchem Raum</b> jedes Bluetooth-Gerät gerade ist, alle 5 Sekunden aktualisiert. Die Oberfläche von PadSpan ist derzeit auf Englisch."
+   "de": "Das umfassendste BLE-System für Anwesenheit pro Raum in Home Assistant. Es weiß nicht nur, dass du zu Hause bist, sondern <b>in welchem Raum</b> jedes Bluetooth-Gerät gerade ist, alle 5 Sekunden aktualisiert. Die Oberfläche von PadSpan ist größtenteils auf Deutsch."
   },
   {
    "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
@@ -40,11 +40,11 @@
   },
   {
    "en": "It works with the BLE scanners you already have. Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly. ESPresense nodes arrive over MQTT, which you switch on in <b>Manage → ESPresense MQTT</b> and which needs Home Assistant's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.",
-   "de": "Es funktioniert mit den BLE-Scannern, die du schon hast. Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt. ESPresense-Knoten kommen über MQTT, das du unter <b>Manage → ESPresense MQTT</b> einschaltest; dafür muss die MQTT-Integration von Home Assistant eingerichtet sein. Keine eigene Firmware. Keine Abhängigkeit von einer Cloud. Das Tracking läuft lokal."
+   "de": "Es funktioniert mit den BLE-Scannern, die du schon hast. Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt. ESPresense-Knoten kommen über MQTT, das du unter <b>Verwalten → ESPresense MQTT</b> einschaltest; dafür muss die MQTT-Integration von Home Assistant eingerichtet sein. Keine eigene Firmware. Keine Abhängigkeit von einer Cloud. Das Tracking läuft lokal."
   },
   {
    "en": "What leaves your house: the daily <b>update check</b> (your version number, and your IP address as with any web request; Settings → Tracking → Privacy, updates and feedback → Update Check turns it off) and a daily licence check if you have a key. Device makers come from the device's own broadcast and lists built into PadSpan, so nothing is sent for those. Only if you say so: the <b>opt-in usage report</b> is counts, versions and flags, plus a random install ID and the country and language set in Home Assistant — never names, addresses or contact details — and a Preview shows the exact data first. Starting the free 90-day PadSpan Pro trial or claiming a Pro invite sends the email address the key is issued to. <b>Become a tester</b> is separate from the usage report: you choose what to send and see it before it goes, it goes to the developer only, it is kept until you withdraw (<b>Stop being a tester</b> deletes it), and it is never shared or sold.",
-   "de": "Was dein Haus verlässt: die tägliche <b>Update-Prüfung</b> (deine Versionsnummer und, wie bei jeder Webanfrage, deine IP-Adresse; Settings → Tracking → Privacy, updates and feedback → Update Check schaltet sie aus) und mit Lizenzschlüssel eine tägliche Lizenzprüfung. Gerätehersteller stammen aus dem, was das Gerät selbst aussendet, und aus Listen, die in PadSpan eingebaut sind; dafür wird nichts gesendet. Nur wenn du zustimmst: Der <b>freiwillige Nutzungsbericht</b> (opt-in) enthält Zählwerte, Versionen und Schalter, dazu eine zufällige Installations-ID sowie das in Home Assistant eingestellte Land und die Sprache, nie Namen, Adressen oder Kontaktdaten, und eine Vorschau zeigt dir vorher genau, was gesendet wird. Wer die kostenlose 90-Tage-Testphase von PadSpan Pro startet oder eine Pro-Einladung annimmt, schickt die E-Mail-Adresse, für die der Schlüssel ausgestellt wird. <b>Become a tester</b> ist vom Nutzungsbericht getrennt: Du entscheidest, was du schickst, und siehst es, bevor es rausgeht. Es geht nur an den Entwickler, bleibt gespeichert, bis du es zurückziehst (<b>Stop being a tester</b> löscht es), und wird nie weitergegeben oder verkauft."
+   "de": "Was dein Haus verlässt: die tägliche <b>Update-Prüfung</b> (deine Versionsnummer und, wie bei jeder Webanfrage, deine IP-Adresse; Einstellungen → Ortung → Datenschutz, Updates und Feedback → Update-Prüfung schaltet sie aus) und mit Lizenzschlüssel eine tägliche Lizenzprüfung. Gerätehersteller stammen aus dem, was das Gerät selbst aussendet, und aus Listen, die in PadSpan eingebaut sind; dafür wird nichts gesendet. Nur wenn du zustimmst: Der <b>freiwillige Nutzungsbericht</b> (opt-in) enthält Zählwerte, Versionen und Schalter, dazu eine zufällige Installations-ID sowie das in Home Assistant eingestellte Land und die Sprache, nie Namen, Adressen oder Kontaktdaten, und eine Vorschau zeigt dir vorher genau, was gesendet wird. Wer die kostenlose 90-Tage-Testphase von PadSpan Pro startet oder eine Pro-Einladung annimmt, schickt die E-Mail-Adresse, für die der Schlüssel ausgestellt wird. <b>Become a tester</b> ist vom Nutzungsbericht getrennt: Du entscheidest, was du schickst, und siehst es, bevor es rausgeht. Es geht nur an den Entwickler, bleibt gespeichert, bis du es zurückziehst (<b>Stop being a tester</b> löscht es), und wird nie weitergegeben oder verkauft."
   },
   {
    "en": "In use",
@@ -404,7 +404,7 @@
   },
   {
    "en": "PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas builder</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.",
-   "de": "PadSpan kennt die Form deines Hauses schon in Metern: die Räume, die Etagen, die Wände. <b>Mapping → Atlas builder</b> setzt deine Lichter, Ventilatoren, Bewegungs- und Temperatursensoren, Schlösser sowie Türen und Fenster aus Home Assistant auf genau diesen Plan. So siehst und schaltest du sie dort, wo sie wirklich sind, statt eine Liste von Entitätsnamen zu durchsuchen. Die fertige Karte ist <b>der Atlas</b>: eine eigene Seite in der Seitenleiste von Home Assistant und ein gutes Wanddisplay."
+   "de": "PadSpan kennt die Form deines Hauses schon in Metern: die Räume, die Etagen, die Wände. <b>Karten → Atlas-Editor</b> setzt deine Lichter, Ventilatoren, Bewegungs- und Temperatursensoren, Schlösser sowie Türen und Fenster aus Home Assistant auf genau diesen Plan. So siehst und schaltest du sie dort, wo sie wirklich sind, statt eine Liste von Entitätsnamen zu durchsuchen. Die fertige Karte ist <b>der Atlas</b>: eine eigene Seite in der Seitenleiste von Home Assistant und ein gutes Wanddisplay."
   },
   {
    "en": "Free, in every install <span class=\"pill free\">No key</span>",
@@ -788,7 +788,7 @@
   },
   {
    "en": "Give each scanner its Home Assistant area. <b>Who's where now</b> then puts each device in the room of the scanner that hears it best, with no floor plan",
-   "de": "Gib jedem Scanner seinen Home-Assistant-Bereich. <b>Who's where now</b> ordnet dann jedes Gerät dem Raum des Scanners zu, der es am besten hört, ganz ohne Grundriss"
+   "de": "Gib jedem Scanner seinen Home-Assistant-Bereich. <b>Wer ist wo</b> ordnet dann jedes Gerät dem Raum des Scanners zu, der es am besten hört, ganz ohne Grundriss"
   },
   {
    "en": "Name your phones and tags to get their Home Assistant entities",
@@ -796,7 +796,7 @@
   },
   {
    "en": "Want the map? <b>Make it a map</b> walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, <b>Put it on the map</b>",
-   "de": "Du willst die Karte? <b>Make it a map</b> führt dich durch: Grundriss hochladen, Maßstab festlegen, Räume zeichnen, Scanner platzieren, <b>Put it on the map</b>"
+   "de": "Du willst die Karte? <b>Eine Karte daraus machen</b> führt dich durch: Grundriss hochladen, Maßstab festlegen, Räume zeichnen, Scanner platzieren, <b>Auf die Karte setzen</b>"
   },
   {
    "en": "Every step, with pictures: <a href=\"/guides/get-started/\">From the Marketplace to your first room</a>",
@@ -912,7 +912,7 @@
   },
   {
    "en": "Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version></span>. Enter your key under Settings → Features → PadSpan licence.",
-   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.37.0</span>. Gib deinen Schlüssel unter Settings → Features → PadSpan licence ein."
+   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.37.0</span>. Gib deinen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein."
   },
   {
    "en": "Already have PadSpan Bright Pro?",
@@ -1216,7 +1216,7 @@
   },
   {
    "en": "<span class=\"yes\">✓</span> built in (Follow)",
-   "de": "<span class=\"yes\">✓</span> eingebaut (Follow)"
+   "de": "<span class=\"yes\">✓</span> eingebaut (Folgen)"
   },
   {
    "en": "With your own HA automations",
@@ -1280,7 +1280,7 @@
   },
   {
    "en": "<b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.",
-   "de": "<b>Teste es.</b> Tester bekommen zwei Jahre PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
+   "de": "<b>Teste es.</b> Tester bekommen zwei Jahre PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Einstellungen → Ortung → Datenschutz, Updates und Feedback → Hilf, PadSpan besser zu machen. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
   }
  ],
  "attrs": {
