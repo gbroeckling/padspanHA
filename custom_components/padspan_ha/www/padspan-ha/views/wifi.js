@@ -173,6 +173,23 @@ async function load(ctx) {
     s.loading = false;
   }
   if (ctx.state.view === "wifi") ctx.actions.renderRooms();
+  again(ctx, REFRESH_MS);
+}
+
+/** The panel's poll redraws only its live views, so this one asks again by itself each minute
+ *  while it is open: not on another tab, not when the panel has gone, and not under an open picker. */
+function again(ctx, ms) {
+  const s = st(ctx);
+  clearTimeout(s.timer);
+  s.timer = setTimeout(() => {
+    s.timer = 0;
+    if (ctx.state.view !== "wifi" || (s.root && s.root.isConnected === false)) return;  // the next visit loads afresh
+    const rn = s.root && s.root.getRootNode ? s.root.getRootNode() : null;
+    const a = rn && rn.activeElement;
+    if (a && a.tagName === "SELECT" && s.root.contains(a)) { again(ctx, 15000); return; }
+    load(ctx);
+  }, ms);
+  if (s.timer && s.timer.unref) s.timer.unref();   // node (the tests): never what keeps it running
 }
 
 async function loadLinks(ctx) {
@@ -224,6 +241,7 @@ export function render(ctx) {
   const { el } = ctx.helpers;
   const s = st(ctx);
   const root = el("div", { id: "wifi" });
+  s.root = root;
   root.appendChild(el("div", { style: "margin-bottom:12px" }, [
     el("div", { style: "font-weight:700;font-size:16px;color:#38bdf8" }, "Wi-Fi coverage"),
     el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.5" },
@@ -235,19 +253,21 @@ export function render(ctx) {
     return root;
   }
   const D = s.data;
-  const floorsWithData = new Set([...(D.cells || []).map((c) => c.floor), ...(D.fixed || []).map((f) => f.floor)]);
+  // 2.4 and 5 GHz always have their button, measured or not yet (a 6 GHz one when there are readings).
+  const bands = [...new Set(["2.4", "5", ...(D.bands || [])])].sort((a, b) => Number(a) - Number(b));
+  if (!s.band || !bands.includes(s.band)) s.band = (D.bands || []).includes("5") ? "5" : ((D.bands || [])[0] || "5");
+  const inBand = (x) => x.band === s.band;
+  const floorsWithData = new Set([...(D.cells || []), ...(D.rooms || []), ...(D.fixed || [])].filter(inBand).map((c) => c.floor));
   const floors = ((ctx.state.model && ctx.state.model.floors) || []).map((f) => ({ id: f.id || f.floor_id, name: f.name || f.id }))
     .filter((f) => f.id && (floorsWithData.has(f.id) || floorRooms(ctx.state.model, f.id).length));
   if (!s.floor || !floors.some((f) => f.id === s.floor)) s.floor = (floors.find((f) => floorsWithData.has(f.id)) || floors[0] || {}).id || null;
-  const bands = (D.bands || []).length ? D.bands : ["5"];
-  if (!s.band || !bands.includes(s.band)) s.band = bands.includes("5") ? "5" : bands[0];
 
   const bar = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px" });
   for (const f of floors) bar.appendChild(chip(ctx, f.name, f.id === s.floor, () => { s.floor = f.id; ctx.actions.renderRooms(); }, { "data-wifi-floor": f.id }));
   bar.appendChild(el("span", { style: "width:12px" }));
   for (const b of bands) bar.appendChild(chip(ctx, `${b} GHz`, b === s.band, () => { s.band = b; ctx.actions.renderRooms(); }, { "data-wifi-band": b }));
   if ((D.aps || []).length > 1) {
-    const sel = el("select", { class: "select", style: "font-size:12px;margin-left:8px", "data-wifi": "ap" });
+    const sel = el("select", { class: "select", style: "width:auto;font-size:12px;padding:3px 8px;margin-left:8px", "data-wifi": "ap" });
     for (const [v, t] of [["*", "All access points"], ...D.aps.map((a) => [a.mac, a.name])]) {
       const o = el("option", { value: v }, t);
       if (v === s.ap) o.selected = true;

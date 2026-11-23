@@ -10,6 +10,8 @@
 //   view     floors with data, the band chips, room readings, placed devices,
 //            the counts line, the links card for an administrator only
 //   answer   no UniFi Blocker: said in words, nothing drawn
+//   bands    2.4 and 5 GHz always have a button; a room-only reading counts for its floor
+//   refresh  it asks again each minute by itself while open, never under an open picker
 //
 // usage: wifi.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -142,6 +144,62 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   check("no UniFi Blocker: said in words, nothing drawn", /didn't answer/.test(text(root)) && !q(root, '[data-wifi="map"]'));
   check("probe: no UniFi Blocker is no", (await W.probe(ctx.actions.callWS)) === false);
   check("probe: an answer with a version is yes", (await W.probe(host().ctx.actions.callWS)) === true);
+}
+
+// Both bands always have their button; the first floor is one with readings in the band shown.
+{
+  const only24 = { ...DATA, bands: ["2.4"], cells: [], rooms: [],
+    fixed: [{ name: "wled-kitchen", kind: "device", floor: "main", x: 3, y: 2, band: "2.4", ap: "AP Garage", median: -48, n: 12 }] };
+  const { ctx } = host({ data: only24 });
+  W.render(ctx); await tick(); await tick();
+  const root = W.render(ctx);
+  const bands = all(root, "[data-wifi-band]").map((b) => b.getAttribute("data-wifi-band"));
+  check("2.4 and 5 GHz buttons even before any 5 GHz reading", bands.join() === "2.4,5", bands);
+  check("nothing on 5 GHz yet: starts on 2.4 GHz, on its floor", ctx.state._wifi.band === "2.4" && ctx.state._wifi.floor === "main", ctx.state._wifi);
+  // A phone reading with a room but no spot (PadSpan had the room, not yet the place) still shows.
+  const roomOnly = { ...DATA, bands: ["2.4", "5"], cells: [],
+    rooms: [{ floor: "upper", band: "5", room: "Office", median: -90, n: 3 }],
+    fixed: only24.fixed };
+  const h2 = host({ data: roomOnly });
+  W.render(h2.ctx); await tick(); await tick();
+  const r2 = W.render(h2.ctx);
+  check("a room-only 5 GHz reading: starts on 5 GHz on that room's floor, in the room list",
+    h2.ctx.state._wifi.band === "5" && h2.ctx.state._wifi.floor === "upper" && /Office/.test(text(q(r2, '[data-wifi="rooms"]'))), h2.ctx.state._wifi);
+  check("the access point picker is as wide as its names", /width:auto/.test(q(r2, '[data-wifi="ap"]').getAttribute("style") || ""));
+}
+
+// It asks again by itself each minute while it is open (the panel's poll redraws only live views).
+{
+  const realST = globalThis.setTimeout, realCT = globalThis.clearTimeout;
+  const timers = [];
+  globalThis.setTimeout = (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; };
+  globalThis.clearTimeout = (t) => { if (t) t.cleared = true; };
+  const live = () => timers.filter((t) => !t.cleared && !t.fired);
+  const fire = async () => { const t = live().pop(); t.fired = true; t.fn(); await tick(); await tick(); };
+  try {
+    const { ctx, calls } = host();
+    W.render(ctx); await tick(); await tick();
+    check("after an answer: asks again in a minute, one timer only", live().length === 1 && live()[0].ms === 60000, timers.map((t) => t.ms));
+    const before = ctx._renders || 0;
+    await fire();
+    check("a minute on the tab: asked again and redrawn", calls.length === 2 && (ctx._renders || 0) > before && live().length === 1, calls.length);
+    const S = ctx.state._wifi;
+    const realRoot = S.root;
+    S.root = { isConnected: true, contains: () => true, getRootNode: () => ({ activeElement: { tagName: "SELECT" } }) };
+    await fire();
+    check("a picker open: not redrawn under it, looked at again in 15 s", calls.length === 2 && live().length === 1 && live()[0].ms === 15000);
+    S.root = realRoot;
+    ctx.state.view = "overview";
+    await fire();
+    check("on another tab: not asked, and no timer left", calls.length === 2 && live().length === 0);
+    ctx.state.view = "wifi"; S.ts = 0;
+    W.render(ctx); await tick(); await tick();
+    S.root = { isConnected: false };
+    await fire();
+    check("the panel gone: not asked, and no timer left", calls.length === 3 && live().length === 0, calls.length);
+  } finally {
+    globalThis.setTimeout = realST; globalThis.clearTimeout = realCT;
+  }
 }
 
 console.log(JSON.stringify({ cases, failures }));
