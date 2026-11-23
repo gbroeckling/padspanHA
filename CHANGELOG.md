@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.287 — A fairer accuracy score; PDF floor plans (2026-11-23)
+
+### New
+- **PDF floor plans in Mapping → Upload.** Pick a PDF the way you pick a picture. PadSpan draws the page in your browser, and the upload goes on as for any image, with the same crop, size and scale steps. When a PDF has several pages, you choose the one with the plan. Drawn plans (an architect's or a builder's export) stay sharp because the page is drawn, not photographed. Black-and-white scans from an office scanner or a permit office work too. A password-protected or broken PDF says so. Nothing extra loads unless you pick a PDF.
+
+### Fixed
+- **Calibration's "How accurate it is now" counts only what it can test.** Four changes to how the score is worked out:
+  - A room calibrated at one spot only is listed as not counted. It used to count as wrong, because the test holds out the spot and its neighbours and nothing of that room was left.
+  - A spot's true room is the room drawn where it stands, not a label that disagrees with it. How many disagree is shown.
+  - Spots heard by a single receiver are left out, as live tracking leaves them out.
+  - In a big calibration, each room is tested in proportion to its spots.
+  On a real house the score went from 4 % to 29 % rooms right for fingerprints, and from 12 % to 28 % for spatial, on the same data.
+  Nothing about how positions are worked out changed. If you turned on "pick the better method", the comparison it makes now uses this fairer score. The opt-in report counts how many rooms couldn't be tested (a number, never a name).
+
+---
+
 ## 0.38.286 — Wi-Fi coverage says what to fix (2026-11-23)
 
 ### New
