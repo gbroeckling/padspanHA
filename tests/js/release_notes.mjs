@@ -12,12 +12,13 @@
 //
 // usage: node release_notes.mjs <views/release_notes.js> <assets/whatsnew.json>
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { install } from "./dom_shim.mjs";
 
-const [MOD, JSON_PATH] = process.argv.slice(2);
-if (!MOD || !JSON_PATH) { console.error("usage: release_notes.mjs <release_notes.js> <whatsnew.json>"); process.exit(2); }
+const [MOD, JSON_PATH, CHANGELOG_D] = process.argv.slice(2);
+if (!MOD || !JSON_PATH) { console.error("usage: release_notes.mjs <release_notes.js> <whatsnew.json> [changelog.d]"); process.exit(2); }
 
 install(globalThis);
 // The shim's window listeners are no-ops; Escape needs real ones.
@@ -245,6 +246,22 @@ await t("whatsnew.json: every release renders, with no markdown left showing", (
   assert(qa(out, "li").length > SHIPPED.length, "bullets did not become list items");
   noMarkup(out);
 });
+
+// The notes waiting in changelog.d/ render the same way once a release gathers
+// them into whatsnew.json: a note that leaves markdown showing fails here, on
+// its branch, not on the release's tag (v0.38.280: `**REDACTED**` in code).
+if (CHANGELOG_D) {
+  await t("changelog.d: every waiting note renders, with no markdown left showing", () => {
+    const names = readdirSync(CHANGELOG_D).filter(f => f.endsWith(".md") && f.toLowerCase() !== "readme.md");
+    for (const f of names) {
+      const body = readFileSync(join(CHANGELOG_D, f), "utf8").replace(/\r\n/g, "\n")
+        .split("\n").filter(l => !/^# /.test(l)).join("\n").trim();
+      if (!body) continue;
+      const text = N.renderNotesMarkdown(body).textContent;
+      for (const s of ["**", "](", "### ", "\n- "]) assert(!text.includes(s), `${f}: raw markdown ${JSON.stringify(s)}`);
+    }
+  });
+}
 
 await t("dates read as words, and the day is not moved by the time zone", () => {
   assert(N.formatNoteDate("2026-09-28") === "28 September 2026", N.formatNoteDate("2026-09-28"));
