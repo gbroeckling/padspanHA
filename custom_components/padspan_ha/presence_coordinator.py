@@ -471,30 +471,6 @@ _POSITION_MAX_SIGMA_M = 5.0
 # the metre twin of the strongest-scanner path's 3 dB.
 _SPATIAL_HYST_M: float = 0.75
 
-# STUDY HOOK (hall-hysteresis, WIP): the spatial hysteresis rule. "asis" = 0.75 m.
-_HELD_VARIANT = "asis"
-
-
-def _study_hyst_m(new_geo, cur_geo) -> float:
-    v = _HELD_VARIANT
-    if v == "asis" or not v:
-        return _SPATIAL_HYST_M
-    if v == "h0":
-        return 0.0
-    if v.startswith("c"):
-        return float(v[1:])
-    bb = _fabric_truth.geom_bbox_m(new_geo) if isinstance(new_geo, dict) else None
-    if not bb:
-        return _SPATIAL_HYST_M
-    if v.startswith("f"):          # a share of the new room's narrow side
-        return min(_SPATIAL_HYST_M, float(v[1:]) * min(bb[2] - bb[0], bb[3] - bb[1]))
-    if v.startswith("d"):          # a share of how deep the new room goes from the current one
-        corners = ((bb[0], bb[1]), (bb[2], bb[1]), (bb[2], bb[3]), (bb[0], bb[3]))
-        ds = [_fabric_truth.room_distance_m(cur_geo, x, y) for x, y in corners]
-        ds = [d for d in ds if d is not None]
-        return min(_SPATIAL_HYST_M, float(v[1:]) * max(ds)) if ds else _SPATIAL_HYST_M
-    return _SPATIAL_HYST_M
-
 # The standard error of a single range, in metres, below which we do not
 # believe our own measurements.
 #
@@ -2544,8 +2520,6 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # drop that size elsewhere in the same poll (the scanner it walked away
         # from). A drop alone may be a fade and keeps the ordinary gain.
         _moved = any(src in ema and _jump(src, rssi) > _RISE_SIGMAS for src, rssi in live_srcs.items())
-        if _moved:   # STUDY HOOK (hall-hysteresis)
-            self.__dict__.setdefault("_study_moved_t", {})[key] = _t_now
         _first_heard = {src for src in live_srcs if src not in ema}
 
         # Kalman update for sources that reported this poll.
@@ -2991,13 +2965,6 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             _in_building = _fabric_truth.inside_building_footprint(
                                 _est_x, _est_y, self._floor_rooms.get(str(_best_floor or "main"))
                             )
-                            # STUDY HOOK (hall-hysteresis): the raw geo room per poll
-                            _gh = self.__dict__.setdefault("_study_geo_hist", {}).setdefault(key, [])
-                            _gh.append(_geo_room)
-                            del _gh[:-20]
-                            _xh = self.__dict__.setdefault("_study_xy_hist", {}).setdefault(key, [])
-                            _xh.append((_est_x, _est_y))
-                            del _xh[:-20]
                             # Hysteresis, as the strongest-scanner path has in
                             # dB: a position only just over the line into the
                             # next room is still the room it is in. A still
@@ -3005,81 +2972,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             # with the noise, and with no margin every wander
                             # across a wall was a vote for next door.
                             if _geo_room and _cur_confirmed and _geo_room != _cur_confirmed:
-                                _fl_rooms_h = self._floor_rooms.get(str(_best_floor or "main")) or {}
                                 _d_cur = _fabric_truth.room_distance_m(
-                                    _fl_rooms_h.get(_cur_confirmed),
+                                    (self._floor_rooms.get(str(_best_floor or "main")) or {}).get(_cur_confirmed),
                                     _est_x, _est_y)
-                                _hm = _study_hyst_m(_fl_rooms_h.get(_geo_room), _fl_rooms_h.get(_cur_confirmed))
-                                _v = _HELD_VARIANT or ""
-                                if _v.startswith("mv"):
-                                    # off for N s after a poll that saw the device move
-                                    _mt = self.__dict__.get("_study_moved_t", {}).get(key)
-                                    if _mt is not None and _t_now - _mt <= float(_v[2:]):
-                                        _hm = 0.0
-                                elif _v.startswith("av"):
-                                    # the hysteresis judges the mean of the last K positions:
-                                    # avK_H (H metres) or avfK_F (F x the new room's narrow side, max 0.75)
-                                    _f = _v.startswith("avf")
-                                    _k, _h = _v[3 if _f else 2:].split("_")
-                                    _xh = self.__dict__.get("_study_xy_hist", {}).get(key) or [(_est_x, _est_y)]
-                                    _xs = _xh[-int(_k):]
-                                    _mx = sum(p[0] for p in _xs) / len(_xs)
-                                    _my = sum(p[1] for p in _xs) / len(_xs)
-                                    _d_cur = _fabric_truth.room_distance_m(_fl_rooms_h.get(_cur_confirmed), _mx, _my)
-                                    if _f:
-                                        _bb = _fabric_truth.geom_bbox_m(_fl_rooms_h.get(_geo_room) or {})
-                                        _hm = (min(_SPATIAL_HYST_M, float(_h) * min(_bb[2] - _bb[0], _bb[3] - _bb[1]))
-                                               if _bb else _SPATIAL_HYST_M)
-                                    else:
-                                        _hm = float(_h)
-                                elif _v.startswith("pk"):
-                                    # off when the new room was where the solve put the device in N of the last M polls
-                                    _n, _m = (int(p) for p in _v[2:].split("_"))
-                                    _hist = self.__dict__.setdefault("_study_geo_hist", {}).setdefault(key, [])
-                                    if sum(1 for g in _hist[-_m:] if g == _geo_room) >= _n:
-                                        _hm = 0.0
-                                elif _v.startswith("mr"):
-                                    # off when moved within N s AND the new room's own scanner leads by X dB
-                                    _n, _x = (float(p) for p in _v[2:].split("_"))
-                                    _mt = self.__dict__.get("_study_moved_t", {}).get(key)
-                                    if _mt is not None and _t_now - _mt <= _n:
-                                        _best = {}
-                                        for _s, _r in ema.items():
-                                            if _miss.get(_s, 0) > _grace(_s):
-                                                continue
-                                            _rm = source_to_area.get(_s)
-                                            if _rm and _r > _best.get(_rm, -999.0):
-                                                _best[_rm] = _r
-                                        _own = _best.get(_geo_room)
-                                        _oth = max((r for k, r in _best.items() if k != _geo_room), default=-999.0)
-                                        if _own is not None and _own - _oth >= _x:
-                                            _hm = 0.0
-                                elif _v.startswith("rb"):
-                                    # off while the new room's own scanner leads every other room by X dB
-                                    _best: dict = {}
-                                    for _s, _r in ema.items():
-                                        if _miss.get(_s, 0) > _grace(_s):
-                                            continue
-                                        _rm = source_to_area.get(_s)
-                                        if _rm and _r > _best.get(_rm, -999.0):
-                                            _best[_rm] = _r
-                                    _own = _best.get(_geo_room)
-                                    _oth = max((r for k, r in _best.items() if k != _geo_room), default=-999.0)
-                                    if _own is not None and _own - _oth >= float(_v[2:]):
-                                        _hm = 0.0
-                                elif _v.startswith("ld"):
-                                    # off while the new room's own scanner leads the SHOWN room's by X dB
-                                    _best = {}
-                                    for _s, _r in ema.items():
-                                        if _miss.get(_s, 0) > _grace(_s):
-                                            continue
-                                        _rm = source_to_area.get(_s)
-                                        if _rm and _r > _best.get(_rm, -999.0):
-                                            _best[_rm] = _r
-                                    _own = _best.get(_geo_room)
-                                    if _own is not None and _own - _best.get(_cur_confirmed, _EMA_SILENCE_DBM) >= float(_v[2:]):
-                                        _hm = 0.0
-                                if _d_cur is not None and _d_cur < _hm:
+                                if _d_cur is not None and _d_cur < _SPATIAL_HYST_M:
                                     self._spatial_debug[key] += f">{_geo_room}(held:{_d_cur:.1f}m)"
                                     _geo_room = _cur_confirmed
                             if _geo_room:
