@@ -4,14 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.281 — The manual says what the panel says (2026-11-22)
-
-### Fixed
-- **The manual names what the panel shows.** Its translators found places where the English disagreed with the panel, and each is now fixed in English and German, here and on padspan.traks.ca/manual/. Troubleshooting names Health's ROOMS MIXED UP and FLOOR PLAN cards, the IRK Manager's Test only button and a receiver's Silent … min. The update check is switched off in Settings → Tracking → Privacy, updates and feedback → Update Check. Whole house presets is spelled as the Atlas spells it. A busy house's full update is about 2.2 MB a screen in both the wall-screen and the performance chapters. The AI chapter's only COMING SOON row is Ask your voice assistant where someone is. The accuracy benchmark says that Record asks for the minutes first (1 to 60, 5 unless you change it), and says plainly how live smoothing differs from the per-reading score. Chapter 1 links the manual's own Pro chapter. The German chapters also give the robot vacuum switch its German labels and Room Change Delay's new 40-second default.
-
----
-
-## 0.38.280 — Why rooms jump: the guide says how the vote works with 40 seconds; The manual on the website, in English and German; Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow; Manage and Training in German, French and Dutch; The rest of Settings in German, French and Dutch; Steadier rooms (2026-11-22)
+## 0.38.281 — The manual on the website, in English and German, and it says what the panel says; Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow; Manage, Training and Settings in German, French and Dutch; Steadier rooms; Why rooms jump: the guide says how the vote works with 40 seconds (2026-11-22)
 
 ### New
 - **The PadSpan HA Manual is on the website**, at padspan.traks.ca/manual/: the contents page and a page for each of its 27 chapters and four appendices, with links between chapters and to each section. The pages are made from the manual in the repository every time it changes, so the website says what the manual says. The guides page and the home page link it, and PadSpan's entry in Home Assistant now points its documentation link there.
@@ -32,6 +25,7 @@ All notable changes to PadSpan HA are documented here.
 - **Room Change Delay is now 40 seconds unless you set it.** It was 20 seconds. On two recordings of a real house, 40 seconds cut room changes by about a third and the back-and-forth between two neighbouring rooms by about half, and a device lying still was put in the wrong room about a third less often. The cost: when you really move to another room, PadSpan usually shows it about 10 seconds later (on the recording, the carried phone's slowest move came 50 seconds later). If you saved a delay yourself in Settings → Tracking → Rooms and timing, 20 seconds included, PadSpan keeps yours.
 
 ### Fixed
+- **The manual names what the panel shows.** Its translators found places where the English disagreed with the panel, and each is now fixed in English and German, here and on padspan.traks.ca/manual/. Troubleshooting names Health's ROOMS MIXED UP and FLOOR PLAN cards, the IRK Manager's Test only button and a receiver's Silent … min. The update check is switched off in Settings → Tracking → Privacy, updates and feedback → Update Check. Whole house presets is spelled as the Atlas spells it. A busy house's full update is about 2.2 MB a screen in both the wall-screen and the performance chapters. The AI chapter's only COMING SOON row is Ask your voice assistant where someone is. The accuracy benchmark says that Record asks for the minutes first (1 to 60, 5 unless you change it), and says plainly how live smoothing differs from the per-reading score. Chapter 1 links the manual's own Pro chapter. The German chapters also give the robot vacuum switch its German labels and Room Change Delay's new 40-second default.
 - **Home Assistant's "Download diagnostics" hides the tags' addresses.** PadSpan's diagnostics file listed the room–tag map with each tag's key, and a key can be a device's Bluetooth address. Each key is now shown as REDACTED; the rooms and how many tags each has are kept.
 - Factory Reset's final warning showed "\n" as text instead of starting new lines.
 
