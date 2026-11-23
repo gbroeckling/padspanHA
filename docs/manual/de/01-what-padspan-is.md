@@ -66,7 +66,7 @@ Ist kein Schlüssel auf der Installation, hat **Einstellungen → Funktionen →
 Knopf **Start 90-day free trial**: ganz Pro für 90 Tage, ohne Kreditkarte, ein Testzeitraum pro
 Zuhause. Ein Administrator startet ihn. Dafür muss der Nutzungsbericht an sein, und er bleibt an, bis
 der Testzeitraum endet. Schlüssel und Preise stehen auf [padspan.traks.ca](https://padspan.traks.ca).
-Testzeitraum, Schlüssel, Zuhause und Tester erklärt [PadSpan Pro](../../PADSPAN_PRO.md).
+Testzeitraum, Schlüssel, Zuhause und Tester erklärt [Kapitel 25](25-padspan-pro.md).
 
 ## Passt es zu mir?
 

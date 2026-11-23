@@ -31,8 +31,10 @@ the room).
 ## Recording a walk in PadSpan
 
 1. Turn on **Settings → Features → RSSI Vector Capture** (off by default).
-2. In **Health**, under **RSSI Vector Capture**, choose **⏺ Record** and give it a label: the label
-   becomes the walk's name.
+2. In **Health**, under **RSSI Vector Capture**, choose **⏺ Record**. It asks first how many
+   minutes to record (1 to 60, 5 unless you change it): give enough for the whole walk, since the
+   recording stops itself when the time is up. Then give it a label: the label becomes the walk's
+   name.
 3. Carry the phone or tag. Each time you arrive in a room, pick it and choose **Mark room**. Typing
    the spot's x/y as well (metres, the map's own) gives metre errors and `--group-by position`.
 4. Stay 1 to 2 minutes in each room, moving around. **⏹ Stop**, then **Export .jsonl**.
@@ -135,8 +137,12 @@ What that does and doesn't show:
 
 ## Limits, plainly
 
-- Each reading is scored on its own. Live PadSpan smooths rooms over time, so it usually does better
-  on room changes and worse right after one; the `live` row from a capture shows the smoothed answer.
+- Each reading is scored on its own, so one stray reading counts as a wrong room. Live PadSpan
+  smooths rooms over time: a stray reading doesn't move a device, so while you stay in a room it is
+  usually right more often than these scores say. But it moves a device only once the new room has
+  kept winning for a while (up to the **Room Change Delay**, 40 seconds unless you changed it), so
+  just after you walk into another room it still shows the one you left, and is wrong more often than they say.
+  The `live` row from a capture shows the smoothed answer.
 - A walk is one person, one device, one afternoon. Several walks on different days, with doors in
   different states, are what make the number mean something.
 - The room you mark is only as true as your marking; `--settle` helps.

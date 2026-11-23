@@ -34,8 +34,10 @@ den Raum markiert hast).
 ## Einen Rundgang in PadSpan aufzeichnen
 
 1. Schalte **Einstellungen → Funktionen → RSSI Vector Capture** ein (ab Werk aus).
-2. Wähle in **Zustand** unter **RSSI-Aufnahme** **⏺ Aufnehmen** und gib der Aufnahme einen Namen: Er
-   wird der Name des Rundgangs.
+2. Wähle in **Zustand** unter **RSSI-Aufnahme** **⏺ Aufnehmen**. Zuerst fragt es, wie viele Minuten
+   es aufnehmen soll (1 bis 60, 5, wenn du nichts änderst): Gib genug für den ganzen Rundgang, denn
+   die Aufnahme hört von selbst auf, wenn die Zeit um ist. Dann gib der Aufnahme einen Namen: Er wird
+   der Name des Rundgangs.
 3. Trag das Handy oder den Tag bei dir. Jedes Mal, wenn du in einem Raum ankommst, wähle ihn aus und
    wähle **Raum markieren**. Tippst du dazu die x/y der Stelle ein (in Metern, wie die Karte selbst
    sie zählt), bekommst du Fehler in Metern und `--group-by position`.
@@ -142,9 +144,13 @@ Was das zeigt und was nicht:
 
 ## Grenzen, offen gesagt
 
-- Jeder Messwert wird für sich bewertet. Das laufende PadSpan glättet Räume über die Zeit, deshalb
-  schneidet es bei Raumwechseln meist besser ab und direkt nach einem schlechter; die Zeile `live` aus
-  einer Aufnahme zeigt die geglättete Antwort.
+- Jeder Messwert wird für sich bewertet, ein einzelner Ausreißer zählt also als falscher Raum. Das
+  laufende PadSpan glättet Räume über die Zeit: Ein Ausreißer verschiebt kein Gerät, und solange du
+  in einem Raum bleibst, liegt es meist öfter richtig, als diese Werte sagen. Es verschiebt ein Gerät
+  aber erst, wenn der neue Raum eine Weile vorn bleibt (bis zur **Verzögerung beim Raumwechsel**, 40
+  Sekunden, wenn du sie nicht geändert hast). Kurz nachdem du in einen anderen Raum gegangen bist,
+  zeigt es also noch den, aus dem du kommst, und liegt öfter falsch, als die Werte sagen. Die Zeile
+  `live` aus einer Aufnahme zeigt die geglättete Antwort.
 - Ein Rundgang ist eine Person, ein Gerät, ein Nachmittag. Erst mehrere Rundgänge an verschiedenen
   Tagen, mit Türen in verschiedenen Stellungen, geben der Zahl eine Bedeutung.
 - Der Raum, den du markierst, ist nur so richtig wie deine Markierung; `--settle` hilft.
