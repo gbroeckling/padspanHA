@@ -139,7 +139,7 @@ Mehr in [Kapitel 16](16-live-aboard.md).
 
 Jeder Bildschirm, der die Übersicht zeigt oder die 3D-Ansicht mit Personen, fragt Home Assistant alle
 5 Sekunden nach dem ganzen Live-Bild: in einem belebten Haus jedes vorbeikommende Bluetooth-Gerät,
-etwa 2 MB pro Bildschirm. Vier Bildschirme bewegen dann den ganzen Tag etwa 14 Mbit/s. Die flache
+etwa 2,2 MB pro Bildschirm. Vier Bildschirme bewegen dann den ganzen Tag etwa 14 Mbit/s. Die flache
 Atlas-Wand (`?kiosk=1`) fragt nicht danach.
 
 **Einstellungen → Ortung → Leistung → Für viele Bildschirme optimieren** (ab Werk aus) senkt das:

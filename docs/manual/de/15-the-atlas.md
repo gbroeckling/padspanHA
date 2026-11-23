@@ -12,7 +12,7 @@ für Leuchten heißt immer noch **Lights**.
 - **Kostenlos**: Etagen, Räume und eine Markierung pro Licht. Tipp auf eine Markierung oder ihre
   Zeile, um es zu schalten.
 - **PadSpan Pro**: echte Platzierung, Formen und Größen, Sensoren, Automorph, Showcase, die
-  Advanced-Steuerung für WLED, Whole House Presets, Vacation Mode und Öffner aus Relais.
+  Advanced-Steuerung für WLED, Whole house presets, Vacation Mode und Öffner aus Relais.
 
 **Einstellungen → Funktionen → PadSpan licence** hat einen einmaligen kostenlosen Testzeitraum von
 90 Tagen ([Kapitel 25](25-padspan-pro.md)). PadSpan Bright ist derselbe Atlas für sich allein, ohne
@@ -151,13 +151,13 @@ Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adap
   zur Wahl (Werkzeugleiste → Automorph).
 - **Die Presets-Leiste** speichert einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
   Etage, Abstand und Anordnung) unter einem Namen, und **Apply** holt ihn zurück.
-- **Whole House Presets** merkt sich das Haus selbst: **Set** hält den Zustand jedes Lichts und
+- **Whole house presets** merkt sich das Haus selbst: **Set** hält den Zustand jedes Lichts und
   Ventilators fest (an oder aus, Helligkeit, Farbe, Effekt, Ventilatorstufe), und **Apply** stellt
   das ganze Haus wieder so her, nachdem es gefragt hat. Schlösser sind nie dabei.
 
 ## Vacation Mode (Pro)
 
-Der erste Eintrag in der Liste Whole House Presets. Er lernt den Tagesablauf deines Hauses aus dem
+Der erste Eintrag in der Liste Whole house presets. Er lernt den Tagesablauf deines Hauses aus dem
 Verlauf von Home Assistant (jedes Licht, jeder Wochentag) und schaltet weiter Lichter passend dazu,
 mit etwas Zufall, damit es nicht nach einer Zeitschaltuhr aussieht, bis du ihn ausschaltest. Solange
 er läuft, sitzt ein Banner in der Mitte des Atlas, mit einem Schieber **Energy saving** (100 % folgt

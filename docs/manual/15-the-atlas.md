@@ -11,7 +11,7 @@ was called "Lights" until it grew past lighting; the filter chip for light fixtu
 
 - **Free**: floors, rooms and one marker per light. Tap a marker, or its row, to switch it.
 - **PadSpan Pro**: real placement, shapes and sizes, sensors, Automorph, Showcase, WLED's Advanced
-  controls, Whole House Presets, Vacation Mode, and openers built from relays.
+  controls, Whole house presets, Vacation Mode, and openers built from relays.
 
 **Settings → Features → PadSpan licence** has a one-time 90-day free trial
 ([chapter 25](25-padspan-pro.md)). PadSpan Bright is the same Atlas on its own, without presence
@@ -139,13 +139,13 @@ An administrator changes the wake-up and the curve. The sun curve is adapted fro
   Automorph).
 - **The presets bar** saves a whole look (theme, Automorph style, and if you like floor, spacing and
   layout) under a name, and **Apply** brings it back.
-- **Whole House Presets** remembers the house itself: **Set** keeps every light's and fan's state
+- **Whole house presets** remembers the house itself: **Set** keeps every light's and fan's state
   (on or off, brightness, colour, effect, fan speed), and **Apply** puts the whole house back that
   way, after asking. Locks are never included.
 
 ## Vacation Mode (Pro)
 
-The first entry in the Whole House Presets list. It learns your house's routine from Home
+The first entry in the Whole house presets list. It learns your house's routine from Home
 Assistant's history (each light, each day of the week) and keeps switching lights to match, with
 some randomness so it doesn't look like a timer, until you turn it off. While it runs, a banner sits
 in the middle of the Atlas with an **Energy saving** slider (100% follows the whole routine; lower

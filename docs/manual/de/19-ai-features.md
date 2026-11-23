@@ -27,8 +27,8 @@ lässt sich rückgängig machen. Einen Schalter auszuschalten blendet die Funkti
 hast, macht es nicht rückgängig.
 
 **Frag deinen Sprachassistenten, wo jemand ist** ist die einzige Zeile unter **Was sie für dich
-tut**, die als **DEMNÄCHST** markiert ist: Sie lässt sich noch nicht einschalten. Die eigenen „Wo ist“-Sätze von Assist funktionieren schon heute ohne KI:
-[Kapitel 14](14-home-assistant-reference.md).
+tut**, die als **DEMNÄCHST** markiert ist: Sie lässt sich noch nicht einschalten. Die eigenen
+„Wo ist“-Sätze von Assist funktionieren schon heute ohne KI: [Kapitel 14](14-home-assistant-reference.md).
 
 ## Eine KI verbinden
 
