@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.282",
+  "title": "The German guides name the German panel's buttons; The German manual names the German panel's labels; Wi-Fi coverage from UniFi Blocker (a test)",
+  "date": "2026-11-23",
+  "body_markdown": "### New\n- **Wi-Fi coverage, a test.** With UniFi Blocker's Wi-Fi survey installed, a new tab under Diagnose shows how strongly your access points hear each part of the house, measured in everyday use: phones while they sit still for a minute, and smart devices where PadSpan has them placed. It is drawn on PadSpan's own floor model in the radio map's colours, one map per band, with each room's typical reading. Without UniFi Blocker the tab does not appear and nothing changes.\n\n### Changed\n- **The German website guides name PadSpan's buttons and menus as the German panel shows them**, now that most of the panel is German: \"Einstellungen → Ortung → Leistung → Speichersparmodus\" where they said \"Settings → Tracking → Performance → Low-memory mode\", \"Wer ist wo\", \"Eine Karte daraus machen\", \"Kalibrierung → Modell\" and so on, in all fifteen guides. Where a screen is still English (the Atlas, Live Aboard, the Wall screens card, the Guests screen, the Claude room helper and the robot vacuum import), a guide keeps its English names and says so. The note that PadSpan's menus are in English is gone from the guides and from the German home page.\n\n### Fixed\n- **Der deutsche Handbuchtext nennt die Bezeichnungen, die das Panel jetzt auf Deutsch zeigt**: PadSpan-Lizenz, iPhone-Einrichtungsweg, MAC-Wechsel überbrücken, Forensik, Deine KI und die beiden Atlas-Schalter. (The German manual uses the panel's German names for these settings.)"
+ },
+ {
   "version": "0.38.281",
   "title": "The manual on the website, in English and German, and it says what the panel says; Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow; Manage, Training and Settings in German, French and Dutch; Steadier rooms; Why rooms jump: the guide says how the vote works with 40 seconds",
   "date": "2026-11-22",
@@ -76,11 +82,5 @@
   "title": "A fir for the plant, so a Christmas tree looks like one",
   "date": "2026-11-19",
   "body_markdown": "### New\n- **A plant can be a fir.** In Live Aboard's Build, Plant now offers \"fir\" beside bush, tree, palm and cactus: tiers of green that narrow to a point, on a short trunk, with or without a pot. It is the shape for a Christmas tree; a bush stretched to that height ended in a dark dome. A plant already in your house is unchanged."
- },
- {
-  "version": "0.38.267",
-  "title": "A wall that arranges its own floors covers no room; A wall stacks its floors as saved again",
-  "date": "2026-11-19",
-  "body_markdown": "### Changed\n- **A wall draws its floors one on top of the other, with the saved Spacing and L/R, as before.** For about an hour a wall arranged its floors for its own screen and stepped them sideways. That made the house larger and broke what a stack is for: reading the floors as one building. The stack is back as every wall's default. The arrangement stays for a wall whose link carries `?arrange=1`.\n- **The wall still measures how large the house is drawn** against what its screen allows, but it only moves in by itself on an arrangement it made, never on a saved stack.\n\n### Fixed\n- **On a wall whose link carries `?arrange=1`, no room sits under the floor above.** The arrangement allowed 2% of the whole house under a higher floor's plate, which on a real house was a third of one deck. No single room may now lose more than a sliver."
  }
 ]

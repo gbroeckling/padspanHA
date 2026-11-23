@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.282 — The German guides name the German panel's buttons; The German manual names the German panel's labels; Wi-Fi coverage from UniFi Blocker (a test) (2026-11-23)
+
+### New
+- **Wi-Fi coverage, a test.** With UniFi Blocker's Wi-Fi survey installed, a new tab under Diagnose shows how strongly your access points hear each part of the house, measured in everyday use: phones while they sit still for a minute, and smart devices where PadSpan has them placed. It is drawn on PadSpan's own floor model in the radio map's colours, one map per band, with each room's typical reading. Without UniFi Blocker the tab does not appear and nothing changes.
+
+### Changed
+- **The German website guides name PadSpan's buttons and menus as the German panel shows them**, now that most of the panel is German: "Einstellungen → Ortung → Leistung → Speichersparmodus" where they said "Settings → Tracking → Performance → Low-memory mode", "Wer ist wo", "Eine Karte daraus machen", "Kalibrierung → Modell" and so on, in all fifteen guides. Where a screen is still English (the Atlas, Live Aboard, the Wall screens card, the Guests screen, the Claude room helper and the robot vacuum import), a guide keeps its English names and says so. The note that PadSpan's menus are in English is gone from the guides and from the German home page.
+
+### Fixed
+- **Der deutsche Handbuchtext nennt die Bezeichnungen, die das Panel jetzt auf Deutsch zeigt**: PadSpan-Lizenz, iPhone-Einrichtungsweg, MAC-Wechsel überbrücken, Forensik, Deine KI und die beiden Atlas-Schalter. (The German manual uses the panel's German names for these settings.)
+
+---
+
 ## 0.38.281 — The manual on the website, in English and German, and it says what the panel says; Walk a room on by default; a notification for leak, smoke, gas and CO alarms; area renames follow; Manage, Training and Settings in German, French and Dutch; Steadier rooms; Why rooms jump: the guide says how the vote works with 40 seconds (2026-11-22)
 
 ### New
