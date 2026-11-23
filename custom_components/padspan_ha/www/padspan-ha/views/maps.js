@@ -248,7 +248,7 @@ export function render(ctx){
         ]),
         el("div",{class:"muted"}, isBasic
           ? t("Upload a photo of your floor plan to visualise where your Bluetooth receivers are placed.")
-          : t("Upload floorplans (any image type), auto-size to PNG, then place BLE receivers. Export maps + receiver layout.")),
+          : t("Upload floorplans (any image type, or a PDF), auto-size to PNG, then place BLE receivers. Export maps + receiver layout.")),
       ]),
       el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
         el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, t("Refresh")),
@@ -1176,7 +1176,7 @@ function _deleteMapModal(ctx, srcMap, allMaps){
 }
 
 // ── Upload Tab ───────────────────────────────────────────────────────────────
-// Accepts any image type (PNG/JPG/WebP/GIF/SVG), resizes client-side to a max
+// Accepts any image type (PNG/JPG/WebP/GIF/SVG) or a PDF page (views/pdf_plan.js), resizes client-side to a max
 // dimension, converts to PNG via canvas, and sends base64 to the backend.
 // Includes a drag-to-crop tool and floor selector (from HA Area Registry).
 // The selected file is stored on ctx.state so it survives poll-triggered
@@ -1217,7 +1217,7 @@ function _upload(ctx, helpBtn, isBasic){
   }
   card.appendChild(el("div",{class:"muted",style:"margin-bottom:10px"}, isBasic
     ? t("Take a photo of your house plan (or use any image). Give it a name and click Upload.")
-    : t("Upload floorplan image (PNG/JPG/WebP/GIF/SVG). We'll auto-resize and store as optimized PNG for mapping.")));
+    : t("Upload floorplan image (PNG/JPG/WebP/GIF/SVG) or PDF. We'll auto-resize and store as optimized PNG for mapping.")));
 
   const floors = (ctx.state.model && ctx.state.model.floors) ? ctx.state.model.floors : [];
   const floorSel = document.createElement("select");
@@ -1262,7 +1262,10 @@ function _upload(ctx, helpBtn, isBasic){
   const maxw = el("input",{type:"text", placeholder:t("Max size (e.g., 1600). Default 1600")});
   const file = document.createElement("input");
   file.type = "file";
-  file.accept = "image/*";
+  // A PDF plan too (views/pdf_plan.js): one page is drawn as a picture first.
+  file.accept = "image/*,application/pdf,.pdf";
+  // A PDF with several pages: which one is the plan.
+  const pdfPage = el("div",{style:"display:none;margin-top:8px;font-size:12px"});
 
   const status = el("div",{class:"mono", style:"margin-top:10px"}, "\u2014");
 
@@ -1326,11 +1329,53 @@ function _upload(ctx, helpBtn, isBasic){
   // The report: a picture picked, and what came of Upload (2026-11-15: houses opened this step and ended with no plan,
   // and nothing said whether an upload was tried). Words only (telemetry.PLAN_UPLOAD_WORDS); never on the demo house.
   const _upTel = (w)=>{ if(ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("plan_upload:" + w); };
-  file.addEventListener("change", ()=>{
+  // A picked PDF: page n drawn as a PNG, which then goes on as a picture would.
+  const _fromPdf = async (pdf, pageNo)=>{
+    status.textContent = t("Reading the PDF…");
+    status.style.color = "";
+    try{
+      const PDF = await import(`./pdf_plan.js${new URL(import.meta.url).search}`);
+      const r = await PDF.pdfPageToPng(pdf, pageNo);
+      ctx.state._mapsUploadPdf = { src: pdf, pages: r.pages, page: r.page };
+      _upTel("pdf");
+      pdfPage.textContent = "";
+      if(r.pages > 1){
+        const sel = document.createElement("select");
+        sel.className = "select";
+        sel.style.cssText = "width:auto;margin-left:6px";
+        for(let i = 1; i <= r.pages; i++){ const o = document.createElement("option"); o.value = String(i); o.textContent = t("Page {n}", { n: i }); sel.appendChild(o); }
+        sel.value = String(r.page);
+        sel.addEventListener("change", ()=>{ _fromPdf(pdf, parseInt(sel.value, 10) || 1); });
+        pdfPage.appendChild(el("span",{class:"muted"}, t("This PDF has {n} pages. The plan is on:", { n: r.pages })));
+        pdfPage.appendChild(sel);
+        pdfPage.style.display = "";
+      } else {
+        pdfPage.style.display = "none";
+      }
+      status.textContent = "—";
+      _showPicked(r.file);
+    }catch(e){
+      ctx.state._mapsUploadFile = null;
+      ctx.state._mapsUploadPdf = null;
+      pdfPage.style.display = "none";
+      _upTel("bad_pdf");
+      status.textContent = ctx.helpers.errorText(e);
+      status.style.color = "#f87171";
+    }
+  };
+  file.addEventListener("change", async ()=>{
     if(!file.files||!file.files[0]) return;
     _upTel("picked");
-    ctx.state._mapsUploadFile = file.files[0];
-    if(!name.value) name.value=ctx.state._mapsUploadFile.name.replace(/\.[^.]+$/,"");
+    const picked = file.files[0];
+    if(!name.value) name.value=picked.name.replace(/\.[^.]+$/,"");
+    ctx.state._mapsUploadPdf = null;
+    pdfPage.style.display = "none";
+    const PDF = /\.pdf$/i.test(picked.name || "") || picked.type === "application/pdf";
+    if(PDF){ ctx.state._mapsUploadFile = picked; await _fromPdf(picked, 1); return; }
+    _showPicked(picked);
+  });
+  function _showPicked(picked){
+    ctx.state._mapsUploadFile = picked;
     const objUrl=URL.createObjectURL(ctx.state._mapsUploadFile);
     previewImg.onload=()=>{
       URL.revokeObjectURL(objUrl);
@@ -1344,11 +1389,11 @@ function _upload(ctx, helpBtn, isBasic){
       URL.revokeObjectURL(objUrl);
       ctx.state._mapsUploadFile = null;
       _upTel("bad_picture");
-      status.textContent = t("Could not load image. Supported formats: PNG, JPG, GIF, BMP, WebP, SVG.");
+      status.textContent = t("Could not load image. Supported formats: PNG, JPG, GIF, BMP, WebP, SVG, PDF.");
       status.style.color = "#f87171";
     };
     previewImg.src=objUrl;
-  });
+  }
 
   previewWrap.appendChild(previewImg);
   previewWrap.appendChild(cropCanvas);
@@ -1361,7 +1406,7 @@ function _upload(ctx, helpBtn, isBasic){
   const btn = el("button",{class:"btn inline", onclick: async ()=>{
     // Use file from ctx.state (survives re-renders), with file input as fallback
     const f = ctx.state._mapsUploadFile || (file.files && file.files[0]);
-    if(!f){ _upTel("no_file"); status.textContent = t("Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG."); return; }
+    if(!f){ _upTel("no_file"); status.textContent = t("Pick an image file first. Supported: PNG, JPG, GIF, BMP, WebP, SVG, PDF."); return; }
     // The floor the user actually chose, not whatever this <select> happens to
     // be showing right now. render() re-runs on a 5s poll regardless of what
     // the user is doing — spend that long in the native file-browse dialog and
@@ -1433,6 +1478,7 @@ function _upload(ctx, helpBtn, isBasic){
   card.appendChild(name);
   card.appendChild(maxw);
   card.appendChild(file);
+  card.appendChild(pdfPage);
   if (_roughOn) card.appendChild(el("label",{style:"display:flex;gap:8px;align-items:center;font-size:12px;color:#94a3b8;margin:8px 0"},
     [sketch, el("span",{}, t("This is my own sketch, not to scale (PadSpan then takes a length each way)"))]));
   card.appendChild(previewOuter);

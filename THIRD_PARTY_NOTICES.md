@@ -13,6 +13,16 @@ PadSpan HA bundles the following third-party software under its own licence, unm
 - Source: https://github.com/basnijholt/adaptive-lighting, Copyright Bas Nijholt and contributors.
 - Licence: Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0
 
+## PDF.js 6.5.438
+
+- Files: `custom_components/padspan_ha/www/padspan-ha/vendor/pdfjs/pdf.min.js` and `pdf.worker.min.js`
+  (the `build/pdf.min.mjs` and `build/pdf.worker.min.mjs` of the npm package `pdfjs-dist@6.5.438`,
+  renamed to `.js` so Home Assistant serves them as JavaScript) and its `LICENSE`.
+- Used by: Mapping → Upload, to turn one page of a PDF floor plan into a picture in the browser.
+  Loaded only when a PDF is picked.
+- Source: https://github.com/mozilla/pdf.js
+- Licence: Apache License, Version 2.0 (the full text is in `vendor/pdfjs/LICENSE`)
+
 ## three.js r170
 
 - Files: `custom_components/padspan_ha/www/padspan-ha/vendor/three/three.module.min.js`

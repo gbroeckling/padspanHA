@@ -630,7 +630,7 @@ _RECEIVERS_ROOMS = tuple(f"setup_receivers_rooms:{k}" for k in ("pressed", "undo
 # The "Next: …" buttons from one step to the next (telemetry.SETUP_NEXT, 2026-11-13).
 _SETUP_NEXT = tuple(f"setup_next:{s}" for s in ("rooms", "floors", "receivers", "phone", "calibration"))
 # "Set this plan's scale now" after Mapping → Upload, and the quiet "No scale yet" line's Measure (telemetry.SCALE_NUDGE_EVENTS).
-_PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "bad_picture", "too_large", "failed", "sketch"))
+_PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "bad_picture", "too_large", "failed", "sketch", "pdf", "bad_pdf"))
                 + tuple(f"wizard_draw:{k}" for k in ("name", "no_room", "kept"))
                 + tuple(f"rough_plan:{k}" for k in ("seen", "opened", "have", "scan", "vacuum", "sketch", "blank", "sketch_upload",
                                                     "scan_made", "scan_refused", "blank_made", "blank_refused",

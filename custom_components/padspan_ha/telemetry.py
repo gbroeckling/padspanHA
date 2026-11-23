@@ -521,6 +521,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "device_name",
     "screens_card", "screens_client",               # Open screens (screens.py): Settings' card, and the page as a screen
+    "pdf_plan",                                     # a PDF floor plan drawn as a picture for Mapping → Upload (vendor/pdfjs)
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
     "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
     "plan_carry",                                   # a moved plan's line in the Library, and what could move with it
@@ -1063,7 +1064,7 @@ SCALE_NUDGE_EVENTS: frozenset[str] = frozenset(f"scale_nudge:{k}" for k in SCALE
 # Mapping → Upload (views/maps.js _upload, 2026-11-15): a picture picked, Upload pressed with none, and what came of
 # an upload. Never the picture, its name or its size.
 # 2026-11-16: "sketch": a picture uploaded with "my own sketch, not to scale" ticked.
-PLAN_UPLOAD_WORDS: tuple[str, ...] = ("picked", "no_file", "ok", "bad_picture", "too_large", "failed", "sketch")
+PLAN_UPLOAD_WORDS: tuple[str, ...] = ("picked", "no_file", "ok", "bad_picture", "too_large", "failed", "sketch", "pdf", "bad_pdf")
 PLAN_UPLOAD_EVENTS: frozenset[str] = frozenset(f"plan_upload:{k}" for k in PLAN_UPLOAD_WORDS)
 # "No floor plan? Ways to get one" (views/rough_plan.js, 2026-11-16): the list opened, each way opened (a drawing they
 # have, a LiDAR room scan, the robot's map, their own sketch, a blank floor), the phone's walk-through started, and
