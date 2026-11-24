@@ -3,8 +3,9 @@
 [Inhalt](README.md)
 
 Der Atlas ist PadSpans Gerätekarte: deine Etagen und Räume als Plan gezeichnet, mit Lichtern,
-Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo sie wirklich sind, und jedes davon mit
-einem Tippen schaltbar. Er hieß „Lights“, bis er über die Beleuchtung hinauswuchs; der Filter-Chip
+Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo sie wirklich sind. Ein Tippen schaltet
+ein Licht oder einen Ventilator; ein Sensor sagt, was er misst, und bei einem Schloss oder einer
+verknüpften Tür öffnet sich die zugehörige Karte. Er hieß „Lights“, bis er über die Beleuchtung hinauswuchs; der Filter-Chip
 für Leuchten heißt immer noch **Lights**.
 
 ## Kostenlos und Pro
@@ -56,8 +57,10 @@ einzustellen.
 
 ## Die Karte benutzen
 
-- **Ein Tippen schaltet** ein Gerät. **Halten** (ein goldener Ring füllt sich, während du hältst),
-  oder Shift oder Alt mit einem Klick, **wählt** es zum Bearbeiten **aus**. Ziehen verschiebt es.
+- **Ein Tippen schaltet** ein Licht oder einen Ventilator. Bei einem Sensor sagt ein Tippen, was er
+  misst; bei einem Schloss öffnet es dessen Karte. **Halten** (ein goldener Ring füllt sich, während
+  du hältst), oder Shift oder Alt mit einem Klick, **wählt** ein Gerät zum Bearbeiten **aus**. Ziehen
+  verschiebt es.
 - **Geräte übereinander**: Fahr mit der Maus darüber, oder halte den Finger darauf, und das Feld oben
   links nennt alles, was dort übereinanderliegt. **Alt+Klick** geht sie der Reihe nach durch.
 - **Das Blatt eines Raums**: Tipp auf den Namen des Raums für jedes Gerät darin, **All lights on /

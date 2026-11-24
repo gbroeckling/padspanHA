@@ -45,7 +45,7 @@ Fixtures placed close together (a light stacked over a fan, say) can be hard to 
 - Hover the cursor (or hold a touch) over a spot and the **hover HUD**, pinned at the top-left of the map, names everything stacked there as clickable rows.
 - **Alt+click** cycles through the stack at that point without needing the HUD's picker.
 - A press-and-hold shows a gold ring filling in as you hold, on both room names and device markers — the same visual cue everywhere in Atlas that something is about to select rather than switch.
-- A plain tap always **switches** a device (toggles it); a genuine hold, or Shift/Alt, **selects** it for editing. Dragging moves it.
+- A plain tap **switches** a light or a fan (toggles it). A sensor has nothing to switch, so a tap says what it reads, and a tap on a lock opens its card. A genuine hold, or Shift/Alt, **selects** a device for editing. Dragging moves it.
 
 ## Automorph
 

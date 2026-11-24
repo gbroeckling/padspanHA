@@ -3,9 +3,9 @@
 [Contents](README.md)
 
 The Atlas is PadSpan's device map: your floors and rooms drawn as a plan, with lights, fans, locks,
-sensors, doors and windows where they really are, and every one of them switchable with a tap. It
-was called "Lights" until it grew past lighting; the filter chip for light fixtures is still called
-**Lights**.
+sensors, doors and windows where they really are. A tap switches a light or a fan; a sensor says
+what it reads, and a lock or a linked door opens its card. It was called "Lights" until it grew past
+lighting; the filter chip for light fixtures is still called **Lights**.
 
 ## Free and Pro
 
@@ -52,8 +52,9 @@ placed device; tick several to set them at once.
 
 ## Using the map
 
-- **A tap switches** a device. **A hold** (a gold ring fills as you hold), or Shift or Alt with a
-  click, **selects** it for editing. A drag moves it.
+- **A tap switches** a light or a fan. On a sensor, a tap says what it reads; on a lock, it opens the
+  lock's card. **A hold** (a gold ring fills as you hold), or Shift or Alt with a click, **selects** a
+  device for editing. A drag moves it.
 - **Devices on top of each other**: hover, or hold a touch, and the box at the top left names
   everything stacked there. **Alt+click** steps through them.
 - **A room's sheet**: tap the room's name for every device in it, **All lights on / off**, its fans,
