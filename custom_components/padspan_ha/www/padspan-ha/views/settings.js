@@ -4247,7 +4247,7 @@ function _atlas3dSection(ctx, el, settings){
   box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
     t("EXPERIMENTAL — still changing; tell us what you find")));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    t("Adds a Map / Live Aboard switch to the Atlas: walk around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default.")));
+    t("Adds a Map / Live Aboard switch to the Atlas: turn, pan and zoom around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default.")));
   // The setup wizard (views/aboard_wizard.js): every step from scratch,
   // with the optional extras below exposed along the way.
   const wizBtn = el("button",{class:"btn inline",style:"margin:0 0 8px;background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"},t("✨ Set it up step by step"));
