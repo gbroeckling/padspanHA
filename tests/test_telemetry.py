@@ -745,7 +745,7 @@ def test_the_readme_lists_everything_a_report_carries():
     from pathlib import Path
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
     for text in (readme, T.__doc__):
-        assert "2 KB" not in text
+        assert not re.search(r"(?<!\d)2 KB", text)          # "32 KB", the cap since Nov 2026, is fine
     if "the complete list:" not in readme:
         pytest.skip("this README only summarises the report (the Bright derivation's)")
     listed = readme[readme.index("the complete list:"):readme.index("**Never**")]
@@ -1115,6 +1115,7 @@ def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
     Find My outcome counted, the report ran past the cap. The presets are the
     courtesy sample: as many go as fit, and the counts all do."""
     from custom_components.padspan_ha import ws_common
+    monkeypatch.setattr(T, "_MAX_BYTES", 8192)     # the fixture is sized for the old 8 KB cap
     h = _findmy_house()
     one = {"lights_showcase": True, "lights_showcase_theme": "classic", "lights_fit_rooms": False,
            "lights_isolux": False, "lights_show_beacons": False, "lights_hide_device_codes": False,
@@ -1347,7 +1348,7 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # 700 -> 1600 (2026-10-05): PadSpan's own size, the live snapshot
     # and Home Assistant's load by view — what deciding the low-memory
     # version's object cap, and whether a 2 GB Pi keeps the Atlas and the 3D
-    # house, takes. The whole report is still held under the 8 KB cap below.
+    # house, takes. The whole report is still held under the cap below (8 KB then).
     # 1600 -> 1700 (issue #91): the per-object loop's time, the objects it
     # smoothed vs. listed as background, and the Lost & Found records held.
     # 1700 -> 1850: the snapshot build by phase and HA's state count — a third
@@ -1471,7 +1472,7 @@ def test_the_receiver_accepts_the_load_sections_unchanged():
     allowed = set(re.findall(r"'([a-z_]+)'", php[php.index("$allowed = array("):].split(");")[0]))
     shapes_src = php[php.index("$shapes = array("):].split(");\n")[0]
     patterns = [m.group(1).replace("\\'", "'") for m in re.finditer(r"'((?:[^'\\]|\\.)*)'", shapes_src)]
-    assert len(patterns) == 6 and "$MAX = 8192;" in php and "(int)$r['schema'] !== 1" in php
+    assert len(patterns) == 6 and f"$MAX = {T._MAX_BYTES};" in php and "(int)$r['schema'] !== 1" in php
     h = _hass()
     _busy_day(h)
     p = T.build_payload(h)
@@ -1481,7 +1482,7 @@ def test_the_receiver_accepts_the_load_sections_unchanged():
     for pat in patterns:
         body, flags = pat[1:pat.rindex("/")], pat[pat.rindex("/") + 1:]
         assert not re.search(body, flat, re.I if "i" in flags else 0), f"telemetry.php would refuse: {pat}"
-    assert len(json.dumps(p)) <= 8192
+    assert len(json.dumps(p)) <= T._MAX_BYTES
 
 
 def test_opting_in_starts_the_load_window_fresh():
@@ -1640,10 +1641,11 @@ def test_temp_fresh_counts_each_ha_clock_and_the_newest_report():
     assert tf == {"n": 1, "changed": 0, "updated": 0, "reported": 0, "has_lr": 0, "age": {"1_6h": 1}}
 
 
-def test_a_day_with_too_many_kinds_of_event_still_reports():
+def test_a_day_with_too_many_kinds_of_event_still_reports(monkeypatch):
     """The cap refuses the whole report and a refused one keeps its counters,
     so an over-full day would silence an install until HA restarts. After the
     presets, the rarest usage counters go, and the report says how many."""
+    monkeypatch.setattr(T, "_MAX_BYTES", 8192)     # the fixture is sized for the old 8 KB cap
     h = _hass()
     _busy_day(h)
     names = sorted(T.EVENTS | T.TAB_EVENTS | T.CLIENT_EVENTS)
@@ -1655,6 +1657,23 @@ def test_a_day_with_too_many_kinds_of_event_still_reports():
     assert dropped > 0 and len(p["usage"]) == len(names) - dropped
     kept = min(p["usage"].values())
     assert all(v >= kept for v in p["usage"].values()) and p["usage"][names[-1]] == len(names)
+
+
+def test_the_cap_is_the_same_in_the_integration_the_server_and_the_docs():
+    """Nov 2026: one house's report outgrew the 8 KB cap even with every usage
+    counter dropped, so it was refused whole, every day. The cap went to 32 KB
+    in both places at once: a client allowed more than the server takes gets a
+    413 instead, which it logs only at debug level."""
+    php_path = ROOT / "server" / "telemetry.php"
+    if not php_path.exists():
+        pytest.skip("no server/ or docs/ in this tree (the Bright derivation carries neither)")
+    php = php_path.read_text(encoding="utf-8")
+    assert re.search(r"^\$MAX = (\d+);", php, re.M).group(1) == str(T._MAX_BYTES)
+    kb = f"{T._MAX_BYTES // 1024} KB"
+    assert f"over {kb}" in php and f"hard cap {kb}" in T.__doc__
+    assert f"hard cap {kb})" in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert f"a hard cap of {kb})" in (ROOT / "docs" / "manual" / "24-privacy.md").read_text(encoding="utf-8")
+    assert f"fest begrenzt auf {kb})" in (ROOT / "docs" / "manual" / "de" / "24-privacy.md").read_text(encoding="utf-8")
 
 
 def test_the_move_out_of_www_is_reported_only_when_it_did_something():

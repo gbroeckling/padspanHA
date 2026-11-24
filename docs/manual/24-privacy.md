@@ -45,7 +45,7 @@ licence check. Keys and homes: [chapter 25](25-padspan-pro.md).
 **Settings → Tracking → Help improve PadSpan**, off by default. The panel asks once, with the Preview
 beside the question; either answer ends the asking. Turning it on or off needs an administrator.
 
-When it is on, PadSpan sends at most once a day a small report (a hard cap of 8 KB) of **counts,
+When it is on, PadSpan sends at most once a day a small report (a hard cap of 32 KB) of **counts,
 versions and flags**: how many receivers, floors, rooms and placed devices; which feature switches are
 on; how many times each screen and tool was used; how hard the machine works; the class of machine
 (memory band, processor kind, board family); errors by PadSpan file name. It carries a random install

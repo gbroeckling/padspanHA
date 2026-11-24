@@ -10,7 +10,7 @@
 // The integration only ever sends counts/versions/flags (telemetry.py
 // assert_shareable refuses anything identifier-shaped before sending) and this
 // receiver applies the same shape checks again: a report is dropped if it is
-// not JSON, is over 8 KB, has unexpected top-level keys, or contains a MAC,
+// not JSON, is over 32 KB, has unexpected top-level keys, or contains a MAC,
 // a UUID other than install_id, a 32-hex string, a licence key, an IP or an
 // email address anywhere in it. Summarise with server/telemetry_summary.py.
 //
@@ -24,7 +24,7 @@
 // so three levels up is the site root, whose private/ is outside the web
 // root (the update-check log lives there too). Adjust for another host.
 $DIR = __DIR__ . '/../../../private/padspan-telemetry';
-$MAX = 8192;
+$MAX = 32768;  // telemetry.py's _MAX_BYTES (a test holds them equal)
 
 header('Content-Type: application/json');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo '{"ok":false}'; exit; }

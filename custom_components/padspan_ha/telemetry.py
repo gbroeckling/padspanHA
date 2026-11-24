@@ -95,7 +95,7 @@ the same card replaces it. It is the only thing that persists across
 reports, and it means nothing outside this file.
 
 Endpoint: TELEMETRY_URL. At most one POST per UTC day (the last sent day is
-persisted, so restarts do not repeat it), about 2-5 KB, hard cap 8 KB.
+persisted, so restarts do not repeat it), usually about 7 KB, hard cap 32 KB.
 Failure is silent and non-fatal; nothing is retried, nothing is queued; the
 counters survive a failed send and go with the next one.
 """
@@ -150,7 +150,11 @@ _STALE_DAYS = 2
 _DATA_UNSUBS = "_telemetry_unsubs"
 _DATA_COUNTERS = "telemetry_counters"
 _DATA_STARTED = "_telemetry_started_mono"
-_MAX_BYTES = 8192
+# The same cap as server/telemetry.php's $MAX (a test holds them equal). It was
+# 8 KB until Nov 2026, when a house using much of PadSpan outgrew it even with
+# every usage counter dropped: first the counters went to make it fit, then
+# the whole report was refused, every day.
+_MAX_BYTES = 32768
 
 # The vocabulary. An event that is not here is dropped, so the frontend and
 # every backend call site can only ever count what this file allows — a

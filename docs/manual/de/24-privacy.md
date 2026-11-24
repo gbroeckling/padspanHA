@@ -49,7 +49,7 @@ Zuhauses an ist. Ohne Schlüssel gibt es keine Lizenzprüfung. Schlüssel und Zu
 mit der Vorschau neben der Frage; jede Antwort beendet das Fragen. Ein- oder Ausschalten braucht
 einen Administrator.
 
-Ist er an, schickt PadSpan höchstens einmal am Tag einen kleinen Bericht (fest begrenzt auf 8 KB)
+Ist er an, schickt PadSpan höchstens einmal am Tag einen kleinen Bericht (fest begrenzt auf 32 KB)
 aus **Zahlen, Versionen und Flags**: wie viele Empfänger, Etagen, Räume und platzierte Geräte;
 welche Funktionsschalter an sind; wie oft jeder Bildschirm und jedes Werkzeug benutzt wurde; wie
 stark der Rechner arbeitet; die Klasse des Rechners (Größenklasse des Speichers, Art des Prozessors,
