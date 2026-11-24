@@ -58,7 +58,8 @@ async def ws_telemetry_preview(hass: HomeAssistant, connection, msg) -> None:
     vol.Required("event"): str,
     # client_screen_seen and client_screen:*: this browser's random screen id,
     # so each screen counts once per report window; never stored in the
-    # report (telemetry.note_screen).
+    # report (telemetry.note_screen). With client_fps: its minutes for the
+    # window (telemetry.note_screen_minute).
     vol.Optional("screen"): vol.All(str, vol.Length(max=32)),
 })
 @websocket_api.async_response
@@ -80,6 +81,10 @@ async def ws_telemetry_event(hass: HomeAssistant, connection, msg) -> None:
     if counted and event.startswith("client_fps:"):
         from .perf_sampler import note_view  # noqa: PLC0415
         note_view(hass, event.split(":")[1])
+        # And a minute of PadSpan on this screen (env.top_screen).
+        if msg.get("screen"):
+            from .telemetry import note_screen_minute  # noqa: PLC0415
+            note_screen_minute(hass, str(msg["screen"]))
     connection.send_result(msg["id"], {"counted": counted})
 
 
