@@ -34,6 +34,11 @@
 // in Live Aboard (live_aboard.js). Imports nothing.
 
 /** Home Assistant's scene editor: a new scene, one scene, the list. */
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 export const NEW_SCENE_PATH = "/config/scene/edit/new";
 export const SCENE_LIST_PATH = "/config/scene/dashboard";
 /** Where a scene's ✎ goes: its own page in the editor, or the list when it has
@@ -70,7 +75,7 @@ export function canonFloor(id, floors){
 export function floorName(id, floors){
   const f = (floors || []).find(x => x && canonFloor(x.id, floors) === id);
   if (f && f.name) return String(f.name);
-  return id === "outside" || id === "__outside__" ? "Outside" : String(id || "");
+  return id === "outside" || id === "__outside__" ? t("Outside") : String(id || "");
 }
 
 /**
@@ -140,6 +145,9 @@ export function sceneStateOf(eids, isOn){
 export const tapOf = (state) => (state === "on" ? "off" : "run");
 /** What the tile says its state is. */
 export const STATE_WORDS = { on: "On", mixed: "Part on", off: "Off" };
+// The same words in the panel's language, on a tile and inside its spoken label.
+const stateWord = (s) => (s === "on" ? t("On") : s === "mixed" ? t("Part on") : s === "off" ? t("Off") : STATE_WORDS[s]);
+const stateLower = (s) => (s === "on" ? t("on") : s === "mixed" ? t("part on") : s === "off" ? t("off") : STATE_WORDS[s].toLowerCase());
 
 /** The floors a scene's lights are on, most first (a tie: the house's own
  *  order): [{id, n}]. */
@@ -394,7 +402,7 @@ export function createSceneRow(o){
   const el = d("div", `psc-row psc-${place}`);
   el.setAttribute("data-scenes", place);
   el.setAttribute("role", "region");
-  el.setAttribute("aria-label", "Lighting scenes");
+  el.setAttribute("aria-label", t("Lighting scenes"));
   const css = d("style");
   css.textContent = CSS;
   el.appendChild(css);
@@ -466,55 +474,55 @@ export function createSceneRow(o){
       noteBox.appendChild(b);
     }
     const x = d("button", "psc-x", "✕");
-    x.type = "button"; x.title = "Close"; x.setAttribute("aria-label", "Close");
+    x.type = "button"; x.title = t("Close"); x.setAttribute("aria-label", t("Close"));
     x.addEventListener("click", guard((e) => { stop(e); note(null); }));
     noteBox.appendChild(x);
     noteBox.hidden = false;
     noteBox.style.display = "";
     noteT = setTimeout(() => note(null), button ? 15000 : 7000);
   }
-  function tileNode(t){
+  function tileNode(tile){
     const n = d("div", "psc-tile");
-    n.setAttribute("data-scene", t.key);
-    n.setAttribute("data-kind", t.kind);
-    n.setAttribute("data-state", t.state);
+    n.setAttribute("data-scene", tile.key);
+    n.setAttribute("data-kind", tile.kind);
+    n.setAttribute("data-state", tile.state);
     const go = d("button", "psc-go");
     go.type = "button";
-    const doing = tapOf(t.state) === "off" ? "turn its lights off" : t.state === "mixed" ? "turn it all on" : "turn it on";
-    const kind = t.kind === "preset" ? "Whole house preset" : "Scene";
-    const where = t.floorName ? ` on ${t.floorName}` : "";
-    const also = t.others.length ? `, and ${t.others.join(", ")}` : "";
-    const label = `${kind} ${t.name}: ${STATE_WORDS[t.state].toLowerCase()}${where}${also}. Tap to ${doing}.`;
+    const doing = tapOf(tile.state) === "off" ? t("turn its lights off") : tile.state === "mixed" ? t("turn it all on") : t("turn it on");
+    const kind = tile.kind === "preset" ? t("Whole house preset") : t("Scene");
+    const where = tile.floorName ? " " + t("on {floor}", { floor: tile.floorName }) : "";
+    const also = tile.others.length ? ", " + t("and {names}", { names: tile.others.join(", ") }) : "";
+    const label = t("{kind} {name}: {state}{where}{also}. Tap to {doing}.", { kind, name: tile.name, state: stateLower(tile.state), where, also, doing });
     go.title = label;
     go.setAttribute("aria-label", label);
     const map = d("span", "psc-map");
-    map.innerHTML = miniMapSvg(t.map);
+    map.innerHTML = miniMapSvg(tile.map);
     const line = d("span", "psc-line");
-    line.append(d("span", "psc-dot"), d("span", "psc-name", t.name), d("span", "psc-word", STATE_WORDS[t.state]));
+    line.append(d("span", "psc-dot"), d("span", "psc-name", tile.name), d("span", "psc-word", stateWord(tile.state)));
     go.append(map, line);
     go.addEventListener("click", guard((e) => {
       stop(e);
-      if ((busy.get(t.key) || 0) > Date.now() || !m) return;
-      busy.set(t.key, Date.now() + 2500);
+      if ((busy.get(tile.key) || 0) > Date.now() || !m) return;
+      busy.set(tile.key, Date.now() + 2500);
       n.classList.add("psc-busy");
-      setTimeout(() => { busy.delete(t.key); n.classList.remove("psc-busy"); }, 2500);
-      m.act(t);
+      setTimeout(() => { busy.delete(tile.key); n.classList.remove("psc-busy"); }, 2500);
+      m.act(tile);
     }));
     n.appendChild(go);
-    const fl = [t.floorName, ...t.others.map(x => `+ ${x}`)].filter(Boolean).join(" ");
+    const fl = [tile.floorName, ...tile.others.map(x => `+ ${x}`)].filter(Boolean).join(" ");
     if (fl) n.appendChild(d("span", "psc-floor", fl));
-    if (t.kind === "preset") { const mk = d("span", "psc-mark", "Preset"); mk.title = "A PadSpan Whole house preset"; n.appendChild(mk); }
-    const canEdit = t.kind === "preset" ? !!m.editPresets : !!(m.admin && !m.kiosk);
+    if (tile.kind === "preset") { const mk = d("span", "psc-mark", t("Preset")); mk.title = t("A PadSpan Whole house preset"); n.appendChild(mk); }
+    const canEdit = tile.kind === "preset" ? !!m.editPresets : !!(m.admin && !m.kiosk);
     if (canEdit) {
       const ed = d("button", "psc-edit", "✎");
       ed.type = "button";
-      const et = t.kind === "preset" ? `Edit ${t.name}: the Whole house presets` : t.id ? `Edit ${t.name} in Home Assistant's scene editor` : `${t.name}: where it is edited`;
+      const et = tile.kind === "preset" ? t("Edit {name}: the Whole house presets", { name: tile.name }) : tile.id ? t("Edit {name} in Home Assistant's scene editor", { name: tile.name }) : t("{name}: where it is edited", { name: tile.name });
       ed.title = et;
       ed.setAttribute("aria-label", et);
-      ed.addEventListener("click", guard((e) => { stop(e); if (m) m.edit(t, api); }));
+      ed.addEventListener("click", guard((e) => { stop(e); if (m) m.edit(tile, api); }));
       n.appendChild(ed);
     }
-    if ((busy.get(t.key) || 0) > Date.now()) n.classList.add("psc-busy");
+    if ((busy.get(tile.key) || 0) > Date.now()) n.classList.add("psc-busy");
     return n;
   }
   function newTile(){
@@ -523,20 +531,20 @@ export function createSceneRow(o){
     if (m.kiosk) {
       const n = d("div", "psc-new psc-say");
       n.setAttribute("data-scene-new", "kiosk");
-      n.append(d("b", null, "+ New scene"), d("span", null, `Make one from another screen, in ${SCENE_PLACE}.`));
+      n.append(d("b", null, t("+ New scene")), d("span", null, t("Make one from another screen, in {place}.", { place: t("Home Assistant → Settings → Automations & scenes → Scenes") })));
       return [n, "kiosk"];
     }
     if (!m.admin) {
       const n = d("div", "psc-new psc-say");
       n.setAttribute("data-scene-new", "ask");
-      n.append(d("b", null, "+ New scene"), d("span", null, "An administrator makes scenes in Home Assistant."));
+      n.append(d("b", null, t("+ New scene")), d("span", null, t("An administrator makes scenes in Home Assistant.")));
       return [n, "ask"];
     }
     const b = d("button", "psc-new");
     b.type = "button";
     b.setAttribute("data-scene-new", "go");
-    b.title = "Make a new scene in Home Assistant's scene editor";
-    b.append(d("b", null, "+ New scene"), d("span", null, "in Home Assistant"));
+    b.title = t("Make a new scene in Home Assistant's scene editor");
+    b.append(d("b", null, t("+ New scene")), d("span", null, t("in Home Assistant")));
     b.addEventListener("click", guard((e) => { stop(e); if (m) m.add("row"); }));
     return [b, "go"];
   }

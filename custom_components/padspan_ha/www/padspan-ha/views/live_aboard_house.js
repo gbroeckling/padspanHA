@@ -34,6 +34,11 @@ const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
 // Doors: which way one swings, shared with the flat Atlas (door_types.js).
 const { doorSwing } = await import(`./door_types.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 // Which way north is (settings.fabric_bearing_deg, y-down): the one source.
 const COMPASS = await import(`./fabric_compass.js${new URL(import.meta.url).search}`);
 // The 3D editor's rules: the defaults and the limits a door, a window and a
@@ -1163,6 +1168,16 @@ export const LIGHT_KINDS = [
   ["tv", "Behind the TV"], ["string", "String lights (bulbs on a wire)"], ["lamp", "Lamp"], ["panel", "Panel or display"], ["accent", "Small accent light"],
   ["led", "Status light"],
 ];
+// The same list in the panel's language (LIGHT_KINDS stays the English one).
+const KIND_WORDS = {
+  glow: () => t("Just its light"), fixture: () => t("Ceiling light"), pot: () => t("Pot lights"), pot_ring: () => t("Pot lights round the room"),
+  pendant: () => t("Pendant"), chandelier: () => t("Chandelier"), fan: () => t("Ceiling fan"), track: () => t("Track lights"),
+  tube: () => t("Tube or shop light"), spot: () => t("Spotlight"), sconce: () => t("Wall light"), vanity: () => t("Vanity light"),
+  strip: () => t("LED strip on a wall"), valance: () => t("Valance"), cove: () => t("Cove round the room"), undercab: () => t("Under the cabinets"),
+  kick: () => t("Toe-kick or stairs"), tv: () => t("Behind the TV"), string: () => t("String lights (bulbs on a wire)"), lamp: () => t("Lamp"),
+  panel: () => t("Panel or display"), accent: () => t("Small accent light"), led: () => t("Status light"),
+};
+export const lightKinds = () => LIGHT_KINDS.map(([k, label]) => [k, KIND_WORDS[k] ? KIND_WORDS[k]() : label]);
 const KINDS = new Set(LIGHT_KINDS.map(([k]) => k));
 // Where each kind hangs when nothing says otherwise: metres below the ceiling
 // ("ceiling") or above the floor ("floor"). A per-light height is the store's

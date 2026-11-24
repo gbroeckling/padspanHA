@@ -43,6 +43,11 @@
 const SLOP = 6;                                     // px a press may move and still be a tap
 const COL = { sel: "#52b788", warn: "#f59e0b", gap: "#38bdf8" };
 const GAP_PX = 20;                                  // a distance's label: this tall on screen, either view
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn, currentLanguage } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }), currentLanguage: () => "en" }));
 const FLOWS = [["photo", "From a photo", "live_aboard_photo.js", "photoFlow"],
                ["library", "Library", "live_aboard_library.js", "libraryFlow"],
                ["import", "Import", "live_aboard_import.js", "importFlow"],
@@ -97,7 +102,10 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const mm = (v) => Math.round(v * 1000) / 1000;
 const ARROWS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-const KEYS_TEXT = "Arrow keys move it 1 cm (Shift: 10 cm); [ and ] turn it 15° (Shift: 1°).";
+// The flows' names in the panel's language (FLOWS keeps the English ones), and a name inside a sentence: lower case in
+// English, as it is in every other language.
+const FLOW_WORDS = { photo: () => t("From a photo"), library: () => t("Library"), import: () => t("Import"), people: () => t("People & devices") };
+const low = (s) => (currentLanguage() === "en" ? String(s).toLowerCase() : String(s));
 const metres = (v) => `${(Math.round(v * 100) / 100).toFixed(2)} m`;
 /** A recipe's size kept to what the server keeps (1 mm to 8 m; house3d_store.py),
  *  whatever a builder or a flow allows, so a Save is never refused for it. */
@@ -122,15 +130,15 @@ export function pieceName(p, FURN){
 export function fitText(w, nameOf){
   const other = w.with ? nameOf(w.with) : "";
   switch (w.kind) {
-    case "wall": return "It goes into a wall.";
-    case "overlap": return `It overlaps the ${other}.`;
-    case "door": return "It is in a door's swing.";
-    case "blocks": return w.what === "side" ? `It blocks a side of the ${other}.` : `It blocks the front of the ${other}.`;
-    case "blocked": return w.what === "side" ? `The ${other} blocks one of its sides.` : `The ${other} blocks its front.`;
-    case "window": return "It is taller than the sill of the window behind it.";
-    case "landing": return `Its top doesn't land in a room on ${w.floor || "the floor above"}.`;
-    case "nofloor": return "There is no floor above it to go up to.";
-    default: return "It may not fit here.";
+    case "wall": return t("It goes into a wall.");
+    case "overlap": return t("It overlaps the {other}.", { other });
+    case "door": return t("It is in a door's swing.");
+    case "blocks": return w.what === "side" ? t("It blocks a side of the {other}.", { other }) : t("It blocks the front of the {other}.", { other });
+    case "blocked": return w.what === "side" ? t("The {other} blocks one of its sides.", { other }) : t("The {other} blocks its front.", { other });
+    case "window": return t("It is taller than the sill of the window behind it.");
+    case "landing": return t("Its top doesn't land in a room on {floor}.", { floor: w.floor || t("the floor above") });
+    case "nofloor": return t("There is no floor above it to go up to.");
+    default: return t("It may not fit here.");
   }
 }
 
@@ -311,10 +319,10 @@ export function createFurnish(ctx){
   const style = d("style");
   style.textContent = CSS;
   root.appendChild(style);
-  const bBuild = btn("Build ▾", "Add a piece of furniture or a device", () => toggleMenu());
+  const bBuild = btn(t("Build ▾"), t("Add a piece of furniture or a device"), () => toggleMenu());
   bBuild.setAttribute("aria-haspopup", "menu");
   const flowBtns = {};
-  for (const [k, label] of FLOWS) { flowBtns[k] = btn(label, label, () => openFlow(k)); flowBtns[k].style.display = "none"; }
+  for (const [k] of FLOWS) { const label = FLOW_WORDS[k](); flowBtns[k] = btn(label, label, () => openFlow(k)); flowBtns[k].style.display = "none"; }
   const bar = seg(bBuild, ...FLOWS.map(([k]) => flowBtns[k]));
   bar.classList.add("la3d-furbar-seg");
   bar.style.display = "none";
@@ -381,6 +389,9 @@ export function createFurnish(ctx){
   const floorById = (fid) => ctx.floors().find(F => F.fl.id === String(fid)) || null;
   /** "up to" / "down to" a floor, or just "to" one on the same storey. */
   const towards = (from, to, dir) => (from && to && Math.abs(from.fl.elev - to.fl.elev) <= 1e-3 ? "to" : dir > 0 ? "up to" : "down to");
+  // The two sentences it is said in, whole.
+  const moveIt = (how, floor) => (how === "to" ? t("Move it to {floor}", { floor }) : how === "up to" ? t("Move it up to {floor}", { floor }) : t("Move it down to {floor}", { floor }));
+  const movedTo = (how, floor) => (how === "to" ? t("Moved to {floor}.", { floor }) : how === "up to" ? t("Moved up to {floor}.", { floor }) : t("Moved down to {floor}.", { floor }));
   const ceilOf = (F) => F.fl.h - ctx.HOUSE.SLAB_T;
   const wallsOf = (F) => (F ? F.pieces.map(P => ({ ...P.pc, els: P.els })) : []);
   function sceneOf(p){
@@ -416,9 +427,9 @@ export function createFurnish(ctx){
   /** Pieces into the draft, as one step: each on the current floor in the
    *  room under the view's centre unless it says where it goes; the last
    *  one selected. */
-  function add(list, extra = null, what = "Added"){
+  function add(list, extra = null, what = t("Added")){
     const F = addFloor();
-    if (!F) { ctx.hint("Show a floor first: there is nowhere to put it.", true); return; }
+    if (!F) { ctx.hint(t("Show a floor first: there is nowhere to put it."), true); return; }
     const spot = spotHere(F);
     let last = null;
     const ok = ctx.change((c) => {
@@ -444,13 +455,13 @@ export function createFurnish(ctx){
     if (!ok) return;
     if (last) select(last.id);
     ctx.redraw();
-    ctx.hint(last ? `${what}: ${pieceName(last, FURN())}. Drag it into place; nothing is kept until Save.` : `${what}.`);
+    ctx.hint(last ? t("{what}: {name}. Drag it into place; nothing is kept until Save.", { what, name: pieceName(last, FURN()) }) : `${what}.`);
   }
   function buildMenu(){
     menu.innerHTML = "";
     const B = FURN(), kinds = B && Array.isArray(B.FURNITURE_KINDS) ? B.FURNITURE_KINDS : [];
     // Furniture, then the kitchen's and the bathroom's under their own headings, then devices.
-    const groups = [["furniture", "Furniture"], ["kitchen", "Kitchen"], ["bath", "Bathroom"], ["device", "Devices"]];
+    const groups = [["furniture", t("Furniture")], ["kitchen", t("Kitchen")], ["bath", t("Bathroom")], ["device", t("Devices")]];
     const headingOf = (def) => { const g = def.group || "furniture"; return g === "furniture" && (def.category === "kitchen" || def.category === "bath") ? def.category : g; };
     // The builders' box ("other") goes last, on its own; with no builders
     // here (the module missing or broken) a box is still something to place.
@@ -462,22 +473,22 @@ export function createFurnish(ctx){
     // on it to pick yet. Listed only where the scan has pieces no placed piece already stands on.
     const AF = addFloor(), guess = AF ? scanGuess(null, AF.fl.id) : null;
     if (guess && guess.list.length) {
-      menu.appendChild(d("h5", null, "From a room scan"));
-      const gb = btn(`Place the scan's guess (${guess.list.length})`, "Put the furniture a phone's room scan saw on this floor here, where it stood. A guess to drag and change; one Undo takes it all back",
+      menu.appendChild(d("h5", null, t("From a room scan")));
+      const gb = btn(t("Place the scan's guess ({n})", { n: guess.list.length }), t("Put the furniture a phone's room scan saw on this floor here, where it stood. A guess to drag and change; one Undo takes it all back"),
         () => { closeMenu(); placeGuess(guess); });
       gb.setAttribute("data-la3d-scan-fill", "menu");
       menu.appendChild(gb);
     }
     if (starters.length) {
-      menu.appendChild(d("h5", null, "Starter set"));
-      for (const s of starters) menu.appendChild(btn(s.name, `Add a ${s.name.toLowerCase()}, ready made`, () => { closeMenu(); add([{ recipe: copy(s.recipe) }]); }));
+      menu.appendChild(d("h5", null, t("Starter set")));
+      for (const s of starters) menu.appendChild(btn(s.name, t("Add a {name}, ready made", { name: low(s.name) }), () => { closeMenu(); add([{ recipe: copy(s.recipe) }]); }));
     }
     // Room sets (2026-11): one tap furnishes the room in the middle of the view along its walls.
     const sets = B && Array.isArray(B.ROOM_SETS) && typeof PIECES.layoutSet === "function" ? B.ROOM_SETS.filter(s => s && s.name) : [];
     if (sets.length) {
-      menu.appendChild(d("h5", null, "Room sets"));
+      menu.appendChild(d("h5", null, t("Room sets")));
       for (const set of sets) {
-        menu.appendChild(btn(set.name, `Furnish the room in the middle of the view: ${set.about || set.name.toLowerCase()}, along its walls. One Undo takes it all back`,
+        menu.appendChild(btn(set.name, t("Furnish the room in the middle of the view: {what}, along its walls. One Undo takes it all back", { what: set.about || low(set.name) }),
           () => { closeMenu(); placeSet(set); }));
       }
     }
@@ -485,30 +496,30 @@ export function createFurnish(ctx){
       const ks = kinds.filter(k => k !== boxKind && B.FURNITURE[k] && headingOf(B.FURNITURE[k]) === g);
       if (!ks.length) continue;
       menu.appendChild(d("h5", null, title));
-      for (const k of ks) menu.appendChild(btn(B.FURNITURE[k].name || k, `Add a ${B.FURNITURE[k].name || k}`, () => { closeMenu(); add([{ recipe: recipeFor(k) }]); }));
+      for (const k of ks) menu.appendChild(btn(B.FURNITURE[k].name || k, t("Add a {name}", { name: B.FURNITURE[k].name || k }), () => { closeMenu(); add([{ recipe: recipeFor(k) }]); }));
     }
     // The house itself: stairs (not furniture; never offered by a photo).
     if (B && B.FURNITURE && B.FURNITURE.stairs && ctx.STOREY) {
-      menu.appendChild(d("h5", null, "House"));
-      menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L, U, or round two or three landings", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
+      menu.appendChild(d("h5", null, t("House")));
+      menu.appendChild(btn(t("Stairs"), t("Stairs up to the floor above: straight, L, U, or round two or three landings"), () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
       // Settings → AI → Stairs from your floor plans (off until chosen): the AI Task reads them.
       // Under the master switch over every AI map-building feature (ai_plans_enabled, 2026-11).
       const hs = (ctx.host() || {}).settings || {};
       if (hs.ai_plans_enabled === true && hs.ai_stairs_enabled === true && String(hs.atlas_3d_ai_task_entity || "").startsWith("ai_task.")) {
-        menu.appendChild(btn("Read stairs off the plans (AI)",
-          "Your AI Task looks for the stairs on each floor plan you placed and adds what it finds as a first guess to check: drag, turn or delete them; nothing is kept until Save",
+        menu.appendChild(btn(t("Read stairs off the plans (AI)"),
+          t("Your AI Task looks for the stairs on each floor plan you placed and adds what it finds as a first guess to check: drag, turn or delete them; nothing is kept until Save"),
           () => { closeMenu(); readPlanStairs(); }));
       }
       let guesses = [];
       try { guesses = stairGuesses(); } catch (_) { guesses = []; }   // a guess never costs the menu
       if (guesses.length) {
-        menu.appendChild(btn(`Stairs in stair rooms (${guesses.length})`,
-          `A flight in each room called Stairs, Stairwell or Staircase that has none yet (${guesses.map(g => g.room).join(", ")}): squared to its walls and sized to the room, a first guess to drag into place`,
-          () => { closeMenu(); add(guesses.map(g => ({ piece: g.piece })), null, "A first guess"); }));
+        menu.appendChild(btn(t("Stairs in stair rooms ({n})", { n: guesses.length }),
+          t("A flight in each room called Stairs, Stairwell or Staircase that has none yet ({rooms}): squared to its walls and sized to the room, a first guess to drag into place", { rooms: guesses.map(g => g.room).join(", ") }),
+          () => { closeMenu(); add(guesses.map(g => ({ piece: g.piece })), null, t("A first guess")); }));
       }
     }
-    menu.appendChild(d("h5", null, "Other"));
-    menu.appendChild(btn("Box", "A plain box of any size: anything with no builder of its own", () => { closeMenu(); add([{ recipe: recipeFor(boxKind) }]); }));
+    menu.appendChild(d("h5", null, t("Other")));
+    menu.appendChild(btn(t("Box"), t("A plain box of any size: anything with no builder of its own"), () => { closeMenu(); add([{ recipe: recipeFor(boxKind) }]); }));
   }
   /** A room set (the builders' ROOM_SETS) into the room in the middle of the
    *  view, along its walls (PIECES.layoutSet: inside the room, backs to its
@@ -516,22 +527,22 @@ export function createFurnish(ctx){
    *  one Undo takes it all back. What finds no room is left out, and said. */
   function placeSet(set){
     const F = addFloor();
-    if (!F) { ctx.hint("Show a floor first: there is nowhere to put it.", true); return; }
+    if (!F) { ctx.hint(t("Show a floor first: there is nowhere to put it."), true); return; }
     const spot = spotHere(F), room = spot && spot.room;
     if (!room || room.outdoor || !Array.isArray(room.pts) || room.pts.length < 3) {
-      ctx.hint("Put a room in the middle of the view first: a set goes along its walls.", true);
+      ctx.hint(t("Put a room in the middle of the view first: a set goes along its walls."), true);
       return;
     }
     const walls = wallsOf(F), doors = PIECES.doorSwings(walls, (pc) => ctx.HOUSE.openingSwing(pc, F.rooms, pc.override || null));
     const c = cur(), others = Object.values((c && c.pieces) || {}).filter(o => o && String(o.floor_id) === String(F.fl.id));
     const got = PIECES.layoutSet(set, room.pts, walls, { others, doors, B: FURN() });
-    const where = room.name ? String(room.name) : "this room";
-    if (!got.pieces.length) { ctx.hint(`Nothing from the ${set.name.toLowerCase()} set fits in ${where}.`, true); return; }
+    const where = room.name ? String(room.name) : t("this room");
+    if (!got.pieces.length) { ctx.hint(t("Nothing from the {set} set fits in {where}.", { set: low(set.name), where }), true); return; }
     add(got.pieces.map(q => ({ piece: { ...PIECES.makePiece(q.recipe, F.fl.id, { x: q.x_m, y: q.y_m, rotation: q.rotation }, "build"), z_m: q.z_m } })));
     tele("house3d_room_set");                                // the opt-in report: a set placed (never which, or where)
     const n = got.pieces.length, out = got.left_out;
-    ctx.hint(`${set.name} in ${where}: ${n} ${n === 1 ? "piece" : "pieces"}${out ? `; ${out} more had no room` : ""}. `
-      + "Drag them into place; one Undo takes the set away. Nothing is kept until Save.");
+    ctx.hint(tn(n, "{set} in {where}: {n} piece", "{set} in {where}: {n} pieces", { set: set.name, where }) + (out ? "; " + t("{n} more had no room", { n: out }) : "") + ". "
+      + t("Drag them into place; one Undo takes the set away. Nothing is kept until Save."));
   }
   function toggleMenu(){ if (menuOpen) closeMenu(); else { buildMenu(); menuOpen = true; placeMenu(); menu.classList.add("on"); } }
   function closeMenu(){ menuOpen = false; menu.classList.remove("on"); }
@@ -568,19 +579,19 @@ export function createFurnish(ctx){
     const spot = F ? spotHere(F) : null;
     flowEl = d("div", "la3d-flow");
     const card = d("div"), h = d("h4"), body = d("div");
-    h.appendChild(d("span", null, k === "share" ? "Share" : FLOWS.find(f => f[0] === k)[1]));
-    h.appendChild(btn("✕", "Close", () => closeFlow(), "la3d-x"));
+    h.appendChild(d("span", null, k === "share" ? "Share" : FLOW_WORDS[k]()));
+    h.appendChild(btn("✕", t("Close"), () => closeFlow(), "la3d-x"));
     card.append(h, body);
     flowEl.appendChild(card);
     root.appendChild(flowEl);
-    const callWS = typeof host.callWS === "function" ? host.callWS : () => Promise.reject(new Error("no connection"));
+    const callWS = typeof host.callWS === "function" ? host.callWS : () => Promise.reject(new Error(t("no connection")));
     const fctx = { el: body, callWS, wsCall: callWS, toast: (t, bad) => (host.toast ? host.toast(t, bad) : ctx.hint(t, bad)),
                    settings: host.settings || {}, floor: F ? { id: F.fl.id, name: F.fl.name } : null,
                    room: spot && spot.room ? { name: spot.room.name } : null, recipeTools: FURN(), signal: flowStop ? flowStop.signal : null,
                    draft: cur() ? copy(cur()) : null,      // what the house is now, unsaved work and all
                    pending: pendingCount() };              // how many changes that unsaved work already puts in the next Save
     let r = null;
-    try { r = await (k === "share" ? fn(fctx, copy(piece)) : fn(fctx)); } catch (err) { r = null; if (gen === flowGen) ctx.hint(`That didn't work: ${String((err && err.message) || err)}`, true); }
+    try { r = await (k === "share" ? fn(fctx, copy(piece)) : fn(fctx)); } catch (err) { r = null; if (gen === flowGen) ctx.hint(t("That didn't work: {why}", { why: String((err && err.message) || err) }), true); }
     if (gen !== flowGen) return;                     // closed meanwhile: what it found is dropped
     closeFlow();
     if (r && typeof r === "object") take(k, r, piece);
@@ -588,18 +599,18 @@ export function createFurnish(ctx){
   /** What a flow found, into the draft as one step. */
   function take(k, r, piece){
     if (k === "share" && piece && typeof r.submission_id === "string") {
-      if (ctx.change((c) => { if (c.pieces[piece.id]) c.pieces[piece.id].submission_id = r.submission_id; })) { ctx.hint("Shared: Save keeps the link to it."); sheet(); }
+      if (ctx.change((c) => { if (c.pieces[piece.id]) c.pieces[piece.id].submission_id = r.submission_id; })) { ctx.hint(t("Shared: Save keeps the link to it.")); sheet(); }
     } else if (k === "photo" && r.recipe) {
       const recipe = r.details && typeof r.details === "object" ? { ...r.recipe, details: r.details } : r.recipe;
-      add([{ recipe, origin: "photo" }], null, "From the photo");
+      add([{ recipe, origin: "photo" }], null, t("From the photo"));
     } else if (k === "library" && r.recipe) {
-      add([{ recipe: r.recipe, origin: "library", library_id: r.library_id || null }], null, "From the library");
+      add([{ recipe: r.recipe, origin: "library", library_id: r.library_id || null }], null, t("From the library"));
     } else if (k === "import") {
       // Stairs from a file come in squared to their room's walls when they are nearly so.
       const list = Object.values(r.pieces || {}).filter(p => p && p.recipe)
         .map(p => ({ piece: { ...p, origin: "import" }, square: !!(ctx.STOREY && ctx.STOREY.isStairs(p)) }));
       const ops = r.openings && typeof r.openings === "object" ? r.openings : null;
-      add(list, ops ? (c) => { for (const [id, o] of Object.entries(ops)) { if (o === null) delete c.openings[id]; else c.openings[id] = copy(o); } } : null, "Imported");
+      add(list, ops ? (c) => { for (const [id, o] of Object.entries(ops)) { if (o === null) delete c.openings[id]; else c.openings[id] = copy(o); } } : null, t("Imported"));
     } else if (k === "people") {
       const ok = ctx.change((c) => {
         for (const s of ["figures", "devices"]) {
@@ -608,7 +619,7 @@ export function createFurnish(ctx){
           }
         }
       });
-      if (ok) { ctx.redraw(); ctx.hint("People and devices changed: nothing is kept until Save."); }
+      if (ok) { ctx.redraw(); ctx.hint(t("People and devices changed: nothing is kept until Save.")); }
     }
   }
 
@@ -655,23 +666,23 @@ export function createFurnish(ctx){
     const h = d("h4");
     const title = d("span", null, pieceName(p, B));
     if (p.entity_id) title.appendChild(d("span", "la3d-badge", "linked"));
-    h.append(title, btn("✕", "Close", () => select(null), "la3d-x"));
+    h.append(title, btn("✕", t("Close"), () => select(null), "la3d-x"));
     el.appendChild(h);
     // Under its name: what it is (once it has a name of its own) and where it came from.
     const what = [p.label ? (spec ? spec.name : pieceName({ recipe: { kind } }, null)) : null,
-                  { photo: "From a photo", library: "From the library", import: "Imported" }[p.origin] || null].filter(Boolean).join(" · ");
+                  { photo: t("From a photo"), library: t("From the library"), import: t("Imported") }[p.origin] || null].filter(Boolean).join(" · ");
     if (what) el.appendChild(d("p", "la3d-sub", what));
     const lab = d("input", "la3d-fin");
-    lab.type = "text"; lab.maxLength = 60; lab.placeholder = "Its name in the house (optional)"; lab.value = p.label || "";
+    lab.type = "text"; lab.maxLength = 60; lab.placeholder = t("Its name in the house (optional)"); lab.value = p.label || "";
     lab.addEventListener("change", guard(() => { edit((q) => { q.label = [...lab.value].filter(ch => ch >= " " && ch !== "\u007f").join("").trim().slice(0, 60); }); sheet(); }));
     lab.addEventListener("keydown", (e) => e.stopPropagation());
     el.appendChild(lab);
     // Size.
-    el.appendChild(d("div", "la3d-sec", "Size"));
+    el.appendChild(d("div", "la3d-sec", t("Size")));
     const S = PIECES.sizeOf(p.recipe), lim = (k, i, dflt) => (spec && spec.size && Array.isArray(spec.size[k]) ? spec.size[k][i] : dflt);
     const stairs = !!(ctx.STOREY && ctx.STOREY.isStairs(p));     // their height is the rise: never set by hand
-    for (const [k, label, name] of stairs ? [["width_m", "Width", "Width"], ["depth_m", "Run", "Run"]]
-      : [["width_m", "W", "Width"], ["depth_m", "D", "Depth"], ["height_m", "H", "Height"]]) {
+    for (const [k, label, name] of stairs ? [["width_m", t("Width"), t("Width")], ["depth_m", t("Run"), t("Run")]]
+      : [["width_m", "W", t("Width")], ["depth_m", "D", t("Depth")], ["height_m", "H", t("Height")]]) {
       const lo = Math.max(PIECES.SIZE_MIN_M, lim(k, 0, PIECES.SIZE_MIN_M)), hi = Math.min(PIECES.SIZE_MAX_M, lim(k, 1, k === "height_m" ? 3 : 4));
       const v = k === "width_m" ? S.w : k === "depth_m" ? S.d : S.h;
       el.appendChild(slider(label, Math.min(lo, v), Math.max(hi, v), 0.01, v, metres, (val, g) => edit((q) => {
@@ -685,9 +696,9 @@ export function createFurnish(ctx){
     const under = stairs ? null : scanUnder(p);
     if (under) {
       const us = PIECES.sizeOf(under.recipe), row = d("div", "la3d-acts");
-      const b = btn("Size to the scan", `Make it the size the phone's scan measured here: ${metres(us.w)} × ${metres(us.d)}, ${metres(us.h)} high`, () => sizeToScan(under));
+      const b = btn(t("Size to the scan"), t("Make it the size the phone's scan measured here: {w} × {d}, {h} high", { w: metres(us.w), d: metres(us.d), h: metres(us.h) }), () => sizeToScan(under));
       b.setAttribute("data-la3d-scan-size", "1");
-      row.append(seg(b), d("span", "la3d-sub", `The scan found ${String(under.label || "a piece").toLowerCase()} here: ${metres(us.w)} × ${metres(us.d)}`));
+      row.append(seg(b), d("span", "la3d-sub", t("The scan found {what} here: {w} × {d}", { what: low(String(under.label || t("a piece"))), w: metres(us.w), d: metres(us.d) })));
       el.appendChild(row);
     }
     // Place the scan's guess (owner, 2026-11-16): the rest of this room's furniture as the phone's scan saw it, as real
@@ -695,20 +706,20 @@ export function createFurnish(ctx){
     const guess = stairs ? null : scanGuess(p);
     if (guess && guess.list.length) {
       const n = guess.list.length, row = d("div", "la3d-acts");
-      const b = btn(`Place the scan's guess (${n})`, `Put the ${n === 1 ? "piece" : n + " pieces"} of furniture the phone's scan saw in ${guess.where} here, where they stood. A guess to drag and change; one Undo takes them all back`,
+      const b = btn(t("Place the scan's guess ({n})", { n }), tn(n, "Put the piece of furniture the phone's scan saw in {where} here, where they stood. A guess to drag and change; one Undo takes them all back", "Put the {n} pieces of furniture the phone's scan saw in {where} here, where they stood. A guess to drag and change; one Undo takes them all back", { where: guess.where }),
         () => placeGuess(guess));
       b.setAttribute("data-la3d-scan-fill", "1");
-      row.append(seg(b), d("span", "la3d-sub", `The scan saw ${n} more in ${guess.where}`));
+      row.append(seg(b), d("span", "la3d-sub", t("The scan saw {n} more in {where}", { n, where: guess.where })));
       el.appendChild(row);
     }
     // The builder's own settings, and its colours.
     const params = spec && Array.isArray(spec.params) ? spec.params : [];
     if (stairs) stairRows(el, p, spec);
     else {
-      if (params.length) el.appendChild(d("div", "la3d-sec", "Style"));
+      if (params.length) el.appendChild(d("div", "la3d-sec", t("Style")));
       for (const pr of params) el.appendChild(paramRow(p, pr));
     }
-    const names = spec && Array.isArray(spec.colorNames) && spec.colorNames.length ? spec.colorNames : (p.recipe.colors || []).map((_, i) => `Colour ${i + 1}`);
+    const names = spec && Array.isArray(spec.colorNames) && spec.colorNames.length ? spec.colorNames : (p.recipe.colors || []).map((_, i) => t("Colour {n}", { n: i + 1 }));
     if (names.length) {
       const cols = d("div", "la3d-cols");
       names.forEach((nm, i) => {
@@ -731,62 +742,62 @@ export function createFurnish(ctx){
     }
     // Turn, floor, height. Exactly: where it stands on the plan (m), how
     // high its bottom is, which way it faces (degrees clockwise).
-    el.appendChild(d("div", "la3d-sec", "Place"));
+    el.appendChild(d("div", "la3d-sec", t("Place")));
     const xy = d("div", "la3d-xy");
-    xy.append(numField("X", p.x_m, 0.01, "m", "X on the plan", (v) => placeAt({ x_m: v })),
-              numField("Y", p.y_m, 0.01, "m", "Y on the plan", (v) => placeAt({ y_m: v })),
-              numField("Height", p.z_m || 0, 0.01, "m", "Height above the floor", (v) => placeAt({ z_m: v })),
-              numField("Angle", p.rotation || 0, 1, "°", "Angle", (v) => placeAt({ rotation: v })));
+    xy.append(numField("X", p.x_m, 0.01, "m", t("X on the plan"), (v) => placeAt({ x_m: v })),
+              numField("Y", p.y_m, 0.01, "m", t("Y on the plan"), (v) => placeAt({ y_m: v })),
+              numField(t("Height"), p.z_m || 0, 0.01, "m", t("Height above the floor"), (v) => placeAt({ z_m: v })),
+              numField(t("Angle"), p.rotation || 0, 1, "°", t("Angle"), (v) => placeAt({ rotation: v })));
     el.appendChild(xy);
     const turnRow = d("div", "la3d-acts");
-    turnRow.append(seg(btn("⟲ 15°", "Turn it anticlockwise", () => turn(-1)), btn("⟳ 15°", "Turn it clockwise", () => turn(1))),
+    turnRow.append(seg(btn("⟲ 15°", t("Turn it anticlockwise"), () => turn(-1)), btn("⟳ 15°", t("Turn it clockwise"), () => turn(1))),
                    d("span", "la3d-sub", `${Math.round(p.rotation || 0)}°`));
     el.appendChild(turnRow);
     // Up or down a whole floor: a split level is part of its floor, not a step.
     const F = floorById(p.floor_id), floors = ctx.floors().filter(G => !G.fl.parent).map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, outdoor: G.fl.outdoor }));
     const upId = PIECES.floorStep(floors, p.floor_id, 1), downId = PIECES.floorStep(floors, p.floor_id, -1);
-    const bUp = btn("Floor ▲", upId ? `Move it ${towards(F, floorById(upId), 1)} ${floorById(upId).fl.name}` : "It is on the top floor", () => toFloor(1));
-    const bDown = btn("Floor ▼", downId ? `Move it ${towards(F, floorById(downId), -1)} ${floorById(downId).fl.name}` : "It is on the bottom floor", () => toFloor(-1));
+    const bUp = btn(t("Floor ▲"), upId ? moveIt(towards(F, floorById(upId), 1), floorById(upId).fl.name) : t("It is on the top floor"), () => toFloor(1));
+    const bDown = btn(t("Floor ▼"), downId ? moveIt(towards(F, floorById(downId), -1), floorById(downId).fl.name) : t("It is on the bottom floor"), () => toFloor(-1));
     bUp.disabled = !upId; bDown.disabled = !downId;
     const floorRow = d("div", "la3d-acts");
-    floorRow.append(seg(bUp, bDown), d("span", "la3d-sub", F ? `On ${F.fl.name}` : "Its floor is gone"));
+    floorRow.append(seg(bUp, bDown), d("span", "la3d-sub", F ? t("On {floor}", { floor: F.fl.name }) : t("Its floor is gone")));
     el.appendChild(floorRow);
     if (F && !stairs) {
       // Its bottom above its floor, up to the ceiling less its own height:
       // on a shelf, on a table, on a wall.
-      el.appendChild(d("div", "la3d-sec", "Height in room"));
+      el.appendChild(d("div", "la3d-sec", t("Height in room")));
       const top = PIECES.zMax(ceilOf(F), S.h);
-      el.appendChild(slider("Up", 0, Math.max(top, 0.01), PIECES.Z_STEP_M, Math.min(p.z_m || 0, top), metres,
-        (val, g) => edit((q) => { q.z_m = PIECES.clampZ(val, ceilOf(F), PIECES.sizeOf(q.recipe).h); }, g, true), "Height in room"));
-      const onFloor = btn("On the floor", "Stand it on the floor", () => { if (edit((q) => { q.z_m = 0; }, null, true)) { ctx.hint("On the floor."); sheet(); paint3d(); } });
+      el.appendChild(slider(t("Up"), 0, Math.max(top, 0.01), PIECES.Z_STEP_M, Math.min(p.z_m || 0, top), metres,
+        (val, g) => edit((q) => { q.z_m = PIECES.clampZ(val, ceilOf(F), PIECES.sizeOf(q.recipe).h); }, g, true), t("Height in room")));
+      const onFloor = btn(t("On the floor"), t("Stand it on the floor"), () => { if (edit((q) => { q.z_m = 0; }, null, true)) { ctx.hint(t("On the floor.")); sheet(); paint3d(); } });
       onFloor.disabled = !(p.z_m > 0);
       const hRow = d("div", "la3d-acts");
-      hRow.append(seg(onFloor, btn("Stand on what's under it", "Onto the top of the piece under it: a lamp onto its table, a TV onto its unit", () => standOn())));
+      hRow.append(seg(onFloor, btn(t("Stand on what's under it"), t("Onto the top of the piece under it: a lamp onto its table, a TV onto its unit"), () => standOn())));
       el.appendChild(hRow);
       // On a wall at a chosen height (its middle), its back flat against the
       // nearest wall: a TV, a picture, a shelf.
       if (!hangAt || hangAt.id !== p.id) hangAt = { id: p.id, v: mm(p.z_m > 0 ? p.z_m + S.h / 2 : PIECES.HANG_MID_M) };
       const hangIn = d("input", "la3d-fin la3d-hang");
       hangIn.type = "number"; hangIn.step = "0.01"; hangIn.min = "0"; hangIn.value = String(hangAt.v);
-      hangIn.setAttribute("aria-label", "Hang height");
+      hangIn.setAttribute("aria-label", t("Hang height"));
       const takeHang = () => { const v = Number(hangIn.value); if (hangIn.value.trim() !== "" && Number.isFinite(v)) hangAt = { id: p.id, v: mm(Math.max(0, v)) }; };
       hangIn.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { takeHang(); hang(); } });
       hangIn.addEventListener("change", guard(takeHang));
       const hangRow = d("div", "la3d-acts");
-      hangRow.append(seg(btn("Hang on wall", "Its back flat on the nearest wall, its middle at this height", () => hang())),
-                     d("span", "la3d-sub", "its middle at"), hangIn, d("span", "la3d-sub", "m"));
+      hangRow.append(seg(btn(t("Hang on wall"), t("Its back flat on the nearest wall, its middle at this height"), () => hang())),
+                     d("span", "la3d-sub", t("its middle at")), hangIn, d("span", "la3d-sub", "m"));
       el.appendChild(hangRow);
     }
-    if (!(globalThis.matchMedia && globalThis.matchMedia("(pointer: coarse)").matches)) el.appendChild(d("p", "la3d-keys", KEYS_TEXT));
+    if (!(globalThis.matchMedia && globalThis.matchMedia("(pointer: coarse)").matches)) el.appendChild(d("p", "la3d-keys", t("Arrow keys move it 1 cm (Shift: 10 cm); [ and ] turn it 15° (Shift: 1°).")));
     // Copy, delete, device.
     const acts = d("div", "la3d-acts");
-    acts.append(seg(btn("Duplicate", "Another one beside it", () => duplicate()), btn("Delete", "Take it out", () => remove(), "la3d-del")));
-    if (share) acts.append(seg(btn("Share…", "Add it to the shared library", () => openFlow("share", p))));
+    acts.append(seg(btn(t("Duplicate"), t("Another one beside it"), () => duplicate()), btn(t("Delete"), t("Take it out"), () => remove(), "la3d-del")));
+    if (share) acts.append(seg(btn(t("Share…"), t("Add it to the shared library"), () => openFlow("share", p))));
     el.appendChild(acts);
     el.appendChild(deviceRow(p));
     // The fit checks: warnings, never blocks.
     const warns = checksOf(p);
-    if (fitHint && !warns.length) { fitHint = null; ctx.hint("It fits here now."); }   // raised onto the table, say
+    if (fitHint && !warns.length) { fitHint = null; ctx.hint(t("It fits here now.")); }   // raised onto the table, say
     if (warns.length) {
       const w = d("div", "la3d-warn");
       w.setAttribute("role", "status");
@@ -831,10 +842,10 @@ export function createFurnish(ctx){
    *  which way they turn, closed, open, treads only or floating, the rail, the floor
    *  they go up to. */
   function stairRows(el, p, spec){
-    el.appendChild(d("div", "la3d-sec", "Stairs"));
+    el.appendChild(d("div", "la3d-sec", t("Stairs")));
     if (p.plan_ai && p.plan_ai.session) {
       const kept = num(p.plan_ai.at) !== null ? new Date(p.plan_ai.at * 1000).toLocaleDateString() : "";
-      el.appendChild(d("p", "la3d-sub", `From the plan, read by the AI (experimental)${kept ? `, kept ${kept}` : ""}. Edit → Plans or Settings → AI undoes that session.`));
+      el.appendChild(d("p", "la3d-sub", kept ? t("From the plan, read by the AI (experimental), kept {when}. Edit → Plans or Settings → AI undoes that session.", { when: kept }) : t("From the plan, read by the AI (experimental). Edit → Plans or Settings → AI undoes that session.")));
     }
     const params = p.recipe.params || {}, r = reachOf(p);
     const shapeP = spec && Array.isArray(spec.params) ? spec.params.find(x => x.key === "shape") : null;
@@ -860,9 +871,9 @@ export function createFurnish(ctx){
       el.appendChild(r2);
     };
     const shape = ["straight", "l", "u", "l2", "l3"].includes(params.shape) ? params.shape : "straight";
-    pick("Shape", "shape", [["straight", "Straight"], ["l", "L"], ["u", "U"], ["l2", "2 landings"], ["l3", "3 landings"]], shape);
-    if (shape !== "straight") pick("Turns", "turn", [["left", "Left"], ["right", "Right"]], params.turn === "right" ? "right" : "left");
-    pick("Style", "style", [["closed", "Closed"], ["open", "Open"], ["treads", "Treads only"], ["floating", "Floating"]],
+    pick(t("Shape"), "shape", [["straight", t("Straight")], ["l", "L"], ["u", "U"], ["l2", "2 landings"], ["l3", "3 landings"]], shape);
+    if (shape !== "straight") pick(t("Turns"), "turn", [["left", t("Left")], ["right", t("Right")]], params.turn === "right" ? "right" : "left");
+    pick(t("Style"), "style", [["closed", t("Closed")], ["open", t("Open")], ["treads", t("Treads only")], ["floating", t("Floating")]],
       ["closed", "open", "treads", "floating"].includes(params.style) ? params.style : "closed");
     // The rail: none until one is chosen (2026-11-02); for a straight flight
     // its sides are left and right as you go up (inner = left); for a turn,
@@ -872,30 +883,30 @@ export function createFurnish(ctx){
     // changed. Then its style: a balustrade, topless (the spindles and
     // posts, no top rail) or a single bar (nothing under it).
     const railNow = ["both", "inner", "outer", "none"].includes(params.rail) ? params.rail : params.rail === "auto" ? "auto" : "none";
-    const legacy = railNow === "auto" ? [["auto", "Auto (as before)"]] : [];
-    pick("Rail", "rail", shape === "straight"
-      ? [["none", "None"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ...legacy]
-      : [["none", "None"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ...legacy], railNow);
-    if (railNow !== "none") pick("Rail style", "rail_style", [["balustrade", "Balustrade"], ["topless", "Topless"], ["single_bar", "Single bar"]],
+    const legacy = railNow === "auto" ? [["auto", t("Auto (as before)")]] : [];
+    pick(t("Rail"), "rail", shape === "straight"
+      ? [["none", t("None")], ["both", t("Both")], ["inner", t("Left")], ["outer", t("Right")], ...legacy]
+      : [["none", t("None")], ["both", t("Both")], ["inner", t("Inside")], ["outer", t("Outside")], ...legacy], railNow);
+    if (railNow !== "none") pick(t("Rail style"), "rail_style", [["balustrade", t("Balustrade")], ["topless", t("Topless")], ["single_bar", t("Single bar")]],
       ["balustrade", "topless", "single_bar"].includes(params.rail_style) ? params.rail_style : "balustrade");
     // Whole floors above, and with a split level on its own floor, a few
     // steps within that floor (up out of a sunken room, or up to a raised one).
     const from = r.from ? r.from.elev : null, fl = floorList(), whole = r.from ? (r.from.parent || r.from.id) : null;
     const ups = fl.filter(f => !f.outdoor && !f.parent && from !== null && f.elev > from + 0.05)
-      .map(f => [f.id, f.id === whole ? `A few steps, on ${f.name}` : f.name]);
+      .map(f => [f.id, f.id === whole ? t("A few steps, on {floor}", { floor: f.name }) : f.name]);
     if (whole && !ups.some(([id]) => id === whole) && fl.some(f => f.parent === whole)) {
       const W = fl.find(f => f.id === whole);
-      ups.unshift([whole, `A few steps, on ${(W && W.name) || whole}`]);
+      ups.unshift([whole, t("A few steps, on {floor}", { floor: (W && W.name) || whole })]);
     }
     if (ups.length > 1) {
       const sel2 = d("select", "la3d-fin");
       for (const [id, text] of ups) { const o = d("option", null, text); o.value = id; sel2.appendChild(o); }
       sel2.value = r.to ? (r.to.parent || r.to.id) : ups[0][0];
       sel2.addEventListener("change", guard(() => set({ to_floor: sel2.value })));
-      el.appendChild(row("Up to", sel2));
+      el.appendChild(row(t("Up to"), sel2));
     }
-    el.appendChild(d("p", "la3d-sub", r.to ? `Up ${metres(r.rise)} to ${r.to.name || r.to.id}: always as high as the floor it reaches.`
-      : "There is no floor above: it goes up as high as its own floor."));
+    el.appendChild(d("p", "la3d-sub", r.to ? t("Up {rise} to {floor}: always as high as the floor it reaches.", { rise: metres(r.rise), floor: r.to.name || r.to.id })
+      : t("There is no floor above: it goes up as high as its own floor.")));
   }
   /** A piece turned square to the walls of the room it stands in, when it is
    *  within a few degrees of them (PIECES.squareRot). */
@@ -924,6 +935,7 @@ export function createFurnish(ctx){
         const base = recipeFor("stairs");
         const recipe = { ...base, params: { ...(base.params || {}), ...g.params }, width_m: g.width_m, depth_m: g.depth_m, height_m: reach.rise };
         const piece = PIECES.makePiece(recipe, F.fl.parent || F.fl.id, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
+        // Saved on the piece in English: setup_checks.py counts a stair room's guess by "Stairs (" (as PIECE_LABEL in live_aboard_plans.js).
         piece.label = `Stairs (${r.name})`;
         out.push({ room: r.name, piece });
       }
@@ -943,14 +955,14 @@ export function createFurnish(ctx){
     reading = true;
     try {
       const pl = await call({ type: "padspan_ha/house3d_stairs_plans" });
-      if (pl && pl.ai_ready === false) { ctx.hint(String(pl.message || "Pick an AI Task in Settings → AI first."), true); return; }
+      if (pl && pl.ai_ready === false) { ctx.hint(String(pl.message || t("Pick an AI Task in Settings → AI first.")), true); return; }
       const floors = floorList(), canon = (fid) => (ctx.canon ? ctx.canon(fid) : String(fid));
       const plans = (Array.isArray(pl && pl.plans) ? pl.plans : []).filter(m => floors.some(f => f.id === canon(m.floor_id) && !f.outdoor));
-      if (!plans.length) { ctx.hint("No placed floor plans to read: add one in Mapping first.", true); return; }
+      if (!plans.length) { ctx.hint(t("No placed floor plans to read: add one in Mapping first."), true); return; }
       const found = [];
       let i = 0, failed = 0, byBackup = false;
       for (const m of plans) {
-        ctx.hint(`Reading the stairs off ${m.name || "a plan"} (${++i} of ${plans.length})… a local AI can take a minute.`);
+        ctx.hint(t("Reading the stairs off {plan} ({i} of {n})… a local AI can take a minute.", { plan: m.name || t("a plan"), i: ++i, n: plans.length }));
         try {
           const r = await call({ type: "padspan_ha/house3d_stairs_read", map_id: m.map_id });
           if (r && r.ok) {
@@ -977,8 +989,8 @@ export function createFurnish(ctx){
         placed.push({ fid, st, x: st.x_m, y: st.y_m });
       }
       if (!placed.length) {
-        ctx.hint(failed === plans.length ? "The AI couldn't read the plans. Try again, or place the stairs with Build → Stairs."
-          : "No stairs found on the plans (or they're already here). Place them with Build → Stairs.", failed === plans.length);
+        ctx.hint(failed === plans.length ? t("The AI couldn't read the plans. Try again, or place the stairs with Build → Stairs.")
+          : t("No stairs found on the plans (or they're already here). Place them with Build → Stairs."), failed === plans.length);
         return;
       }
       const base = recipeFor("stairs");
@@ -986,14 +998,15 @@ export function createFurnish(ctx){
         const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "none" },
                          width_m: st.width_m, depth_m: st.depth_m };
         const piece = PIECES.makePiece(recipe, fid, { x: st.x_m, y: st.y_m, rotation: st.rotation }, "build");
+        // Saved in English: plan_ai.py (AI_LABELS) and setup_checks.py tell the AI's stairs from hand-placed ones by this label.
         piece.label = st.sure_up ? "Stairs (AI first guess)" : "Stairs (AI first guess, check which way is up)";
         return { piece, square: true };
-      }), null, `The AI found ${placed.length} staircase${placed.length === 1 ? "" : "s"} on your plans: a first guess, so check where they stand, their shape and which way is up` +
+      }), null, tn(placed.length, "The AI found {n} staircase on your plans: a first guess, so check where they stand, their shape and which way is up", "The AI found {n} staircases on your plans: a first guess, so check where they stand, their shape and which way is up") +
         // Tested on real plans (0.38.189): a small local model finds most, but their shape and way up often wrong.
-        (byBackup ? ". Read by the backup AI task" : "") +
-        (pl && pl.local === true ? ". Your AI runs on your own computer: a small model like that finds most staircases but often gets their shape and which way is up wrong. A cloud AI Task (Settings → AI) reads plans better." : ""));
+        (byBackup ? ". " + t("Read by the backup AI task") : "") +
+        (pl && pl.local === true ? ". " + t("Your AI runs on your own computer: a small model like that finds most staircases but often gets their shape and which way is up wrong. A cloud AI Task (Settings → AI) reads plans better.") : ""));
     } catch (e) {
-      ctx.hint("Couldn't read the plans: " + String((e && (e.message || e.code)) || e), true);
+      ctx.hint(t("Couldn't read the plans: {why}", { why: String((e && (e.message || e.code)) || e) }), true);
     } finally { reading = false; }
   }
   function tidyRecipe(q){
@@ -1037,13 +1050,13 @@ export function createFurnish(ctx){
   }
   function deviceRow(p){
     const box = d("div");
-    box.appendChild(d("div", "la3d-sec", "Device"));
+    box.appendChild(d("div", "la3d-sec", t("Device")));
     if (p.entity_id) {
       const host = ctx.host() || {}, st = host.states && host.states[p.entity_id];
       const nm = (st && st.attributes && st.attributes.friendly_name) || p.entity_id;
       const r = d("div", "la3d-acts");
-      r.append(d("span", "la3d-sub", `This is ${nm}${st ? "" : " (not found now)"}`),
-               seg(btn("Unlink", "It is just furniture again", () => { edit((q) => { q.entity_id = null; q.entity_reg_id = null; }); ctx.hint("Unlinked."); sheet(); })));
+      r.append(d("span", "la3d-sub", st ? t("This is {name}", { name: nm }) : t("This is {name} (not found now)", { name: nm })),
+               seg(btn(t("Unlink"), t("It is just furniture again"), () => { edit((q) => { q.entity_id = null; q.entity_reg_id = null; }); ctx.hint(t("Unlinked.")); sheet(); })));
       box.appendChild(r);
       // A Zigbee device's duplicate copy (host.twins, zigbee_twins.js): said, with the kept one a tap away.
       const was = p.entity_id, send = typeof host.callWS === "function" ? (type, data) => host.callWS({ type, ...data }) : null;
@@ -1055,26 +1068,26 @@ export function createFurnish(ctx){
       return box;
     }
     if (!picker) {
-      box.appendChild(seg(btn("This is a device…", "Link it to a light, a TV, a fan…", () => { picker = { q: "" }; sheet(); })));
+      box.appendChild(seg(btn(t("This is a device…"), t("Link it to a light, a TV, a fan…"), () => { picker = { q: "" }; sheet(); })));
       return box;
     }
     const q = d("input", "la3d-fin");
-    q.type = "search"; q.placeholder = "Find a light, a TV, a fan…"; q.value = picker.q;
+    q.type = "search"; q.placeholder = t("Find a light, a TV, a fan…"); q.value = picker.q;
     q.addEventListener("keydown", (e) => e.stopPropagation());
     const list = d("div", "la3d-ents");
     const fill = () => {
       list.innerHTML = "";
       for (const e of deviceList(picker.q).slice(0, 60)) {
-        const b = btn("", `Link it to ${e.name}`, () => link(e.eid));
+        const b = btn("", t("Link it to {name}", { name: e.name }), () => link(e.eid));
         b.textContent = e.name;
         b.appendChild(d("small", null, e.eid));
         list.appendChild(b);
       }
-      if (!list.childNodes.length) list.appendChild(d("div", "la3d-sub", "Nothing matches."));
+      if (!list.childNodes.length) list.appendChild(d("div", "la3d-sub", t("Nothing matches.")));
     };
     q.addEventListener("input", guard(() => { picker.q = q.value; fill(); }));
     fill();
-    box.append(q, list, seg(btn("Cancel", "Leave it unlinked", () => { picker = null; sheet(); })));
+    box.append(q, list, seg(btn(t("Cancel"), t("Leave it unlinked"), () => { picker = null; sheet(); })));
     return box;
   }
   function deviceList(query){
@@ -1099,7 +1112,7 @@ export function createFurnish(ctx){
     }
     if (sel !== id) return;
     picker = null;
-    if (edit((q) => { q.entity_id = eid; q.entity_reg_id = typeof reg === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(reg) ? reg : null; })) ctx.hint("Linked: it is that device now.");
+    if (edit((q) => { q.entity_id = eid; q.entity_reg_id = typeof reg === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(reg) ? reg : null; })) ctx.hint(t("Linked: it is that device now."));
     sheet();
   }
   function turn(dir){
@@ -1157,7 +1170,7 @@ export function createFurnish(ctx){
     if (!step || !sel) return;
     if (!edit((q) => { q.x_m = mm((num(q.x_m) ?? 0) + step[0]); q.y_m = mm((num(q.y_m) ?? 0) + step[1]); }, burstGroup("nudge"), true)) return;
     measure = true;
-    ctx.hint(big ? "Moved 10 cm." : "Moved 1 cm.");
+    ctx.hint(big ? t("Moved 10 cm.") : t("Moved 1 cm."));
     sheet(); paint3d();
   }
   /** [ or ]: onto the next 15° that way, or (Shift) 1°. */
@@ -1187,7 +1200,7 @@ export function createFurnish(ctx){
     if (!p || !F) return;
     const r = PIECES.standOn(p, sceneOf(p).others), z = PIECES.clampZ(r.z_m, ceilOf(F), PIECES.sizeOf(p.recipe).h);
     edit((q) => { q.z_m = z; }, null, true);
-    ctx.hint(r.on ? (z < r.z_m ? `On the ${nameOf(r.on)}, as high as the ceiling lets it.` : `On the ${nameOf(r.on)}.`) : "On the floor: nothing is under it.");
+    ctx.hint(r.on ? (z < r.z_m ? t("On the {what}, as high as the ceiling lets it.", { what: nameOf(r.on) }) : t("On the {what}.", { what: nameOf(r.on) })) : t("On the floor: nothing is under it."));
     sheet(); paint3d();
   }
   /** Hang on wall at the height asked: its back on the nearest wall, facing out. */
@@ -1196,10 +1209,10 @@ export function createFurnish(ctx){
     if (!p || !F) return;
     const mid = hangAt && hangAt.id === p.id ? hangAt.v : PIECES.HANG_MID_M;
     const r = PIECES.hangOnWall(p, null, wallsOf(F), mid, ceilOf(F), FURN());
-    if (!r) { ctx.hint("No wall near enough to hang it on at that height.", true); return; }
+    if (!r) { ctx.hint(t("No wall near enough to hang it on at that height."), true); return; }
     edit((q) => { q.x_m = r.x_m; q.y_m = r.y_m; q.z_m = r.z_m; q.rotation = r.rotation; }, null, true);
     measure = true;
-    ctx.hint(`On the wall, its middle ${metres(r.z_m + PIECES.sizeOf(p.recipe).h / 2)} up.`);
+    ctx.hint(t("On the wall, its middle {m} up.", { m: metres(r.z_m + PIECES.sizeOf(p.recipe).h / 2) }));
     sheet(); paint3d();
   }
   function toFloor(dir){
@@ -1212,7 +1225,7 @@ export function createFurnish(ctx){
     if (!edit((q) => { q.floor_id = to; stairFix(q, true); q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); })) return;
     ctx.setTopFloor(to);                              // the view follows it, so you see where it went
     ctx.redraw();
-    ctx.hint(`Moved ${towards(from, F, dir)} ${F.fl.name}.`);
+    ctx.hint(movedTo(towards(from, F, dir), F.fl.name));
     sheet();
   }
   /** The scanned furniture this piece stands on, or null: on its floor, the nearest whose footprint holds this piece's
@@ -1245,14 +1258,14 @@ export function createFurnish(ctx){
     const list = Object.values(all).filter(q => q && q.recipe && String(q.floor_id || "main") === fid
       && (!room || ctx.HOUSE.inPoly(num(q.x_m) ?? 0, num(q.y_m) ?? 0, room.pts))
       && !placed.some(b => inBox([num(q.x_m) ?? 0, num(q.y_m) ?? 0], b) || inBox(b.c, PIECES.boxOf(q))));
-    return { list, where: room && room.name ? String(room.name) : "this floor" };
+    return { list, where: room && room.name ? String(room.name) : t("this floor") };
   }
   /** The scan's guess into the draft, as pieces of their own (new ids, "Imported"), one step. */
   function placeGuess(guess){
     const list = guess.list.map(q => ({ piece: { ...copy(q), id: PIECES.newPieceId(), origin: "import" } }));
     if (!list.length) return;
     tele("house3d_scan_fill");
-    add(list, null, `Placed the scan's guess for ${guess.where} (${list.length})`);
+    add(list, null, t("Placed the scan's guess for {where} ({n})", { where: guess.where, n: list.length }));
   }
   /** This piece's size set from the scan's: across and deep as the scan measured them, the two swapped where this piece
    *  stands a quarter turn from the scan's, so the footprints lie the same way; its height the scan's. Never moved or turned. */
@@ -1271,7 +1284,7 @@ export function createFurnish(ctx){
       if (F) q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h);
     }) !== false) {
       tele("house3d_scan_size");
-      ctx.hint("Sized to the scan. Undo puts it back.");
+      ctx.hint(t("Sized to the scan. Undo puts it back."));
       sheet();
     }
   }
@@ -1280,12 +1293,12 @@ export function createFurnish(ctx){
     const p = sel && pieceOf(sel);
     if (!p) return;
     const twin = PIECES.duplicateOf(p);
-    if (ctx.change((c) => { c.pieces[twin.id] = twin; })) { select(twin.id); ctx.redraw(); ctx.hint("Duplicated: the copy is selected."); }
+    if (ctx.change((c) => { c.pieces[twin.id] = twin; })) { select(twin.id); ctx.redraw(); ctx.hint(t("Duplicated: the copy is selected.")); }
   }
   function remove(){
     const p = sel && pieceOf(sel);
     if (!p) return;
-    if (ctx.change((c) => { delete c.pieces[p.id]; })) { select(null); ctx.redraw(); ctx.hint(`Deleted the ${pieceName(p, FURN()).toLowerCase()}. Undo brings it back.`); }
+    if (ctx.change((c) => { delete c.pieces[p.id]; })) { select(null); ctx.redraw(); ctx.hint(t("Deleted the {what}. Undo brings it back.", { what: low(pieceName(p, FURN())) })); }
   }
 
   // ── where things are ──────────────────────────────────────────────────────
@@ -1370,7 +1383,7 @@ export function createFurnish(ctx){
       ctx.redraw();
       const p = pieceOf(g.id), warns = p ? checksOf(p) : [];
       fitHint = warns.length ? fitText(warns[0], nameOf) : null;
-      ctx.hint(fitHint || (g.snapped ? "Its back is against the wall." : "Moved."), !!fitHint);
+      ctx.hint(fitHint || (g.snapped ? t("Its back is against the wall.") : t("Moved.")), !!fitHint);
     }
     sheet();
     paint3d();

@@ -29,6 +29,11 @@
 
 /** The chips: [{fid, words, rooms: [{fid (the floor it is drawn on), top (its storey: a split level's own),
  *  name, key}]}], the top floor first, names in order. floors: [{id, name, elev, outdoor, parent, rooms: [{name}]}]. */
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export function roomChipGroups(floors){
   const list = (floors || []).filter(f => f && f.id !== undefined);
   const byId = new Map(list.map(f => [String(f.id), f]));
@@ -147,7 +152,7 @@ export function createRoomChips(v){
   el.className = "la3d-rchips";
   el.setAttribute("data-la3d-rchips", "");
   el.setAttribute("role", "toolbar");
-  el.setAttribute("aria-label", "Rooms");
+  el.setAttribute("aria-label", t("Rooms"));
   el.style.display = "none";
   for (const ev of ["pointerdown", "pointerup", "dblclick", "contextmenu"]) el.addEventListener(ev, stop);
   // The wheel scrolls the row sideways (it never zooms the house under it).
@@ -174,8 +179,8 @@ export function createRoomChips(v){
       v.root.classList.toggle("la3d-roomrow", !!groups.length && line);
       if (compact) {
         const b = doc.createElement("button");
-        b.type = "button"; b.textContent = "Rooms ▾";
-        b.title = "Go to a room";
+        b.type = "button"; b.textContent = t("Rooms ▾");
+        b.title = t("Go to a room");
         b.setAttribute("data-la3d-rooms", "");
         b.setAttribute("aria-haspopup", "true");
         b.addEventListener("click", v.guard((e) => { stop(e); v.list(b, items()); }));
@@ -190,7 +195,7 @@ export function createRoomChips(v){
           for (const c of g.rooms) {
             const b = doc.createElement("button");
             b.type = "button"; b.textContent = c.name;
-            b.title = `Go to ${c.name}${groups.length > 1 ? ` (${g.words})` : ""}`;
+            b.title = t("Go to {room}", { room: c.name }) + (groups.length > 1 ? ` (${g.words})` : "");
             b.setAttribute("data-la3d-rchip", c.key);
             b.setAttribute("aria-pressed", "false");
             b.addEventListener("click", v.guard((e) => { stop(e); v.go(c, "chip"); }));
@@ -249,9 +254,9 @@ export function createRoomPanel(v){
     if (!list.length) return;
     const b = doc.createElement("button");
     b.type = "button";
-    b.textContent = `${moreOpen ? "▾" : "▸"} More devices of the area (${list.length})`;
+    b.textContent = `${moreOpen ? "▾" : "▸"} ${t("More devices of the area ({n})", { n: list.length })}`;
     b.setAttribute("aria-expanded", String(moreOpen));
-    b.title = "What Home Assistant puts in this room's area that the map doesn't show";
+    b.title = t("What Home Assistant puts in this room's area that the map doesn't show");
     b.addEventListener("click", v.guard((e) => { stop(e); moreOpen = !moreOpen; paintMore(); }));
     moreEl.appendChild(b);
     if (!moreOpen) return;
@@ -260,7 +265,7 @@ export function createRoomPanel(v){
       const li = doc.createElement("li"), r = doc.createElement("button"), n = doc.createElement("span"), s = doc.createElement("i");
       r.type = "button";
       r.setAttribute("data-la3d-more-eid", d.eid);
-      r.title = `${d.name}: open its controls`;
+      r.title = t("{name}: open its controls", { name: d.name });
       n.textContent = d.name; s.textContent = d.state;
       r.append(n, s);
       r.addEventListener("click", v.guard((e) => { stop(e); v.moreInfo(d.eid); }));

@@ -75,6 +75,18 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "training": ("views/training.js",),
     "training2": ("views/training.js#training2",),
     "training3": ("views/training.js#training3",),
+    # German first (2026-11-23): Rooms, Traceback, the Atlas and the 3D house. Their nl/fr files are still empty,
+    # so those screens stay English there (tests/test_panel_i18n.py _GERMAN_FIRST).
+    "rooms": ("views/rooms.js",),
+    "traceback": ("views/traceback.js", "views/insights.js", "views/busy_times.js", "views/house_activity.js"),
+    "atlas1": ("lights_panel.js", "views/atlas_aboard.js", "views/atlas_heatmap.js", "views/atlas_screen.js", "views/atlas_heights.js", "views/scene_row.js", "views/light_codes.js", "views/iso_lights.js"),
+    "atlasmap": ("views/lights_map.js",),
+    "atlasmap2": ("views/lights_map.js#atlasmap2",),
+    "aboard": ("views/live_aboard.js",),
+    "aboard2": ("views/live_aboard_panel.js", "views/live_aboard_people.js", "views/live_aboard_tracked.js", "views/live_aboard_looks.js", "views/live_aboard_rooms.js", "views/live_aboard_director.js", "views/live_aboard_show.js", "views/live_aboard_motion.js", "views/live_aboard_devices.js", "views/live_aboard_use.js"),
+    "furnish": ("views/live_aboard_edit.js", "views/live_aboard_furnish.js", "views/live_aboard_house.js"),
+    "furnish2": ("views/live_aboard_strip.js", "views/live_aboard_runs.js", "views/live_aboard_photo.js", "views/live_aboard_import.js"),
+    "furniture": ("views/live_aboard_furniture.js",),
 }
 SERVER = "server"
 

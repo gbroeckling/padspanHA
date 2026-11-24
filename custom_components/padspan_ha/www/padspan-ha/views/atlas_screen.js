@@ -27,6 +27,11 @@
 
 // Zoomed in past SOLO_IN of the whole-house size, the bars step aside; back
 // out to SOLO_OUT of it, they return. COVER_Z: the covering map's z-index.
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export const SOLO_IN = 0.8, SOLO_OUT = 0.97, COVER_Z = 45;
 // A tap (short, still) and two of them (close in time and place).
 export const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44;
@@ -108,7 +113,7 @@ export function keepOverlaysIn(host){
 }
 export const FULL_ICON = { on: "M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4", off: "M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" };
 /** The ⛶ button's face: what it says and its icon, full screen or not. */
-export const fullLabel = (on, can) => (on ? "Leave full screen" : can ? "Full screen" : "Only the map");
+export const fullLabel = (on, can) => (on ? t("Leave full screen") : can ? t("Full screen") : t("Only the map"));
 export const fullIconSvg = (on) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="${on ? FULL_ICON.off : FULL_ICON.on}"/></svg>`;
 
 // ── the flat map's side (the sidebar) ───────────────────────────────────────
@@ -264,7 +269,7 @@ export function flatScreen(o){
     anchor.appendChild(b);
     return b;
   };
-  btn("lv-alone-solo", "☰", "Show the controls", () => setBare(st, false, true));
+  btn("lv-alone-solo", "☰", t("Show the controls"), () => setBare(st, false, true));
   const full = btn("lv-alone-full", "", "", () => toggleFull(st));
   st.cur = { card: o.card, stage: o.stage, shown: typeof o.shown === "function" ? o.shown : null, anchor, full };
   // Where the stage's foot is (seen once the card is in the page, and on

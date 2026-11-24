@@ -39,6 +39,13 @@
 // alive). A live part — a lamp's glow, a TV's screen, a radiator's warmth —
 // has a material of its own, so changing it changes only that piece.
 
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled. A name is also read as the English it is written in (nameEn), for what is shared or sent.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t: _translate } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
+let _inEnglish = false;
+const t = (s, v) => (_inEnglish ? _fill(s, v) : _translate(s, v));
 const TILE = 0.5;                       // a finish repeats every half metre
 const BOX_COLOR = "#9aa3ab";
 const BOX_SIZE = { width_m: [0.05, 6, 0.6], depth_m: [0.05, 6, 0.6], height_m: [0.02, 4, 0.6] };
@@ -80,232 +87,238 @@ const lighten = (c, t) => mix(c, "#ffffff", t);
 const darken = (c, t) => mix(c, "#000000", t);
 
 // ── the kinds ────────────────────────────────────────────────────────────────
-const int = (key, label, min, max, def, more) => ({ key, label, type: "int", min, max, step: 1, def, ...more });
-const num = (key, label, min, max, step, def, more) => ({ key, label, type: "num", min, max, step, def, ...more });
-const choice = (key, label, choices, def, more) => ({ key, label, type: "choice", choices, def, ...more });
-const bool = (key, label, def, more) => ({ key, label, type: "bool", def, ...more });
+// A name or a label is given as a function that asks the translator, and read when it is shown, so it is in the panel's language then
+// (views/i18n.js; a plain string stays as it is).
+const word = (w) => (typeof w === "function" ? w() : w);
+const english = (w) => { _inEnglish = true; try { return word(w); } finally { _inEnglish = false; } };
+const int = (key, label, min, max, def, more) => ({ key, get label() { return word(label); }, type: "int", min, max, step: 1, def, ...more });
+const num = (key, label, min, max, step, def, more) => ({ key, get label() { return word(label); }, type: "num", min, max, step, def, ...more });
+const choice = (key, label, choices, def, more) => ({ key, get label() { return word(label); }, type: "choice", choices, def, ...more });
+const bool = (key, label, def, more) => ({ key, get label() { return word(label); }, type: "bool", def, ...more });
+// nameEn is not listed with the rest (not enumerable): the builders' data file and every copy of a kind stay as they were.
 const kind = (name, group, category, live, colorNames, colors, size, params) =>
-  ({ name, group, category, params, colorNames, colors, size, live });
+  Object.defineProperty({ get name() { return word(name); }, group, category, params, get colorNames() { return colorNames.map(word); }, colors, size, live },
+    "nameEn", { get: () => english(name), enumerable: false });
 const sz = (w, d, h) => ({ width_m: w, depth_m: d, height_m: h });
 
 export const FURNITURE = {
-  sofa: kind("Sofa", "furniture", "seating", null, ["Body", "Cushions"], ["#7f8489", "#959a9f"],
+  sofa: kind(() => t("Sofa"), "furniture", "seating", null, [() => t("Body"), () => t("Cushions")], ["#7f8489", "#959a9f"],
     sz([0.6, 3.6, 2.1], [0.6, 1.2, 0.9], [0.55, 1.1, 0.82]), [
-      int("seats", "Seats", 1, 4, 3, { sizes: { 1: { width_m: 0.95 }, 2: { width_m: 1.55 }, 3: { width_m: 2.1 }, 4: { width_m: 2.7 } } }),
-      choice("arms", "Arms", ["none", "slim", "wide", "rolled"], "slim"),
-      num("seat_h_m", "Seat height", 0.3, 0.55, 0.01, 0.44),
-      choice("legs", "Legs", ["none", "block", "tapered", "metal"], "tapered"),
-      int("cushions", "Back cushions", 0, 4, 3),
+      int("seats", () => t("Seats"), 1, 4, 3, { sizes: { 1: { width_m: 0.95 }, 2: { width_m: 1.55 }, 3: { width_m: 2.1 }, 4: { width_m: 2.7 } } }),
+      choice("arms", () => t("Arms"), ["none", "slim", "wide", "rolled"], "slim"),
+      num("seat_h_m", () => t("Seat height"), 0.3, 0.55, 0.01, 0.44),
+      choice("legs", () => t("Legs"), ["none", "block", "tapered", "metal"], "tapered"),
+      int("cushions", () => t("Back cushions"), 0, 4, 3),
     ]),
-  bed: kind("Bed", "furniture", "sleeping", null, ["Frame", "Bedding"], ["#9a7656", "#b7c0c8"],
+  bed: kind(() => t("Bed"), "furniture", "sleeping", null, [() => t("Frame"), () => t("Bedding")], ["#9a7656", "#b7c0c8"],
     sz([0.6, 2.3, 1.66], [1.0, 2.4, 2.2], [0.35, 2.0, 1.1]), [
-      choice("size", "Size", ["twin", "double", "queen", "king", "crib", "bunk"], "queen", { sizes: {
+      choice("size", () => t("Size"), ["twin", "double", "queen", "king", "crib", "bunk"], "queen", { sizes: {
         twin: { width_m: 1.13, depth_m: 2.1, height_m: 1.0 }, double: { width_m: 1.51, depth_m: 2.1, height_m: 1.05 },
         queen: { width_m: 1.66, depth_m: 2.2, height_m: 1.1 }, king: { width_m: 2.07, depth_m: 2.2, height_m: 1.15 },
         crib: { width_m: 0.8, depth_m: 1.42, height_m: 0.95 }, bunk: { width_m: 1.13, depth_m: 2.1, height_m: 1.7 } } }),
-      choice("headboard", "Headboard", ["none", "panel", "slatted", "padded"], "padded", { sizes: {
+      choice("headboard", () => t("Headboard"), ["none", "panel", "slatted", "padded"], "padded", { sizes: {
         none: { height_m: 0.65 }, panel: { height_m: 1.1 }, slatted: { height_m: 1.1 }, padded: { height_m: 1.15 } } }),
-      bool("footboard", "Footboard", false),
-      choice("base", "Base", ["frame", "platform"], "frame"),
+      bool("footboard", () => t("Footboard"), false),
+      choice("base", () => t("Base"), ["frame", "platform"], "frame"),
     ]),
-  table: kind("Table", "furniture", "tables", null, ["Top", "Legs"], ["#b58e66", "#9c7752"],
+  table: kind(() => t("Table"), "furniture", "tables", null, ["Top", () => t("Legs")], ["#b58e66", "#9c7752"],
     sz([0.4, 3.0, 1.6], [0.4, 1.4, 0.9], [0.35, 1.1, 0.75]), [
-      choice("shape", "Shape", ["rectangle", "rounded", "round"], "rectangle", { sizes: { round: { width_m: 1.1, depth_m: 1.1 } } }),
-      choice("legs", "Legs", ["four", "pedestal", "trestle"], "four"),
-      num("top_t_m", "Top thickness", 0.015, 0.08, 0.005, 0.035),
-      bool("apron", "Rail under the top", true),
+      choice("shape", () => t("Shape"), ["rectangle", "rounded", "round"], "rectangle", { sizes: { round: { width_m: 1.1, depth_m: 1.1 } } }),
+      choice("legs", () => t("Legs"), ["four", "pedestal", "trestle"], "four"),
+      num("top_t_m", () => t("Top thickness"), 0.015, 0.08, 0.005, 0.035),
+      bool("apron", () => t("Rail under the top"), true),
     ]),
-  chair: kind("Chair", "furniture", "seating", null, ["Frame", "Seat"], ["#9c7752", "#c9bba4"],
+  chair: kind(() => t("Chair"), "furniture", "seating", null, [() => t("Frame"), () => t("Seat")], ["#9c7752", "#c9bba4"],
     sz([0.35, 1.1, 0.48], [0.35, 1.0, 0.52], [0.4, 1.3, 0.9]), [
-      choice("style", "Style", ["dining", "armchair", "office", "stool"], "dining", { sizes: {
+      choice("style", () => t("Style"), ["dining", "armchair", "office", "stool"], "dining", { sizes: {
         dining: { width_m: 0.48, depth_m: 0.52, height_m: 0.9 }, armchair: { width_m: 0.85, depth_m: 0.85, height_m: 0.85 },
         office: { width_m: 0.66, depth_m: 0.66, height_m: 1.05 }, stool: { width_m: 0.4, depth_m: 0.4, height_m: 0.65 } } }),
-      num("seat_h_m", "Seat height", 0.3, 0.8, 0.01, 0.46),
-      bool("cushion", "Cushioned seat", false),
-      bool("arms", "Arms", false),
+      num("seat_h_m", () => t("Seat height"), 0.3, 0.8, 0.01, 0.46),
+      bool("cushion", () => t("Cushioned seat"), false),
+      bool("arms", () => t("Arms"), false),
     ]),
-  desk: kind("Desk", "furniture", "office", null, ["Top", "Frame"], ["#b08a63", "#3c3f44"],
+  desk: kind(() => t("Desk"), "furniture", "office", null, ["Top", () => t("Frame")], ["#b08a63", "#3c3f44"],
     sz([0.6, 2.4, 1.4], [0.4, 1.0, 0.7], [0.5, 1.2, 0.75]), [
-      choice("legs", "Legs", ["four", "panel", "metal"], "four"),
-      choice("drawers", "Drawers", ["none", "left", "right", "both"], "right"),
-      bool("back", "Back panel", true),
+      choice("legs", () => t("Legs"), ["four", "panel", "metal"], "four"),
+      choice("drawers", () => t("Drawers"), ["none", "left", "right", "both"], "right"),
+      bool("back", () => t("Back panel"), true),
     ]),
-  dresser: kind("Dresser / cabinet", "furniture", "storage", null, ["Body", "Fronts"], ["#7a5a40", "#8e6c4f"],
+  dresser: kind(() => t("Dresser / cabinet"), "furniture", "storage", null, [() => t("Body"), () => t("Fronts")], ["#7a5a40", "#8e6c4f"],
     sz([0.3, 2.4, 1.2], [0.25, 0.8, 0.5], [0.3, 2.2, 0.85]), [
-      choice("fronts", "Fronts", ["drawers", "doors", "both"], "drawers"),
-      int("columns", "Columns", 1, 4, 2),
-      int("rows", "Drawers in a column", 1, 6, 3),
-      choice("base", "Base", ["plinth", "feet", "legs"], "plinth"),
-      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+      choice("fronts", () => t("Fronts"), ["drawers", "doors", "both"], "drawers"),
+      int("columns", () => t("Columns"), 1, 4, 2),
+      int("rows", () => t("Drawers in a column"), 1, 6, 3),
+      choice("base", () => t("Base"), ["plinth", "feet", "legs"], "plinth"),
+      choice("handles", () => t("Handles"), ["bar", "knob", "none"], "bar"),
     ]),
-  tv: kind("TV + media unit", "furniture", "media", "screen", ["Unit", "TV"], ["#6e5039", "#1f2124"],
+  tv: kind(() => t("TV + media unit"), "furniture", "media", "screen", [() => t("Unit"), () => t("TV")], ["#6e5039", "#1f2124"],
     sz([0.5, 3.0, 1.6], [0.2, 0.7, 0.42], [0.35, 2.4, 1.27]), [
-      int("screen_in", "Screen size (inches)", 24, 98, 55),
-      choice("unit", "Unit", ["low", "cabinet", "none"], "low"),
-      choice("mount", "TV on", ["stand", "wall"], "stand"),
+      int("screen_in", () => t("Screen size (inches)"), 24, 98, 55),
+      choice("unit", () => t("Unit"), ["low", "cabinet", "none"], "low"),
+      choice("mount", () => t("TV on"), ["stand", "wall"], "stand"),
     ]),
-  lamp: kind("Lamp", "furniture", "lighting", "glow", ["Shade", "Base"], ["#efe6d2", "#4a4f55"],
+  lamp: kind(() => t("Lamp"), "furniture", "lighting", "glow", ["Shade", () => t("Base")], ["#efe6d2", "#4a4f55"],
     sz([0.12, 1.0, 0.45], [0.12, 1.0, 0.45], [0.2, 2.2, 1.6]), [
-      choice("style", "Style", ["floor", "table"], "floor", { sizes: {
+      choice("style", () => t("Style"), ["floor", "table"], "floor", { sizes: {
         floor: { width_m: 0.45, depth_m: 0.45, height_m: 1.6 }, table: { width_m: 0.32, depth_m: 0.32, height_m: 0.55 } } }),
       choice("shade", "Shade", ["drum", "cone", "globe"], "drum"),
-      choice("base", "Base", ["round", "square", "tripod"], "round"),
+      choice("base", () => t("Base"), ["round", "square", "tripod"], "round"),
     ]),
-  rug: kind("Rug", "furniture", "decor", null, ["Main", "Border"], ["#a85d4a", "#e8dcc6"],
+  rug: kind(() => t("Rug"), "furniture", "decor", null, ["Main", () => t("Border")], ["#a85d4a", "#e8dcc6"],
     sz([0.4, 5.0, 2.0], [0.4, 5.0, 1.4], [0.004, 0.05, 0.012]), [
-      choice("shape", "Shape", ["rectangle", "round"], "rectangle", { sizes: { round: { width_m: 1.6, depth_m: 1.6 } } }),
-      choice("pattern", "Pattern", ["plain", "border", "stripes"], "border"),
-      bool("fringe", "Fringe", false),
+      choice("shape", () => t("Shape"), ["rectangle", "round"], "rectangle", { sizes: { round: { width_m: 1.6, depth_m: 1.6 } } }),
+      choice("pattern", () => t("Pattern"), ["plain", "border", "stripes"], "border"),
+      bool("fringe", () => t("Fringe"), false),
     ]),
-  shelf: kind("Shelf", "furniture", "storage", null, ["Wood", "Books"], ["#c9b79c", "#8a4f3c"],
+  shelf: kind(() => t("Shelf"), "furniture", "storage", null, [() => t("Wood"), () => t("Books")], ["#c9b79c", "#8a4f3c"],
     sz([0.3, 3.0, 0.9], [0.15, 0.6, 0.32], [0.2, 2.5, 1.8]), [
-      choice("style", "Style", ["bookcase", "open", "wall"], "bookcase"),
-      int("shelves", "Shelves", 1, 8, 5),
-      choice("books", "Books", ["none", "some", "full"], "some"),
-      bool("back", "Back panel", true),
+      choice("style", () => t("Style"), ["bookcase", "open", "wall"], "bookcase"),
+      int("shelves", () => t("Shelves"), 1, 8, 5),
+      choice("books", () => t("Books"), ["none", "some", "full"], "some"),
+      bool("back", () => t("Back panel"), true),
     ]),
-  wardrobe: kind("Wardrobe", "furniture", "storage", null, ["Body", "Doors"], ["#e8e2d6", "#d8d0c0"],
+  wardrobe: kind(() => t("Wardrobe"), "furniture", "storage", null, [() => t("Body"), () => t("Doors")], ["#e8e2d6", "#d8d0c0"],
     sz([0.4, 3.6, 1.2], [0.4, 0.8, 0.6], [1.0, 2.6, 2.0]), [
-      choice("style", "Doors", ["hinged", "sliding"], "hinged"),
-      int("doors", "Number of doors", 1, 4, 2),
-      int("drawers", "Drawers below", 0, 3, 0),
-      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
-      bool("mirror", "Mirror", false),
+      choice("style", () => t("Doors"), ["hinged", "sliding"], "hinged"),
+      int("doors", () => t("Number of doors"), 1, 4, 2),
+      int("drawers", () => t("Drawers below"), 0, 3, 0),
+      choice("handles", () => t("Handles"), ["bar", "knob", "none"], "bar"),
+      bool("mirror", () => t("Mirror"), false),
     ]),
-  plant: kind("Plant", "furniture", "decor", null, ["Leaves", "Pot"], ["#4f7a3a", "#b5653d"],
+  plant: kind(() => t("Plant"), "furniture", "decor", null, [() => t("Leaves"), () => t("Pot")], ["#4f7a3a", "#b5653d"],
     sz([0.12, 2.0, 0.5], [0.12, 2.0, 0.5], [0.15, 3.0, 0.9]), [
-      choice("style", "Plant", ["bush", "tree", "palm", "cactus", "fir"], "bush", { sizes: {
+      choice("style", () => t("Plant"), ["bush", "tree", "palm", "cactus", "fir"], "bush", { sizes: {
         bush: { height_m: 0.8 }, tree: { height_m: 1.6 }, palm: { height_m: 1.5 }, cactus: { height_m: 0.7 },
         fir: { width_m: 1.0, depth_m: 1.0, height_m: 1.8 } } }),
-      choice("pot", "Pot", ["round", "square", "none"], "round"),
+      choice("pot", () => t("Pot"), ["round", "square", "none"], "round"),
     ]),
   // The kitchen (2026-11): base units carry their own worktop, so a run of
   // them side by side reads as one; the sink and the hob sit in it. A
   // sink's and a basin's height is up to the top of the tap: the worktop or
   // the rim is lower by the tap (1.2 m of sink is a 0.9 m worktop).
-  base_cabinet: kind("Base cabinet", "furniture", "kitchen", null, ["Fronts", "Body", "Worktop"], ["#eae8e3", "#dedbd4", "#8c8780"],
+  base_cabinet: kind(() => t("Base cabinet"), "furniture", "kitchen", null, [() => t("Fronts"), () => t("Body"), () => t("Worktop")], ["#eae8e3", "#dedbd4", "#8c8780"],
     sz([0.15, 3.0, 0.6], [0.3, 0.9, 0.62], [0.5, 1.1, 0.9]), [
-      choice("fronts", "Fronts", ["doors", "drawers", "mixed"], "doors"),
-      bool("worktop", "Worktop", true),
-      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+      choice("fronts", () => t("Fronts"), ["doors", "drawers", "mixed"], "doors"),
+      bool("worktop", () => t("Worktop"), true),
+      choice("handles", () => t("Handles"), ["bar", "knob", "none"], "bar"),
     ]),
-  wall_cabinet: kind("Wall cabinet", "furniture", "kitchen", null, ["Fronts", "Body"], ["#eae8e3", "#dedbd4"],
+  wall_cabinet: kind(() => t("Wall cabinet"), "furniture", "kitchen", null, [() => t("Fronts"), () => t("Body")], ["#eae8e3", "#dedbd4"],
     sz([0.2, 2.4, 0.6], [0.2, 0.6, 0.35], [0.2, 1.2, 0.7]), [
-      choice("fronts", "Fronts", ["doors", "glass", "lift-up", "open"], "doors"),
-      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+      choice("fronts", () => t("Fronts"), ["doors", "glass", "lift-up", "open"], "doors"),
+      choice("handles", () => t("Handles"), ["bar", "knob", "none"], "bar"),
     ]),
-  tall_cabinet: kind("Tall cabinet", "furniture", "kitchen", null, ["Fronts", "Body"], ["#eae8e3", "#dedbd4"],
+  tall_cabinet: kind(() => t("Tall cabinet"), "furniture", "kitchen", null, [() => t("Fronts"), () => t("Body")], ["#eae8e3", "#dedbd4"],
     sz([0.3, 1.2, 0.6], [0.3, 0.8, 0.62], [1.2, 2.6, 2.1]), [
-      choice("fronts", "Fronts", ["doors", "oven", "oven and microwave"], "doors"),
-      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+      choice("fronts", () => t("Fronts"), ["doors", "oven", "oven and microwave"], "doors"),
+      choice("handles", () => t("Handles"), ["bar", "knob", "none"], "bar"),
     ]),
-  fridge: kind("Fridge", "furniture", "kitchen", null, ["Body", "Handles"], ["#e9e9e7", "#9aa3ab"],
+  fridge: kind(() => t("Fridge"), "furniture", "kitchen", null, [() => t("Body"), () => t("Handles")], ["#e9e9e7", "#9aa3ab"],
     sz([0.45, 1.2, 0.6], [0.5, 0.9, 0.66], [0.75, 2.1, 1.85]), [
-      choice("style", "Style", ["tall", "double", "under"], "tall", { sizes: {
+      choice("style", () => t("Style"), ["tall", "double", "under"], "tall", { sizes: {
         tall: { width_m: 0.6, depth_m: 0.66, height_m: 1.85 }, double: { width_m: 0.9, depth_m: 0.72, height_m: 1.78 },
         under: { width_m: 0.6, depth_m: 0.6, height_m: 0.85 } } }),
     ]),
-  stove: kind("Stove / hob", "furniture", "kitchen", null, ["Body", "Hob", "Worktop"], ["#eae8e3", "#1b1c1f", "#8c8780"],
+  stove: kind(() => t("Stove / hob"), "furniture", "kitchen", null, [() => t("Body"), () => t("Hob"), () => t("Worktop")], ["#eae8e3", "#1b1c1f", "#8c8780"],
     sz([0.3, 1.2, 0.6], [0.45, 0.8, 0.62], [0.6, 1.1, 0.9]), [
       // hob: a hob in the worktop over a built-in oven, in the run's fronts;
       // cooker: a freestanding range with its own top.
-      choice("style", "Style", ["hob", "cooker"], "hob"),
-      choice("hob", "Hob", ["induction", "gas"], "induction"),
+      choice("style", () => t("Style"), ["hob", "cooker"], "hob"),
+      choice("hob", () => t("Hob"), ["induction", "gas"], "induction"),
     ]),
-  sink: kind("Sink", "furniture", "kitchen", null, ["Fronts", "Body", "Worktop"], ["#eae8e3", "#dedbd4", "#8c8780"],
+  sink: kind(() => t("Sink"), "furniture", "kitchen", null, [() => t("Fronts"), () => t("Body"), () => t("Worktop")], ["#eae8e3", "#dedbd4", "#8c8780"],
     sz([0.4, 2.4, 0.8], [0.4, 0.8, 0.62], [0.8, 1.5, 1.2]), [
-      int("bowls", "Bowls", 1, 2, 1, { sizes: { 1: { width_m: 0.8 }, 2: { width_m: 1.2 } } }),
-      choice("handles", "Handles", ["bar", "knob", "none"], "bar"),
+      int("bowls", () => t("Bowls"), 1, 2, 1, { sizes: { 1: { width_m: 0.8 }, 2: { width_m: 1.2 } } }),
+      choice("handles", () => t("Handles"), ["bar", "knob", "none"], "bar"),
     ]),
-  dishwasher: kind("Dishwasher", "furniture", "kitchen", null, ["Front", "Body", "Worktop"], ["#eae8e3", "#dedbd4", "#8c8780"],
+  dishwasher: kind(() => t("Dishwasher"), "furniture", "kitchen", null, [() => t("Front"), () => t("Body"), () => t("Worktop")], ["#eae8e3", "#dedbd4", "#8c8780"],
     sz([0.45, 0.6, 0.6], [0.5, 0.7, 0.62], [0.75, 1.0, 0.9]), [
-      choice("style", "Front", ["built-in", "steel"], "built-in"),
-      bool("worktop", "Worktop", true),
+      choice("style", () => t("Front"), ["built-in", "steel"], "built-in"),
+      bool("worktop", () => t("Worktop"), true),
     ]),
   // The bathroom (2026-11).
-  wc: kind("Toilet", "furniture", "bath", null, ["Ceramic", "Seat"], ["#f5f5f3", "#f5f5f3"],
+  wc: kind(() => t("Toilet"), "furniture", "bath", null, [() => t("Ceramic"), () => t("Seat")], ["#f5f5f3", "#f5f5f3"],
     sz([0.3, 0.6, 0.38], [0.45, 0.9, 0.68], [0.35, 1.3, 0.8]), [
       // floor: a cistern on the back; wall: hung from a boxed-in frame with a flush plate.
-      choice("mount", "Mount", ["floor", "wall"], "floor", { sizes: { floor: { depth_m: 0.68, height_m: 0.8 }, wall: { depth_m: 0.58, height_m: 1.1 } } }),
+      choice("mount", () => t("Mount"), ["floor", "wall"], "floor", { sizes: { floor: { depth_m: 0.68, height_m: 0.8 }, wall: { depth_m: 0.58, height_m: 1.1 } } }),
     ]),
-  basin: kind("Basin", "furniture", "bath", null, ["Ceramic", "Cabinet"], ["#f5f5f3", "#b58e66"],
+  basin: kind(() => t("Basin"), "furniture", "bath", null, [() => t("Ceramic"), () => t("Cabinet")], ["#f5f5f3", "#b58e66"],
     sz([0.35, 2.0, 0.6], [0.3, 0.65, 0.48], [0.6, 1.3, 1.05]), [
-      choice("style", "Style", ["vanity", "pedestal", "wall"], "vanity", { sizes: {
+      choice("style", () => t("Style"), ["vanity", "pedestal", "wall"], "vanity", { sizes: {
         vanity: { width_m: 0.8, depth_m: 0.48 }, pedestal: { width_m: 0.6, depth_m: 0.46 }, wall: { width_m: 0.55, depth_m: 0.42 } } }),
-      int("basins", "Basins", 1, 2, 1, { sizes: { 1: { width_m: 0.8 }, 2: { width_m: 1.4 } } }),
+      int("basins", () => t("Basins"), 1, 2, 1, { sizes: { 1: { width_m: 0.8 }, 2: { width_m: 1.4 } } }),
     ]),
-  bath: kind("Bath", "furniture", "bath", null, ["Bath", "Panel"], ["#f5f5f3", "#f5f5f3"],
+  bath: kind("Bath", "furniture", "bath", null, ["Bath", () => t("Panel")], ["#f5f5f3", "#f5f5f3"],
     sz([1.2, 2.2, 1.7], [0.6, 1.2, 0.75], [0.4, 0.8, 0.62]), [
-      choice("style", "Style", ["built-in", "freestanding"], "built-in", { sizes: {
+      choice("style", () => t("Style"), ["built-in", "freestanding"], "built-in", { sizes: {
         "built-in": { width_m: 1.7, depth_m: 0.75, height_m: 0.62 }, freestanding: { width_m: 1.7, depth_m: 0.8, height_m: 0.68 } } }),
     ]),
-  shower: kind("Shower", "furniture", "bath", null, ["Tray", "Frame"], ["#f2f2f0", "#2a2b2e"],
+  shower: kind(() => t("Shower"), "furniture", "bath", null, [() => t("Tray"), () => t("Frame")], ["#f2f2f0", "#2a2b2e"],
     sz([0.7, 2.0, 0.9], [0.7, 2.0, 0.9], [1.8, 2.5, 2.1]), [
       // enclosure: glass on the front and one side, a door; walk-in: one glass screen.
-      choice("style", "Style", ["enclosure", "walk-in"], "enclosure", { sizes: {
+      choice("style", () => t("Style"), ["enclosure", "walk-in"], "enclosure", { sizes: {
         enclosure: { width_m: 0.9, depth_m: 0.9 }, "walk-in": { width_m: 1.4, depth_m: 0.9 } } }),
     ]),
-  washer: kind("Washer", "device", "appliance", "run", ["Body", "Trim"], ["#f2f2f0", "#9aa5ad"],
+  washer: kind(() => t("Washer"), "device", "appliance", "run", [() => t("Body"), () => t("Trim")], ["#f2f2f0", "#9aa5ad"],
     sz([0.45, 0.8, 0.6], [0.4, 0.85, 0.62], [0.6, 1.1, 0.85]), [
-      choice("loading", "Loading", ["front", "top"], "front"),
+      choice("loading", () => t("Loading"), ["front", "top"], "front"),
     ]),
-  dryer: kind("Dryer", "device", "appliance", "run", ["Body", "Trim"], ["#f2f2f0", "#9aa5ad"],
+  dryer: kind(() => t("Dryer"), "device", "appliance", "run", [() => t("Body"), () => t("Trim")], ["#f2f2f0", "#9aa5ad"],
     sz([0.45, 0.8, 0.6], [0.4, 0.85, 0.62], [0.6, 1.1, 0.85]), [
-      choice("door", "Door", ["glass", "solid"], "glass"),
+      choice("door", () => t("Door"), ["glass", "solid"], "glass"),
     ]),
-  vacuum_dock: kind("Robot vacuum dock", "device", "appliance", "dock", ["Dock", "Robot"], ["#2b2d31", "#e9e9e6"],
+  vacuum_dock: kind(() => t("Robot vacuum dock"), "device", "appliance", "dock", [() => t("Dock"), () => t("Robot")], ["#2b2d31", "#e9e9e6"],
     sz([0.2, 0.6, 0.38], [0.3, 0.9, 0.55], [0.06, 0.6, 0.12]), [
-      choice("dock", "Dock", ["small", "tower"], "small", { sizes: { small: { height_m: 0.12 }, tower: { height_m: 0.45 } } }),
-      choice("robot", "Robot", ["round", "d-shape"], "round"),
+      choice("dock", () => t("Dock"), ["small", "tower"], "small", { sizes: { small: { height_m: 0.12 }, tower: { height_m: 0.45 } } }),
+      choice("robot", () => t("Robot"), ["round", "d-shape"], "round"),
     ]),
-  mower_dock: kind("Mower dock", "device", "outdoor", "dock", ["Dock", "Mower"], ["#3a3d40", "#e2611a"],
+  mower_dock: kind(() => t("Mower dock"), "device", "outdoor", "dock", [() => t("Dock"), () => t("Mower")], ["#3a3d40", "#e2611a"],
     sz([0.4, 1.2, 0.65], [0.6, 1.6, 1.0], [0.2, 1.0, 0.35]), [
-      bool("roof", "Roof", false, { sizes: { true: { height_m: 0.6 }, false: { height_m: 0.35 } } }),
+      bool("roof", () => t("Roof"), false, { sizes: { true: { height_m: 0.6 }, false: { height_m: 0.35 } } }),
     ]),
-  car: kind("Car", "device", "outdoor", "charge", ["Body", "Windows"], ["#8a1f1f", "#2a3540"],
+  car: kind(() => t("Car"), "device", "outdoor", "charge", [() => t("Body"), () => t("Windows")], ["#8a1f1f", "#2a3540"],
     sz([1.5, 2.2, 1.85], [3.2, 6.2, 4.7], [1.2, 2.1, 1.45]), [
-      choice("body", "Body", ["sedan", "hatch", "suv", "pickup"], "sedan", { sizes: {
+      choice("body", () => t("Body"), ["sedan", "hatch", "suv", "pickup"], "sedan", { sizes: {
         sedan: { width_m: 1.85, depth_m: 4.7, height_m: 1.45 }, hatch: { width_m: 1.78, depth_m: 4.1, height_m: 1.48 },
         suv: { width_m: 1.92, depth_m: 4.75, height_m: 1.72 }, pickup: { width_m: 2.0, depth_m: 5.6, height_m: 1.9 } } }),
     ]),
-  charger: kind("Car charger", "device", "outdoor", "charge", ["Body", "Cable"], ["#e8eaec", "#222426"],
+  charger: kind(() => t("Car charger"), "device", "outdoor", "charge", [() => t("Body"), () => t("Cable")], ["#e8eaec", "#222426"],
     sz([0.15, 0.5, 0.25], [0.08, 0.5, 0.15], [0.2, 1.6, 0.4]), [
-      choice("mount", "Mount", ["wall", "post"], "wall", { sizes: { wall: { depth_m: 0.15, height_m: 0.4 }, post: { depth_m: 0.3, height_m: 1.3 } } }),
-      bool("cable", "Cable", true),
+      choice("mount", () => t("Mount"), ["wall", "post"], "wall", { sizes: { wall: { depth_m: 0.15, height_m: 0.4 }, post: { depth_m: 0.3, height_m: 1.3 } } }),
+      bool("cable", () => t("Cable"), true),
     ]),
-  radiator: kind("Radiator", "device", "appliance", "warm", ["Colour"], ["#f0f0ee"],
+  radiator: kind(() => t("Radiator"), "device", "appliance", "warm", [() => t("Colour")], ["#f0f0ee"],
     sz([0.3, 2.4, 0.8], [0.04, 0.3, 0.1], [0.15, 1.8, 0.6]), [
-      choice("style", "Style", ["panel", "column"], "panel"),
+      choice("style", () => t("Style"), ["panel", "column"], "panel"),
     ]),
-  fan: kind("Fan", "device", "appliance", "spin", ["Body", "Blades"], ["#e8e8e6", "#cfd6dc"],
+  fan: kind(() => t("Fan"), "device", "appliance", "spin", [() => t("Body"), () => t("Blades")], ["#e8e8e6", "#cfd6dc"],
     sz([0.2, 1.6, 0.45], [0.15, 1.6, 0.35], [0.2, 1.6, 1.25]), [
-      choice("style", "Style", ["pedestal", "desk", "ceiling"], "pedestal", { sizes: {
+      choice("style", () => t("Style"), ["pedestal", "desk", "ceiling"], "pedestal", { sizes: {
         pedestal: { width_m: 0.45, depth_m: 0.35, height_m: 1.25 }, desk: { width_m: 0.3, depth_m: 0.22, height_m: 0.4 },
         ceiling: { width_m: 1.3, depth_m: 1.3, height_m: 0.45 } } }),
-      int("blades", "Blades", 3, 6, 5),
+      int("blades", () => t("Blades"), 3, 6, 5),
     ]),
-  speaker: kind("Speaker", "device", "media", "run", ["Body", "Grille"], ["#2a2a2c", "#3a3a3d"],
+  speaker: kind(() => t("Speaker"), "device", "media", "run", [() => t("Body"), () => t("Grille")], ["#2a2a2c", "#3a3a3d"],
     sz([0.08, 1.4, 0.2], [0.08, 0.5, 0.25], [0.05, 1.3, 0.32]), [
-      choice("style", "Style", ["bookshelf", "floor", "smart", "soundbar"], "bookshelf", { sizes: {
+      choice("style", () => t("Style"), ["bookshelf", "floor", "smart", "soundbar"], "bookshelf", { sizes: {
         bookshelf: { width_m: 0.2, depth_m: 0.25, height_m: 0.32 }, floor: { width_m: 0.25, depth_m: 0.32, height_m: 1.05 },
         smart: { width_m: 0.12, depth_m: 0.12, height_m: 0.18 }, soundbar: { width_m: 0.95, depth_m: 0.1, height_m: 0.07 } } }),
     ]),
   // Tags and scanners: drawn true to size, lying as they sit (a tag flat,
   // its face up). At house scale they are small; the view may draw the
   // group larger, and their shapes stay readable when it does.
-  tag: kind("Tag", "tag", "device", null, ["Body", "Accent"], ["#f4f4f2", "#9aa3ab"],
+  tag: kind("Tag", "tag", "device", null, [() => t("Body"), () => t("Accent")], ["#f4f4f2", "#9aa3ab"],
     sz([0.015, 0.2, 0.032], [0.015, 0.2, 0.032], [0.002, 0.04, 0.008]), [
-      choice("form", "Form", ["puck", "card", "fob", "phone"], "puck", { sizes: {
+      choice("form", () => t("Form"), ["puck", "card", "fob", "phone"], "puck", { sizes: {
         puck: { width_m: 0.032, depth_m: 0.032, height_m: 0.008 }, card: { width_m: 0.054, depth_m: 0.086, height_m: 0.003 },
         fob: { width_m: 0.035, depth_m: 0.05, height_m: 0.01 }, phone: { width_m: 0.075, depth_m: 0.155, height_m: 0.009 } } }),
     ]),
-  scanner: kind("Scanner", "scanner", "device", null, ["Case", "Light"], ["#1f2225", "#3a7bd5"],
+  scanner: kind(() => t("Scanner"), "scanner", "device", null, [() => t("Case"), "Light"], ["#1f2225", "#3a7bd5"],
     sz([0.02, 0.3, 0.07], [0.01, 0.3, 0.05], [0.004, 0.25, 0.03]), [
-      choice("form", "Form", ["box", "board"], "box", { sizes: {
+      choice("form", () => t("Form"), ["box", "board"], "box", { sizes: {
         box: { width_m: 0.07, depth_m: 0.05, height_m: 0.03 }, board: { width_m: 0.055, depth_m: 0.028, height_m: 0.01 } } }),
-      bool("antenna", "Antenna", false, { sizes: { true: { height_m: 0.11 } } }),
+      bool("antenna", () => t("Antenna"), false, { sizes: { true: { height_m: 0.11 } } }),
     ]),
-  other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
+  other: kind(() => t("Box"), "furniture", "other", null, [() => t("Colour")], [BOX_COLOR], BOX_SIZE, []),
   // Stairs (group "house": Furnish's Build ▾ lists them under House, not the
   // furniture; the photo and import flows never offer them): straight, L, U,
   // two landings (l2) or three (l3); closed, open, treads only or floating. Width and depth
@@ -315,31 +328,31 @@ export const FURNITURE = {
   // Up to 8 m each way, as the 3D file keeps them (SIZE_MAX_M): an L or a U
   // round a hall can be wider than 4 m (the test home's entrance stairs are
   // 4.09 m), and the floor above is cut at the width they are drawn.
-  stairs: kind("Stairs", "house", "other", null, ["Treads", "Sides", "Rail"], ["#8b6a4f", "#e8e2d6", "#3d3a36"],
+  stairs: kind(() => t("Stairs"), "house", "other", null, [() => t("Treads"), () => t("Sides"), () => t("Rail")], ["#8b6a4f", "#e8e2d6", "#3d3a36"],
     sz([0.6, 8, 0.95], [0.6, 8, 3.6], [0.3, 8, 2.8]), [
-      choice("shape", "Shape", ["straight", "l", "u", "l2", "l3"], "straight", { sizes: {
+      choice("shape", () => t("Shape"), ["straight", "l", "u", "l2", "l3"], "straight", { sizes: {
         straight: { width_m: 0.95, depth_m: 3.6 }, l: { width_m: 2.0, depth_m: 3.0 }, u: { width_m: 2.0, depth_m: 2.9 },
         l2: { width_m: 2.8, depth_m: 3.0 }, l3: { width_m: 3.0, depth_m: 3.0 } } }),
-      choice("turn", "Turns", ["left", "right"], "left"),
+      choice("turn", () => t("Turns"), ["left", "right"], "left"),
       // Closed (solid steps), open (treads on a board each side, nothing
       // between them), treads only (nothing under them, fixed into a wall) or
       // floating (open treads on one steel spine down the middle, fixed at
       // the bottom and the top, nothing on a wall).
       // A style a newer version made (a short lowercase word) is kept as it is
       // and drawn closed (stairFlights), never turned closed by an edit here.
-      choice("style", "Style", ["closed", "open", "treads", "floating"], "closed", { keepWord: true }),
+      choice("style", () => t("Style"), ["closed", "open", "treads", "floating"], "closed", { keepWord: true }),
       // A new stair has no rail until one is chosen (2026-11-02). auto, what
       // every stair had before, is stamped on read with the rail it drew
       // (house3d_store.stamp_stair_rail), so the file never hands one here;
       // it still draws as it always did (the plain rods closed straight, L
       // and U stairs had, a balustrade on the open side for the rest) for a
       // piece that has not been through the server yet.
-      choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "none"),
+      choice("rail", () => t("Rail"), ["auto", "both", "inner", "outer", "none"], "none"),
       // Its style: a balustrade (a handrail on spindles, a post at each
       // end), topless (the spindles and posts, no top rail) or a single bar
       // (one bar and nothing under it). A newer version's word is kept and
       // drawn as a balustrade.
-      choice("rail_style", "Rail style", ["balustrade", "topless", "single_bar"], "balustrade", { keepWord: true }),
+      choice("rail_style", () => t("Rail style"), ["balustrade", "topless", "single_bar"], "balustrade", { keepWord: true }),
     ]),
 };
 
@@ -438,27 +451,27 @@ export function worktopOf(recipe){
 // Each is a builder's defaults with a few changes, kept by clampRecipe.
 function starter(name, kind, params = {}, size = {}, colors = null){
   const r = defaultRecipe(kind);
-  return { name, recipe: clampRecipe({ ...r, params: { ...r.params, ...params }, ...size, colors: colors || r.colors }) };
+  return { get name() { return word(name); }, recipe: clampRecipe({ ...r, params: { ...r.params, ...params }, ...size, colors: colors || r.colors }) };
 }
 export const STARTER_SET = [
-  starter("Sofa, three seats", "sofa", { seats: 3, arms: "rolled" }),
-  starter("Queen bed", "bed", { size: "queen", headboard: "slatted", footboard: true, base: "frame" },
+  starter(() => t("Sofa, three seats"), "sofa", { seats: 3, arms: "rolled" }),
+  starter(() => t("Queen bed"), "bed", { size: "queen", headboard: "slatted", footboard: true, base: "frame" },
     { width_m: 1.7, depth_m: 2.29, height_m: 1.3 }),
-  starter("Coffee table", "table", { shape: "rounded", legs: "four", apron: false }, { width_m: 1.1, depth_m: 0.6, height_m: 0.45 }),
-  starter("TV and media unit", "tv", { screen_in: 55, unit: "low", mount: "stand" }),
-  starter("Floor lamp", "lamp", { style: "floor", shade: "drum", base: "round" }),
-  starter("Rug", "rug", { shape: "rectangle", pattern: "border" }, { width_m: 2.4, depth_m: 1.6 }),
-  starter("Dining table", "table", { shape: "rectangle", legs: "four" }, { width_m: 1.6, depth_m: 0.9, height_m: 0.75 }),
-  starter("Dining chair", "chair", { style: "dining", cushion: true }),
-  starter("Bedside table", "dresser", { fronts: "drawers", columns: 1, rows: 2, base: "feet", handles: "knob" },
+  starter(() => t("Coffee table"), "table", { shape: "rounded", legs: "four", apron: false }, { width_m: 1.1, depth_m: 0.6, height_m: 0.45 }),
+  starter(() => t("TV and media unit"), "tv", { screen_in: 55, unit: "low", mount: "stand" }),
+  starter(() => t("Floor lamp"), "lamp", { style: "floor", shade: "drum", base: "round" }),
+  starter(() => t("Rug"), "rug", { shape: "rectangle", pattern: "border" }, { width_m: 2.4, depth_m: 1.6 }),
+  starter(() => t("Dining table"), "table", { shape: "rectangle", legs: "four" }, { width_m: 1.6, depth_m: 0.9, height_m: 0.75 }),
+  starter(() => t("Dining chair"), "chair", { style: "dining", cushion: true }),
+  starter(() => t("Bedside table"), "dresser", { fronts: "drawers", columns: 1, rows: 2, base: "feet", handles: "knob" },
     { width_m: 0.45, depth_m: 0.4, height_m: 0.55 }),
-  starter("Table lamp", "lamp", { style: "table", shade: "drum", base: "round" }, { width_m: 0.3, depth_m: 0.3, height_m: 0.5 }),
-  starter("Dresser", "dresser", { fronts: "drawers", columns: 2, rows: 3 }),
-  starter("Wardrobe", "wardrobe", { style: "hinged", doors: 2 }),
-  starter("Desk", "desk", { legs: "four", drawers: "right" }),
-  starter("Office chair", "chair", { style: "office", cushion: true, arms: true }),
-  starter("Plant", "plant", { style: "bush", pot: "round" }),
-  starter("Christmas tree", "plant", { style: "fir", pot: "none" }, { width_m: 1.2, depth_m: 1.2, height_m: 2.0 }, ["#1f5a32", "#b5653d"]),
+  starter(() => t("Table lamp"), "lamp", { style: "table", shade: "drum", base: "round" }, { width_m: 0.3, depth_m: 0.3, height_m: 0.5 }),
+  starter(() => t("Dresser"), "dresser", { fronts: "drawers", columns: 2, rows: 3 }),
+  starter(() => t("Wardrobe"), "wardrobe", { style: "hinged", doors: 2 }),
+  starter(() => t("Desk"), "desk", { legs: "four", drawers: "right" }),
+  starter(() => t("Office chair"), "chair", { style: "office", cushion: true, arms: true }),
+  starter(() => t("Plant"), "plant", { style: "bush", pot: "round" }),
+  starter(() => t("Christmas tree"), "plant", { style: "fir", pot: "none" }, { width_m: 1.2, depth_m: 1.2, height_m: 2.0 }, ["#1f5a32", "#b5653d"]),
 ];
 
 // ── room sets ────────────────────────────────────────────────────────────────
@@ -480,38 +493,38 @@ const bedside = () => rec("dresser", { fronts: "drawers", columns: 1, rows: 2, b
 const tableLamp = () => rec("lamp", { style: "table", shade: "drum", base: "round" }, { width_m: 0.3, depth_m: 0.3, height_m: 0.5 });
 const bookcase = () => rec("shelf", { style: "bookcase", shelves: 5, books: "some" }, { width_m: 0.8, depth_m: 0.32, height_m: 1.8 });
 export const ROOM_SETS = [
-  { id: "kitchen_row", name: "Kitchen, one wall", about: "tall units, cabinets, sink, dishwasher and hob in a row, wall cabinets over them",
+  { id: "kitchen_row", get name() { return t("Kitchen, one wall"); }, get about() { return t("tall units, cabinets, sink, dishwasher and hob in a row, wall cabinets over them"); },
     rows: [setRow("back", "start", [rec("fridge"), rec("tall_cabinet", { fronts: "oven" }), rec("base_cabinet", { fronts: "drawers" }),
                                     rec("sink"), rec("dishwasher"), rec("stove"), rec("base_cabinet"), rec("base_cabinet")]),
            setRow("back", "start", wallUnits(6), WALL_UNIT_Z)], free: [] },
-  { id: "kitchen_l", name: "Kitchen, L-shaped", about: "a run along one wall and round the corner, wall cabinets over them",
+  { id: "kitchen_l", get name() { return t("Kitchen, L-shaped"); }, get about() { return t("a run along one wall and round the corner, wall cabinets over them"); },
     rows: [setRow("back", "end", [rec("base_cabinet", { fronts: "drawers" }), rec("sink"), rec("dishwasher"), rec("tall_cabinet", { fronts: "oven" }), rec("fridge")],
                   0, runFill("base_cabinet")),
            setRow("left", "start", [rec("base_cabinet"), rec("stove"), rec("base_cabinet", { fronts: "drawers" }), rec("base_cabinet")]),
            setRow("back", "end", wallUnits(5), WALL_UNIT_Z, runFill("wall_cabinet")), setRow("left", "start", wallUnits(4), WALL_UNIT_Z)], free: [] },
-  { id: "bathroom", name: "Bathroom", about: "a toilet and a basin on one wall, a bath (or a shower) across from them",
+  { id: "bathroom", get name() { return t("Bathroom"); }, get about() { return t("a toilet and a basin on one wall, a bath (or a shower) across from them"); },
     rows: [setRow("back", "center", [rec("wc"), rec("basin")]),
            setRow("front", "start", [{ r: rec("bath"), alt: [rec("shower")] }])], free: [] },
-  { id: "bedroom", name: "Bedroom", about: "a bed between bedside tables with lamps, a wardrobe, a dresser and a rug",
+  { id: "bedroom", get name() { return t("Bedroom"); }, get about() { return t("a bed between bedside tables with lamps, a wardrobe, a dresser and a rug"); },
     rows: [setRow("back", "center", [{ r: bedside(), key: "left" }, { r: rec("bed"), key: "bed" }, { r: bedside(), key: "right" }]),
            setRow("left", "center", [rec("wardrobe")]), setRow("front", "center", [rec("dresser")])],
     free: [{ r: tableLamp(), rel: "left", on: true }, { r: tableLamp(), rel: "right", on: true },
            { r: rec("rug", { pattern: "plain" }, { width_m: 2.0, depth_m: 1.4 }), rel: "bed", off: [0, 0.8] }] },
-  { id: "living", name: "Living room", about: "a TV unit, a sofa across from it with a coffee table and a rug, an armchair, a lamp, shelves and a plant",
+  { id: "living", get name() { return t("Living room"); }, get about() { return t("a TV unit, a sofa across from it with a coffee table and a rug, an armchair, a lamp, shelves and a plant"); },
     rows: [setRow("back", "center", [{ r: rec("tv"), key: "tv" }]),
            setRow("front", "center", [rec("lamp"), { r: rec("sofa"), key: "sofa" }, rec("plant")]),
            setRow("left", "center", [rec("chair", { style: "armchair", arms: true }, { width_m: 0.85, depth_m: 0.85, height_m: 0.85 })]),
            setRow("right", "center", [bookcase()])],
     free: [{ r: rec("table", { shape: "rounded", legs: "four", apron: false }, { width_m: 1.1, depth_m: 0.6, height_m: 0.42 }), rel: "sofa", off: [0, 1.15] },
            { r: rec("rug", { pattern: "border" }, { width_m: 2.4, depth_m: 1.6 }), rel: "sofa", off: [0, 1.2] }] },
-  { id: "dining", name: "Dining room", about: "a table for four or six with its chairs, and a sideboard",
+  { id: "dining", get name() { return t("Dining room"); }, get about() { return t("a table for four or six with its chairs, and a sideboard"); },
     rows: [setRow("back", "center", [rec("dresser", { fronts: "doors", columns: 3, rows: 1, base: "legs", handles: "knob" }, { width_m: 1.6, depth_m: 0.45, height_m: 0.75 })])],
     free: [{ r: rec("table", { shape: "rectangle", legs: "four" }, { width_m: 1.6, depth_m: 0.9, height_m: 0.75 }), key: "table", at: [0.5, 0.55], face: "front" },
            ...[-0.4, 0.4].flatMap((x) => [{ r: rec("chair", { cushion: true }), rel: "table", off: [x, 0.72], face: "away" },
                                           { r: rec("chair", { cushion: true }), rel: "table", off: [x, -0.72], face: "same" }]),
            { r: rec("chair", { cushion: true }), rel: "table", off: [-1.1, 0], face: "anchor" },
            { r: rec("chair", { cushion: true }), rel: "table", off: [1.1, 0], face: "anchor" }] },
-  { id: "office", name: "Office", about: "a desk and its chair, two bookcases and a plant",
+  { id: "office", get name() { return t("Office"); }, get about() { return t("a desk and its chair, two bookcases and a plant"); },
     rows: [setRow("back", "center", [{ r: rec("desk"), key: "desk" }]), setRow("left", "center", [bookcase(), bookcase()]),
            setRow("right", "end", [rec("plant")])],
     free: [{ r: rec("chair", { style: "office", cushion: true, arms: true }), rel: "desk", off: [0, 0.72], face: "away" }] },
@@ -2755,13 +2768,13 @@ export function disposePiece(group){
 export const FIGURE = {
   name: "Person",
   params: [
-    num("height_m", "Height", 1.0, 2.1, 0.01, 1.75),
+    num("height_m", () => t("Height"), 1.0, 2.1, 0.01, 1.75),
     choice("build", "Build", ["slim", "medium", "broad"], "medium"),
-    choice("hair", "Hair", ["none", "short", "long", "bun"], "short"),
-    bool("glasses", "Glasses", false),
-    bool("hat", "Cap", false),
+    choice("hair", () => t("Hair"), ["none", "short", "long", "bun"], "short"),
+    bool("glasses", () => t("Glasses"), false),
+    bool("hat", () => t("Cap"), false),
   ],
-  colorNames: { hair: "Hair", skin: "Skin", top: "Top", bottom: "Bottom" },
+  colorNames: { get hair() { return t("Hair"); }, get skin() { return t("Skin"); }, top: "Top", get bottom() { return t("Bottom"); } },
   colors: { hair: "#3a2a1a", skin: "#c8956d", top: "#224466", bottom: "#333333" },
 };
 

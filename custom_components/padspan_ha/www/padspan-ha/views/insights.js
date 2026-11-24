@@ -16,6 +16,9 @@
  * right after gap #1's animation work.
  */
 
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+
 let _cache = null, _loading = null, _loadingDays = null, _error = null, _days = 7;
 let _cacheMode = null;   // the data mode _cache was read in: the real house's is never shown in Sample mode, nor the reverse
 
@@ -25,9 +28,9 @@ export function render(ctx) {
   if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _cache = null; _error = null; }
 
   root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap" }, [
-    el("h2", {}, "Insights"),
+    el("h2", {}, t("Insights")),
     helpBtn("insights"),
-    el("span", { class: "muted", style: "font-size:11px" }, "room-dwell analytics from traceback history"),
+    el("span", { class: "muted", style: "font-size:11px" }, t("room-dwell analytics from traceback history")),
   ]));
 
   const dayBtnEls = [1, 3, 7].map(d => {
@@ -39,7 +42,7 @@ export function render(ctx) {
   root.appendChild(el("div", { style: "display:flex;gap:6px;margin-bottom:10px" }, dayBtnEls));
 
   const status = el("span", { class: "muted", style: "font-size:11px" }, "");
-  const refresh = el("button", { class: "btn inline" }, "Refresh");
+  const refresh = el("button", { class: "btn inline" }, t("Refresh"));
   refresh.addEventListener("click", () => load(true));
   root.appendChild(el("div", { style: "display:flex;gap:10px;align-items:center;margin-bottom:12px" }, [refresh, status]));
 
@@ -49,17 +52,17 @@ export function render(ctx) {
   const renderBody = () => {
     body.innerHTML = "";
     if (_error) {
-      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, "Failed: " + _error)));
+      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, t("Failed: {why}", { why: _error }))));
       return;
     }
     if (!_cache) {
-      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, "Loading…")));
+      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, t("Loading…"))));
       return;
     }
     if (!_cache.days.length) {
       body.appendChild(el("div", { class: "card" }, [
         el("div", { class: "muted" },
-          "No traceback history yet for the selected range — Insights builds from the same history Traceback plays back."),
+          t("No traceback history yet for the selected range — Insights builds from the same history Traceback plays back.")),
       ]));
       return;
     }
@@ -72,7 +75,7 @@ export function render(ctx) {
   // itself (inside Traceback there is no poll re-render to repair a copy
   // that returned early — review 2026-09-23).
   const load = async (fresh) => {
-    status.textContent = fresh ? "Refreshing…" : "Loading…";
+    status.textContent = fresh ? t("Refreshing…") : t("Loading…");
     // A request for a different day range finishes first, then this one runs.
     while (_loading && _loadingDays !== _days) await _loading;
     if (!_loading) {
@@ -81,7 +84,7 @@ export function render(ctx) {
         _error = null;
         try {
           const res = await ctx.actions.wsCall("padspan_ha/insights_get", { days: _days });
-          if (!res || !Array.isArray(res.days)) throw new Error("unexpected reply");
+          if (!res || !Array.isArray(res.days)) throw new Error(t("unexpected reply"));
           _cache = res;
         } catch (e) { _cache = null; _error = (e && (e.message || e.code)) ? String(e.message || e.code) : "failed"; }
       })();
@@ -91,7 +94,7 @@ export function render(ctx) {
     renderBody();
     await _loading;
     const n = _cache ? _cache.days.length : 0;
-    status.textContent = _error ? "" : `${n} day${n === 1 ? "" : "s"} of history`;
+    status.textContent = _error ? "" : tn(n, "{n} day of history", "{n} days of history");
     renderBody();
   };
 
@@ -110,12 +113,12 @@ function _paintDayBtns(btnEls, days) {
 function _buildDwellCard(ctx, data) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
-  const exportCsvBtn = el("button", { class: "btn tiny", style: "margin-left:auto" }, "Export CSV");
-  const exportJsonBtn = el("button", { class: "btn tiny" }, "Export JSON");
+  const exportCsvBtn = el("button", { class: "btn tiny", style: "margin-left:auto" }, t("Export CSV"));
+  const exportJsonBtn = el("button", { class: "btn tiny" }, t("Export JSON"));
   exportCsvBtn.addEventListener("click", () => _exportCsv(data));
   exportJsonBtn.addEventListener("click", () => _exportJson(data));
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
-    el("div", { style: "font-weight:700;font-size:14px" }, "Time in Room"),
+    el("div", { style: "font-weight:700;font-size:14px" }, t("Time in Room")),
     exportCsvBtn, exportJsonBtn,
   ]));
 
@@ -132,7 +135,7 @@ function _buildDwellCard(ctx, data) {
     }
   }
   if (!rows.length) {
-    card.appendChild(el("div", { class: "muted" }, "No dwell time recorded yet."));
+    card.appendChild(el("div", { class: "muted" }, t("No dwell time recorded yet.")));
     return card;
   }
   rows.sort((a, b) => a.name.localeCompare(b.name) || a.day.localeCompare(b.day) || b.minutes - a.minutes);
@@ -150,7 +153,7 @@ function _buildDwellCard(ctx, data) {
   const tableWrap = el("div", { style: "overflow-x:auto;max-height:420px;overflow-y:auto" });
   tableWrap.appendChild(el("table", { class: "table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Object"), el("th", {}, "Day"), el("th", {}, "Room"), el("th", {}, "Time"), el("th", {}, "Entries"),
+      el("th", {}, t("Object")), el("th", {}, t("Day")), el("th", {}, t("Room")), el("th", {}, t("Time")), el("th", {}, t("Entries")),
     ])),
     tbody,
   ]));
@@ -161,9 +164,9 @@ function _buildDwellCard(ctx, data) {
 function _buildOccupancyCard(ctx, data) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card", style: "margin-top:14px" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Peak Concurrent Occupancy"));
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, t("Peak Concurrent Occupancy")));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "The most tracked objects seen in one room at the same time, per day."));
+    t("The most tracked objects seen in one room at the same time, per day.")));
 
   // Reduce the hourly grid to one peak (room, hour, count) per room per day
   // — a full hour-by-hour timeline is more data than a summary view needs.
@@ -182,7 +185,7 @@ function _buildOccupancyCard(ctx, data) {
     }
   }
   if (!peaks.length) {
-    card.appendChild(el("div", { class: "muted" }, "No occupancy data yet."));
+    card.appendChild(el("div", { class: "muted" }, t("No occupancy data yet.")));
     return card;
   }
   peaks.sort((a, b) => b.count - a.count || a.day.localeCompare(b.day));
@@ -197,7 +200,7 @@ function _buildOccupancyCard(ctx, data) {
   }
   card.appendChild(el("table", { class: "table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Day"), el("th", {}, "Room"), el("th", {}, "Peak Hour"), el("th", {}, "Objects"),
+      el("th", {}, t("Day")), el("th", {}, t("Room")), el("th", {}, t("Peak Hour")), el("th", {}, t("Objects")),
     ])),
     tbody,
   ]));

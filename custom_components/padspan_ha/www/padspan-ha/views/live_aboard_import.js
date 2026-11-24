@@ -26,6 +26,11 @@
 
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 
 export const PREVIEW_TYPE = "padspan_ha/house3d_import_preview";
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;     // the room import's limit (ws_floorplan_import.py)
@@ -45,7 +50,7 @@ const EPS = 1e-6;
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const mm = DRAFT.mm;
-const KIND_NAMES = { door: "Door", window: "Window", doorway: "Doorway" };
+const KIND_NAMES = { get door() { return t("Door"); }, get window() { return t("Window"); }, get doorway() { return t("Doorway"); } };
 const keyOf = (levelId) => (levelId === null || levelId === undefined ? NO_LEVEL : String(levelId));
 const sizeText = (r) => `${r.width_m.toFixed(2)} × ${r.depth_m.toFixed(2)} × ${r.height_m.toFixed(2)} m`;
 
@@ -121,9 +126,9 @@ export function defaultFloors(keys, levels, floors, current){
  *  no wall for it). `taken`: what this import has placed already, per run
  *  (Map), so two never overlap. */
 export function placeOpening(o, W, taken){
-  if (!W || !W.runs.length) return { why: "no walls on that floor", nowall: true };
+  if (!W || !W.runs.length) return { why: t("no walls on that floor"), nowall: true };
   const a = o.a_m, b = o.b_m, w = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  if (!(w > 0)) return { why: "it has no width" };
+  if (!(w > 0)) return { why: t("it has no width") };
   const ux = (b[0] - a[0]) / w, uy = (b[1] - a[1]) / w, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
   let best = null;
   for (const R of W.runs) {
@@ -131,16 +136,16 @@ export function placeOpening(o, W, taken){
     const d = DRAFT.runDist(R.run, mx, my);
     if (d <= SNAP_M && (!best || d < best.d)) best = { R, d };
   }
-  if (!best) return { why: `no wall within ${SNAP_M} m`, nowall: true };
+  if (!best) return { why: t("no wall within {m} m", { m: SNAP_M }), nowall: true };
   const { run, stops } = best.R, mine = taken.get(run) || [];
   const ops = [...best.R.ops, ...mine];
   const tc = DRAFT.tOn(run, mx, my);
-  if (DRAFT.insideOpening(ops, tc)) return { why: "a door or window is already there" };
+  if (DRAFT.insideOpening(ops, tc)) return { why: t("a door or window is already there") };
   // The free stretch round its middle: to the corner or opening each way.
   const lo = DRAFT.spanOf(run, stops, ops, tc, run.t0 - 1).t0, hi = DRAFT.spanOf(run, stops, ops, tc, run.t1 + 1).t1;
   let t0 = lo, t1 = hi;
   if (hi - lo >= w) { t0 = clamp(tc - w / 2, lo, hi - w); t1 = t0 + w; }
-  if (t1 - t0 < DRAFT.minWidth(o.kind) - EPS) return { why: `too little wall there for a ${o.kind}` };
+  if (t1 - t0 < DRAFT.minWidth(o.kind) - EPS) return { why: o.kind === "door" ? t("too little wall there for a door") : o.kind === "doorway" ? t("too little wall there for a doorway") : t("too little wall there for a window") };
   const rec = DRAFT.newOpening(o.kind, W.fl.id, DRAFT.pointOf(run, t0), DRAFT.pointOf(run, t1), W.ceil);
   Object.assign(rec, DRAFT.openingHeights(o.kind === "window" ? { kind: "window", sill_m: o.sill_m, head_m: o.head_m }
     : { kind: o.kind, head_m: o.head_m }, W.ceil));
@@ -160,8 +165,8 @@ export function kindChoices(tools){
     const d = F[k];
     if (k !== BOX && d && GROUPS.has(d.group)) out.push({ kind: k, name: String(d.name || k) });
   }
-  if (F.stairs && !order.includes("stairs")) out.push({ kind: "stairs", name: String(F.stairs.name || "Stairs") });
-  out.push({ kind: BOX, name: String((F[BOX] && F[BOX].name) || "Box") });
+  if (F.stairs && !order.includes("stairs")) out.push({ kind: "stairs", name: String(F.stairs.name || t("Stairs")) });
+  out.push({ kind: BOX, name: String((F[BOX] && F[BOX].name) || t("Box")) });
   return out;
 }
 /** A recipe of `kind` at the file's size: the builder's defaults kept to
@@ -263,9 +268,9 @@ export function placeAll(S){
   const placed = {}, taken = new Map(), walls = new Map();
   for (const [id, o] of Object.entries(S.cands.openings)) {
     const fid = S.floorOf[levelOf(S, "openings", id)];
-    if (!fid) { placed[id] = { why: "its level is left out", out: true }; continue; }
+    if (!fid) { placed[id] = { why: t("its level is left out"), out: true }; continue; }
     if (!walls.has(fid)) walls.set(fid, wallsOf(S.reading, fid));
-    placed[id] = S.reading ? placeOpening(o, walls.get(fid), taken) : { why: "the house's walls could not be read" };
+    placed[id] = S.reading ? placeOpening(o, walls.get(fid), taken) : { why: t("the house's walls could not be read") };
   }
   S.placed = placed;
   return placed;
@@ -317,7 +322,7 @@ function readBase64(file){
   return new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(String(fr.result).split(",")[1] || "");
-    fr.onerror = () => rej(fr.error || new Error("the file could not be read"));
+    fr.onerror = () => rej(fr.error || new Error(t("the file could not be read")));
     fr.readAsDataURL(file);
   });
 }
@@ -338,21 +343,21 @@ export function importFlow(ctx){
     const finish = (v) => { if (done) return; done = true; token++; el.replaceChildren(); resolve(v); };
     // A RoomPlan scan too (.usdz or .json), where RoomPlan import is on (Settings → Features).
     const rp = !!(ctx.settings && ctx.settings.roomplan_import_enabled === true);
-    const title = rp ? "Import from Sweet Home 3D or RoomPlan" : "Import from Sweet Home 3D";
+    const title = rp ? t("Import from Sweet Home 3D or RoomPlan") : t("Import from Sweet Home 3D");
     const input = h("input", { type: "file", accept: rp ? ".sh3d,.json,.usdz" : ".sh3d", style: "display:none", onchange: () => pick() });
     const screen = (kids) => el.replaceChildren(h("div", { class: "la-import", style: CSS.wrap }, kids));
-    const cancelBtn = () => h("button", { class: "btn inline", onclick: () => finish(null) }, "Cancel");
+    const cancelBtn = () => h("button", { class: "btn inline", onclick: () => finish(null) }, t("Cancel"));
     const chooseBtn = (label, primary) => h("button", { class: "btn inline" + (primary ? " primary" : ""), onclick: () => input.click() }, label);
 
     function start(msg, bad){
       screen([
         h("div", { style: CSS.title }, title),
         h("div", { class: "muted", style: CSS.note },
-          (rp ? "Doors, windows, furniture and stairs from a .sh3d file or a RoomPlan scan (.usdz or .json). "
-              : "Doors, windows, furniture and stairs from a .sh3d file. ")
-          + "Furniture comes in as its kind and size; stairs as a first guess at their shape, squared to the room. You choose what to add; nothing is saved until you press Save."),
+          (rp ? t("Doors, windows, furniture and stairs from a .sh3d file or a RoomPlan scan (.usdz or .json).")
+              : t("Doors, windows, furniture and stairs from a .sh3d file."))
+          + " " + t("Furniture comes in as its kind and size; stairs as a first guess at their shape, squared to the room. You choose what to add; nothing is saved until you press Save.")),
         msg ? h("div", { role: "alert", style: bad ? CSS.bad : CSS.note }, msg) : null,
-        h("div", { style: CSS.row }, [chooseBtn(rp ? "Choose a .sh3d, .usdz or .json file" : "Choose a .sh3d file", true), cancelBtn(), input]),
+        h("div", { style: CSS.row }, [chooseBtn(rp ? t("Choose a .sh3d, .usdz or .json file") : t("Choose a .sh3d file"), true), cancelBtn(), input]),
       ]);
     }
     async function pick(){
@@ -360,12 +365,12 @@ export function importFlow(ctx){
       input.value = "";
       if (!file || done) return;
       if (num(file.size) !== null && file.size > MAX_FILE_BYTES) {
-        start(`That file is over ${MAX_FILE_BYTES / (1024 * 1024)} MB, the most an import takes.`, true);
+        start(t("That file is over {mb} MB, the most an import takes.", { mb: MAX_FILE_BYTES / (1024 * 1024) }), true);
         return;
       }
       const mine = ++token;
       screen([h("div", { style: CSS.title }, title),
-              h("div", { class: "muted", style: CSS.note }, `Reading ${file.name}…`), h("div", { style: CSS.row }, [cancelBtn()])]);
+              h("div", { class: "muted", style: CSS.note }, t("Reading {file}…", { file: file.name })), h("div", { style: CSS.row }, [cancelBtn()])]);
       try {
         const b64 = await readBase64(file);
         if (mine !== token) return;
@@ -382,8 +387,8 @@ export function importFlow(ctx){
       } catch (err) {
         if (mine !== token) return;
         const m = (err && (err.message || err.code)) || String(err);
-        start(`Could not import that file: ${m}`, true);
-        toast(`Import failed: ${m}`, true);
+        start(t("Could not import that file: {why}", { why: m }), true);
+        toast(t("Import failed: {why}", { why: m }), true);
       }
     }
 
@@ -391,13 +396,13 @@ export function importFlow(ctx){
     const floorName = (fid) => { const f = S.floors.find(x => x.id === fid); return f ? f.name : fid; };
     const levelName = (k) => {
       if (k !== NO_LEVEL) { const l = S.levels.find(x => String(x.id) === k); return l ? String(l.name || k) : k; }
-      return S.levels.length ? "Not on a level" : "Everything in the file";
+      return S.levels.length ? t("Not on a level") : t("Everything in the file");
     };
     const count = () => { const r = chosenOf(S, tools); return Object.keys(r.pieces).length + Object.keys(r.openings).length; };
     let addBtn = null;
     const recount = () => {
       const n = count(), over = overBy(S, tools);
-      addBtn.textContent = over ? `Too many for one Save: untick ${over}` : n ? `Add ${n} to the house` : "Add to the house";
+      addBtn.textContent = over ? t("Too many for one Save: untick {n}", { n: over }) : n ? t("Add {n} to the house", { n }) : t("Add to the house");
       addBtn.disabled = !n || over > 0;
     };
     function tick(id, on){
@@ -407,12 +412,12 @@ export function importFlow(ctx){
     function openingRow(id){
       const o = S.cands.openings[id], p = S.placed[id] || {}, r = S.rep.openings[id] || {};
       const ok = !!p.rec;
-      const cb = h("input", { type: "checkbox", checked: ok && !!S.pick[id], disabled: !ok, "aria-label": "Add this one",
+      const cb = h("input", { type: "checkbox", checked: ok && !!S.pick[id], disabled: !ok, "aria-label": t("Add this one"),
                               onchange: () => tick(id, cb.checked) });
-      const what = `${KIND_NAMES[o.kind] || "Window"} ${(ok ? p.width : (r.width_m || 0)).toFixed(2)} m`;
+      const what = `${KIND_NAMES[o.kind] || t("Window")} ${(ok ? p.width : (r.width_m || 0)).toFixed(2)} m`;
       const note = !ok ? p.why
-        : p.cut ? `cut to ${p.width.toFixed(2)} m to fit the wall, on ${floorName(p.rec.floor_id)}`
-        : `on ${floorName(p.rec.floor_id)}`;
+        : p.cut ? t("cut to {m} m to fit the wall, on {floor}", { m: p.width.toFixed(2), floor: floorName(p.rec.floor_id) })
+        : t("on {floor}", { floor: floorName(p.rec.floor_id) });
       return h("label", { style: CSS.item, "data-id": id }, [cb,
         h("span", { style: CSS.name }, [h("b", {}, what), r.name && !/^(door|window|doorway)$/i.test(r.name.trim()) ? ` · ${r.name}` : ""]),
         h("span", { class: ok ? "muted" : "", style: ok ? CSS.note : CSS.bad }, note)]);
@@ -420,9 +425,9 @@ export function importFlow(ctx){
     function pieceRow(id){
       const c = S.cands.pieces[id], r = S.rep.pieces[id] || {}, fid = S.floorOf[levelOf(S, "pieces", id)];
       const ok = !!fid, rec = recipeFor(S.kind[id], { w: c.recipe.width_m, d: c.recipe.depth_m, h: c.recipe.height_m }, tools);
-      const cb = h("input", { type: "checkbox", checked: ok && !!S.pick[id], disabled: !ok, "aria-label": "Add this one",
+      const cb = h("input", { type: "checkbox", checked: ok && !!S.pick[id], disabled: !ok, "aria-label": t("Add this one"),
                               onchange: () => tick(id, cb.checked) });
-      const sel = h("select", { style: CSS.sel, "aria-label": "Kind", disabled: !ok, onchange: () => {
+      const sel = h("select", { style: CSS.sel, "aria-label": t("Kind"), disabled: !ok, onchange: () => {
         S.kind[id] = sel.value;
         if (row.parentNode) row.parentNode.replaceChild(pieceRow(id), row);
         recount();
@@ -432,14 +437,14 @@ export function importFlow(ctx){
       const kept = ["width_m", "depth_m", "height_m"].some(k => Math.abs(rec[k] - file[k]) > 0.005);
       // Why it is this kind: while it is still the kind it came in as.
       const why = S.kind[id] !== S.kind0[id] ? null
-        : r.kind && r.kind !== BOX && S.kind[id] === BOX ? `no builder for a ${r.kind} yet, so a box`
-        : S.kind[id] === BOX ? (r.word ? `no builder for a ${r.word}, so a box of its size` : "no match, so a box of its size")
-        : r.word ? `by the word “${r.word}”` : null;
-      const notes = [!ok ? "its level is left out" : null, why,
-        kept ? `the file has ${sizeText(file)}` : null,
-        ok && S.kind[id] === "lamp" && (num(c.z_m) ?? 0) >= HIGH_LIGHT_M ? "a ceiling or wall light; the map's own lights already show" : null,
+        : r.kind && r.kind !== BOX && S.kind[id] === BOX ? t("no builder for a {kind} yet, so a box", { kind: r.kind })
+        : S.kind[id] === BOX ? (r.word ? t("no builder for a {word}, so a box of its size", { word: r.word }) : t("no match, so a box of its size"))
+        : r.word ? t("by the word “{word}”", { word: r.word }) : null;
+      const notes = [!ok ? t("its level is left out") : null, why,
+        kept ? t("the file has {size}", { size: sizeText(file) }) : null,
+        ok && S.kind[id] === "lamp" && (num(c.z_m) ?? 0) >= HIGH_LIGHT_M ? t("a ceiling or wall light; the map's own lights already show") : null,
       ].filter(Boolean).join(" · ");
-      const kindName = (S.kinds.find(k => k.kind === S.kind[id]) || { name: "Piece" }).name;
+      const kindName = (S.kinds.find(k => k.kind === S.kind[id]) || { name: t("Piece") }).name;
       const row = h("div", { style: CSS.item, "data-id": id }, [
         h("label", { style: "display:flex;align-items:center;gap:6px;" + CSS.name }, [cb, h("b", {}, r.name || c.label || kindName)]),
         sel, h("span", {}, sizeText(rec)),
@@ -452,8 +457,8 @@ export function importFlow(ctx){
       const set = (on) => { for (const id of ids) S.pick[id] = on; render(); };
       return h("div", {}, [
         h("div", { style: CSS.head }, [h("span", {}, `${title} (${ids.length})`),
-          h("button", { class: "btn inline", onclick: () => set(true) }, "All"),
-          h("button", { class: "btn inline", onclick: () => set(false) }, "None")]),
+          h("button", { class: "btn inline", onclick: () => set(true) }, t("All")),
+          h("button", { class: "btn inline", onclick: () => set(false) }, t("None"))]),
         ...ids.map(rowOf),
       ]);
     }
@@ -461,18 +466,17 @@ export function importFlow(ctx){
       const pIds = Object.keys(S.cands.pieces), oIds = Object.keys(S.cands.openings);
       const doors = oIds.filter(id => S.cands.openings[id].kind === "door").length;
       const ways = oIds.filter(id => S.cands.openings[id].kind === "doorway").length, wins = oIds.length - doors - ways;
-      const found = [`${pIds.length} ${pIds.length === 1 ? "piece" : "pieces"}`,
-        `${doors} ${doors === 1 ? "door" : "doors"}`, `${wins} ${wins === 1 ? "window" : "windows"}`,
-        ...(ways ? [`${ways} ${ways === 1 ? "doorway" : "doorways"}`] : [])];
+      const found = [tn(pIds.length, "{n} piece", "{n} pieces"),
+        tn(doors, "{n} door", "{n} doors"), tn(wins, "{n} window", "{n} windows"),
+        ...(ways ? [tn(ways, "{n} doorway", "{n} doorways")] : [])];
       // Those on no wall of the house (on a floor with none, or none near): left out, and counted here.
       const nowall = oIds.filter(id => S.placed[id] && S.placed[id].nowall).length;
-      const offWalls = nowall === 1 ? " 1 door or window is on no wall of the house, so it is left out."
-        : nowall ? ` ${nowall} doors and windows are on no wall of the house, so they are left out.` : "";
-      const opts = [...S.floors.map(f => ({ id: f.id, name: f.name })), { id: LEAVE_OUT, name: "Leave out" }];
+      const offWalls = nowall ? " " + tn(nowall, "{n} door or window is on no wall of the house, so it is left out.", "{n} doors and windows are on no wall of the house, so they are left out.") : "";
+      const opts = [...S.floors.map(f => ({ id: f.id, name: f.name })), { id: LEAVE_OUT, name: t("Leave out") }];
       const floorsBlock = S.keys.length ? h("div", {}, [
-        h("div", { style: CSS.head }, S.keys.length > 1 ? "Which floor each level goes on" : "Which floor it goes on"),
+        h("div", { style: CSS.head }, S.keys.length > 1 ? t("Which floor each level goes on") : t("Which floor it goes on")),
         ...S.keys.map(k => {
-          const sel = h("select", { style: CSS.sel, "aria-label": `Floor for ${levelName(k)}`, onchange: () => {
+          const sel = h("select", { style: CSS.sel, "aria-label": t("Floor for {level}", { level: levelName(k) }), onchange: () => {
             S.floorOf[k] = sel.value;
             placeAll(S);
             render();
@@ -482,19 +486,19 @@ export function importFlow(ctx){
         }),
       ]) : null;
       const left = [...S.rep.skipped.map(s => `${s.name}: ${s.why}`), ...S.rep.warnings];
-      addBtn = h("button", { class: "btn inline primary", onclick: () => { if (count() && !overBy(S, tools)) finish(chosenOf(S, tools)); } }, "Add");
+      addBtn = h("button", { class: "btn inline primary", onclick: () => { if (count() && !overBy(S, tools)) finish(chosenOf(S, tools)); } }, t("Add"));
       screen([
         h("div", { style: CSS.title }, title),
-        h("div", {}, [h("b", {}, fileName || "The file"), `: ${found.join(", ")}.${offWalls}`]),
-        !pIds.length && !oIds.length ? h("div", { role: "alert", style: CSS.bad }, "Nothing in this file can be added.") : null,
-        S.capped ? h("div", { style: CSS.note }, `One Save takes only so many, so the last ${S.capped} start unticked. Add these and Save, then import the file again and tick the rest.`) : null,
+        h("div", {}, [h("b", {}, fileName || t("The file")), `: ${found.join(", ")}.${offWalls}`]),
+        !pIds.length && !oIds.length ? h("div", { role: "alert", style: CSS.bad }, t("Nothing in this file can be added.")) : null,
+        S.capped ? h("div", { style: CSS.note }, t("One Save takes only so many, so the last {n} start unticked. Add these and Save, then import the file again and tick the rest.", { n: S.capped })) : null,
         floorsBlock,
-        section("Doors and windows", oIds, openingRow),
-        section("Furniture", pIds, pieceRow),
-        left.length ? h("details", {}, [h("summary", {}, `Left out or noted (${left.length})`),
+        section(t("Doors and windows"), oIds, openingRow),
+        section(t("Furniture"), pIds, pieceRow),
+        left.length ? h("details", {}, [h("summary", {}, t("Left out or noted ({n})", { n: left.length })),
           ...left.map(t => h("div", { class: "muted", style: CSS.note }, t))]) : null,
-        h("div", { style: CSS.row }, [addBtn, cancelBtn(), chooseBtn("Choose another file", false), input]),
-        h("div", { class: "muted", style: CSS.note }, "They go into the house unsaved, with the rest of your changes; Save keeps them."),
+        h("div", { style: CSS.row }, [addBtn, cancelBtn(), chooseBtn(t("Choose another file"), false), input]),
+        h("div", { class: "muted", style: CSS.note }, t("They go into the house unsaved, with the rest of your changes; Save keeps them.")),
       ]);
       recount();
     }

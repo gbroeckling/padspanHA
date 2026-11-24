@@ -78,7 +78,7 @@ def test_the_maps_are_figures_described_by_it() -> None:
     assert 'isoDiv.setAttribute("role", "figure");' in ov
     assert 'isoDiv.setAttribute("aria-describedby", "psMapText");' in ov
     lm = _src(_WWW / "views" / "lights_map.js")
-    assert 'isoDiv.setAttribute("role", "figure");\n  isoDiv.setAttribute("aria-label", "House map");' in lm
+    assert 'isoDiv.setAttribute("role", "figure");\n  isoDiv.setAttribute("aria-label", t("House map"));' in lm
     ab = _src(_WWW / "views" / "atlas_aboard.js")
     assert "await import(`./map_text.js${new URL(import.meta.url).search}`).catch(() => null)" in ab
     assert 'd.stage.setAttribute("aria-describedby", textId)' in ab

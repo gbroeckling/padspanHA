@@ -26,6 +26,11 @@ const { WLED_BORDER, PARTITION_BORDER, MOTION_PULSE, DOOR_BORDER,
 // swings, its type and where its panels are, so the flat map draws an open
 // door's leaf swung open the way Live Aboard shows it. Optional: missing, an
 // open door is the clear gap it always was.
+// Its few words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
+// alone), the English with its {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`).catch(() => null);
 // The temperature / humidity / CO2 heatmap (atlas_heatmap.js). Optional the
 // same way: missing, the Atlas simply has no heatmap.
@@ -3756,7 +3761,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // does not use and cannot draw from.
   if(!rooms.length && !lights.length){
     s+=`<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="14">`+
-      `No rooms in the layout yet — build a floor in Mapping → Layout.</text>`;
+      `${escSVG(t("No rooms in the layout yet — build a floor in Mapping → Layout."))}</text>`;
     s+=`</svg>`; return s;
   }
 
@@ -6095,7 +6100,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             const pfs=Math.max(4.5, CODE_PX*0.85);
             s+=`<text x="${ccx.toFixed(1)}" y="${(ccy+rr+pfs*0.9).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" `+
               `font-family="system-ui,sans-serif" font-size="${pfs.toFixed(1)}" fill="#94a3b8" opacity="0.7" `+
-              `pointer-events="none">${roomLights.length} unplaced</text>`;
+              `pointer-events="none">${escSVG(t("{n} unplaced", { n: roomLights.length }))}</text>`;
           }
         }
         roomLights.forEach((l,idx)=>{
@@ -6836,7 +6841,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // a light and then never notice — the outer ring breathes to draw the eye
     // there for as long as something is actually armed and waiting for a tap.
     s+=`<g class="ldropmarker" data-role="dropmarker" style="cursor:grab" pointer-events="all">`+
-      `<title>Drag onto the map to place the selected light</title>`+
+      `<title>${escSVG(t("Drag onto the map to place the selected light"))}</title>`+
       `<circle cx="${dx}" cy="${dy}" r="17" fill="#1b0f24" fill-opacity="0.92" stroke="#e879f9" stroke-width="2"/>`+
       `<circle cx="${dx}" cy="${dy}" r="17" fill="none" stroke="#e879f9" stroke-width="6" stroke-opacity="0.18">`+
         `<animate attributeName="stroke-opacity" values="0.15;0.6;0.15" dur="1.4s" repeatCount="indefinite"/>`+
@@ -6865,7 +6870,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // The floor the drawing put here (floorIdAtLevel): HA floors usually
       // have no level, and matching it read "Basement, Floor 1, Floor 2"
       // (review round 13).
-      const label=floorNameAtLevel(frame, model, floors, z) || `Floor ${z}`;
+      const label=floorNameAtLevel(frame, model, floors, z) || t("Floor {n}", { n: z });
       s+=`<circle cx="${lx}" cy="${ly}" r="${R}" fill="${color}" opacity="0.9"/>`;
       s+=`<text x="${lx}" y="${ly+3}" text-anchor="middle" fill="#071008" font-size="8" font-weight="700">${i+1}</text>`;
       lx+=R+5;
@@ -6880,7 +6885,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // fade timing, labelled for both when the house has an air-quality
     // sensor, in smaller type than the floor names.
     const hasAir=Object.values(lightsByEid||{}).some(li=>li&&li.isAir);
-    const key=hasAir ? "Motion · Air" : "Motion", KFS=8;
+    const key=escSVG(hasAir ? t("Motion · Air") : t("Motion")), KFS=8;
     s+=`<text x="${lx}" y="${ly+3}" fill="#9fb0a8" font-size="${KFS}" font-weight="500">${key}</text>`;
     lx+=key.length*KFS*0.6+10;
     s+=`<rect x="${lx}" y="${ly-2}" width="120" height="1.5" rx="0.75" fill="url(#psmotionlegend)"/>`;

@@ -42,6 +42,11 @@ const HIDE_GRACE_MS = 450;                 // the hover box lingers this long ov
  *  a washer, a robot; P5): a tap or a hold opens Home Assistant's own
  *  controls for it, never a blind switch (a washer on a plug must never go
  *  off from a stray tap). */
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export function moreInfo(node, eid){
   node.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: eid } }));
 }
@@ -49,7 +54,7 @@ export function moreInfo(node, eid){
 const DIM_BUBBLE = "position:fixed;z-index:10001;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;"
   + "font-variant-numeric:tabular-nums;color:#111827;background:linear-gradient(135deg,#f59e0b,#fbbf24);"
   + "box-shadow:0 0 18px rgba(251,191,36,.6);pointer-events:none;font-family:Inter,system-ui,sans-serif";
-const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
+
 /** What can move a door: the barrier card's own opener (lights_map.js
  *  openBarrierCard: its linked opener, or its link itself when that is a
  *  cover) — a garage door, a gate. Such a door never goes to that card from
@@ -217,18 +222,18 @@ export function createUseSurface(o){
     n.appendChild(document.createTextNode(text));
     return n;
   };
-  function showHud(t, under){
-    const key = [t, ...under].map(u => u.key + "=" + u.label).join("|");
+  function showHud(top, under){
+    const key = [top, ...under].map(u => u.key + "=" + u.label).join("|");
     emptySince = null;
     if (key === hudKey && !hud.hidden) return;
     hudKey = key;
     while (hud.firstChild) hud.removeChild(hud.firstChild);
     hud.hidden = false;
-    hud.appendChild(line("Click", t.label));
+    hud.appendChild(line(t("Click"), top.label));
     for (const u of under) {
-      const b = line("Under", u.label, "button", "lv-hoverhud-under");
+      const b = line(t("Under"), u.label, "button", "lv-hoverhud-under");
       b.type = "button";
-      b.title = UNDER_TITLE;
+      b.title = t("Act on this one instead — it's under the marker on top");
       b.addEventListener("click", (e) => { e.stopPropagation(); actUnder(u); });
       hud.appendChild(b);
     }
@@ -263,9 +268,9 @@ export function createUseSurface(o){
     try { card.el.remove(); } catch (_) { /* gone with the view */ }
     card = null;
   }
-  function showCard(t){
+  function showCard(tgt){
     closeCard();
-    const c = t.card || { title: t.label, lines: [] }, el = document.createElement("div");
+    const c = tgt.card || { title: tgt.label, lines: [] }, el = document.createElement("div");
     el.className = "la3d-tagcard";
     el.setAttribute("role", "dialog");
     el.setAttribute("aria-label", c.title);
@@ -274,7 +279,7 @@ export function createUseSurface(o){
     head.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin-bottom:3px";
     name.style.cssText = "flex:1;font-size:14px;color:#5eead4";
     name.textContent = c.title;
-    x.type = "button"; x.textContent = "✕"; x.title = "Close";
+    x.type = "button"; x.textContent = "✕"; x.title = t("Close");
     x.style.cssText = "all:unset;cursor:pointer;padding:0 4px;font-size:16px;line-height:1;color:rgba(226,240,232,.7)";
     x.addEventListener("click", (e) => { e.stopPropagation(); closeCard(); });
     head.append(name, x);
@@ -294,7 +299,7 @@ export function createUseSurface(o){
     }
     for (const ev of ["pointerdown", "pointerup", "click", "wheel"]) el.addEventListener(ev, (e) => e.stopPropagation());
     o.root.appendChild(el);
-    card = { t, el };
+    card = { t: tgt, el };
     { const w = keys(); if (w) w.addEventListener("keydown", onEsc); }
     placeCard();
   }
@@ -369,44 +374,44 @@ export function createUseSurface(o){
   // What the release meant, done the Atlas's way (wirePress's finish, the
   // room / floor / barrier clicks).
   function act(p, r){
-    const api = p.api, t = p.target;
-    if (r === "tap" && t.btn && typeof o.tapped === "function") o.tapped(t.btn);
-    if (t.kind === "entity") { if (r === "tap" || r === "open") moreInfo(o.root, t.eid); return; }
-    if (t.kind === "device") {
-      const eid = t.eid, l0 = api.lightsByEid[eid];
+    const api = p.api, tgt = p.target;
+    if (r === "tap" && tgt.btn && typeof o.tapped === "function") o.tapped(tgt.btn);
+    if (tgt.kind === "entity") { if (r === "tap" || r === "open") moreInfo(o.root, tgt.eid); return; }
+    if (tgt.kind === "device") {
+      const eid = tgt.eid, l0 = api.lightsByEid[eid];
       if (l0.isMotion) { if (r === "tap") api.toggle(eid); else if (r === "open") api.openActivity(eid); return; }   // a tap reads it, a hold opens its activity
       if (l0.isLock) { if (r === "tap" || r === "open") api.openControls(eid); return; }   // never turned by a tap: its card has Lock and Unlock
-      if (r === "tap") { tapSwitch(api, eid, l0, t); return; }
-      if (r === "open") { if (p.holdable) api.openControls(eid); else tapSwitch(api, eid, l0, t); return; }
+      if (r === "tap") { tapSwitch(api, eid, l0, tgt); return; }
+      if (r === "open") { if (p.holdable) api.openControls(eid); else tapSwitch(api, eid, l0, tgt); return; }
       if (r === "drag-end") {
         const b = p.dragTo;
-        if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast("Could not set brightness", true));
+        if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast(t("Could not set brightness"), true));
         rerender = { at: now() + 500, api };
         o.frame();
       }
       return;
     }
-    if (r === "drag-end" && t.kind === "room" && t.sw) {
+    if (r === "drag-end" && tgt.kind === "room" && tgt.sw) {
       const b = p.dragTo;
-      if (typeof b === "number" && api.hass) for (const eid of p.dimEids) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast("Could not set brightness", true));
-      if (typeof b === "number" && o.roomSwitched) o.roomSwitched(t.room, "dim", p.dimEids.length, null);
+      if (typeof b === "number" && api.hass) for (const eid of p.dimEids) setLightBrightness(api.hass, eid, b).then(q => _tellProblems(api.toast, q)).catch(() => api.toast(t("Could not set brightness"), true));
+      if (typeof b === "number" && o.roomSwitched) o.roomSwitched(tgt.room, "dim", p.dimEids.length, null);
       rerender = { at: now() + 500, api };
       o.frame();
       return;
     }
     if (r !== "tap" && r !== "open") return;
-    if (t.kind === "tag" || t.kind === "scanner" || t.kind === "person") { showCard(t); return; }
+    if (tgt.kind === "tag" || tgt.kind === "scanner" || tgt.kind === "person") { showCard(tgt); return; }
     // A button standing for several lights: each with its switch, on the Atlas's own sheet.
-    if (t.kind === "lights") { if (typeof api.openLights === "function") api.openLights(t.eids); return; }
-    if (t.kind === "room" && t.sw && r === "tap") roomSwitch(api, t);
-    else if (t.kind === "room") openRoom(api, t.room);
-    else if (t.kind === "floor") api.openFloor(t.z);
+    if (tgt.kind === "lights") { if (typeof api.openLights === "function") api.openLights(tgt.eids); return; }
+    if (tgt.kind === "room" && tgt.sw && r === "tap") roomSwitch(api, tgt);
+    else if (tgt.kind === "room") openRoom(api, tgt.room);
+    else if (tgt.kind === "floor") api.openFloor(tgt.z);
     // A door something can move (a garage door, a gate: doorMover) never
     // moves from a tap, nor from anything a tap shows: a tap shows what it
     // reads (its card: state, last moved; nothing on it to press but its
     // close); a hold opens Home Assistant's own controls for what moves it.
-    else if (t.kind === "door" && doorMover(t.bar)) { if (r === "open") moreInfo(o.root, doorMover(t.bar)); else showCard(t); }
-    else if (t.kind === "door" && t.bar && t.bar.linked_entity_id && api.hass) openBarrierCard(api.hass, t.bar, api);
+    else if (tgt.kind === "door" && doorMover(tgt.bar)) { if (r === "open") moreInfo(o.root, doorMover(tgt.bar)); else showCard(tgt); }
+    else if (tgt.kind === "door" && tgt.bar && tgt.bar.linked_entity_id && api.hass) openBarrierCard(api.hass, tgt.bar, api);
   }
   // The hold is armed once HOLD_MS has passed still (the Atlas's timer).
   // Checked on the frames, and on the next move too, so a slow screen whose

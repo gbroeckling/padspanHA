@@ -31,20 +31,28 @@
 // runs it); photoFlow draws it. Shared with the people screen
 // (live_aboard_people.js): the photo shrink, the AI Task note, the styles.
 
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, currentLanguage } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, currentLanguage: () => "en" }));
 const CMD = "padspan_ha/house3d_from_photo";
 const GROUPS = ["furniture", "device"];
 const BOX = "other";
 export const DIMS = [["width_m", "Width"], ["depth_m", "Depth"], ["height_m", "Height"]];
+/** DIMS in the panel's language, and a name inside a sentence: lower case in English, as it is in every other language. */
+export const dimWords = () => [["width_m", t("Width")], ["depth_m", t("Depth")], ["height_m", t("Height")]];
+const low = (s) => (currentLanguage() === "en" ? String(s).toLowerCase() : String(s));
 // 1024 px (was 1280, 2026-10-31): the AI reads it in ~8 s instead of ~10.6 s, and nothing it is
 // asked needs finer detail (kind, colours, rough sizes, a figure; no text is read off a tag or receiver).
 export const PHOTO_MAX_PX = 1024;
-const SETTINGS_WHERE = "Settings → AI";
-const NEEDS = "Reading photos needs Home Assistant 2025.8 or newer, with an AI Task that can read pictures "
-  + `(one with a vision model), chosen in ${SETTINGS_WHERE}.`;
+const NEEDS = () => t("Reading photos needs Home Assistant 2025.8 or newer, with an AI Task that can read pictures (one with a vision model), chosen in Settings → AI.");
 
-export const errText = (e) => String((e && (e.message || e.code)) || e || "Something went wrong.");
+export const errText = (e) => String((e && (e.message || e.code)) || e || t("Something went wrong."));
 // The answer came from the backup AI Task (Settings → AI): the main one was away.
 export const BACKUP_NOTE = "Read by the backup AI task.";
+/** BACKUP_NOTE in the panel's language. */
+export const backupNote = () => t("Read by the backup AI task.");
 const m2 = (v) => `${Number(v).toFixed(2)} m`;
 
 /** The kinds a photo can be read as, in the Build menu's order: [{kind, name}]. */
@@ -59,14 +67,17 @@ export function photoKinds(F, groups = GROUPS){
  *  with a backup AI Task set (info.backup), the backup's too: it reads
  *  whenever the main one is away (ws_house3d_photo.ask_ai). */
 export function aiNote(info){
-  const name = (info && info.name) || "The AI Task";
-  const whereOf = (local, it = "it") => (local === true ? `${it[0].toUpperCase()}${it.slice(1)} runs in your home, so the photo stays in the house.`
-    : local === false ? `${it[0].toUpperCase()}${it.slice(1)} runs in the cloud: the photo leaves the house for that service.`
-    : `If ${it} runs in the cloud, the photo leaves the house for that service.`);
+  const name = (info && info.name) || t("The AI Task");
+  // Each sentence whole, about "it" (the task named) or "that one" (the backup).
+  const whereOf = (local, that = false) => (local === true
+    ? (that ? t("That one runs in your home, so the photo stays in the house.") : t("It runs in your home, so the photo stays in the house."))
+    : local === false
+      ? (that ? t("That one runs in the cloud: the photo leaves the house for that service.") : t("It runs in the cloud: the photo leaves the house for that service."))
+      : (that ? t("If that one runs in the cloud, the photo leaves the house for that service.") : t("If it runs in the cloud, the photo leaves the house for that service.")));
   const bk = info && info.backup ? (info.backup_name || info.backup) : null;
-  if (bk && info.main_away) return `The main AI Task is away, so the backup, ${bk}, will read the photo. ${whereOf(info.backup_local)} PadSpan never keeps the photo.`;
-  const also = bk ? ` If it's away, the backup, ${bk}, reads it instead. ${whereOf(info.backup_local, "that one")}` : "";
-  return `${name} will read the photo. ${whereOf(info && info.local)}${also} PadSpan never keeps the photo.`;
+  if (bk && info.main_away) return t("The main AI Task is away, so the backup, {backup}, will read the photo.", { backup: bk }) + " " + whereOf(info.backup_local) + " " + t("PadSpan never keeps the photo.");
+  const also = bk ? " " + t("If it's away, the backup, {backup}, reads it instead.", { backup: bk }) + " " + whereOf(info.backup_local, true) : "";
+  return t("{name} will read the photo.", { name }) + " " + whereOf(info && info.local) + also + " " + t("PadSpan never keeps the photo.");
 }
 
 /** Whether a photo could leave the house: the main AI Task, or a backup that could read it, not local. */
@@ -131,7 +142,7 @@ export function photoMachine({ F, callWS }){
         m.details = m.answer.details || null;
         m.step = "measure";
       } else {
-        m.error = m.answer.message || "Couldn't read it. Build it with the sliders instead.";
+        m.error = m.answer.message || t("Couldn't read it. Build it with the sliders instead.");
         if (m.answer.reason === "no_ai_task") { m.info = { ready: false, message: m.error }; m.step = "noai"; }
         else m.step = "failed";
         if (!m.kind && m.answer.kind && F.FURNITURE[m.answer.kind]) m.kind = m.answer.kind;
@@ -220,8 +231,8 @@ export function photoButtons(onFile){
   const pick = el("input", { type: "file", accept: "image/*", class: "file" });
   for (const i of [take, pick]) i.addEventListener("change", () => { const f = i.files && i.files[0]; i.value = ""; if (f) onFile(f); });
   return el("div", { class: "row" }, take, pick,
-    el("button", { onclick: () => take.click() }, "Take a photo"),
-    el("button", { onclick: () => pick.click() }, "Pick a photo"));
+    el("button", { onclick: () => take.click() }, t("Take a photo")),
+    el("button", { onclick: () => pick.click() }, t("Pick a photo")));
 }
 
 /** A photo made smaller (≤ PHOTO_MAX_PX on its long side) as a JPEG, which
@@ -236,7 +247,7 @@ export async function shrinkPhoto(file, max = PHOTO_MAX_PX){
       const u = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => { URL.revokeObjectURL(u); ok(img); };
-      img.onerror = () => { URL.revokeObjectURL(u); no(new Error("This photo can't be opened here. Take a new one, or pick a JPEG or PNG.")); };
+      img.onerror = () => { URL.revokeObjectURL(u); no(new Error(t("This photo can't be opened here. Take a new one, or pick a JPEG or PNG."))); };
       img.src = u;
     });
   }
@@ -252,7 +263,7 @@ export async function shrinkPhoto(file, max = PHOTO_MAX_PX){
 }
 
 function kindSelect(kinds, value, first){
-  return el("select", { "aria-label": "What it is" },
+  return el("select", { "aria-label": t("What it is") },
     el("option", { value: "" }, first),
     kinds.map(k => { const o = el("option", { value: k.kind }, k.name); if (k.kind === value) o.selected = true; return o; }));
 }
@@ -278,55 +289,55 @@ export async function photoFlow(ctx){
       ctx.el.replaceChildren();
       resolve(v);
     };
-    const nameOf = (k) => (k && F.FURNITURE[k] && F.FURNITURE[k].name) || "piece";
-    const cancel = () => el("button", { onclick: () => finish(null) }, "Cancel");
+    const nameOf = (k) => (k && F.FURNITURE[k] && F.FURNITURE[k].name) || t("piece");
+    const cancel = () => el("button", { onclick: () => finish(null) }, t("Cancel"));
 
     const buildRow = (label) => {
-      const sel = kindSelect(kinds, m.kind, "A box");
+      const sel = kindSelect(kinds, m.kind, t("A box"));
       return el("div", { class: "row" }, sel, el("button", { class: "go", onclick: () => finish(m.build(sel.value || null)) }, label));
     };
 
     const screens = {
-      check: () => [el("h3", {}, "From a photo"), el("p", { class: "muted" }, el("span", { class: "busy" }), "Checking which AI Task reads photos…"), el("div", { class: "row" }, cancel())],
+      check: () => [el("h3", {}, t("From a photo")), el("p", { class: "muted" }, el("span", { class: "busy" }), t("Checking which AI Task reads photos…")), el("div", { class: "row" }, cancel())],
       noai: () => [
-        el("h3", {}, "Reading photos isn't set up"),
-        el("p", {}, m.info && m.info.message ? m.info.message : NEEDS),
-        el("p", {}, "Build it with the sliders instead:"),
-        buildRow("Build"),
+        el("h3", {}, t("Reading photos isn't set up")),
+        el("p", {}, m.info && m.info.message ? m.info.message : NEEDS()),
+        el("p", {}, t("Build it with the sliders instead:")),
+        buildRow(t("Build")),
         el("div", { class: "row" }, cancel()),
       ],
       pick: () => {
-        const sel = kindSelect(kinds, m.kind, "Not sure: let the AI say");
+        const sel = kindSelect(kinds, m.kind, t("Not sure: let the AI say"));
         sel.addEventListener("change", () => m.choose(sel.value || null));
-        const read = el("button", { class: "go", disabled: !m.canRead(), onclick: () => { const p = m.read(); draw(); p.then(draw); } }, "Read it");
+        const read = el("button", { class: "go", disabled: !m.canRead(), onclick: () => { const p = m.read(); draw(); p.then(draw); } }, t("Read it"));
         return [
-          el("h3", {}, "From a photo"),
-          el("label", {}, "What is it?", sel),
-          el("p", { class: "muted" }, "For the size, get a tape measure, a door frame or a standard chair in the shot."),
+          el("h3", {}, t("From a photo")),
+          el("label", {}, t("What is it?"), sel),
+          el("p", { class: "muted" }, t("For the size, get a tape measure, a door frame or a standard chair in the shot.")),
           photoButtons(async (file) => {
             fileErr = "";
             try { const p = await shrinkPhoto(file); m.setPhoto(p.b64); shot = p.url; }
             catch (e) { m.setPhoto(null); shot = null; fileErr = errText(e); }
             draw();
           }),
-          shot ? el("img", { class: "shot", src: shot, alt: "The photo to read" }) : null,
+          shot ? el("img", { class: "shot", src: shot, alt: t("The photo to read") }) : null,
           fileErr ? el("p", { class: "warn" }, fileErr) : null,
           el("p", { class: "note" }, aiNote(m.info)),
           el("div", { class: "row" }, read, cancel()),
         ];
       },
       reading: () => [
-        el("h3", {}, "Reading the photo"),
-        el("p", {}, el("span", { class: "busy" }), `${(m.info && m.info.name) || "The AI Task"} is reading it. On a home computer this can take a minute or two.`),
+        el("h3", {}, t("Reading the photo")),
+        el("p", {}, el("span", { class: "busy" }), t("{task} is reading it. On a home computer this can take a minute or two.", { task: (m.info && m.info.name) || t("The AI Task") })),
         el("div", { class: "row" }, cancel()),
       ],
       failed: () => [
-        el("h3", {}, "Couldn't read it"),
+        el("h3", {}, t("Couldn't read it")),
         el("p", {}, m.error),
-        m.kind ? el("div", { class: "row" }, el("button", { class: "go", onclick: () => finish(m.build(m.kind)) }, `Build a ${nameOf(m.kind).toLowerCase()} instead`)) : buildRow("Build"),
+        m.kind ? el("div", { class: "row" }, el("button", { class: "go", onclick: () => finish(m.build(m.kind)) }, t("Build a {name} instead", { name: low(nameOf(m.kind)) }))) : buildRow(t("Build")),
         el("div", { class: "row" },
-          el("button", { onclick: () => finish(m.build(null)) }, "Use a box"),
-          el("button", { onclick: () => { m.retry(); draw(); } }, "Try again"),
+          el("button", { onclick: () => finish(m.build(null)) }, t("Use a box")),
+          el("button", { onclick: () => { m.retry(); draw(); } }, t("Try again")),
           cancel()),
       ],
       measure: () => measureScreen(),
@@ -336,33 +347,33 @@ export async function photoFlow(ctx){
       const a = m.answer, size = a.size || {};
       const r = a.recipe;
       const read = DIMS.every(([d]) => typeof size[d] === "number")
-        ? `The photo reads about ${DIMS.map(([d]) => m2(size[d])).join(" × ")} (width × depth × height).`
-        : "The photo didn't give its size.";
-      const which = el("select", { "aria-label": "Which size" }, DIMS.map(([d, label]) => el("option", { value: d }, label)));
-      const box = el("input", { type: "text", inputmode: "decimal", placeholder: "e.g. 2.1 or 210 cm", "aria-label": "The size, in metres", size: 14 });
+        ? t("The photo reads about {size} (width × depth × height).", { size: DIMS.map(([d]) => m2(size[d])).join(" × ") })
+        : t("The photo didn't give its size.");
+      const which = el("select", { "aria-label": t("Which size") }, dimWords().map(([d, label]) => el("option", { value: d }, label)));
+      const box = el("input", { type: "text", inputmode: "decimal", placeholder: "e.g. 2.1 or 210 cm", "aria-label": t("The size, in metres"), size: 14 });
       const msg = el("p", { class: "warn", hidden: true });
       const def = F.defaultRecipe(r.kind);
       const keep = el("button", { onclick: () => finish(m.measure(which.value, null)) }, "");
-      const sayKeep = () => { keep.textContent = `Keep the builder's ${DIMS.find(([d]) => d === which.value)[1].toLowerCase()}: ${m2(def[which.value])}`; };
+      const sayKeep = () => { keep.textContent = t("Keep the builder's {dim}: {size}", { dim: low(dimWords().find(([d]) => d === which.value)[1]), size: m2(def[which.value]) }); };
       which.addEventListener("change", sayKeep);
       sayKeep();
       const use = () => {
         const v = readSize(box.value);
-        if (v === null) { msg.hidden = false; msg.textContent = "Type a size in metres, like 2.1 (or 210 cm)."; return; }
+        if (v === null) { msg.hidden = false; msg.textContent = t("Type a size in metres, like 2.1 (or 210 cm)."); return; }
         finish(m.measure(which.value, v));
       };
       box.addEventListener("keydown", (e) => { if (e.key === "Enter") use(); });
       const trusted = sizeTrusted(size);
       return [
-        el("h3", {}, `It looks like a ${nameOf(r.kind).toLowerCase()}`),
+        el("h3", {}, t("It looks like a {name}", { name: low(nameOf(r.kind)) })),
         el("div", { class: "row" }, (r.colors || []).map(c => el("span", { class: "swatch", title: c, style: `background:${c}` })),
           a.details && a.details.title ? el("span", { class: "muted" }, a.details.title) : null),
         el("p", {}, read),
-        a.by_backup ? el("p", { class: "muted" }, BACKUP_NOTE) : null,
-        trusted ? el("p", { class: "note" }, "It was measured against something of known size in the shot.") : null,
-        trusted ? el("div", { class: "row" }, el("button", { class: "go", onclick: () => finish(m.accept()) }, "Use these sizes")) : null,
-        el("p", {}, trusted ? "Or type one real size:" : "Type one real size (usually the width). The other two follow the photo."),
-        el("div", { class: "row" }, which, box, el("button", { class: trusted ? "" : "go", onclick: use }, "Use this size")),
+        a.by_backup ? el("p", { class: "muted" }, backupNote()) : null,
+        trusted ? el("p", { class: "note" }, t("It was measured against something of known size in the shot.")) : null,
+        trusted ? el("div", { class: "row" }, el("button", { class: "go", onclick: () => finish(m.accept()) }, t("Use these sizes"))) : null,
+        el("p", {}, trusted ? t("Or type one real size:") : t("Type one real size (usually the width). The other two follow the photo.")),
+        el("div", { class: "row" }, which, box, el("button", { class: trusted ? "" : "go", onclick: use }, t("Use this size"))),
         msg,
         el("div", { class: "row" }, keep, cancel()),
       ];

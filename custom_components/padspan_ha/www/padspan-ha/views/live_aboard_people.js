@@ -46,12 +46,16 @@
 const PH = await import(`./live_aboard_photo.js${new URL(import.meta.url).search}`);
 const { el, addCss, aiNote, errText, photoButtons, shrinkPhoto, photoKinds } = PH;
 const TR = await import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 
 const CMD = "padspan_ha/house3d_from_photo";
 export const CONSENT_NEEDED = "Tick that the person in the photo agrees first. Nothing is sent until then.";
-const LOCAL_TIP = "For photos of people a local AI Task is best: the photo stays in the house.";
-const CHILD_TIP = "For children, use the sliders instead of a photo.";
-const LIKENESS = "A figure is a few simple shapes, never a likeness.";
+// The same sentence in the panel's language (CONSENT_NEEDED stays the English one).
+const consentNeeded = () => t("Tick that the person in the photo agrees first. Nothing is sent until then.");
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 
 /** The beacons the Atlas shows (maps.js: named, or known to the engine). */
@@ -84,8 +88,8 @@ export function thingsOf(snapshot){
     if (!id || seen.has(id)) continue;
     seen.add(id);
     const room = typeof o.room === "string" && o.room ? o.room : "", heard = TR.seenText(o.age_s);
-    const where = o._stale ? "Not heard now" : [room ? `In ${room}` : "", heard].filter(Boolean).join(" · ");
-    out.push({ id, label: String(o.best_name || o.user_label || o.private_ble_name || o.name || id), where: where || (o.kind === "entity" ? "A Home Assistant tracker" : "") });
+    const where = o._stale ? t("Not heard now") : [room ? t("In {room}", { room }) : "", heard].filter(Boolean).join(" · ");
+    out.push({ id, label: String(o.best_name || o.user_label || o.private_ble_name || o.name || id), where: where || (o.kind === "entity" ? t("A Home Assistant tracker") : "") });
   }
   return out.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }
@@ -94,7 +98,7 @@ export function thingsOf(snapshot){
 export function scannersOf(model){
   const pos = model && model.scanner_positions_m && typeof model.scanner_positions_m === "object" ? model.scanner_positions_m : {};
   const info = model && model.scanners && typeof model.scanners === "object" ? model.scanners : {};
-  return Object.keys(pos).map(id => ({ id, label: info[id] && info[id].room ? `${info[id].room} scanner` : `Scanner ${id}` }))
+  return Object.keys(pos).map(id => ({ id, label: info[id] && info[id].room ? t("{room} scanner", { room: info[id].room }) : t("Scanner {id}", { id }) }))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
@@ -164,8 +168,8 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
       const data = draft || (got && got.data ? got.data : {});
       m.file = { figures: { ...(data.figures || {}) }, devices: { ...(data.devices || {}) } };
       if (got && got.error) m.warn = got.error;
-      else if (got && got.writable === false) m.warn = got.sample ? "This is the sample house; switch to Live to edit your own."
-        : "A newer PadSpan saved Live Aboard's file: changes here can't be saved until PadSpan is updated.";
+      else if (got && got.writable === false) m.warn = got.sample ? t("This is the sample house; switch to Live to edit your own.")
+        : t("A newer PadSpan saved Live Aboard's file: changes here can't be saved until PadSpan is updated.");
       m.info = info;
       m.loading = false;
       return m;
@@ -231,14 +235,14 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
       m.error = null;
       m.step = "figphoto";
     },
-    setConsent(v){ m.consent = v === true; if (m.consent && m.error === CONSENT_NEEDED) m.error = null; },
+    setConsent(v){ m.consent = v === true; if (m.consent && m.error === consentNeeded()) m.error = null; },
     setPhoto(b64){ m.photo = typeof b64 === "string" && b64 ? b64 : null; },
     canRead(){
       const on = m.step === "figphoto" ? m.consent : m.step === "lookphoto";
       return on && !!m.photo && !!(m.info && m.info.ready);
     },
     async read(){
-      if (m.step === "figphoto" && !m.consent) { m.error = CONSENT_NEEDED; return m.step; }
+      if (m.step === "figphoto" && !m.consent) { m.error = consentNeeded(); return m.step; }
       if (!m.canRead()) return m.step;
       const back = m.step, target = back === "figphoto" ? "person" : m.edit.group;
       const photo = m.photo;
@@ -254,7 +258,7 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
         m.edit = { ...m.edit, recipe: F.clampRecipe({ ...out.recipe, details: out.details || undefined }), byBackup: !!out.by_backup };
         m.step = "look";
       } else {
-        m.error = (out && out.message) || "Couldn't read it. Use the sliders instead.";
+        m.error = (out && out.message) || t("Couldn't read it. Use the sliders instead.");
         m.step = back;
       }
       return m.step;
@@ -320,7 +324,7 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
     choices(){
       const e = m.edit, f = e ? e.filter.trim().toLowerCase() : "";
       const picked = new Set(e ? e.picked : []), known = new Set(m.things.map(t => t.id));
-      const gone = [...picked].filter(k => !known.has(k)).map(k => ({ id: k, label: k, where: "Not heard now" }));
+      const gone = [...picked].filter(k => !known.has(k)).map(k => ({ id: k, label: k, where: t("Not heard now") }));
       return [...gone, ...m.things].filter(t => !f || t.label.toLowerCase().includes(f) || picked.has(t.id))
         .sort((a, b) => Number(picked.has(b.id)) - Number(picked.has(a.id)));
     },
@@ -349,7 +353,7 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
         return true;
       } catch (e) {
         m.saving = false;
-        m.error = `Could not save: ${errText(e)}`;
+        m.error = t("Could not save: {why}", { why: errText(e) });
         return false;
       }
     },
@@ -382,7 +386,7 @@ const CSS = `
 
 /** A small three.js preview, drawn only when what it shows changes. */
 function makePreview(F){
-  const wrap = el("div", { class: "prev" }, el("span", { class: "muted" }, "Loading the preview…"));
+  const wrap = el("div", { class: "prev" }, el("span", { class: "muted" }, t("Loading the preview…")));
   let THREE = null, R = null, scene = null, camera = null, model = null, want = null, dead = false;
   const draw = () => {
     if (!R || !want) return;
@@ -420,7 +424,7 @@ function makePreview(F){
       camera = new THREE.PerspectiveCamera(32, 220 / 260, 0.01, 100);
       wrap.replaceChildren(canvas);
       draw();
-    } catch { wrap.replaceChildren(el("span", { class: "muted" }, "No preview on this screen.")); }
+    } catch { wrap.replaceChildren(el("span", { class: "muted" }, t("No preview on this screen."))); }
   })();
   return {
     el: wrap,
@@ -488,57 +492,57 @@ export async function peopleFlow(ctx){
       ...buttons);
     const btn = (label, fn, go) => el("button", { class: go ? "go" : "", onclick: () => { fn(); draw(); } }, label);
 
-    function figureSub(f){ return !f ? "No figure" : f.origin === "photo" ? "Figure from a photo" : "Figure made by hand"; }
+    function figureSub(f){ return !f ? t("No figure") : f.origin === "photo" ? t("Figure from a photo") : t("Figure made by hand"); }
     function carriesSub(id){
       const c = m.carriesOf(id);
-      return c.length ? `Carries: ${c.map(k => m.thingName(k)).join(", ")}` : "Carries: found by their name and trackers";
+      return c.length ? t("Carries: {things}", { things: c.map(k => m.thingName(k)).join(", ") }) : t("Carries: found by their name and trackers");
     }
-    function lookSub(r){ return r ? `Looks like: ${(r.details && r.details.title) || (F.FURNITURE[r.kind] && F.FURNITURE[r.kind].name) || r.kind}` : "The plain marker"; }
+    function lookSub(r){ return r ? t("Looks like: {what}", { what: (r.details && r.details.title) || (F.FURNITURE[r.kind] && F.FURNITURE[r.kind].name) || r.kind }) : t("The plain marker"); }
 
     function listScreen(){
-      if (m.loading) return [el("h3", {}, "People, beacons and scanners"), el("p", { class: "muted" }, "Loading…")];
-      const out = [el("h3", {}, "People, beacons and scanners"),
-        el("p", { class: "muted" }, `${LIKENESS} People's figures stay in this house: they are never shared.`)];
+      if (m.loading) return [el("h3", {}, t("People, beacons and scanners")), el("p", { class: "muted" }, t("Loading…"))];
+      const out = [el("h3", {}, t("People, beacons and scanners")),
+        el("p", { class: "muted" }, t("A figure is a few simple shapes, never a likeness.") + " " + t("People's figures stay in this house: they are never shared."))];
       if (ctx.settings && ctx.settings.atlas_3d_people === false) {
-        out.push(el("p", { class: "note" }, "Figures show in Live Aboard when Show people is on (Live Aboard: Views ▾ → Show people)."));
+        out.push(el("p", { class: "note" }, t("Figures show in Live Aboard when Show people is on (Live Aboard: Views ▾ → Show people).")));
       }
       if (m.warn) out.push(el("p", { class: "warn" }, m.warn));
-      out.push(el("h3", {}, "People"));
-      if (!m.people.length) out.push(el("p", { class: "muted" }, "Home Assistant has no people yet (Settings → People)."));
+      out.push(el("h3", {}, t("People")));
+      if (!m.people.length) out.push(el("p", { class: "muted" }, t("Home Assistant has no people yet (Settings → People).")));
       for (const p of m.people) {
         const f = m.figureOf(p.id);
         out.push(row(p.name, [figureSub(f), el("br"), carriesSub(p.id)], p.id in m.changes.figures,
-          btn("By hand", () => m.editFigure(p.id, p.name)),
-          btn("From a photo", () => m.photoFigure(p.id, p.name)),
-          m.admin === false ? el("button", { disabled: true, title: "Only an administrator can change what someone carries" }, "Carries")
-            : btn("Carries", () => m.editCarries(p.id, p.name)),
-          f ? btn("Remove", () => m.removeFigure(p.id)) : null));
-        for (const L of m.lostOf(p.id)) out.push(el("p", { class: "warn", "data-carries-lost": p.id }, `${L.label} is picked for ${L.name} too. ${L.name} keeps it, so it doesn't place ${p.name}.`));
+          btn(t("By hand"), () => m.editFigure(p.id, p.name)),
+          btn(t("From a photo"), () => m.photoFigure(p.id, p.name)),
+          m.admin === false ? el("button", { disabled: true, title: t("Only an administrator can change what someone carries") }, t("Carries"))
+            : btn(t("Carries"), () => m.editCarries(p.id, p.name)),
+          f ? btn(t("Remove"), () => m.removeFigure(p.id)) : null));
+        for (const L of m.lostOf(p.id)) out.push(el("p", { class: "warn", "data-carries-lost": p.id }, t("{thing} is picked for {other} too. {other} keeps it, so it doesn't place {name}.", { thing: L.label, other: L.name, name: p.name })));
       }
       for (const id of m.unlinked()) {
-        out.push(row(id, "Not linked: this person isn't in Home Assistant any more", id in m.changes.figures,
-          m.figureOf(id) ? btn("Remove", () => m.removeFigure(id)) : null,
+        out.push(row(id, t("Not linked: this person isn't in Home Assistant any more"), id in m.changes.figures,
+          m.figureOf(id) ? btn(t("Remove"), () => m.removeFigure(id)) : null,
           m.carriesOf(id).length && m.admin !== false
-            ? el("button", { onclick: () => { m.forgetCarries(id).then(draw); } }, "Forget what they carry") : null));
+            ? el("button", { onclick: () => { m.forgetCarries(id).then(draw); } }, t("Forget what they carry")) : null));
       }
       if (m.error && m.step === "list") out.push(el("p", { class: "warn" }, m.error));
       for (const [title, list, which] of [["Beacons", m.beacons, "beacon"], ["Scanners", m.scanners, "scanner"]]) {
         out.push(el("h3", {}, title));
-        if (m.devicesLoading) { out.push(el("p", { class: "muted" }, "Loading…")); continue; }
-        if (!m.kindsFor(GROUP_OF[which]).length) { out.push(el("p", { class: "muted" }, "Looks for these come with a later PadSpan.")); continue; }
-        if (!list.length) out.push(el("p", { class: "muted" }, which === "beacon" ? "No named beacons yet." : "No scanners placed on the map yet."));
+        if (m.devicesLoading) { out.push(el("p", { class: "muted" }, t("Loading…"))); continue; }
+        if (!m.kindsFor(GROUP_OF[which]).length) { out.push(el("p", { class: "muted" }, t("Looks for these come with a later PadSpan."))); continue; }
+        if (!list.length) out.push(el("p", { class: "muted" }, which === "beacon" ? t("No named beacons yet.") : t("No scanners placed on the map yet.")));
         for (const d of list) {
           const r = m.lookOf(d.id);
           out.push(row(d.label, lookSub(r), d.id in m.changes.devices,
-            btn("By hand", () => m.editLook(d.id, d.label, which)),
-            btn("From a photo", () => m.photoLook(d.id, d.label, which)),
-            r ? btn("Remove look", () => m.removeLook(d.id)) : null));
+            btn(t("By hand"), () => m.editLook(d.id, d.label, which)),
+            btn(t("From a photo"), () => m.photoLook(d.id, d.label, which)),
+            r ? btn(t("Remove look"), () => m.removeLook(d.id)) : null));
         }
       }
       const n = m.changed();
       out.push(el("div", { class: "row" },
-        el("button", { class: "go", onclick: () => finish(m.result()) }, n ? `Done (${n} change${n === 1 ? "" : "s"})` : "Done"),
-        el("button", { onclick: () => finish(null) }, "Cancel")));
+        el("button", { class: "go", onclick: () => finish(m.result()) }, n ? tn(n, "Done ({n} change)", "Done ({n} changes)") : t("Done")),
+        el("button", { onclick: () => finish(null) }, t("Cancel"))));
       return out;
     }
 
@@ -553,48 +557,48 @@ export async function peopleFlow(ctx){
       }
       show();
       return [
-        el("h3", {}, `${e.name}'s figure`),
-        el("p", { class: "muted" }, e.origin === "photo" ? `Read from the photo${e.byBackup ? " (by the backup AI task)" : ""}; adjust anything. ${LIKENESS}` : LIKENESS),
+        el("h3", {}, t("{name}'s figure", { name: e.name })),
+        el("p", { class: "muted" }, e.origin === "photo" ? (e.byBackup ? t("Read from the photo (by the backup AI task); adjust anything.") : t("Read from the photo; adjust anything.")) + " " + t("A figure is a few simple shapes, never a likeness.") : t("A figure is a few simple shapes, never a likeness.")),
         el("div", { class: "edit" }, grid, preview.el),
         el("div", { class: "row" },
-          el("button", { class: "go", onclick: () => { m.keepFigure(); closePreview(); draw(); } }, "Keep"),
-          el("button", { onclick: () => { m.back(); closePreview(); draw(); } }, "Back")),
+          el("button", { class: "go", onclick: () => { m.keepFigure(); closePreview(); draw(); } }, t("Keep")),
+          el("button", { onclick: () => { m.back(); closePreview(); draw(); } }, t("Back"))),
       ];
     }
 
     function photoScreen(forPerson){
       const e = m.edit;
       const read = el("button", { class: "go", disabled: !(forPerson ? m.consent && m.photo : m.photo) || !(m.info && m.info.ready),
-                                  onclick: () => { const p = m.read(); shot = null; draw(); p.then(draw); } }, "Read it");
-      const out = [el("h3", {}, forPerson ? `A figure for ${e.name}, from a photo` : `How ${e.name} looks, from a photo`)];
+                                  onclick: () => { const p = m.read(); shot = null; draw(); p.then(draw); } }, t("Read it"));
+      const out = [el("h3", {}, forPerson ? t("A figure for {name}, from a photo", { name: e.name }) : t("How {name} looks, from a photo", { name: e.name }))];
       if (!(m.info && m.info.ready)) {
-        out.push(el("p", { class: "warn" }, (m.info && m.info.message) || "Reading photos isn't set up."),
-          el("div", { class: "row" }, el("button", { class: "go", onclick: () => { forPerson ? m.editFigure(e.id, e.name) : m.editLook(e.id, e.name, e.group === "tag" ? "beacon" : "scanner"); draw(); } }, "Use the sliders"),
-            el("button", { onclick: () => { m.back(); draw(); } }, "Back")));
+        out.push(el("p", { class: "warn" }, (m.info && m.info.message) || t("Reading photos isn't set up.")),
+          el("div", { class: "row" }, el("button", { class: "go", onclick: () => { forPerson ? m.editFigure(e.id, e.name) : m.editLook(e.id, e.name, e.group === "tag" ? "beacon" : "scanner"); draw(); } }, t("Use the sliders")),
+            el("button", { onclick: () => { m.back(); draw(); } }, t("Back"))));
         return out;
       }
       if (forPerson) {
         const tick = el("input", { type: "checkbox", checked: m.consent });
         tick.addEventListener("change", () => { m.setConsent(tick.checked); draw(); });
-        out.push(el("label", { class: "warn" }, tick, `${e.name}, the person in the photo, agrees to it being read by the AI Task.`),
-          el("p", { class: "muted" }, CHILD_TIP + " ", el("button", { onclick: () => { m.editFigure(e.id, e.name); draw(); } }, "Use the sliders")));
+        out.push(el("label", { class: "warn" }, tick, t("{name}, the person in the photo, agrees to it being read by the AI Task.", { name: e.name })),
+          el("p", { class: "muted" }, t("For children, use the sliders instead of a photo.") + " ", el("button", { onclick: () => { m.editFigure(e.id, e.name); draw(); } }, t("Use the sliders"))));
       }
-      out.push(el("p", { class: "note" }, aiNote(m.info) + (forPerson && PH.mayLeave(m.info) ? ` ${LOCAL_TIP}` : "")));
+      out.push(el("p", { class: "note" }, aiNote(m.info) + (forPerson && PH.mayLeave(m.info) ? " " + t("For photos of people a local AI Task is best: the photo stays in the house.") : "")));
       out.push(photoButtons(async (file) => {
         try { const p = await shrinkPhoto(file); m.setPhoto(p.b64); shot = p.url; m.error = null; }
         catch (err) { m.setPhoto(null); shot = null; m.error = errText(err); }
         draw();
       }));
-      if (shot) out.push(el("img", { class: "shot", src: shot, alt: "The photo to read" }));
+      if (shot) out.push(el("img", { class: "shot", src: shot, alt: t("The photo to read") }));
       if (m.error) out.push(el("p", { class: "warn" }, m.error));
-      out.push(el("div", { class: "row" }, read, el("button", { onclick: () => { shot = null; m.back(); draw(); } }, "Back")));
+      out.push(el("div", { class: "row" }, read, el("button", { onclick: () => { shot = null; m.back(); draw(); } }, t("Back"))));
       return out;
     }
 
     /** Carries: tick the phones and tags that are theirs. */
     function carriesScreen(){
       const e = m.edit;
-      const find = el("input", { type: "search", value: e.filter, placeholder: "Find a phone or tag", "aria-label": "Find a phone or tag" });
+      const find = el("input", { type: "search", value: e.filter, placeholder: t("Find a phone or tag"), "aria-label": t("Find a phone or tag") });
       const list = el("div", { class: "la3d-carries" });
       const paintList = () => {
         const ch = m.choices();
@@ -602,19 +606,19 @@ export async function peopleFlow(ctx){
           const tick = el("input", { type: "checkbox", checked: e.picked.includes(t.id) });
           tick.addEventListener("change", () => { m.toggleCarry(t.id); tick.checked = e.picked.includes(t.id); });
           return el("label", { class: "item", "data-carry": t.id }, tick, el("span", { class: "who" }, t.label, el("small", {}, t.where)));
-        }) : [el("p", { class: "muted" }, m.devicesLoading ? "Loading…" : "Nothing PadSpan tracks matches.")]));
+        }) : [el("p", { class: "muted" }, m.devicesLoading ? t("Loading…") : t("Nothing PadSpan tracks matches."))]));
       };
       find.addEventListener("input", () => { m.setFilter(find.value); paintList(); });
       paintList();
       return [
-        el("h3", {}, `What ${e.name} carries`),
-        el("p", { class: "muted" }, `Tick the phones and tags that are ${e.name}'s. Ticked, they place them in Live Aboard and on the Atlas's map, whatever the names say. None ticked: found by name and trackers, as before. This stays in this house and is never sent anywhere.`),
+        el("h3", {}, t("What {name} carries", { name: e.name })),
+        el("p", { class: "muted" }, t("Tick the phones and tags that are {name}'s. Ticked, they place them in Live Aboard and on the Atlas's map, whatever the names say. None ticked: found by name and trackers, as before. This stays in this house and is never sent anywhere.", { name: e.name })),
         find, list,
         m.error ? el("p", { class: "warn" }, m.error) : null,
-        el("p", { class: "muted" }, "Keep saves it straight away (it isn't part of Done and Save)."),
+        el("p", { class: "muted" }, t("Keep saves it straight away (it isn't part of Done and Save).")),
         el("div", { class: "row" },
-          el("button", { class: "go", disabled: m.saving, onclick: () => { m.keepCarries().then(draw); draw(); } }, m.saving ? "Saving…" : "Keep"),
-          el("button", { onclick: () => { m.back(); draw(); } }, "Back")),
+          el("button", { class: "go", disabled: m.saving, onclick: () => { m.keepCarries().then(draw); draw(); } }, m.saving ? t("Saving…") : t("Keep")),
+          el("button", { onclick: () => { m.back(); draw(); } }, t("Back"))),
       ];
     }
 
@@ -627,24 +631,24 @@ export async function peopleFlow(ctx){
       if (kinds.length > 1) {
         const s = el("select", {}, kinds.map(k => { const o = el("option", { value: k.kind }, k.name); if (k.kind === r.kind) o.selected = true; return o; }));
         s.addEventListener("change", () => { m.setLook("kind", s.value); draw(); });
-        grid.append(el("span", {}, "Kind"), s, el("span"));
+        grid.append(el("span", {}, t("Kind")), s, el("span"));
       }
       for (const s of (def && def.params) || []) grid.append(...control(s, r.params[s.key], (v) => { m.setLook(`params.${s.key}`, v); show(); }));
-      (r.colors || []).forEach((c, i) => grid.append(...colourControl(String(i), (def && def.colorNames && def.colorNames[i]) || `Colour ${i + 1}`, c,
+      (r.colors || []).forEach((c, i) => grid.append(...colourControl(String(i), (def && def.colorNames && def.colorNames[i]) || t("Colour {n}", { n: i + 1 }), c,
         (v) => { m.setLook(`colors.${i}`, v); show(); })));
-      for (const [d, label] of PH.DIMS) {
+      for (const [d, label] of PH.dimWords()) {
         const range = def && def.size && def.size[d];
         grid.append(...control({ key: d, label, type: "num", min: range ? range[0] : 0.005, max: range ? range[1] : 1, step: 0.005 },
           r[d], (v) => { m.setLook(d, v); show(); }));
       }
       show();
       return [
-        el("h3", {}, `How ${e.name} looks`),
-        e.byBackup ? el("p", { class: "muted" }, PH.BACKUP_NOTE) : null,
+        el("h3", {}, t("How {name} looks", { name: e.name })),
+        e.byBackup ? el("p", { class: "muted" }, PH.backupNote()) : null,
         el("div", { class: "edit" }, grid, preview.el),
         el("div", { class: "row" },
-          el("button", { class: "go", onclick: () => { m.keepLook(); closePreview(); draw(); } }, "Keep"),
-          el("button", { onclick: () => { m.back(); closePreview(); draw(); } }, "Back")),
+          el("button", { class: "go", onclick: () => { m.keepLook(); closePreview(); draw(); } }, t("Keep")),
+          el("button", { onclick: () => { m.back(); closePreview(); draw(); } }, t("Back"))),
       ];
     }
 
@@ -655,8 +659,8 @@ export async function peopleFlow(ctx){
       lookphoto: () => photoScreen(false),
       look: lookScreen,
       carries: carriesScreen,
-      reading: () => [el("h3", {}, "Reading the photo"),
-        el("p", {}, el("span", { class: "busy" }), `${(m.info && m.info.name) || "The AI Task"} is reading it. On a home computer this can take a minute or two.`)],
+      reading: () => [el("h3", {}, t("Reading the photo")),
+        el("p", {}, el("span", { class: "busy" }), t("{task} is reading it. On a home computer this can take a minute or two.", { task: (m.info && m.info.name) || t("The AI Task") }))],
     };
 
     function draw(){

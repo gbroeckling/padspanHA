@@ -30,6 +30,8 @@ const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEnti
 // A room's middle, inside it even in an L-shaped room (room_spot.js, the
 // Overview's and Live Aboard's own).
 const { middleOf } = await import(`./room_spot.js${_q}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${_q}`);
 
 /** Normalise one HA history row (compressed WS or full REST shape) to ms times. */
 function _row(r) {
@@ -468,7 +470,7 @@ export function atlasFocusPositions(model, floorGap = 150, horizGap = 0) {
   }
   const labelOf = (idx) => {
     const pos = positions[Math.max(0, Math.min(idx, positions.length - 1))];
-    if (pos === null) return "All floors";
+    if (pos === null) return t("All floors");
     return (Array.isArray(pos) ? pos : [pos])
       .map(z => floorNameAtLevel(frame, model, floors, z) || `L${z}`).join(" + ");
   };

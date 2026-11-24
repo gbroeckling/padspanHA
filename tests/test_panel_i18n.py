@@ -333,7 +333,11 @@ def test_every_t_call_names_its_english() -> None:
     assert not bad, "\n".join(bad[:20])
 
 
-_PANEL_GROUPS = ("panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "server")
+_PANEL_GROUPS = ("panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "server")
+# German first (2026-11-23): these groups are complete in German only. Their nl/fr files exist (an empty map, so the
+# panel's one request per group still answers and the screen stays English there) and hold no key the code does not
+# ask for; they need not be complete until French and Dutch are translated. Take a group out of this list then.
+_GERMAN_FIRST = ("rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture")
 
 
 def _check_group(cov, group: str, keys: dict) -> None:
@@ -346,6 +350,8 @@ def _check_group(cov, group: str, keys: dict) -> None:
         data = json.loads((_LANG_DIR / lang / f"{group}.json").read_text(encoding="utf-8"))
         extra = sorted(set(data) - set(keys))
         assert not extra, (lang, group, "not asked for", extra[:5])
+        if group in _GERMAN_FIRST and lang != "de":
+            continue
         assert not figures[lang]["missing"], (lang, "still English: add it to i18n/%s/%s.json" % (lang, group), figures[lang]["missing"][:5])
         assert figures[lang]["translated"] == figures[lang]["keys"] == len(keys)
         # Product and edition names as the English writes them; a word that is

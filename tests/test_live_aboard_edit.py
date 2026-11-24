@@ -187,6 +187,8 @@ def test_the_tool_looks_down_on_the_floor_and_heights_skip_scanners() -> None:
 
 def test_three_comes_in_through_the_view_and_the_files_are_credited() -> None:
     ed = _code(_VIEWS / "live_aboard_edit.js")
+    # Its one import is the panel's translator (views/i18n.js: its words; three.js still comes in through the view).
+    ed = ed.replace("await import(`./i18n.js${new URL(import.meta.url).search}`)", "", 1)
     assert "import(" not in ed and not re.search(r"^\s*import\s", ed, re.M) and "three.module" not in ed
     assert "const { THREE, HOUSE, DRAFT, root, canvas, bar, guard } = ctx;" in ed
     want = "import(`./live_aboard_edit.js${new URL(import.meta.url).search}`)"

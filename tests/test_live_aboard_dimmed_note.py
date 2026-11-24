@@ -13,7 +13,7 @@ def test_a_tap_on_a_dimmed_device_says_so() -> None:
     assert "if (!classF || !mapOnly) return;" in note
     assert "seeDim = true;" in note and "finally { seeDim = false; }" in note
     assert 'h.kind !== "device" || !MARKS.dimmed(lbe[h.eid], classF)' in note
-    assert 'classCb ? () => classCb("all") : null, "Show all"' in note
+    assert 'classCb ? () => classCb("all") : null, t("Show all")' in note
     assert "const dimOf = (eid) => !seeDim && !!(classF && MARKS && MARKS.dimmed(lbe[eid], classF));" in la
     # Said on a single tap on nothing; a double tap still flies to the room.
     assert "flyToRoomAt(e.clientX, e.clientY)) tapAt = null;\n        else dimmedNote(e.clientX, e.clientY);" in la
@@ -22,7 +22,7 @@ def test_a_tap_on_a_dimmed_device_says_so() -> None:
 def test_the_atlas_hands_over_the_chips_setter_and_word() -> None:
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     assert 'onClassFilter: typeof host.onClassFilter === "function" ? host.onClassFilter : null,' in lm
-    assert "classLabel: (LIGHT_CLASSES.find(([c]) => c === host.classFilter) || [])[1] || null," in lm
+    assert "classLabel: (lightClasses().find(([c]) => c === host.classFilter) || [])[1] || null," in lm
     tools = _ROOT / "tools" / "live_aboard_harness"
     if tools.is_dir():                 # the Bright derivation carries no tools/
         assert (tools / "pw_dimmed.py").is_file()

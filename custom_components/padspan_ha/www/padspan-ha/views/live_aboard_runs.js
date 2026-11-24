@@ -26,8 +26,15 @@
 // Every stretch is at least 5 cm, the whole at most 100 m (the server's
 // rules, checked here first so Save never fails on them).
 
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export const FACES = ["up", "down", "room", "wall"];
 export const FACE_NAMES = [["up", "Up"], ["down", "Down"], ["room", "Into the room"], ["wall", "Onto the wall"]];
+/** FACE_NAMES in the panel's language. */
+export const faceNames = () => [["up", t("Up")], ["down", t("Down")], ["room", t("Into the room")], ["wall", t("Onto the wall")]];
 export const PTS_MAX = 64, SEG_MIN_M = 0.05, RUN_MAX_M = 100, HEIGHT_MAX_M = 10, COORD_MAX_M = 10000;
 export const SAG_MAX_M = 1.5, SAG_M = 0.25, SPACING_MIN_M = 0.15, SPACING_MAX_M = 2.0, SPACING_M = 0.4;
 // The kinds the Strip tool is for: what "Lights to lay out" puts first.
@@ -69,28 +76,28 @@ export const lengthOf = (pts, loop) => stretches(pts || [], !!loop).reduce((s, q
 export const litLengthOf = (pts, loop, gaps) => { const g = new Set(gaps || []); return stretches(pts || [], !!loop).reduce((s, q) => s + (g.has(q.i) ? 0 : d3(q.a, q.b)), 0); };
 /** A run's length as the Strip tool says it: with gaps, what lights and the whole with its wire. */
 export const lengthWords = (pts, loop, gaps) => ((gaps || []).length
-  ? `${metres(litLengthOf(pts, loop, gaps))} lit (${metres(lengthOf(pts, loop))} with the wire)` : metres(lengthOf(pts, loop)));
+  ? t("{lit} lit ({all} with the wire)", { lit: metres(litLengthOf(pts, loop, gaps)), all: metres(lengthOf(pts, loop)) }) : metres(lengthOf(pts, loop)));
 /** Why the server would refuse this run (house3d_store.py _run), or null. */
 export function problem(run){
-  if (!obj(run) || !Array.isArray(run.pts)) return "A run needs its points.";
+  if (!obj(run) || !Array.isArray(run.pts)) return t("A run needs its points.");
   const p = run.pts;
-  if (p.length < 2) return "A run needs two points or more.";
-  if (p.length > PTS_MAX) return `A run has at most ${PTS_MAX} points.`;
+  if (p.length < 2) return t("A run needs two points or more.");
+  if (p.length > PTS_MAX) return t("A run has at most {n} points.", { n: PTS_MAX });
   for (const q of p) {
-    if (!Array.isArray(q) || q.length !== 3 || q.some(v => num(v) === null)) return "A run's points are numbers.";
-    if (Math.abs(q[0]) > COORD_MAX_M || Math.abs(q[1]) > COORD_MAX_M) return "A point is too far away.";
-    if (q[2] < 0 || q[2] > HEIGHT_MAX_M) return `A point's height is 0 to ${HEIGHT_MAX_M} m.`;
+    if (!Array.isArray(q) || q.length !== 3 || q.some(v => num(v) === null)) return t("A run's points are numbers.");
+    if (Math.abs(q[0]) > COORD_MAX_M || Math.abs(q[1]) > COORD_MAX_M) return t("A point is too far away.");
+    if (q[2] < 0 || q[2] > HEIGHT_MAX_M) return t("A point's height is 0 to {m} m.", { m: HEIGHT_MAX_M });
   }
-  if (!FACES.includes(run.face)) return "Pick which way it shines.";
-  if (typeof run.loop !== "boolean" || (run.loop && p.length < 3)) return "A loop needs three points or more.";
+  if (!FACES.includes(run.face)) return t("Pick which way it shines.");
+  if (typeof run.loop !== "boolean" || (run.loop && p.length < 3)) return t("A loop needs three points or more.");
   const st = stretches(p, run.loop);
-  if (st.some(q => d3(q.a, q.b) < SEG_MIN_M - 1e-9)) return "Points closer than 5 cm: move one or delete it.";
-  if (lengthOf(p, run.loop) > RUN_MAX_M + 1e-9) return `A run is at most ${RUN_MAX_M} m long.`;
-  if ("piece" in run && !/^fur_[0-9a-f]{8}$/.test(String(run.piece))) return "That piece can't hold a run.";
-  if ("sag_m" in run && !(num(run.sag_m) !== null && run.sag_m >= 0 && run.sag_m <= SAG_MAX_M)) return "The swag is 0 to 150 cm.";
-  if ("spacing_m" in run && !(num(run.spacing_m) !== null && run.spacing_m >= SPACING_MIN_M && run.spacing_m <= SPACING_MAX_M)) return "Bulbs are 15 to 200 cm apart.";
+  if (st.some(q => d3(q.a, q.b) < SEG_MIN_M - 1e-9)) return t("Points closer than 5 cm: move one or delete it.");
+  if (lengthOf(p, run.loop) > RUN_MAX_M + 1e-9) return t("A run is at most {m} m long.", { m: RUN_MAX_M });
+  if ("piece" in run && !/^fur_[0-9a-f]{8}$/.test(String(run.piece))) return t("That piece can't hold a run.");
+  if ("sag_m" in run && !(num(run.sag_m) !== null && run.sag_m >= 0 && run.sag_m <= SAG_MAX_M)) return t("The swag is 0 to 150 cm.");
+  if ("spacing_m" in run && !(num(run.spacing_m) !== null && run.spacing_m >= SPACING_MIN_M && run.spacing_m <= SPACING_MAX_M)) return t("Bulbs are 15 to 200 cm apart.");
   if ("gaps" in run && !(Array.isArray(run.gaps) && run.gaps.length < st.length && new Set(run.gaps).size === run.gaps.length
-      && run.gaps.every(i => Number.isInteger(i) && i >= 0 && i < st.length))) return "Some of its gaps are not stretches of it.";
+      && run.gaps.every(i => Number.isInteger(i) && i >= 0 && i < st.length))) return t("Some of its gaps are not stretches of it.");
   return null;
 }
 /** The run as this version reads it (light entry → run), or null. */
@@ -281,7 +288,7 @@ const realCorner = (loop, i) => {
  *  a: [x, y], b: [x, y], sill, head}] (the floor's wall pieces).
  *  {run} or {error}. */
 export function roundRoom(loop, h, openings, opts = {}){
-  if (!loop || loop.length < 3) return { error: "That room has no walls to go round." };
+  if (!loop || loop.length < 3) return { error: t("That room has no walls to go round.") };
   const { cum, P } = perimeter(loop), cuts = [];
   for (const o of openings || []) {
     const door = o.kind === "door" || o.kind === "open" || o.kind === "doorway";
@@ -303,20 +310,20 @@ export function roundRoom(loop, h, openings, opts = {}){
   const kept = [];
   for (const m of marks) if (!kept.length || m - kept[kept.length - 1] >= SEG_MIN_M) kept.push(m);
   while (kept.length > 2 && P - kept[kept.length - 1] + kept[0] < SEG_MIN_M) kept.pop();
-  if (kept.length < 3) return { error: "That room is too small to go round." };
-  if (kept.length > PTS_MAX) return { error: `That room has too many corners and doors for one run (${PTS_MAX} points at most).` };
+  if (kept.length < 3) return { error: t("That room is too small to go round.") };
+  if (kept.length > PTS_MAX) return { error: t("That room has too many corners and doors for one run ({n} points at most).", { n: PTS_MAX }) };
   const inCut = (s) => cuts.some(([lo, hi]) => (s >= lo && s <= hi) || (s + P >= lo && s + P <= hi));
   const pts = kept.map(s => { const q = atS(loop, s); return [q.x, q.y, h]; });
   const gaps = [];
   kept.forEach((s, i) => { const e = i + 1 < kept.length ? kept[i + 1] : kept[0] + P; if (inCut((s + e) / 2)) gaps.push(i); });
-  if (gaps.length >= kept.length) return { error: "It would be all doors: nothing left to light." };
+  if (gaps.length >= kept.length) return { error: t("It would be all doors: nothing left to light.") };
   return tidy({ pts, face: opts.face || "up", loop: true, ...(gaps.length ? { gaps } : null) });
 }
 /** "Along this rail": the deck's edge at the rail's top (or at the deck
  *  itself with no rail), the stretches with no rail only wire. rails: the
  *  rail pieces ([{a, b}]); none at all: the whole edge at deck level. */
 export function alongRail(loop, rails, opts = {}){
-  if (!loop || loop.length < 3) return { error: "That deck has no edge to run along." };
+  if (!loop || loop.length < 3) return { error: t("That deck has no edge to run along.") };
   const has = (rails || []).length > 0, h = has ? RAIL_TOP_M : 0.03;
   const pts = loop.map(p => [p[0], p[1], h]), gaps = [];
   if (has) {
@@ -326,7 +333,7 @@ export function alongRail(loop, rails, opts = {}){
       if (!near) gaps.push(i);
     });
   }
-  if (gaps.length >= loop.length) return { error: "No rail along that room's edge." };
+  if (gaps.length >= loop.length) return { error: t("No rail along that room's edge.") };
   return tidy({ pts, face: opts.face || "room", loop: true, ...(gaps.length ? { gaps } : null) });
 }
 function segDist(p, a, b){
@@ -380,8 +387,8 @@ export function nearestBoxEdge(q, size){
 /** The height chips under a ceiling `ceil` metres up: [key, label, h]. */
 export function chips(ceil){
   const c = num(ceil) ?? 2.65;
-  return [["kick", "Toe-kick 10 cm", 0.1], ["counter", "Counter 91 cm", 0.91], ["undercab", "Under cabinets 140 cm", 1.4],
-          ["valance", "Valance 210 cm", Math.min(2.1, c - 0.05)], ["cove", "Cove", mm(c - 0.15)], ["ceiling", "Ceiling edge", mm(c - 0.012)]];
+  return [["kick", t("Toe-kick 10 cm"), 0.1], ["counter", t("Counter 91 cm"), 0.91], ["undercab", t("Under cabinets 140 cm"), 1.4],
+          ["valance", t("Valance 210 cm"), Math.min(2.1, c - 0.05)], ["cove", t("Cove"), mm(c - 0.15)], ["ceiling", t("Ceiling edge"), mm(c - 0.012)]];
 }
 /** A height kept between the floor and the ceiling, snapped to a chip, a
  *  piece's edge (`edges`, heights) or the ceiling when within 3 cm.

@@ -90,10 +90,12 @@ def test_the_atlas_never_loads_them() -> None:
 def test_three_loads_only_for_a_preview_and_nothing_else_is_imported() -> None:
     photo = (_VIEWS / "live_aboard_photo.js").read_text(encoding="utf-8")
     people = (_VIEWS / "live_aboard_people.js").read_text(encoding="utf-8")
+    # Its one import is the panel's translator (views/i18n.js: its words, nothing of Home Assistant).
+    photo = photo.replace("await import(`./i18n.js${new URL(import.meta.url).search}`)", "", 1)
     assert not re.search(r"^\s*import\b", photo, re.M) and "import(" not in photo, "the photo screen imports nothing"
     # (And Carries' rules, the people layer's own: who keeps a thing picked for two.)
     assert re.findall(r"import\(`([^`$]+)", people) == ["./live_aboard_photo.js", "./live_aboard_tracked.js",
-                                                         "../vendor/three/three.module.min.js"]
+                                                         "./i18n.js", "../vendor/three/three.module.min.js"]   # i18n.js: its words
     top = people[:people.index("function makePreview")]
     assert "three.module" not in top, "three.js only when a preview opens"
 

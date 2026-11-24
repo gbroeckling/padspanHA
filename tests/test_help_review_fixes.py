@@ -91,6 +91,6 @@ def test_the_top_bar_never_wraps_and_the_atlas_row_names_its_two_help_buttons() 
     assert "@media (min-width:1101px) and (max-width:1279px){#dataModeHelp,#complexityHelp{display:none}}" in css
     assert ".desktop-topbar{flex-wrap:nowrap}" in css
     lm = _read(_WWW / "views" / "lights_map.js")
-    assert 'host.helpBtn("aboard_3d", "Help: Live Aboard")' in lm
-    assert 'host.helpBtn("lights_build_controls", "Help: build controls")' in lm
+    assert 'host.helpBtn("aboard_3d", t("Help: Live Aboard"))' in lm
+    assert 'host.helpBtn("lights_build_controls", t("Help: build controls"))' in lm
     assert 'b.title = title || "Help";' in _read(_WWW / "panel.js")

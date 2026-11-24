@@ -26,6 +26,11 @@
 // the pick over the card's data (lookP) and lists it in its menu (lookItems).
 
 /** The pref this screen keeps its look in. */
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export const lookPrefKey = (slotKey) => `look_${slotKey}`;
 /** A pick: "settings" (Settings' own), "classic", "studio" or "theme:<key>". */
 export const SETTINGS = "settings";
@@ -75,19 +80,19 @@ export function lookP(p, pick, themes){
  *  Showcase theme when on), "Live Aboard's own" or "Studio". p: the card's data. */
 export function settingsWords(p, themes){
   const v = p && p.look3d;
-  if (v === "studio") return "Studio";
-  if (v === "own") return "Live Aboard's own";
-  const a = p && p.atlasLook, t = a && a.on && themes && themes[a.key];
-  return t && t.label && a.key !== "classic" ? `the Atlas's look, ${t.label}` : "the Atlas's look";
+  if (v === "studio") return t("Studio");
+  if (v === "own") return t("Live Aboard's own");
+  const a = p && p.atlasLook, theme = a && a.on && themes && themes[a.key];
+  return theme && theme.label && a.key !== "classic" ? t("the Atlas's look, {theme}", { theme: theme.label }) : t("the Atlas's look");
 }
 
 /** A pick's name in the list ("Same as Settings", "Classic", a theme's label). */
 export function pickWords(pick, themes){
-  if (!pick || pick === SETTINGS) return "Same as Settings";
-  if (pick === "classic") return "Classic";
-  if (pick === "studio") return "Studio";
-  const t = themes && themes[pick.slice(6)];
-  return t && t.label ? String(t.label) : pick.slice(6).replace(/_/g, " ");
+  if (!pick || pick === SETTINGS) return t("Same as Settings");
+  if (pick === "classic") return t("Classic");
+  if (pick === "studio") return t("Studio");
+  const theme = themes && themes[pick.slice(6)];
+  return theme && theme.label ? String(theme.label) : pick.slice(6).replace(/_/g, " ");
 }
 
 /** A swatch for a pick: [background, ground, accent].
@@ -104,8 +109,8 @@ const lightness = (h) => { const p = parseInt(String(h).slice(1), 16); return (0
  *  when Showcase themes are not this tier's. Classic is Live Aboard's own; the
  *  Showcase Classic theme (the flat Atlas's plain look) is not listed again. */
 export function lookGroups(themes, rows, studio){
-  const own = { head: "Live Aboard", items: OWN.map(pick => ({ pick, words: pickWords(pick, themes), swatch: swatchOf(pick, rows, studio) })) };
-  if (!themes) return { groups: [own], note: "Showcase themes come with PadSpan Bright Pro or PadSpan Pro." };
+  const own = { head: t("Live Aboard"), items: OWN.map(pick => ({ pick, words: pickWords(pick, themes), swatch: swatchOf(pick, rows, studio) })) };
+  if (!themes) return { groups: [own], note: t("Showcase themes come with PadSpan Bright Pro or PadSpan Pro.") };
   const dark = [], light = [];
   for (const [key, t] of Object.entries(themes)) {
     if (key === "classic" || !t) continue;
@@ -113,7 +118,7 @@ export function lookGroups(themes, rows, studio){
     (sw && lightness(sw[0]) > 0.5 ? light : dark).push({ pick, words: pickWords(pick, themes), swatch: sw });
   }
   const groups = [own];
-  if (dark.length) groups.push({ head: "Showcase themes, dark", items: dark });
-  if (light.length) groups.push({ head: "Showcase themes, light", items: light });
+  if (dark.length) groups.push({ head: t("Showcase themes, dark"), items: dark });
+  if (light.length) groups.push({ head: t("Showcase themes, light"), items: light });
   return { groups, note: null };
 }

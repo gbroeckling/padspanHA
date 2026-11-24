@@ -81,7 +81,7 @@ def test_trails_are_off_unless_this_screen_turned_them_on() -> None:
     sync = la[la.index("  function syncTracked(p, vd, rebuilt){"):la.index("  function readPeople(pp){")]
     assert "trails: tr ? trailData : null" in sync
     # The menu offers it only where it can be read.
-    assert "...(trailsOffered() ? [{ text: `Trails, last 30 min:" in la
+    assert '...(trailsOffered() ? [{ text: prefGet(PREF_TRAILS) === "1" ? t("Trails, last 30 min: On")' in la
 
 
 def test_the_hosts_hand_a_trails_reader_with_live_data_only() -> None:

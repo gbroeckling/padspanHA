@@ -108,5 +108,5 @@ def test_expert_links_are_hidden_in_basic() -> None:
     lp = _read("lights_panel.js")
     assert "onEdit: this._isAdmin() && !this._basicMode() ? (e)=>this._gotoBuilder(e) : null," in lp
     # The Atlas header's ✎ Edit map goes to the builder too: not in Basic either.
-    assert '...(this._isAdmin() && !this._basicMode() ? [el("button",{class:"lv-act",title:"Open Mapping' in lp
+    assert '...(this._isAdmin() && !this._basicMode() ? [el("button",{class:"lv-act",title:t("Open Mapping' in lp
     assert 'localStorage.getItem("padspan_complexity") === "basic"' in lp

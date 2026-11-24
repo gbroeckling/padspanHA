@@ -132,6 +132,8 @@ def test_the_strip_modules_load_only_with_the_3d_view() -> None:
         assert importers == allowed, (name, importers)
     for name in ("live_aboard_runs.js", "live_aboard_strip.js"):
         code = _code(_VIEWS / name)
+        # Their one import is the panel's translator (views/i18n.js: their words; it falls back to the English).
+        code = code.replace("await import(`./i18n.js${new URL(import.meta.url).search}`)", "", 1)
         assert "import(" not in code and "import " not in code.replace("import.meta", ""), name
         for bad in ("confirm(", "alert(", "prompt(", "setInterval", "setTimeout", "localStorage", "fetch(", "callWS", "callService"):
             assert bad not in code, (name, bad)

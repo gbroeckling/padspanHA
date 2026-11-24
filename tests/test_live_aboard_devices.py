@@ -80,7 +80,7 @@ def test_every_live_kind_the_builders_offer_is_handled() -> None:
     """Each builder's `live` (live_aboard_furniture.js) is one the devices
     module draws, and each part it draws is one the builders hand over."""
     fur = _js(_VIEWS / "live_aboard_furniture.js")
-    lives = set(re.findall(r'kind\("[^"]+", "(?:furniture|device|tag|scanner)", "[a-z]+", "([a-z]+)"', fur))
+    lives = set(re.findall(r'kind\((?:\(\) => t\("[^"]+"\)|"[^"]+"), "(?:furniture|device|tag|scanner)", "[a-z]+", "([a-z]+)"', fur))
     dv = _js(_VIEWS / "live_aboard_devices.js")
     line = dv[dv.index("export const LIVE_KINDS"):].split("\n", 1)[0]
     kinds = set(re.findall(r'"([a-z]+)"', line))
@@ -109,7 +109,7 @@ def test_it_calls_nothing_on_home_assistant_and_keeps_no_timer() -> None:
     # event in the page, never a blind switch.
     use = _code(_VIEWS / "live_aboard_use.js")
     assert 'new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: eid } })' in use
-    assert 'if (t.kind === "entity") { if (r === "tap" || r === "open") moreInfo(o.root, t.eid); return; }' in use
+    assert 'if (tgt.kind === "entity") { if (r === "tap" || r === "open") moreInfo(o.root, tgt.eid); return; }' in use
 
 
 def test_the_hosts_hand_over_only_what_they_hold() -> None:

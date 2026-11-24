@@ -53,24 +53,41 @@ const SLOP = 6;                                   // px a press may move and sti
 const REACH = { mouse: 22, touch: 30 };           // how near a wall a press must land (px)
 const GRAB = { mouse: 16, touch: 26 };            // how near an end a press must land to drag it (px)
 const PICK_OPENING = 8;                           // px round an opening's own outline
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 const COL = { window: "#60a5fa", door: "#f59e0b", doorway: "#c084fc", stop: "#ef4444", map: "#a3e635", arc: "#fbbf24" };
 // What each kind drawn on a wall is called, and the words for drawing one.
-const NAME = { door: "Door", window: "Window", doorway: "Doorway" };
-const DRAW_HINT = "Door, Window or Doorway: draw along a wall. Heights: tap a device. Tap a door or window to change it. No wall between two rooms? Mark that edge open in Mapping → Edit → Signal walls.";
-const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
+const NAME = { get door() { return t("Door"); }, get window() { return t("Window"); }, get doorway() { return t("Doorway"); } };
+const DRAW_HINT = () => t("Door, Window or Doorway: draw along a wall. Heights: tap a device. Tap a door or window to change it. No wall between two rooms? Mark that edge open in Mapping → Edit → Signal walls.");
+// Each kind's own whole sentence.
+const NOW_A = { door: () => t("Now a door."), window: () => t("Now a window."), doorway: () => t("Now a doorway.") };
+const DELETE_THIS = { door: () => t("Delete this door"), window: () => t("Delete this window"), doorway: () => t("Delete this doorway") };
+const TOO_SHORT = {
+  door: (m) => t("Too short: a door is at least {m} m wide.", { m }),
+  window: (m) => t("Too short: a window is at least {m} m wide.", { m }),
+  doorway: (m) => t("Too short: a doorway is at least {m} m wide.", { m }),
+};
+const TOO_SHORT_OVERLAP = {
+  door: (m) => t("Too short: a door is at least {m} m wide, and openings never overlap.", { m }),
+  window: (m) => t("Too short: a window is at least {m} m wide, and openings never overlap.", { m }),
+  doorway: (m) => t("Too short: a doorway is at least {m} m wide, and openings never overlap.", { m }),
+};
 // The server's refusals (ws_house3d.py), said plainly. The house still draws
 // from the map, and a refused Save keeps the draft, to be saved again.
 const CANT_EDIT = {
-  read_failed: "Can't edit: Live Aboard's file couldn't be read (nothing in it was changed). Show Map, then Live Aboard, to try again.",
-  house3d_newer: "Can't edit: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to edit it.",
+  get read_failed() { return t("Can't edit: Live Aboard's file couldn't be read (nothing in it was changed). Show Map, then Live Aboard, to try again."); },
+  get house3d_newer() { return t("Can't edit: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to edit it."); },
   // Sample mode (sample_house.js answers house3d_get with sample: true).
-  house3d_sample: "This is the sample house; switch to Live to edit your own.",
+  get house3d_sample() { return t("This is the sample house; switch to Live to edit your own."); },
 };
 const NOT_SAVED = {
-  read_failed: "Not saved: Live Aboard's file couldn't be read, so nothing was changed. Your changes are still here: Save to try again.",
-  save_failed: "Not saved: Live Aboard's file couldn't be written, so nothing was changed. Your changes are still here: Save to try again.",
-  house3d_newer: "Not saved: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to save these changes.",
-  house3d_sample: "Not saved: This is the sample house; switch to Live to edit your own.",
+  get read_failed() { return t("Not saved: Live Aboard's file couldn't be read, so nothing was changed. Your changes are still here: Save to try again."); },
+  get save_failed() { return t("Not saved: Live Aboard's file couldn't be written, so nothing was changed. Your changes are still here: Save to try again."); },
+  get house3d_newer() { return t("Not saved: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to save these changes."); },
+  get house3d_sample() { return t("Not saved: This is the sample house; switch to Live to edit your own."); },
 };
 
 const CSS = `
@@ -186,7 +203,7 @@ export function createEditor(ctx){
   const style = d("style");
   style.textContent = CSS;
   root.appendChild(style);
-  const bEdit = btn("Edit", "Draw doors and windows, set heights", () => (editing ? finish() : begin(furnishOn ? "furnish" : null)));
+  const bEdit = btn(t("Edit"), t("Draw doors and windows, set heights"), () => (editing ? finish() : begin(furnishOn ? "furnish" : null)));
   const editWhy = d("span", "la3d-editwhy");                   // why Edit is unavailable, said in the page
   editWhy.id = `la3d-editwhy-${Math.random().toString(36).slice(2, 8)}`;
   const editSeg = seg(bEdit, editWhy);
@@ -194,18 +211,18 @@ export function createEditor(ctx){
   editSeg.style.cssText = "display:none;margin-left:auto";      // beside the view buttons, on the right
   const viewsSeg = bar.querySelector("[data-la3d-views]");          // in the bar's right-hand group
   (viewsSeg && viewsSeg.parentNode ? viewsSeg.parentNode : bar).insertBefore(editSeg, viewsSeg || null);
-  const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
-  const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
-  const bWay = btn("Doorway", "Draw a doorway along a wall: an opening with no door in it", () => pickTool("doorway"));
-  const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height (a light: also what it is)", () => pickTool("heights"));
-  const bStrip = ctx.STRIP && ctx.RUNS ? btn("Strip", "Lay out an LED strip or string lights: where it really goes, how high, which way it shines", () => pickTool("strip")) : null;
-  const bUndo = btn("Undo", "Undo", () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); });
-  const bRedo = btn("Redo", "Redo", () => { if (draft && !saving && draft.redo()) afterHistory("Redone."); });
-  const bSave = btn("Save", "Save the changes", () => save(null), "la3d-save");
-  const bDiscard = btn("Discard", "Back to what is saved (Undo brings it back)", () => discard());
+  const bDoor = btn(t("Door"), t("Draw a door along a wall"), () => pickTool("door"));
+  const bWin = btn(t("Window"), t("Draw a window along a wall"), () => pickTool("window"));
+  const bWay = btn(t("Doorway"), t("Draw a doorway along a wall: an opening with no door in it"), () => pickTool("doorway"));
+  const bHts = btn(t("Heights"), t("Tap a light, a sensor or a readout to set its height (a light: also what it is)"), () => pickTool("heights"));
+  const bStrip = ctx.STRIP && ctx.RUNS ? btn(t("Strip"), t("Lay out an LED strip or string lights: where it really goes, how high, which way it shines"), () => pickTool("strip")) : null;
+  const bUndo = btn(t("Undo"), t("Undo"), () => { if (draft && !saving && draft.undo()) afterHistory(t("Undone.")); });
+  const bRedo = btn(t("Redo"), t("Redo"), () => { if (draft && !saving && draft.redo()) afterHistory(t("Redone.")); });
+  const bSave = btn(t("Save"), t("Save the changes"), () => save(null), "la3d-save");
+  const bDiscard = btn(t("Discard"), t("Back to what is saved (Undo brings it back)"), () => discard());
   const tools = d("div", "la3d-tools");
   tools.setAttribute("role", "toolbar");
-  tools.setAttribute("aria-label", "Live Aboard editor");
+  tools.setAttribute("aria-label", t("Live Aboard editor"));
   const hintEl = d("div", "la3d-hint");
   hintEl.setAttribute("aria-live", "polite");
   const toolSeg = seg(bDoor, bWin, bHts, ...(bStrip ? [bStrip] : []));
@@ -236,7 +253,7 @@ export function createEditor(ctx){
     if (mod && !e.altKey && (k === "y" || k === "Y")) { e.preventDefault(); bRedo.click(); return; }
     if (mod || e.altKey) return;
     if (k === "Escape") {
-      if (pending) { e.preventDefault(); pending = null; hint(["door", "window", "doorway"].includes(tool) ? "Press on a wall and drag along it, or tap its two ends." : DRAW_HINT); paint(); }
+      if (pending) { e.preventDefault(); pending = null; hint(["door", "window", "doorway"].includes(tool) ? t("Press on a wall and drag along it, or tap its two ends.") : DRAW_HINT()); paint(); }
       else if (sel) { e.preventDefault(); select(null); }
       return;
     }
@@ -250,7 +267,7 @@ export function createEditor(ctx){
   const keys = (on) => { if (on === keysOn) return; keysOn = on; window[on ? "addEventListener" : "removeEventListener"]("keydown", onKey); };
   // Furniture (P2 Furnish, live_aboard_furnish.js): a tool of its own on this
   // same draft, so one Save writes doors, windows, heights and furniture.
-  const FUR_HINT = "Build adds a piece. Drag a piece to move it; tap it to change it.";
+  const FUR_HINT = t("Build adds a piece. Drag a piece to move it; tap it to change it.");
   const fur = ctx.FURNISH ? ctx.FURNISH.createFurnish({
     THREE, HOUSE, PIECES: ctx.PIECES, FURN: ctx.FURN, root, guard, tools, sheet, layer: ctx.layer,
     draft: () => draft, active: () => active() && tool === "furnish",
@@ -562,7 +579,7 @@ export function createEditor(ctx){
     const n = Object.values(draft.changes() || {}).reduce((a, s) => a + Object.keys(s).length, 0);
     draft.discard();
     sel = null;
-    afterHistory(`Discarded ${FEW(n)}. Undo brings ${n === 1 ? "it" : "them"} back.`);
+    afterHistory(tn(n, "Discarded {n} change. Undo brings it back.", "Discarded {n} changes. Undo brings them back."));
   }
   /** Save; then `then` (Save, then go on). One save at a time: asked again
    *  while one is in flight, `then` waits for it and goes on once it is in. */
@@ -587,8 +604,8 @@ export function createEditor(ctx){
         ch = draft === sent ? draft.changes() : null;
       }
       const r = ch ? await editFn(ch, draft.base) : kept;
-      if (!r && notKept) { saving = false; hint("The items from the plans weren't kept: their session is gone, or the Plans tool is off here. Nothing else was waiting to be saved.", true); redrawSoon(); sheetFor(); paint(); return; }
-      if (!r || typeof r !== "object" || !r.data) throw new Error("no answer");
+      if (!r && notKept) { saving = false; hint(t("The items from the plans weren't kept: their session is gone, or the Plans tool is off here. Nothing else was waiting to be saved."), true); redrawSoon(); sheetFor(); paint(); return; }
+      if (!r || typeof r !== "object" || !r.data) throw new Error(t("no answer"));
       saving = false;
       ctx.saved(r.data);
       // Left meanwhile (Edit closed), there is no draft to start again: what
@@ -596,14 +613,14 @@ export function createEditor(ctx){
       if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
       if (fur) fur.refresh();
       if (strip) strip.refresh();
-      hint(kept ? kept.said : notKept ? "Saved, but the items from the plans weren't kept: their session is gone, or the Plans tool is off here." : "Saved.", !kept && notKept);
+      hint(kept ? kept.said : notKept ? t("Saved, but the items from the plans weren't kept: their session is gone, or the Plans tool is off here.") : t("Saved."), !kept && notKept);
       if (plans) plans.afterSave();                // each correction's target and each plan checked again
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
       // A refusal of the plans' items: its list says what changed; the sheet reloads and those leave the draft.
       if (plans && err && err.planRefusal) await plans.refused(err);
-      if (kept) { hint(`${kept.said} Your other changes weren't saved: ${String((err && (err.message || err.code)) || err)}`, true); redrawSoon(); sheetFor(); paint(); return; }
+      if (kept) { hint(kept.said + " " + t("Your other changes weren't saved: {why}", { why: String((err && (err.message || err.code)) || err) }), true); redrawSoon(); sheetFor(); paint(); return; }
       // Part of it went in (the heights: live_aboard.js editSave): from here
       // the draft starts from them, so Undo, Discard and the next Save count
       // them as saved.
@@ -611,7 +628,7 @@ export function createEditor(ctx){
       const code = err && err.code;
       if (code === "house3d_newer" && ctx.newer) ctx.newer();   // the file's own error, until a read finds otherwise
       // A Save that went partly in says what did (live_aboard.js editSave).
-      hint(err && err.partial ? String(err.message) : NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
+      hint(err && err.partial ? String(err.message) : NOT_SAVED[code] || t("Not saved: {why}", { why: String((err && (err.message || err.code)) || err) }), true);
       paint();
       return;
     }
@@ -627,24 +644,24 @@ export function createEditor(ctx){
   // Edit may open: offered, not open already, no save in flight, and nothing
   // about the file against it.
   const mayBegin = () => !!editFn && !editing && !saving && !cantEdit();
-  async function begin(t = null){
+  async function begin(startWith = null){
     if (!mayBegin()) return;
     let f = ctx.file();
     if (!f) {
-      hint("Reading Live Aboard's file…");
+      hint(t("Reading Live Aboard's file…"));
       let ok = false;
       try { ok = await ctx.reload(); } catch (_) { ok = false; }
       f = ctx.file();
-      if (!ok || !f) { flash("Couldn't read Live Aboard's file. Try again."); return; }
+      if (!ok || !f) { flash(t("Couldn't read Live Aboard's file. Try again.")); return; }
       // Asked again of what the read found (a newer PadSpan's file: Edit
       // says why), and of anything that changed while it was read.
       if (!mayBegin()) return;
     }
     draft = DRAFT.createDraft(f);
-    editing = true; tool = t === "furnish" && fur ? "furnish" : null; sel = null; gesture = null; pending = null;
+    editing = true; tool = startWith === "furnish" && fur ? "furnish" : null; sel = null; gesture = null; pending = null;
     keys(true);
     ctx.clearUse();
-    hint(tool === "furnish" ? FUR_HINT : DRAW_HINT);
+    hint(tool === "furnish" ? FUR_HINT : DRAW_HINT());
     syncArcs();
     paint();
     sheetFor();
@@ -678,30 +695,30 @@ export function createEditor(ctx){
     askEl.innerHTML = "";
     const card = d("div");
     const n = Object.values(draft.changes() || {}).reduce((a, s) => a + Object.keys(s).length, 0);
-    card.appendChild(d("p", null, `${FEW(n)} in Live Aboard ${n === 1 ? "is" : "are"} not saved yet.`));
+    card.appendChild(d("p", null, tn(n, "{n} change in Live Aboard is not saved yet.", "{n} changes in Live Aboard are not saved yet.")));
     const acts = d("div", "la3d-acts");
     acts.append(seg(
-      btn("Save", "Save them, then go on", () => { askEl.classList.remove("on"); save(() => { const g = askGo; stop(); if (g) g(); }); }, "la3d-save"),
-      btn("Discard", "Throw them away, then go on", () => { const g = askGo; stop(); if (g) g(); }),
-      btn("Keep editing", "Stay here", () => { askGo = null; askEl.classList.remove("on"); }),
+      btn(t("Save"), t("Save them, then go on"), () => { askEl.classList.remove("on"); save(() => { const g = askGo; stop(); if (g) g(); }); }, "la3d-save"),
+      btn(t("Discard"), t("Throw them away, then go on"), () => { const g = askGo; stop(); if (g) g(); }),
+      btn(t("Keep editing"), t("Stay here"), () => { askGo = null; askEl.classList.remove("on"); }),
     ));
     card.appendChild(acts);
     askEl.appendChild(card);
     askEl.classList.add("on");
   }
-  function pickTool(t){
+  function pickTool(which){
     const was = tool;
-    tool = tool === t ? null : t;
+    tool = tool === which ? null : which;
     pending = null; gesture = null; line.visible = false; placing = null;
     const drawing = (x) => x === "door" || x === "window" || x === "doorway";
     if (drawing(tool) && !drawing(was)) { const F = currentFloor(); if (F) ctx.topDown(F); }
     if (tool === "plans" && was !== "plans") { const F = currentFloor(); if (F) ctx.topDown(F); }   // the list under the plan, straight down
     if (tool === "heights" && sel && sel.opening) sel = null;
-    hint(drawing(tool) ? "Press on a wall and drag along it, or tap its two ends."
-      : tool === "heights" ? "Tap a light, a sensor or a readout."
-      : tool === "strip" ? "Tap a light, or pick one from the list."
-      : tool === "plans" ? "What the AI found on your floor plans, one item at a time."
-      : DRAW_HINT);
+    hint(drawing(tool) ? t("Press on a wall and drag along it, or tap its two ends.")
+      : tool === "heights" ? t("Tap a light, a sensor or a readout.")
+      : tool === "strip" ? t("Tap a light, or pick one from the list.")
+      : tool === "plans" ? t("What the AI found on your floor plans, one item at a time.")
+      : DRAW_HINT());
     paint();
     sheetFor();
     ctx.render();
@@ -715,7 +732,7 @@ export function createEditor(ctx){
   function paint(){
     const on = active();
     editSeg.style.display = editFn && !(furnishOn && editing) ? "" : "none";   // Furnish is always editing
-    bEdit.textContent = editing ? "Done" : "Edit";
+    bEdit.textContent = editing ? t("Done") : t("Edit");
     bEdit.setAttribute("aria-pressed", String(editing));
     // Edit unavailable: greyed (it still takes focus) with the reason beside it.
     const why = editing ? "" : cantEdit();
@@ -734,7 +751,7 @@ export function createEditor(ctx){
     bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
     bSave.disabled = !dirty || saving || problemCode() === "house3d_newer" || problemCode() === "house3d_sample";
-    bSave.textContent = saving ? "Saving…" : "Save";
+    bSave.textContent = saving ? t("Saving…") : t("Save");
     bDiscard.disabled = !dirty || saving;
     sheet.classList.toggle("busy", saving);
     sheet.inert = saving;                          // a slider or Delete waits for the save in flight
@@ -768,7 +785,7 @@ export function createEditor(ctx){
   function head(title, sub){
     const h = d("h4");
     h.appendChild(d("span", null, title));
-    h.appendChild(btn("✕", "Close", () => select(null), "la3d-x"));
+    h.appendChild(btn("✕", t("Close"), () => select(null), "la3d-x"));
     sheet.appendChild(h);
     if (sub) sheet.appendChild(d("p", "la3d-sub", sub));
   }
@@ -809,14 +826,14 @@ export function createEditor(ctx){
     if (!rec) { sel = null; return; }
     const F = floorOf(rec.floor_id), ceil = F ? ceilOf(F) : 2.65, lim = DRAFT.heightLimits(ceil);
     const w = Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
-    head(`${NAME[rec.kind] || "Window"} · ${DRAFT.metres(w)}`, "Drawn in Live Aboard. Drag either end to change its width.");
-    choice("Is a", [["door", "Door"], ["window", "Window"], ["doorway", "Doorway"]], rec.kind, (k) => {
+    head(`${NAME[rec.kind] || t("Window")} · ${DRAFT.metres(w)}`, t("Drawn in Live Aboard. Drag either end to change its width."));
+    choice(t("Is a"), [["door", t("Door")], ["window", t("Window")], ["doorway", t("Doorway")]], rec.kind, (k) => {
       if (k === rec.kind) return;
       const sw = DRAFT.switchKind(o.id, rec, ceil, k);
       if (sw.error) { flash(sw.error + "."); return; }
       change((c) => { delete c.openings[o.id]; c.openings[sw.id] = sw.rec; });
       sel = { opening: { ...o, id: sw.id, kind: sw.rec.kind } };
-      hint(`Now a ${sw.rec.kind}.`);
+      hint(NOW_A[sw.rec.kind] ? NOW_A[sw.rec.kind]() : `Now a ${sw.rec.kind}.`);
       sheetFor();
     });
     const set = (patch, group) => change((c) => {
@@ -824,10 +841,10 @@ export function createEditor(ctx){
       if (cur) Object.assign(cur, DRAFT.openingHeights({ ...cur, ...patch }, ceil));
     }, group);
     if (rec.kind === "window") {
-      slider("Sill", 0, DRAFT.mm(lim.sill), rec.sill_m, (v, g) => set({ sill_m: v }, g), { opening: o.id });
-      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
+      slider(t("Sill"), 0, DRAFT.mm(lim.sill), rec.sill_m, (v, g) => set({ sill_m: v }, g), { opening: o.id });
+      slider(t("Head"), DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
     } else {
-      slider("Height", DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
+      slider(t("Height"), DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
       const pick = (k, v) => { change((c) => { if (c.openings[o.id]) c.openings[o.id][k] = v; }); sheetFor(); };
       if (rec.kind === "door") {
         typeRows(addedNow(o.id), rec, (patch) => {
@@ -837,24 +854,24 @@ export function createEditor(ctx){
       }
     }
     const acts = d("div", "la3d-acts");
-    acts.appendChild(seg(btn("Delete", `Delete this ${rec.kind}`, () => {
+    acts.appendChild(seg(btn(t("Delete"), DELETE_THIS[rec.kind] ? DELETE_THIS[rec.kind]() : `Delete this ${rec.kind}`, () => {
       change((c) => { delete c.openings[o.id]; });
       select(null);
-      hint(`${NAME[rec.kind] || "Window"} deleted. Undo brings it back.`);
+      hint(t("{what} deleted. Undo brings it back.", { what: NAME[rec.kind] || t("Window") }));
     }, "la3d-del")));
     sheet.appendChild(acts);
   }
   function sheetMapOpening(o){
     const cur = draft.cur.openings[o.id] || {}, F = o.F, ceil = ceilOf(F), lim = DRAFT.heightLimits(ceil);
-    head(o.name || (o.kind === "door" ? "Door" : "Window"), "From the map. These change Live Aboard only.");
+    head(o.name || (o.kind === "door" ? t("Door") : t("Window")), t("From the map. These change Live Aboard only."));
     const set = (patch, group) => change((c) => { c.openings[o.id] = { ...(c.openings[o.id] || {}), ...patch }; }, group);
     if (o.kind === "window") {
       const now = DRAFT.openingHeights({ kind: "window", sill_m: cur.sill_m ?? HOUSE.SILL_H, head_m: cur.head_m ?? HOUSE.HEAD_H }, ceil);
-      slider("Sill", 0, DRAFT.mm(lim.sill), now.sill_m, (v, g) => {
+      slider(t("Sill"), 0, DRAFT.mm(lim.sill), now.sill_m, (v, g) => {
         const c0 = draft.cur.openings[o.id] || {};
         set(DRAFT.openingHeights({ kind: "window", sill_m: v, head_m: c0.head_m ?? HOUSE.HEAD_H }, ceil), g);
       }, { opening: o.id });
-      slider("Head", DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), now.head_m, (v, g) => {
+      slider(t("Head"), DRAFT.GAP_MIN_M, DRAFT.mm(lim.head), now.head_m, (v, g) => {
         const c0 = draft.cur.openings[o.id] || {};
         set(DRAFT.openingHeights({ kind: "window", sill_m: c0.sill_m ?? HOUSE.SILL_H, head_m: v }, ceil), g);
       }, { opening: o.id });
@@ -870,7 +887,7 @@ export function createEditor(ctx){
       }, (k, v) => { set({ [k]: v }); sheetFor(); });
     }
     const acts = d("div", "la3d-acts");
-    const reset = btn("Reset", "Back to how the map has it", () => { change((c) => { delete c.openings[o.id]; }); sheetFor(); });
+    const reset = btn(t("Reset"), t("Back to how the map has it"), () => { change((c) => { delete c.openings[o.id]; }); sheetFor(); });
     sheetRefresh = () => { reset.disabled = !draft.cur.openings[o.id]; };
     sheetRefresh();
     acts.appendChild(seg(reset));
@@ -883,45 +900,45 @@ export function createEditor(ctx){
   function typeRows(at, cur, set, pick){
     const S2 = ctx.STOREY, P = at && at.P;
     if (!S2) {                                     // no house module: the hinged door's own
-      choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => pick("hinge", v));
-      choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => pick("swing", v));
+      choice(t("Hinge"), [["left", t("Left")], ["right", t("Right")]], cur.hinge || "left", (v) => pick("hinge", v));
+      choice(t("Swing"), [["in", t("In")], ["out", t("Out")]], cur.swing || "in", (v) => pick("swing", v));
       shownRow(at, cur.shown, (v) => pick("shown", v));
       return;
     }
     const pc = P ? { ...P.pc, override: { ...(P.pc.override || {}), ...cur } } : { x0: 0, y0: 0, x1: 0.9, y1: 0, cls: "int", override: cur };
     // PadSpan's guess goes by the class of what it follows, as the view's does.
     const fol = cur.link || (P && P.pc.barrier && P.pc.barrier.linked_entity_id) || null;
-    const t = S2.doorTypeOf(pc, at && at.F ? at.F.rooms : P ? [] : [], fol && ctx.doorClass ? ctx.doorClass(fol) : null);
+    const dt = S2.doorTypeOf(pc, at && at.F ? at.F.rooms : P ? [] : [], fol && ctx.doorClass ? ctx.doorClass(fol) : null);
     const row = d("label", "la3d-row la3d-kind"), sel2 = d("select");
-    sel2.setAttribute("aria-label", "Type");
+    sel2.setAttribute("aria-label", t("Type"));
     const opt = (v, text) => { const n = d("option", null, text); n.value = v; return n; };
-    sel2.appendChild(opt("", `PadSpan's guess: ${S2.DOOR_TYPE_NAMES[t.guess]}`));
+    sel2.appendChild(opt("", t("PadSpan's guess: {what}", { what: S2.DOOR_TYPE_NAMES[dt.guess] })));
     for (const k of S2.DOOR_TYPES) sel2.appendChild(opt(k, S2.DOOR_TYPE_NAMES[k]));
     sel2.value = S2.DOOR_TYPES.includes(cur.type) ? cur.type : "";
     sel2.addEventListener("change", guard(() => set({ type: sel2.value || null })));
-    row.append(d("span", null, "Type"), sel2);
+    row.append(d("span", null, t("Type")), sel2);
     sheet.appendChild(row);
-    const has = S2.DOOR_TYPE_OPTIONS[t.type] || [];
-    if (has.includes("hinge")) choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => set({ hinge: v }));
-    if (has.includes("swing") && !(t.type === "gate" && t.slide)) choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => set({ swing: v }));
-    if (t.type === "gate") {
-      choice("Opens", [["swing", "Swings"], ["left", "Slides left"], ["right", "Slides right"]], t.slide || "swing", (v) => set({ slide: v === "swing" ? null : v }));
-      if (!t.slide) choice("Gates", [["one", "Single"], ["two", "Double"]], t.panels >= 2 ? "two" : "one", (v) => set({ panels: v === "two" ? 2 : null }));
+    const has = S2.DOOR_TYPE_OPTIONS[dt.type] || [];
+    if (has.includes("hinge")) choice(t("Hinge"), [["left", t("Left")], ["right", t("Right")]], cur.hinge || "left", (v) => set({ hinge: v }));
+    if (has.includes("swing") && !(dt.type === "gate" && dt.slide)) choice(t("Swing"), [["in", t("In")], ["out", t("Out")]], cur.swing || "in", (v) => set({ swing: v }));
+    if (dt.type === "gate") {
+      choice(t("Opens"), [["swing", t("Swings")], ["left", t("Slides left")], ["right", t("Slides right")]], dt.slide || "swing", (v) => set({ slide: v === "swing" ? null : v }));
+      if (!dt.slide) choice(t("Gates"), [["one", t("Single")], ["two", t("Double")]], dt.panels >= 2 ? "two" : "one", (v) => set({ panels: v === "two" ? 2 : null }));
     } else if (has.includes("slide")) {
-      const both = t.type === "sliding" || t.type === "bifold";
-      choice(t.type === "bifold" ? "Folds" : "Slides", [["left", "Left"], ["right", "Right"], ...(both ? [["both", "Both ways"]] : [])],
-        t.slide === "both" && !both ? "right" : t.slide, (v) => set({ slide: v }));
+      const both = dt.type === "sliding" || dt.type === "bifold";
+      choice(dt.type === "bifold" ? t("Folds") : t("Slides"), [["left", t("Left")], ["right", t("Right")], ...(both ? [["both", t("Both ways")]] : [])],
+        dt.slide === "both" && !both ? "right" : dt.slide, (v) => set({ slide: v }));
     }
-    if (has.includes("face")) choice("Runs on", [["in", "Room side"], ["out", "Outside"]], t.face, (v) => set({ face: v }));
-    if (t.type === "bifold") choice("Panels", [[2, "2"], [3, "3"], [4, "4"]], t.panels, (v) => set({ panels: v }));
-    if (has.includes("glass")) choice("Glass", [[true, "Glass"], [false, "Solid"]], !!t.glass, (v) => set({ glass: v }));
+    if (has.includes("face")) choice(t("Runs on"), [["in", t("Room side")], ["out", t("Outside")]], dt.face, (v) => set({ face: v }));
+    if (dt.type === "bifold") choice(t("Panels"), [[2, "2"], [3, "3"], [4, "4"]], dt.panels, (v) => set({ panels: v }));
+    if (has.includes("glass")) choice(t("Glass"), [[true, t("Glass")], [false, t("Solid")]], !!dt.glass, (v) => set({ glass: v }));
     // What drives it: the map's sensor, else what Follows says, else Shown.
     const b = P && P.pc.barrier;
-    if (b && b.linked_entity_id && !cur.link) { sheet.appendChild(d("p", "la3d-sub", "It opens and shuts with its sensor.")); return; }
+    if (b && b.linked_entity_id && !cur.link) { sheet.appendChild(d("p", "la3d-sub", t("It opens and shuts with its sensor."))); return; }
     const host = ctx.host ? ctx.host() || {} : {}, states = host.states || {};
     const fl = d("label", "la3d-row la3d-kind"), fsel = d("select");
-    fsel.setAttribute("aria-label", "Follows");
-    fsel.appendChild(opt("", "Nothing: shown as below"));
+    fsel.setAttribute("aria-label", t("Follows"));
+    fsel.appendChild(opt("", t("Nothing: shown as below")));
     const ok = (eid) => {
       const st = states[eid], dc = st && st.attributes ? st.attributes.device_class : null, dom = eid.split(".")[0];
       return dom === "cover" ? S2.coverIsDoor(st) : dom === "binary_sensor" && ["door", "garage_door", "opening", "window"].includes(dc);
@@ -933,7 +950,7 @@ export function createEditor(ctx){
     for (const eid of eids) fsel.appendChild(opt(eid, `${(states[eid] && states[eid].attributes && states[eid].attributes.friendly_name) || eid}${eid.startsWith("cover.") ? " (moves it: follows where it is)" : ""}`));
     fsel.value = cur.link || "";
     fsel.addEventListener("change", guard(() => set({ link: fsel.value || null })));
-    fl.append(d("span", null, "Follows"), fsel);
+    fl.append(d("span", null, t("Follows")), fsel);
     sheet.appendChild(fl);
     // Pressed: the kept sensor is what PadSpan uses everywhere (host.twinUse), and this draft follows it.
     const was = cur.link;
@@ -943,17 +960,17 @@ export function createEditor(ctx){
     }));
     if (twin) sheet.appendChild(twin);
     if (cur.link) sheet.appendChild(d("p", "la3d-sub", cur.link.startsWith("cover.")
-      ? "It follows where the door is. A tap shows its card; hold for its controls. It never moves on a tap."
-      : "It opens and shuts with that sensor."));
+      ? t("It follows where the door is. A tap shows its card; hold for its controls. It never moves on a tap.")
+      : t("It opens and shuts with that sensor.")));
     else shownRow(at, cur.shown, (v) => set({ shown: v }));
   }
   /** A door's "Shown": open, ajar or shut, when no sensor says (one with a
    *  sensor follows it). `at`: where it is drawn ({P}); `stored`: the file's. */
   function shownRow(at, stored, act){
     const P = at && at.P, b = P && P.pc.barrier;
-    if (b && b.linked_entity_id) { sheet.appendChild(d("p", "la3d-sub", "It opens and shuts with its sensor.")); return; }
+    if (b && b.linked_entity_id) { sheet.appendChild(d("p", "la3d-sub", t("It opens and shuts with its sensor."))); return; }
     const now = DRAFT.DOOR_SHOWN.includes(stored) ? stored : P && ctx.STOREY ? ctx.STOREY.doorShown(P.pc) : "ajar";
-    choice("Shown", [["open", "Open"], ["ajar", "Ajar"], ["shut", "Shut"]], now, (v) => act(v));
+    choice(t("Shown"), [["open", "Open"], ["ajar", t("Ajar")], ["shut", t("Shut")]], now, (v) => act(v));
   }
   function sheetDevice(eid){
     const info = ctx.device(eid);
@@ -961,19 +978,19 @@ export function createEditor(ctx){
     const ceil = ceilOf(info.F, info.x, info.y), cur = draft.cur[info.section][eid], top = DRAFT.heightRange(ceil, info.section).max;
     const light = info.section === "lights", setZ = (e) => !!e && typeof e.z_m === "number";
     if (light && strip && cur && cur.run) {                // laid out with Strip: its heights are there
-      head(info.label, "Laid out with Strip: its run sets where it is and how high.");
+      head(info.label, t("Laid out with Strip: its run sets where it is and how high."));
       kindPicker(eid, info);
       const acts = d("div", "la3d-acts");
-      acts.appendChild(seg(btn("Lay it out in Strip", "Open it in the Strip tool", () => { pickTool("strip"); strip.select(eid); })));
+      acts.appendChild(seg(btn(t("Lay it out in Strip"), t("Open it in the Strip tool"), () => { pickTool("strip"); strip.select(eid); })));
       sheet.appendChild(acts);
       return;
     }
-    head(info.label, `Height above its floor, 0 to ${DRAFT.metres(top)}. Default ${DRAFT.metres(info.zDefault)}.`);
+    head(info.label, t("Height above its floor, 0 to {top}. Default {dflt}.", { top: DRAFT.metres(top), dflt: DRAFT.metres(info.zDefault) }));
     if (light) kindPicker(eid, info);
     const zNow = setZ(cur) ? cur.z_m : info.z;
     // A light keeps what it is (its kind) as its height changes.
     const setTo = (v, g) => change((c) => { c[info.section][eid] = { ...(light ? c.lights[eid] : null), z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
-    slider("Height", 0, top, zNow, (v, g) => {
+    slider(t("Height"), 0, top, zNow, (v, g) => {
       setTo(v, g);
     }, { eid });
     // Where its kind usually goes (Mapping's Height row offers the same), one tap each.
@@ -988,7 +1005,7 @@ export function createEditor(ctx){
       sheet.appendChild(row);
     }
     const acts = d("div", "la3d-acts");
-    const reset = btn("Reset to default", "Back to the height its type gives it", () => {
+    const reset = btn(t("Reset to default"), t("Back to the height its type gives it"), () => {
       change((c) => {
         const e = c[info.section][eid];
         const keep = light && e ? { ...(e.kind ? { kind: e.kind } : null), ...(e.run ? { run: e.run } : null) } : {};
@@ -1008,24 +1025,24 @@ export function createEditor(ctx){
   function moveRow(eid, info){
     if (!(ctx.canMove && ctx.canMove())) return;
     const acts = d("div", "la3d-acts");
-    const mv = btn(placing === eid ? "Tap its new place…" : "Move it", "Then tap where on this floor it should be. Saved at once.", () => {
+    const mv = btn(placing === eid ? t("Tap its new place…") : t("Move it"), t("Then tap where on this floor it should be. Saved at once."), () => {
       placing = placing === eid ? null : eid;
-      hint(placing ? "Tap its new place, on the same floor. It is saved at once." : "Tap a light, a sensor or a readout.");
+      hint(placing ? t("Tap its new place, on the same floor. It is saved at once.") : t("Tap a light, a sensor or a readout."));
       sheetFor();
     });
     mv.setAttribute("aria-pressed", String(placing === eid));
     acts.appendChild(seg(mv));
-    if (moved && moved.eid === eid) acts.appendChild(seg(btn("Put it back", "Back to where it was before the last move", () => moveTo(eid, moved.x, moved.y, true))));
+    if (moved && moved.eid === eid) acts.appendChild(seg(btn(t("Put it back"), t("Back to where it was before the last move"), () => moveTo(eid, moved.x, moved.y, true))));
     sheet.appendChild(acts);
     // A kind that goes on a wall or round its room is drawn away from its spot: said, with the way to change it.
     const far = info.drawn ? Math.hypot(info.drawn.x - info.x, info.drawn.z - info.y) : 0;
-    if (far > 0.5) sheet.appendChild(d("p", "la3d-sub", `Drawn ${DRAFT.metres(far)} from where it is placed: what it is puts it on the nearest wall, or round its room. "What is this?" changes that.`));
+    if (far > 0.5) sheet.appendChild(d("p", "la3d-sub", t("Drawn {dist} from where it is placed: what it is puts it on the nearest wall, or round its room. \"What is this?\" changes that.", { dist: DRAFT.metres(far) })));
   }
   function placeAt(x, y){
     const eid = placing, info = eid ? ctx.device(eid) : null, at = info && ctx.floorAt ? ctx.floorAt(x, y) : null;
     if (!info) { placing = null; sheetFor(); return; }
-    if (!at) { flash("Tap on a room's floor."); return; }
-    if (baseFloor(at.F) !== baseFloor(info.F)) { flash("That is another floor. A device changes floor on the flat map: Mapping → Atlas builder."); return; }
+    if (!at) { flash(t("Tap on a room's floor.")); return; }
+    if (baseFloor(at.F) !== baseFloor(info.F)) { flash(t("That is another floor. A device changes floor on the flat map: Mapping → Atlas builder.")); return; }
     moveTo(eid, at.x, at.y);
   }
   async function moveTo(eid, x, y, back = false){
@@ -1037,9 +1054,9 @@ export function createEditor(ctx){
     try {
       await ctx.move(eid, DRAFT.mm(x), DRAFT.mm(y));
       moved = back ? null : was;
-      hint(back ? "Back where it was." : "Moved, and saved. \"Put it back\" undoes it.");
+      hint(back ? t("Back where it was.") : t("Moved, and saved. \"Put it back\" undoes it."));
     } catch (err) {
-      flash(`It couldn't be moved (${String((err && err.message) || err)}). Nothing was changed.`);
+      flash(t("It couldn't be moved ({why}). Nothing was changed.", { why: String((err && err.message) || err) }));
     }
     saving = false;
     sheetFor(); paint(); ctx.render();
@@ -1048,11 +1065,11 @@ export function createEditor(ctx){
   /** "What is this?": a light's kind in Live Aboard (3D only), or PadSpan's guess. */
   function kindPicker(eid, info){
     const row = d("label", "la3d-row la3d-kind"), pick = d("select");
-    pick.setAttribute("aria-label", "What is this?");
-    const nameOf = (k) => (HOUSE.LIGHT_KINDS.find(([v]) => v === k) || [null, "Just its light"])[1];
+    pick.setAttribute("aria-label", t("What is this?"));
+    const nameOf = (k) => (HOUSE.lightKinds().find(([v]) => v === k) || [null, t("Just its light")])[1];
     const opt = (v, text) => { const o = d("option", null, text); o.value = v; return o; };
-    pick.appendChild(opt("", `PadSpan's guess: ${nameOf(info.guess)}`));
-    for (const [k, text] of HOUSE.LIGHT_KINDS) pick.appendChild(opt(k, text));
+    pick.appendChild(opt("", t("PadSpan's guess: {what}", { what: nameOf(info.guess) })));
+    for (const [k, text] of HOUSE.lightKinds()) pick.appendChild(opt(k, text));
     const cur = draft.cur.lights[eid];
     pick.value = cur && HOUSE.LIGHT_KINDS.some(([k]) => k === cur.kind) ? cur.kind : "";
     pick.addEventListener("change", guard(() => {
@@ -1063,7 +1080,7 @@ export function createEditor(ctx){
         if (Object.keys(e).length) c.lights[eid] = e; else delete c.lights[eid];
       })) resheet = true;                        // its default height is the new kind's
     }));
-    row.append(d("span", null, "What is this?"), pick);
+    row.append(d("span", null, t("What is this?")), pick);
     sheet.appendChild(row);
   }
 
@@ -1136,7 +1153,7 @@ export function createEditor(ctx){
     if (s) {
       // Beside the line, never on it: off its middle, square to it on screen
       // (above it, or to its left when it runs up the screen).
-      lenEl.textContent = DRAFT.metres(s.len) + (s.stop === "opening" ? " · stops at the opening" : s.stop === "corner" ? " · corner" : "");
+      lenEl.textContent = DRAFT.metres(s.len) + (s.stop === "opening" ? " · " + t("stops at the opening") : s.stop === "corner" ? " · " + t("corner") : "");
       lenEl.classList.toggle("bad", s.stop === "opening" || s.short);
       const pa = screenAt(s.F, s.a[0], s.a[1], mid), pb = screenAt(s.F, s.b[0], s.b[1], mid);
       if (pa && pb) {
@@ -1203,10 +1220,10 @@ export function createEditor(ctx){
       const w = wallAt(x, y, REACH[k]);
       if (!w) {
         if (k !== "touch") return null;
-        hint("Press on a wall.", true);
+        hint(t("Press on a wall."), true);
         return "swallow";
       }
-      if (DRAFT.insideOpening(w.ops, w.t)) { hint("That is already a door or window.", true); return "swallow"; }
+      if (DRAFT.insideOpening(w.ops, w.t)) { hint(t("That is already a door or window."), true); return "swallow"; }
       gesture = { kind: "line", w, from: w.t, to: w.t, x0: x, y0: y, moved: false, kindOf: tool,
                   span: DRAFT.spanOf(w.run, w.stops, w.ops, w.t, w.t) };
       paint3d();
@@ -1264,7 +1281,7 @@ export function createEditor(ctx){
     gesture = null;
     if (!g || !g.target) return;
     if (g.target.place) { placeAt(g.x0, g.y0); return; }
-    if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? "Drag either end to change its width." : "From the map: set it for Live Aboard."); }
+    if (g.target.opening) { select({ opening: g.target.opening }); hint(g.target.opening.added ? t("Drag either end to change its width.") : t("From the map: set it for Live Aboard.")); }
     else if (g.target.eid) select({ eid: g.target.eid });
   }
   // Two taps: the first marks an end, the second (on the same wall) the other.
@@ -1278,24 +1295,24 @@ export function createEditor(ctx){
       return;
     }
     pending = { F: w.F, run: w.run, t: w.t, h: w.h };
-    hint("Now tap the other end, on the same wall.");
+    hint(t("Now tap the other end, on the same wall."));
   }
   function addOpening(w, sp){
     const kind = tool === "door" || tool === "doorway" ? tool : "window", min = DRAFT.minWidth(kind);
     if (!sp || sp.len < min - 1e-6) {
-      flash(`Too short: a ${kind} is at least ${min.toFixed(2)} m wide${sp && sp.stop === "opening" ? ", and openings never overlap" : ""}.`);
+      flash((sp && sp.stop === "opening" ? TOO_SHORT_OVERLAP : TOO_SHORT)[kind](min.toFixed(2)));
       return;
     }
     const id = DRAFT.newOpeningId(kind);
     const rec = DRAFT.newOpening(kind, w.F.fl.id, DRAFT.pointOf(w.run, sp.t0), DRAFT.pointOf(w.run, sp.t1), ceilOf(w.F));
     change((c) => { c.openings[id] = rec; });
     select({ opening: { id, added: true, kind } });
-    if (sp.stop === "opening") flash(`${NAME[kind]} ${DRAFT.metres(sp.len)}: it stops at the opening next to it (openings never overlap).`);
-    else hint(`${NAME[kind]} ${DRAFT.metres(sp.len)} added. Drag either end to change it.`);
+    if (sp.stop === "opening") flash(t("{what} {len}: it stops at the opening next to it (openings never overlap).", { what: NAME[kind], len: DRAFT.metres(sp.len) }));
+    else hint(t("{what} {len} added. Drag either end to change it.", { what: NAME[kind], len: DRAFT.metres(sp.len) }));
   }
   function moveEnd(g){
     const min = DRAFT.minWidth(g.kindOf);
-    if (g.span.len < min - 1e-6) { flash(`Too short: a ${g.kindOf} is at least ${min.toFixed(2)} m wide.`); return; }
+    if (g.span.len < min - 1e-6) { flash(TOO_SHORT[g.kindOf] ? TOO_SHORT[g.kindOf](min.toFixed(2)) : `Too short: a ${g.kindOf} is at least ${min.toFixed(2)} m wide.`); return; }
     // To the millimetre, the moved end pushed on when rounding would take
     // it under the least width (the server checks the rounded ends).
     const [fixedP, movedP] = DRAFT.endsMm(DRAFT.pointOf(g.w.run, g.fixedT),
@@ -1306,8 +1323,8 @@ export function createEditor(ctx){
       if (g.moving === "a") { cur.a_m = movedP; cur.b_m = fixedP; } else { cur.a_m = fixedP; cur.b_m = movedP; }
     });
     sheetFor();
-    if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");
-    else hint(`${NAME[g.kindOf] || "Window"} now ${DRAFT.metres(g.span.len)}.`);
+    if (g.span.stop === "opening") flash(t("Stopped at the opening next to it: openings never overlap."));
+    else hint(t("{what} now {len}.", { what: NAME[g.kindOf] || t("Window"), len: DRAFT.metres(g.span.len) }));
   }
   function cancel(){ gesture = null; if (fur) fur.cancel(); if (strip) strip.cancel(); if (plans) plans.cancel(); paint3d(); }
   function hover(e){
@@ -1359,12 +1376,12 @@ export function createEditor(ctx){
           THREE, PIECES: ctx.PIECES, STOREY: ctx.STOREY || null, FURN: ctx.FURN, recipeOf: ctx.recipeOf, canon: ctx.canon, compass: ctx.compass,
           scene: () => ctx.scene(), camera: () => ctx.camera(), rect: () => viewRect(), screenAt: (F, x, y, z) => screenAt(F, x, y, z), shellGen: () => ctx.shellGen(),
           render: () => ctx.render(), redrawHouse: () => redrawSoon(), currentFloor: () => currentFloor(), setTopFloor: (fid) => ctx.setTopFloor(fid),
-          flySpot: ctx.flySpot, quiet: ctx.quiet, picked: () => (ctx.selected ? ctx.selected() : null), undo: () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); },
+          flySpot: ctx.flySpot, quiet: ctx.quiet, picked: () => (ctx.selected ? ctx.selected() : null), undo: () => { if (draft && !saving && draft.undo()) afterHistory(t("Undone.")); },
           addByHand: () => { pickTool("furnish"); if (fur) fur.openBuild(); },
           stairPiece: (g, fid, label) => (fur ? fur.planStair(g, fid, label) : null), reloadFile: () => ctx.reload(),
           // An undo wrote the file (only with nothing unsaved here): the draft starts again from it.
           fileWritten: (data) => { ctx.saved(data); if (draft) draft.rebase(ctx.file() || DRAFT.ownedOf(data)); if (fur) fur.refresh(); if (strip) strip.refresh(); redrawSoon(); } });
-        bPlans = btn("Plans", "Add data via plans (AI, experimental)", () => pickTool("plans"));
+        bPlans = btn(t("Plans"), t("Add data via plans (AI, experimental)"), () => pickTool("plans"));
         toolSeg.appendChild(bPlans);
         toolSeg.style.flexWrap = "wrap"; toolSeg.style.maxWidth = "100%";   // six tools: on a phone they wrap, never slide under the compass
         paint();
@@ -1392,7 +1409,7 @@ export function createEditor(ctx){
         if (!draft || !draft.dirty) stop();
         else {
           tool = null;
-          hint(DRAW_HINT);
+          hint(DRAW_HINT());
         }
       }
       paint(); sheetFor(); ctx.render();
@@ -1410,7 +1427,7 @@ export function createEditor(ctx){
     refresh(){
       const code = problemCode();
       if (editing && code === "house3d_newer") hint(NOT_SAVED.house3d_newer, true);
-      else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint("Live Aboard's file can be saved again.");
+      else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint(t("Live Aboard's file can be saved again."));
       paint();
     },
     /** The file was read again (changed elsewhere: Settings → Remove all

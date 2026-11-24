@@ -75,6 +75,8 @@ def test_the_builders_are_plain_code() -> None:
     src = (_VIEWS / "live_aboard_furniture.js").read_text(encoding="utf-8")
     assert src.startswith("// PadSpan HA — BLE Room-Presence Tracking for Home Assistant\n// Copyright (C) 2026 Garry Broeckling\n")
     code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("//"))
+    # Its one import is the panel's translator (views/i18n.js: the names and labels; it falls back to the English).
+    code = code.replace("await import(`./i18n.js${new URL(import.meta.url).search}`)", "", 1)
     assert not re.search(r"\bimport\b", code), "no import of any kind"
     assert "document." not in code and "window." not in code, "no DOM: finishes are made as data, not on a canvas"
     for name in ("FURNITURE_KINDS", "FURNITURE", "FIGURE"):

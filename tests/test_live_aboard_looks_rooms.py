@@ -84,6 +84,8 @@ def test_the_look_and_the_rooms_ask_nothing_of_home_assistant() -> None:
     """Pure rules and elements: no service call, no websocket, no three.js."""
     for name in ("live_aboard_looks.js", "live_aboard_rooms.js"):
         code = "\n".join(ln for ln in _js(_VIEWS / name).splitlines() if not ln.lstrip().startswith(("//", "*", "/*")))
+        # Its one import is the panel's translator (views/i18n.js: its words, nothing of Home Assistant).
+        code = code.replace("await import(`./i18n.js${new URL(import.meta.url).search}`)", "", 1)
         for word in ("callService", "callWS", "import(", "THREE"):
             assert word not in code, (name, word)
 
