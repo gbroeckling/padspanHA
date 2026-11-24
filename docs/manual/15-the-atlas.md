@@ -137,8 +137,8 @@ An administrator changes the wake-up and the curve. The sun curve is adapted fro
 
 - **Showcase**: 20 themes for the whole map (colour, room edges, glow and light pools together).
   Pick one in the Atlas toolbar under **Presentation**.
-- **Automorph**: a soft glow from a fixture out into its room, in a choice of styles (toolbar →
-  Automorph).
+- **Automorph**: a soft glow drawn on the map from a fixture out into its room, in a choice of styles
+  (toolbar → Automorph). It changes the map's look, not the lights.
 - **The presets bar** saves a whole look (theme, Automorph style, and if you like floor, spacing and
   layout) under a name, and **Apply** brings it back.
 - **Whole house presets** remembers the house itself: **Set** keeps every light's and fan's state

@@ -151,8 +151,9 @@ Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adap
 
 - **Showcase**: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
   zusammen). Wähl eines in der Werkzeugleiste des Atlas unter **Presentation**.
-- **Automorph**: ein weicher Schein von einer Leuchte hinaus in ihren Raum, in verschiedenen Stilen
-  zur Wahl (Werkzeugleiste → Automorph).
+- **Automorph**: ein weicher Schein, auf der Karte von einer Leuchte hinaus in ihren Raum gezeichnet,
+  in verschiedenen Stilen zur Wahl (Werkzeugleiste → Automorph). Er ändert das Aussehen der Karte,
+  nicht die Lichter.
 - **Die Presets-Leiste** speichert einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
   Etage, Abstand und Anordnung) unter einem Namen, und **Apply** holt ihn zurück.
 - **Whole house presets** merkt sich das Haus selbst: **Set** hält den Zustand jedes Lichts und

@@ -455,8 +455,8 @@
    "de": "Aufblinken und Ausblenden bei Bewegung, angeglichen an die Haltezeit jedes Sensors"
   },
   {
-   "en": "<b>Automorph</b> — a soft aura from each fixture into its room",
-   "de": "<b>Automorph</b>: ein weicher Lichtschein von jeder Leuchte in ihren Raum"
+   "en": "<b>Automorph</b> — a soft aura drawn on the map from each fixture into its room",
+   "de": "<b>Automorph</b>: ein weicher Lichtschein, auf der Karte von jeder Leuchte in ihren Raum gezeichnet"
   },
   {
    "en": "<b>Showcase</b> presentation mode, now with 20 selectable themes <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">— see them all <span class=\"pill soon\">New</span></a>",
