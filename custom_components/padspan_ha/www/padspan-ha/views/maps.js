@@ -10059,7 +10059,7 @@ function _lightsTourSteps(paid){
       body: "Click a light in the list below the map (or hold one still on the map itself) to select it. A panel opens underneath with Shape, size and rotation. Pick the glyph that matches the real fixture, or leave it on Auto for PadSpan's own guess.",
       find: (wrap) => _lightsTourFindTable(wrap) }] : []),
     { title: "Fans, motion, temperature — and WLED",
-      body: "The chips above the map pick one kind of device at a time and dim the rest: All, Lights, Strips, Fans, Motion, Temps, Humidity, Air, Locks, Doors/Windows and Emergency. Only the kinds your house has appear, each with its count. "
+      body: "The chips above the map pick one kind of device at a time and dim the rest: All, Lights, Strips, Fans, Motion, Temps, Humidity, Air, Locks, Doors/Windows, Emergency and Wi-Fi (access points, with UniFi Utopia). Only the kinds your house has appear, each with its count. "
         + (paid ? "A strip with effects (WLED or similar) gets its own colour and effect controls: hold it, on the map or in the sidebar, to open them."
           : "A strip with effects (WLED or similar) gets its own colour and effect controls with a key."),
       find: (wrap) => wrap.querySelector(".lv-layerbar") },
