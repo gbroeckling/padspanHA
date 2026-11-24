@@ -75,6 +75,9 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "training": ("views/training.js",),
     "training2": ("views/training.js#training2",),
     "training3": ("views/training.js#training3",),
+    # German first (2026-11-23): Rooms, Traceback, the Atlas and the 3D house. Their nl/fr files are still empty,
+    # so those screens stay English there (tests/test_panel_i18n.py _GERMAN_FIRST).
+    "rooms": ("views/rooms.js",),
 }
 SERVER = "server"
 
