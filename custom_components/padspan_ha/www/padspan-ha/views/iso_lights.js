@@ -6007,11 +6007,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // upper-left light source keeps every room lit from the same place,
         // and the room's own soft centre-glow (see roomGlowIds) rounds it out.
         s+=`<polygon points="${pp}" fill="none" stroke="${THEME.roomEdgeStroke}" stroke-width="4" stroke-linejoin="round" opacity="0.5"/>`;
-        s+=`<polygon points="${pp}" data-role="roomfloor" ${fillOf(THEME.roomFillOpacity)} stroke="${color}" stroke-width="${THEME.roomStrokeWidth}" stroke-opacity="${THEME.roomStrokeOpacity}" stroke-linejoin="round"/>`+tintOf(THEME.roomFillOpacity);
+        s+=`<polygon points="${pp}" ${fillOf(THEME.roomFillOpacity)} stroke="${color}" stroke-width="${THEME.roomStrokeWidth}" stroke-opacity="${THEME.roomStrokeOpacity}" stroke-linejoin="round" data-role="roomfloor"/>`+tintOf(THEME.roomFillOpacity);
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
         s+=`<polygon points="${pp}" fill="url(#pswash)" stroke="none" pointer-events="none"/>`;
       } else {
-        s+=`<polygon points="${pp}" data-role="roomfloor" ${fillOf("0.16")} stroke="${color}" stroke-width="1.6" opacity="1"/>`+tintOf("0.16");
+        s+=`<polygon points="${pp}" ${fillOf("0.16")} stroke="${color}" stroke-width="1.6" opacity="1" data-role="roomfloor"/>`+tintOf("0.16");
         s+=`<polygon points="${pp}" fill="url(#${roomGlowIds.get(color)})" stroke="none" pointer-events="none"/>`;
       }
       // Deferred to labelJobs (see above): the name itself, plus everything
