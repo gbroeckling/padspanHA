@@ -67,8 +67,9 @@ placed device; tick several to set them at once.
 
 A door or window marked on a wall ([chapter 10](10-walls-and-signal-loss.md#doors-and-windows-that-open))
 shows open or shut from its sensor. **Invert**, next to **Delete** in the wall list, flips a sensor
-that reports backwards: if a door shows the wrong state, check that first. A lock on the map locks
-and unlocks with a tap and shows its state.
+that reports backwards: if a door shows the wrong state, check that first. A lock on the map shows
+its state. A tap doesn't turn it: a tap or a hold opens its card, with **Lock** or **Unlock**, and
+**Unlock** asks first.
 
 ## Alarms and the emergency banner
 

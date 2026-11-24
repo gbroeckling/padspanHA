@@ -36,7 +36,7 @@ Mark a door or window on a wall from the Layout tab's wall list (or the Atlas ma
 - **Material** sets attenuation — a steel door blocks a BLE signal harder than a hollow-core one.
 - **Live open/closed state** draws on the map from the linked binary sensor.
 - **Invert** — next to Delete in the wall list — flips the on/off reading for a sensor that reports backwards (some vibration-based door sensors report `state=="on"` as *closed*, not open). If a door on the map seems to show the wrong state, this is the first thing to check.
-- Locks placed on the map behave the same as any other fixture — tap to lock/unlock, held state shown live.
+- Locks placed on the map show their live state. A lock is never turned by a tap on the map: a tap or a hold opens its card, which has **Lock** or **Unlock**, and **Unlock** asks "Unlock {name}?" before anything is sent.
 
 ## Finding a device buried under another
 

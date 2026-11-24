@@ -73,8 +73,9 @@ einzustellen.
 Eine Tür oder ein Fenster, auf einer Wand markiert
 ([Kapitel 10](10-walls-and-signal-loss.md#türen-und-fenster-die-aufgehen)), zeigt nach seinem Sensor
 offen oder zu. **Umkehren**, neben **Löschen** in der Wandliste, dreht einen Sensor um, der verkehrt
-herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte
-schließt mit einem Tippen ab und auf und zeigt seinen Zustand.
+herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte zeigt
+seinen Zustand. Ein Tippen schaltet es nicht: Tippen oder Halten öffnet seine Karte mit **Lock** oder
+**Unlock**, und **Unlock** fragt vorher nach.
 
 ## Alarme und das Notfall-Banner
 
