@@ -4919,7 +4919,7 @@ def _aura_probe(tmp_path, *, state="on", pct=100, style="glow", subtlety=0):
         "  edgeCoreFillOp: num(/fill=\"url\\(#psautomorphduo_(?:on|off)\\)\" fill-opacity=\"([\\d.]+)\" stroke=\"#/),\n"
         "  glossMaxStop: (()=>{const m=/<linearGradient id=\"psglossauto_\\d+\"[^>]*>(?:<stop [^>]+\\/>)+/.exec(svg);"
         " return m?Math.max(...[...m[0].matchAll(/stop-opacity=\"([\\d.]+)\"/g)].map(x=>parseFloat(x[1]))):null;})(),\n"
-        "  roomFillOp: num(/<polygon points=\"[^\"]+\" fill=\"[^\"]+\" fill-opacity=\"([\\d.]+)\" stroke=\"[^\"]+\" stroke-width=\"1.6\" opacity=\"1\"\\/>/),\n"
+        "  roomFillOp: num(/<polygon points=\"[^\"]+\" fill=\"[^\"]+\" fill-opacity=\"([\\d.]+)\" stroke=\"[^\"]+\" stroke-width=\"1.6\" opacity=\"1\"(?: data-role=\"roomfloor\")?\\/>/),\n"
         "  roomGlowCentre: num(/<radialGradient id=\"psroomglow_0\"><stop offset=\"0%\" stop-color=\"[^\"]+\" stop-opacity=\"([\\d.]+)\"/),\n"
         "  bloomCount: (svg.match(/mask=\"url\\(#psautomorphmask\\)\"/g)||[]).length,\n"
         "  rim: (()=>{const m=/fill=\"none\" stroke=\"url\\(#psglossrim\\)\" stroke-opacity=\"([\\d.]+)\" stroke-width=\"([\\d.]+)\"/.exec(svg);"

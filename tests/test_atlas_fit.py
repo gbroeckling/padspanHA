@@ -43,7 +43,7 @@ def fit() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix", ["box:", "best:", "saved:", "judge:", "plate:"])
+@pytest.mark.parametrize("prefix", ["box:", "best:", "saved:", "judge:", "plate:", "edge:"])
 def test_each_part_of_the_rule(fit, prefix) -> None:
     got = {k: v for k, v in fit["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(fit['cases'])[:8]}"
@@ -84,12 +84,13 @@ def test_a_wall_that_asks_arranges_its_own_floors_and_every_other_wall_stacks_th
 def test_the_wall_checks_itself_after_every_drawing_and_never_stays_far_back() -> None:
     lm = _js(_WWW / "views" / "lights_map.js")
     draw = lm[lm.index("  const rebuildISO = () => {"):lm.index("  // Pinch on the drawing zooms about the fingers")]
-    assert "    applyZoom();\n    if (WALL) checkFill();\n" in draw
+    assert "    applyZoom();\n    if (edgecutOn()) edgecut(); else edgecutOff();\n    if (WALL) checkFill();\n" in draw
     check = lm[lm.index("  const checkFill = () => {"):lm.index("  let drawnWhole = false;")]
     # judged against the size THIS stage allows, at 100%, for the whole house, and never over a person's own zoom
     assert "FIT.bestLayout(shapes, sw, sh)" in check and "FIT.shortfall(drawnAt100(), best && best.px)" in check
     # and only over an arrangement the wall made itself: a saved stack is measured and left alone
-    assert "if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand) {" in check
+    # and never on a screen with Edgecut ticked, which goes further in by its own rule
+    assert "if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand && !edgecutOn()) {" in check
     assert "if (h3 && la3dOn())" in check or "(h3 && la3dOn())" in check          # not while the 3D house shows
     for key in ("fillRatio", "fillLow", "fillCloser", "fillZoom", "fitted"):
         assert f"isoDiv.dataset.{key} = " in check, key

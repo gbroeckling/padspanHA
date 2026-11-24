@@ -105,6 +105,10 @@ export const SHOW_ITEMS = [
   // The flat Map's (lights_map.js focusAlone): with one floor chosen it is drawn alone, as big as the screen,
   // unless this is ticked. Off unless ticked (dflt: false, the house's own for every house).
   { key: "other_floors", group: "house", get words() { return t("Other floors, faded"); }, get hint() { return t("On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen"); }, flat: true, dflt: false },
+  // Edgecut (the owner, 2026-11-24): the rooms fill the screen edge to edge, the house running off it the other way (the
+  // flat Map, lights_map.js and atlas_fit.edgeZoom; the 3D look, live_aboard_edgecut.js, and its Views ▾). Lights and
+  // buttons out at an edge are cut with it. Per screen, off unless ticked.
+  { key: "edgecut", group: "house", get words() { return t("Edgecut"); }, get hint() { return t("The rooms fill the screen edge to edge: the house's outer edges, and on a stack of floors the top and bottom ones, run off the screen"); }, flat: true, dflt: false },
   // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
   // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).
   { key: "glass_walls", group: "house", get words() { return t("Glass walls"); }, get hint() { return t("The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)"); }, dflt: false },

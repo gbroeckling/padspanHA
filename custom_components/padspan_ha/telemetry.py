@@ -567,6 +567,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
     "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_show",                             # Live Aboard's ⋯ list: what this screen shows
+    "live_aboard_edgecut",                          # Live Aboard's Edgecut: the rooms fill the screen, every button on it
     "live_aboard_looks",                            # Live Aboard's Views ▾ → Look: this screen's look, and one after sunset
     "live_aboard_rooms",                            # Live Aboard's room chips and a room's panel beside the house
     "scene_row",                                    # the scene row under the Atlas and in Live Aboard
@@ -726,7 +727,7 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "lights", "glow", "strips", "fans", "scenes", "light_taps", "light_buttons", "room_switch", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
-    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "room_row", "floor_outlines", "other_floors", "glass_walls", "roof",
+    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "room_row", "floor_outlines", "other_floors", "edgecut", "glass_walls", "roof",
     "rain", "theme", "forest",
 )
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(

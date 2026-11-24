@@ -158,4 +158,32 @@ for (const [name, m] of houses) {
   check("plate: off a wall the box keeps the 760 canvas", classic[0] <= 0 && classic[0] + classic[2] >= ISO.ISO.W, classic);
 }
 
+// ── Edgecut: the rooms cover the stage edge to edge; the house runs off the screen the other way ──
+{
+  const box = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
+  const stage = box(0, 0, 1000, 600);
+  // A tall stack of floors on a wide wall: the width decides, the top and bottom floors run off.
+  const stack = box(300, 0, 700, 600);
+  const zs = FIT.edgeZoom(1, stack, stage);
+  check("edge: a tall stack fills the width, its top and bottom cut", zs === 2.5 && 400 * zs >= 1000 && 600 * zs > 600, zs);
+  // A long low house on the same wall: the height decides, its ends run off left and right.
+  const low = box(100, 200, 900, 400);
+  const zl = FIT.edgeZoom(1, low, stage);
+  check("edge: a long low house fills the height, its ends cut", zl === 3 && 800 * zl > 1000 && 200 * zl >= 600, zl);
+  // No empty ground either way at that zoom.
+  const covers = (r, z) => (r.x1 - r.x0) * z >= 1000 - 1 && (r.y1 - r.y0) * z >= 600 - 1;
+  check("edge: at its zoom the rooms cover the whole stage", covers(stack, zs) && covers(low, zl));
+  // Measured already zoomed in: the same zoom.
+  const s2 = (b) => box(b.x0 * 2, b.y0 * 2, b.x1 * 2, b.y1 * 2);
+  check("edge: measured zoomed in, the same zoom", FIT.edgeZoom(2, s2(stack), stage) === zs);
+  // Never below the whole house, never past the cap, nothing measurable: 100%.
+  check("edge: never below 100%", FIT.edgeZoom(1, box(-500, -500, 1500, 1100), stage) === 1);
+  check("edge: never past the cap", FIT.edgeZoom(1, box(495, 295, 505, 305), stage) === FIT.EDGE.max);
+  check("edge: nothing measurable, 100%", FIT.edgeZoom(1, null, stage) === 1 && FIT.edgeZoom(1, stack, box(0, 0, 0, 0)) === 1);
+  // The rooms' box from their outlines.
+  check("edge: the rooms' box is the box round their outlines",
+    JSON.stringify(FIT.roomsBox([[[100, 150], [500, 150], [500, 450]], [[500, 150], [900, 450], [600, 300]]])) === JSON.stringify(box(100, 150, 900, 450))
+    && FIT.roomsBox([]) === null);
+}
+
 console.log(JSON.stringify({ cases, failures }));

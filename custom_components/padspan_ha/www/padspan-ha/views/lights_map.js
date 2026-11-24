@@ -4149,6 +4149,9 @@ export function buildLightsMapCard(hostIn){
   // Its screen: Live Aboard's slot, else (Live Aboard off) the Atlas tab's own (host.screen).
   const showSlot = () => (h3 ? h3.slot : host.screen && host.screen.slot) || null;
   const flatShow = (key) => screenShowLine(showSlot(), key);
+  // Edgecut (⋯ list, per screen): the rooms fill the screen, as far in as every button stays whole on it (edgecutFit).
+  // A display screen's (the Atlas tab, the sidebar, a wall), never the builder's, which edits the whole house.
+  const edgecutOn = () => DISPLAY && flatShow("edgecut") === true;
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
@@ -4540,7 +4543,7 @@ export function buildLightsMapCard(hostIn){
       } catch (_) { best = null; }
       const short = FIT.shortfall(drawnAt100(), best && best.px);
       let closer = isoDiv.dataset.fillCloser === "1";
-      if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand) {
+      if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand && !edgecutOn()) {
         const z = Math.min(2.5, Math.round((0.98 / short.ratio) * 100) / 100);
         if (z > 1.05) {
           view.zoom = z;
@@ -4564,6 +4567,58 @@ export function buildLightsMapCard(hostIn){
       isoDiv.dataset.fillZoom = String(view.zoom || 1);
       isoDiv.dataset.fitted = view.fitted ? `${view.floorGap}/${view.horizGap}` : "";
     });
+  };
+
+  // Edgecut (⋯ list, per screen, off unless ticked; the owner, 2026-11-24: "Cut the edges left to right. Minimize empty
+  // space"; the floors at the top and bottom of a stack may be cut off). After every drawing: zoomed until the rooms
+  // cover the stage edge to edge both ways (atlas_fit.edgeZoom), centred on them. No ground beside the house; it runs
+  // off the screen the other way. At the same zoom as last time nothing moves, so a drag to another floor is kept
+  // (the card is drawn again on every poll). Zoomed by hand, the hand wins until 100%. In memory only, as the wall's
+  // move in is.
+  let edgeAsked = false;
+  const unionOf = (nodes) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of nodes) {
+      const r = n.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0)) continue;
+      x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top); x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom);
+    }
+    return Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
+  };
+  // The rooms as drawn (iso_lights' data-role="roomfloor" outlines), in screen pixels; the floor plates if none.
+  const edgeRooms = () => FIT.roomsBox([...isoDiv.querySelectorAll('polygon[data-role="roomfloor"]')].map(pg => {
+    const m = pg.getScreenCTM && pg.getScreenCTM();
+    return m && pg.points ? [...pg.points].map(q => [m.a * q.x + m.c * q.y + m.e, m.b * q.x + m.d * q.y + m.f]) : null;
+  }).filter(Boolean)) || unionOf(isoDiv.querySelectorAll('g[data-role="floorslab"]'));
+  const edgecut = () => {
+    if (edgeAsked) return;
+    edgeAsked = true;
+    const later = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f) => setTimeout(f, 50);
+    later(() => {
+      edgeAsked = false;
+      if (!FIT || !edgecutOn() || view.zoomByHand || !isoDiv.isConnected || (h3 && la3dOn())) return;
+      const st = stageOnScreen(), R = edgeRooms();
+      if (!R || !(st.x1 > st.x0) || !(st.y1 > st.y0)) return;
+      const z = FIT.edgeZoom(view.zoom || 1, R, st);
+      if (!(view.edgecut && Math.abs(z - (view.zoom || 1)) < 0.005)) {
+        view.zoom = z; applyZoom(false);
+        const R2 = edgeRooms();
+        if (R2) {
+          isoDiv.scrollLeft += (R2.x0 + R2.x1 - st.x0 - st.x1) / 2;
+          isoDiv.scrollTop += (R2.y0 + R2.y1 - st.y0 - st.y1) / 2;
+        }
+        view.edgecut = true;
+      }
+      isoDiv.dataset.edgecut = String(view.zoom || 1);
+    });
+  };
+  // Unticked (here, in the 3D look's ⋯ list or Views ▾, or by the list's reset): the whole house again, once.
+  const edgecutOff = () => {
+    if (!view.edgecut) return;
+    view.edgecut = false;
+    delete isoDiv.dataset.edgecut;
+    view.zoom = 1; applyZoom(false);
+    isoDiv.scrollLeft = 0; isoDiv.scrollTop = 0;
   };
 
   let drawnWhole = false;   // the last rebuildISO drew a new <svg> (not patched)
@@ -4658,6 +4713,7 @@ export function buildLightsMapCard(hostIn){
     mountForest(svgStr);
     mountWeather(svgStr);
     applyZoom();
+    if (edgecutOn()) edgecut(); else edgecutOff();
     if (WALL) checkFill();
     // The sidebar's flat map follows this screen's ⋯ "Tap a light to switch it" (wireUseSurface).
     isoDiv._psLightTaps = DISPLAY ? () => flatShow("light_taps") !== false : null;
@@ -5587,7 +5643,7 @@ export function buildLightsMapCard(hostIn){
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
-            lines: () => ["light_taps", "other_floors", ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
+            lines: () => ["light_taps", "other_floors", "edgecut", ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
             ready: () => {
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
@@ -5603,6 +5659,8 @@ export function buildLightsMapCard(hostIn){
             },
             // A tap reads its line when it lands; the floors and the scene row are drawn again.
             changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; }
+              // Edgecut ticked: the hand's zoom is let go (the drawing below fits it; unticked, it goes back to the whole house).
+              if ((key === "edgecut" || key === null) && edgecutOn()) view.zoomByHand = false;
               // "Furniture from scans" ticked: its reader is fetched now, and the map drawn again when it arrives.
               if (key === "scan_furniture" && scanOn()) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
               if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });

@@ -224,3 +224,29 @@ export function shortfall(drawnPx, bestPx) {
   const ratio = drawnPx / bestPx;
   return { ratio, low: ratio < FAR_BACK, known: true };
 }
+
+/**
+ * Edgecut (a screen's ⋯ list, off unless ticked; the owner, 2026-11-24: "Cut the edges left to right. Minimize empty
+ * space"; "In the multi floor view, it is assumed the floors at the top and bottom can be cut off"). The zoom at
+ * which the rooms cover the whole stage, edge to edge both ways: no empty ground shows beside the house, and the
+ * house runs off the screen the other way (a tall stack of floors on a wide wall loses its top and bottom floors'
+ * far parts). Boxes {x0,y0,x1,y1} in screen pixels, measured at zoom z0: the rooms' and the stage's. Never below 100%
+ * (the whole house), never past EDGE.max; floored to a hundredth, so the same screen gives the same zoom every drawing.
+ */
+export const EDGE = { max: 4 };
+export function edgeZoom(z0, rooms, stage) {
+  const w = (b) => b.x1 - b.x0, h = (b) => b.y1 - b.y0;
+  if (!(z0 > 0) || !rooms || !stage || !(w(rooms) > 0) || !(h(rooms) > 0) || !(w(stage) > 0) || !(h(stage) > 0)) return 1;
+  const kCover = Math.max(w(stage) / w(rooms), h(stage) / h(rooms));
+  return Math.max(1, Math.min(EDGE.max, Math.floor(z0 * kCover * 100) / 100));
+}
+
+/** The box round some rooms' outlines ([[x, y], ...] each, screen pixels), or null. */
+export function roomsBox(polys) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const poly of polys || []) for (const [x, y] of poly || []) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+  }
+  return Number.isFinite(x0) && x1 > x0 && y1 > y0 ? { x0, y0, x1, y1 } : null;
+}
