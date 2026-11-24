@@ -92,7 +92,7 @@ thermostat and light switches.
 - Line up floors in 3D Stack: each plan keeps its own place in metres (there is no master map)
 
 ### Calibration
-- Walk-around fingerprint collection with a **standalone phone-friendly panel**
+- Walk-around fingerprint collection from the panel's **Calibration** screen, on a phone, tablet or computer
 - k-NN fingerprint matching + OLS path-loss model fitting per scanner
 - Coverage heatmap with guided "walk here next" target suggestions
 - Leave-one-out cross-validation for model quality scoring
@@ -161,7 +161,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual
 - **Sample mode** — fully functional demo with synthetic data, no hardware needed
-- Standalone calibration panel optimized for phone use during walk-around collection
+- Calibration is a screen of the main panel that you can open on a phone during walk-around collection
 - **NVR-style movement playback** — replay tracked device movement on the 3D map
 
 ### Experimental Features (Settings → Features)
