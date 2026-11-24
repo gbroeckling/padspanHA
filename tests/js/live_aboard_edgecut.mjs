@@ -104,7 +104,7 @@ function filled(floors, cam, aspect, n = 41, m = 31){
   return hit / (n * m);
 }
 /** Do the rooms (their floors and wall tops) reach past every edge of the view, as the camera sees them? The rule
- *  (Garry, 2026-11-24: "Cut the edges left to right"): the house spans the view left to right and top to bottom. */
+ *  (the owner, 2026-11-24: "Cut the edges left to right"): the house spans the view left to right and top to bottom. */
 function reaches(floors, cam, aspect){
   const { dir, right, up } = EDGE.cameraAxes(cam.theta, cam.phi), eye = cam.target.map((v, i) => v + dir[i] * cam.radius);
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];

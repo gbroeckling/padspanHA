@@ -4488,7 +4488,7 @@ function createSlot(slotKey){
     requestRender();
   }
   // ── Edgecut: the rooms fill the screen (live_aboard_edgecut.js) ──────────
-  // Garry, 2026-11-24: "zoom in so almost all the screen shows rooms", then
+  // The owner, 2026-11-24: "zoom in so almost all the screen shows rooms", then
   // "Cut the edges left to right. Minimize empty space": on, the camera comes
   // in until the rooms fill the view edge to edge (no background at any
   // side), the house's outer edges cut off where it overflows, never farther

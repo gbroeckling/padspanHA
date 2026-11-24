@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """Edgecut in the 3D house (views/live_aboard_edgecut.js, inside live_aboard.js).
 
-Garry, 2026-11-24: the rooms fill the screen edge to edge, the house's outer
+The owner, 2026-11-24: the rooms fill the screen edge to edge, the house's outer
 edges cut off where it overflows; then "Cut the edges left to right. Minimize
 empty space": a light or a button out at an edge does not hold it back.
 

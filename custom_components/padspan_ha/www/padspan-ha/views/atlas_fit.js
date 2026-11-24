@@ -226,7 +226,7 @@ export function shortfall(drawnPx, bestPx) {
 }
 
 /**
- * Edgecut (a screen's ⋯ list, off unless ticked; Garry 2026-11-24: "Cut the edges left to right. Minimize empty
+ * Edgecut (a screen's ⋯ list, off unless ticked; the owner, 2026-11-24: "Cut the edges left to right. Minimize empty
  * space"; "In the multi floor view, it is assumed the floors at the top and bottom can be cut off"). The zoom at
  * which the rooms cover the whole stage, edge to edge both ways: no empty ground shows beside the house, and the
  * house runs off the screen the other way (a tall stack of floors on a wide wall loses its top and bottom floors'

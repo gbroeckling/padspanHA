@@ -3,7 +3,7 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// Edgecut in the 3D house (Garry, 2026-11-24: "zoom in so almost all the
+// Edgecut in the 3D house (the owner, 2026-11-24: "zoom in so almost all the
 // screen shows rooms"; then, the same day, "Cut the edges left to right.
 // Minimize empty space": the rooms fill the screen edge to edge, the house's
 // outer edges cut off in whichever direction overflows; a light or a button

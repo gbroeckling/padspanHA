@@ -4567,7 +4567,7 @@ export function buildLightsMapCard(hostIn){
     });
   };
 
-  // Edgecut (⋯ list, per screen, off unless ticked; Garry 2026-11-24: "Cut the edges left to right. Minimize empty
+  // Edgecut (⋯ list, per screen, off unless ticked; the owner, 2026-11-24: "Cut the edges left to right. Minimize empty
   // space"; the floors at the top and bottom of a stack may be cut off). After every drawing: zoomed until the rooms
   // cover the stage edge to edge both ways (atlas_fit.edgeZoom), centred on them. No ground beside the house; it runs
   // off the screen the other way. At the same zoom as last time nothing moves, so a drag to another floor is kept
