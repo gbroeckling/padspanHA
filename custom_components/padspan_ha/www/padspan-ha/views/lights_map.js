@@ -5146,6 +5146,8 @@ export function buildLightsMapCard(hostIn){
   // fit, and the middle says its zoom against that fit.
   const zoomMid = el("button", { title: t("Reset zoom"), onclick: () => {
     if (la3dDo(s => s.zoom("fit"))) return;
+    // Edgecut on (the owner, 2026-11-24: moved, then Fit, and it forgot Edgecut): its own frame again, centred.
+    if (edgecutOn()) { view.zoomByHand = false; view.edgecut = false; edgecut(); return; }
     view.zoom = 1.0; applyZoom(true);
   } }, "100%");
   ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [

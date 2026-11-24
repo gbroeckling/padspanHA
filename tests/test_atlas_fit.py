@@ -117,3 +117,16 @@ def test_the_tool_that_checks_a_wall_reads_what_the_page_says() -> None:
     src = tool.read_text(encoding="utf-8")
     assert "[data-fill-ratio]" in src and "padspan-lights?kiosk=1" in src and "page=atlas&kiosk=1" in src
     assert "return 1 if bad else 0" in src
+
+
+def test_edgecut_100_percent_goes_back_to_edgecut_not_the_whole_house() -> None:
+    """The owner, 2026-11-24: moved the map, pressed Fit, and "it seems to completely forget it's in edgecut mode".
+    With Edgecut ticked, 100% lets go of the hand's zoom and pan and frames Edgecut again, centred; without it, 100%."""
+    lm = _js(_WWW / "views" / "lights_map.js")
+    mid = lm[lm.index('const zoomMid = el("button"'):lm.index('}, "100%");')]
+    assert "if (edgecutOn()) { view.zoomByHand = false; view.edgecut = false; edgecut(); return; }" in mid
+    assert mid.index("edgecutOn()") < mid.index("view.zoom = 1.0; applyZoom(true);")
+    la = _js(_WWW / "views" / "live_aboard.js")
+    assert "function angle(n){\n    preset(n, true);\n    if (edgecutOn()) edgeFrame(true);\n  }" in la
+    assert 'if (how === "fit") { angle("fit"); return true; }' in la
+    assert "edgeLeave(); preset(" not in la                           # an angle no longer turns it off
