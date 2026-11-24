@@ -371,10 +371,14 @@ den Wänden. An jeder Stelle steht er etwa 20 Sekunden still, während PadSpan d
 (etwas länger, wenn zu wenige Empfänger ihn gehört haben, und die Stelle wird übersprungen, wenn es
 dann immer noch zu wenige sind), und die Stelle kommt sofort in die Kalibrierung. Vor jeder Fahrt
 wird die Kalibrierung gesichert. <b>Stopp</b> beendet die Fahrt und schickt den Roboter zurück zur
-Station; das tun auch das Ende der Fahrt, ein Problem oder zwei Stunden. <b>Diese Fahrt rückgängig
-machen</b> nimmt genau die Punkte heraus, die diese Fahrt hinzugefügt hat, und keinen deiner eigenen.
-Eine Fahrt, die beim Neustart von Home Assistant lief, ist einfach vorbei; ihre Punkte bleiben und
-lassen sich weiterhin rückgängig machen.</p>
+Station; das tun auch das Ende der Fahrt, ein Problem oder zwei Stunden. Fährt der Roboter von sich
+aus zur Station oder fällt sein Akku unter 20 %, endet die Fahrt dort, und PadSpan schickt ihm
+nichts mehr; unter 20 % beginnt keine Fahrt. <b>Diese Fahrt rückgängig machen</b> nimmt genau die
+Punkte heraus, die diese Fahrt hinzugefügt hat, und keinen deiner eigenen; jede frühere Fahrt,
+deren Punkte noch da sind, steht mit ihrem eigenen <b>Rückgängig</b> auf der Karte. Eine Fahrt, die
+beim Neustart von Home Assistant lief oder als PadSpan neu geladen oder eine Sicherung
+wiederhergestellt wurde, ist vorbei (der Roboter wird zur Station geschickt); ihre Punkte bleiben
+und lassen sich weiterhin rückgängig machen.</p>
 <p>Die Punkte des Roboters zählen als PadSpans eigene, wie die automatischen Punkte eines
 angehefteten Beacons, nicht als deine. Nur das Rückgängigmachen einer Fahrt entfernt sie: die
 Aufräumarbeiten der Beacons rühren sie nie an.</p>
@@ -382,8 +386,10 @@ Aufräumarbeiten der Beacons rühren sie nie an.</p>
 gespeichert haben (ohne weitere Fahrt), berechnet sie, wo jeder Empfänger wirklich steht, und
 listet die auf, die an der falschen Stelle oder auf der falschen Etage platziert scheinen, mit
 der Angabe, wie sicher das ist, und einem Link zur Platzierung dieses Empfängers. Ein Empfänger
-muss an sechs Stellen oder mehr gehört worden sein, über 3 m verteilt; die anderen stehen unter zu
+muss an sechs Stellen oder mehr gehört worden sein, über 3 m verteilt und rund um ihn, denn eine
+Fahrt durch einen Raum sagt nichts über einen Empfänger im nächsten; die anderen stehen unter zu
 wenigen Messwerten. Sie verschiebt nie etwas.</p>
+<p>Auf einem Wandbildschirm zeigt die Karte nur, was der Roboter gerade tut, und seinen Akku.</p>
 <p>An jeder Stelle meldet der Roboter auch sein eigenes WLAN-Signal. PadSpan behält die letzten 2.000
 davon für die WLAN-Abdeckungskarte, und andere Integrationen können sie lesen.</p>
 <h2 id="mehr-als-eine-etage-sie-ausrichten">Mehr als eine Etage: sie ausrichten</h2>

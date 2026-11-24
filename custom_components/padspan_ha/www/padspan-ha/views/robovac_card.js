@@ -63,7 +63,8 @@ const STATUS = {
 // How a run ended.
 const ENDED = {
   finished: () => t("finished"), stopped: () => t("stopped"), failed: () => t("ended by a problem"),
-  time_limit: () => t("stopped at the two-hour limit"), interrupted: () => t("ended by a restart"),
+  time_limit: () => t("stopped at the two-hour limit"), interrupted: () => t("ended when PadSpan restarted"),
+  robot_home: () => t("ended: the robot went back to its dock"), low_battery: () => t("ended: the robot's battery ran low"),
   running: () => t("running"),
 };
 // A refusal's code (vacuum_run.py RunRefused, RobotError) in words.
@@ -80,6 +81,8 @@ const REFUSED = {
   robot_error: () => t("The robot reported an error."),
   not_found: () => t("That run is no longer in the list."),
   undone: () => t("That run was undone already."),
+  low_battery: () => t("The robot's battery is low: let it charge first."),
+  bad_login: () => t("That address or login cannot be used: put the user and password in their own boxes, without a colon in the user name."),
 };
 const words = (code, text) => (REFUSED[code] ? REFUSED[code]() : String(text || code || ""));
 const errWords = (e) => words(e && e.code, e && (e.message || e));
@@ -110,6 +113,8 @@ export function openRobovacCard(api, info){
   closeRobovacCard();
   const hass = api && api.hass;
   const admin = !!(hass && hass.user && hass.user.is_admin);
+  // A wall (?kiosk=1): the robot's state only. Nothing on it may lead away or change the house (review, 2026-11-24).
+  const wall = !!(api && api.kiosk);
   const toast = (m, bad) => { try { if (api && api.toast) api.toast(m, bad); } catch (_) { /* the host's */ } };
   const call = (type, data) => hass.callWS({ type: `padspan_ha/${type}`, ...(data || {}) });
   const mk = (tag, style, text) => { const n = document.createElement(tag); if (style) n.style.cssText = style; if (text !== undefined) n.textContent = text; return n; };
@@ -154,6 +159,9 @@ export function openRobovacCard(api, info){
 
   async function refresh(rooms){
     if (!admin || _open !== o) return;
+    // The panel left (the card's page gone), or the page hidden: no reading the robot for nobody.
+    if (overlay.isConnected === false) { closeRobovacCard(); return; }
+    if (typeof document !== "undefined" && document.hidden) { o.timer = setTimeout(() => refresh(rooms), POLL_MS); return; }
     try {
       const s = await call("vacuum_robot_status", rooms ? { rooms: true } : {});
       if (_open !== o) return;
@@ -195,6 +203,11 @@ export function openRobovacCard(api, info){
       const said = rs.status ? (STATUS[rs.status] ? STATUS[rs.status]() : rs.status) : t("Status unknown");
       const bat = typeof rs.battery === "number" ? " · " + t("battery {n} %", { n: rs.battery }) + (rs.charging ? " " + t("(charging)") : "") : "";
       sheet.appendChild(mk("div", "font-size:14px;font-weight:700;margin-top:8px", said + bat));
+      if (wall) {
+        if (running) sheet.appendChild(mk("div", C.muted, t("Running in {room}: spot {n} of {total}, {added} added, {skipped} skipped",
+          { room: s.run.at_room || "…", n: s.run.spot, total: s.run.spots, added: s.run.added, skipped: s.run.skipped })));
+        return;
+      }
       const row = mk("div", C.row);
       row.append(
         button(t("Start"), doing(() => call("vacuum_robot_control", { action: "start" })), false, running),
@@ -202,6 +215,7 @@ export function openRobovacCard(api, info){
         button(t("Dock"), doing(() => call("vacuum_robot_control", { action: "home" })), false, running));
       sheet.appendChild(row);
     }
+    if (wall) return;
     // Valetudo over MQTT, if the link names its entity: Home Assistant's own card for it, nothing more.
     const ent = s.link && s.link.vacuum_entity;
     if (ent) {
@@ -283,7 +297,7 @@ export function openRobovacCard(api, info){
       }));
     }
 
-    // The last run, and its undo.
+    // The last run, and every run whose points can still be undone, newest first (each undoable).
     const last = (s.runs || []).find(r => r.state !== "running");
     if (last) {
       const when = String(last.started || "").slice(0, 16).replace("T", " ");
@@ -293,13 +307,18 @@ export function openRobovacCard(api, info){
       if (last.error) sheet.appendChild(mk("div", C.warn, words(last.error)));
       if (last.home_failed) sheet.appendChild(mk("div", C.warn, t("It could not be sent back to its dock: send it there yourself.")));
       if (last.undone) sheet.appendChild(mk("div", C.muted, t("Undone: its points were taken out of calibration.")));
-      else if (last.points_kept > 0) {
-        sheet.appendChild(button(t("Undo this run"), doing(async () => {
-          if (!confirm(tn(last.points_kept, "Remove the {n} point this run added? Every other calibration point stays as it is.",
-            "Remove the {n} points this run added? Every other calibration point stays as it is."))) return null;
-          return call("vacuum_run_undo", { run_id: last.id });
-        }, (r) => (r ? tn(r.removed, "Removed {n} point", "Removed {n} points") : null))));
-      }
+    }
+    const undoable = (s.runs || []).filter(r => r.state !== "running" && !r.undone && r.points_kept > 0);
+    for (const r of undoable) {
+      const row = mk("div", C.row), when = String(r.started || "").slice(0, 16).replace("T", " ");
+      row.appendChild(mk("span", "font-size:12px", tn(r.points_kept, "{when} UTC, {rooms}: {n} point", "{when} UTC, {rooms}: {n} points",
+        { when, rooms: r.room || (r.rooms || []).join(", ") || t("All rooms") })));
+      row.appendChild(button(r === last ? t("Undo this run") : t("Undo"), doing(async () => {
+        if (!confirm(tn(r.points_kept, "Remove the {n} point this run added? Every other calibration point stays as it is.",
+          "Remove the {n} points this run added? Every other calibration point stays as it is."))) return null;
+        return call("vacuum_run_undo", { run_id: r.id });
+      }, (res) => (res ? tn(res.removed, "Removed {n} point", "Removed {n} points") : null))));
+      sheet.appendChild(row);
     }
   }
 

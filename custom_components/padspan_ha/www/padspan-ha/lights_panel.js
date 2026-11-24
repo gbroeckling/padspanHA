@@ -893,6 +893,8 @@ class PadSpanLightsApp extends HTMLElement {
     const controlsFor=hasControlCard;
     const api={
       hass:this._hass, lightsByEid, lights, controlsFor,
+      // A wall (?kiosk=1): cards opened from the map (the robot's) leave nothing to navigate away to.
+      kiosk:this._kiosk(),
       // Whether this screen shows people (Show people, and its ⋯ People line): the room sheet names no one otherwise.
       peopleShown: peopleShownOn("atlas", this.state._house3d, this.state._tier),
       toggle:(eid)=>this._toggle(eid),

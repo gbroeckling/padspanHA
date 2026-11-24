@@ -231,5 +231,7 @@
 "Open screens is off. Turn it on in Settings → Atlas → Open screens.": "„Offene Bildschirme“ ist aus. Schalte es ein unter Einstellungen → Atlas → Offene Bildschirme.",
 "Renaming needs the screen and its new name.": "Zum Umbenennen braucht es den Bildschirm und seinen neuen Namen.",
 "An announcement needs a message.": "Eine Durchsage braucht eine Nachricht.",
-"A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "Der Präsenzsensor einer Teilzone kann keiner von PadSpans eigenen Sensoren sein."
+"A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "Der Präsenzsensor einer Teilzone kann keiner von PadSpans eigenen Sensoren sein.",
+"Put the user and password in their own boxes, not in the address": "Trag Benutzer und Passwort in ihre eigenen Felder ein, nicht in die Adresse",
+"A Valetudo user name cannot contain a colon": "Ein Valetudo-Benutzername darf keinen Doppelpunkt enthalten"
 }

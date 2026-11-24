@@ -29,6 +29,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+from urllib.parse import urlsplit
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
@@ -344,21 +345,28 @@ async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) ->
         "tag": {"address": tag, **vr.tag_heard(hass, tag)},
         "state": None,
         "run": vr.run_for_client(eng.current) if eng.current and eng.running else None,
-        "runs": [vr.run_for_client(r) for r in reversed((vs.data.get("runs") or [])[-5:])],
+        # The last run and every run whose points can still be undone, newest first.
+        "runs": [vr.run_for_client(r) for r in vr.runs_for_card(vs.data.get("runs") or [])],
         "live": vi.live_position(hass),
     }
+
+    def failed(exc: Exception) -> dict:
+        if isinstance(exc, vr.RobotError):
+            return {"error": exc.code, "text": str(exc)}
+        return {"error": "address_refused" if isinstance(exc, AddressRefused) else "refused", "text": str(exc)}
+
     if base:
+        # The state and the rooms apart: a map that cannot be read never hides the robot's state.
         try:
             out["state"] = vr.robot_state(await vr.robot_call(hass, base, "GET", vr.ATTRS_PATH, auth=vs.basic_auth()))
-            if rooms:
+        except (vr.RobotError, AddressRefused, vi.VacuumImportError) as exc:
+            out["state"] = failed(exc)
+        if rooms and not (out["state"] or {}).get("error"):
+            try:
                 vmap = await vr.robot_call(hass, base, "GET", vr.MAP_PATH, auth=vs.basic_auth())
                 out["rooms"] = (await hass.async_add_executor_job(vr.plan_spots, vmap, None))["rooms"]
-        except vr.RobotError as exc:
-            out["state"] = {"error": exc.code, "text": str(exc)}
-        except AddressRefused as exc:
-            out["state"] = {"error": "address_refused", "text": str(exc)}
-        except vi.VacuumImportError as exc:
-            out["state"] = {"error": "refused", "text": str(exc)}
+            except (vr.RobotError, AddressRefused, vi.VacuumImportError) as exc:
+                out["rooms_error"] = failed(exc)
     return out
 
 
@@ -392,10 +400,18 @@ async def ws_vacuum_robot_set(hass: HomeAssistant, connection, msg) -> None:
         except vi.VacuumImportError as exc:
             connection.send_error(msg["id"], "invalid", str(exc))
             return
+        if "@" in urlsplit(url).netloc:
+            # A login in the address would ride every request in the clear and in logs: it has its own boxes.
+            connection.send_error(msg["id"], "bad_login", "Put the user and password in their own boxes, not in the address")
+            return
         vs.data.setdefault("robot", {})["url"] = url
         await vs.async_save()
     if "user" in msg or "password" in msg:
         user = msg.get("user", vs.auth.get("user") or "").strip()
+        if ":" in user:
+            # Basic auth joins user and password with ":": one in the user name cannot be sent.
+            connection.send_error(msg["id"], "bad_login", "A Valetudo user name cannot contain a colon")
+            return
         await vs.async_save_auth(user, msg.get("password", vs.auth.get("password") or "") if user else "")
     connection.send_result(msg["id"], await _robot_status(hass, vs, False))
 
@@ -472,19 +488,31 @@ async def ws_vacuum_run_undo(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "removed": removed})
 
 
+_FINDINGS_KEPT = "vacuum_findings_kept"     # (what they were worked out from, the findings)
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/vacuum_findings"})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
-    """Receivers the robot runs' points say are placed wrongly. Reads only; moves nothing."""
-    from .vacuum_findings import find_mistakes  # noqa: PLC0415
+    """Receivers the robot runs' points say are placed wrongly. Reads only; moves nothing.
+
+    Off the event loop, and kept until the robot points, the receivers' places
+    or the rooms change: a big house after many runs is seconds of arithmetic."""
+    from .vacuum_findings import cache_key, find_mistakes  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
     cal, mdl, fab = dom.get(DATA_CALIBRATION), dom.get(DATA_MODEL), dom.get(DATA_FABRIC)
     if not cal or not mdl:
         connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
-    out = await hass.async_add_executor_job(
-        find_mistakes, cal.list_points(), mdl.scanner_positions_m() or {}, fab.rooms_flat() if fab else {})
+    pts, pos, rooms = cal.list_points(), mdl.scanner_positions_m() or {}, fab.rooms_flat() if fab else {}
+    key = await hass.async_add_executor_job(cache_key, pts, pos, rooms)
+    kept = dom.get(_FINDINGS_KEPT)
+    if kept and kept[0] == key:
+        out = kept[1]
+    else:
+        out = await hass.async_add_executor_job(find_mistakes, pts, pos, rooms)
+        dom[_FINDINGS_KEPT] = (key, out)
     connection.send_result(msg["id"], out)
 
 

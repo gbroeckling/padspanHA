@@ -132,7 +132,8 @@ class _Valetudo:
     """Answers robot_call as Valetudo does. After a go-to the robot is half way
     (moving) on the next read and there (idle) from the one after."""
 
-    def __init__(self, vmap=None, *, unreachable=(), status_error_at=None, auth_needed=False, wifi=None):
+    def __init__(self, vmap=None, *, unreachable=(), status_error_at=None, auth_needed=False, wifi=None,
+                 status_after=None, battery=87, fail_reads=(), map_fails=False):
         self.vmap = vmap or _house()
         self.pos = (150.0 * PS, 70.0 * PS)
         self.target = None
@@ -143,6 +144,11 @@ class _Valetudo:
         self.auth_needed = auth_needed
         self.gotos = 0
         self.wifi = wifi                              # None: no WifiConfigurationCapability (an error, as a robot without it)
+        self.status_after = status_after              # (go-to number, status): from then on it says that status
+        self.battery = battery                        # a number, or a callable(rob)
+        self.fail_reads = set(fail_reads)             # attribute reads (counted from 1) that do not answer
+        self.attr_reads = 0
+        self.map_fails = map_fails                    # its map never arrives whole
 
     async def call(self, hass, base, method, path, body=None, auth=None):
         if self.auth_needed and not auth:
@@ -159,12 +165,20 @@ class _Valetudo:
                 raise vr.RobotError("refused", "The robot answered HTTP 404")
             return self.wifi(self) if callable(self.wifi) else self.wifi
         if path == vr.ATTRS_PATH:
+            self.attr_reads += 1
+            if self.attr_reads in self.fail_reads:
+                raise vr.RobotError("unreachable", "The robot did not answer (TimeoutError)")
             err = self.status_error_at is not None and self.gotos >= self.status_error_at
             status = "error" if err else "moving" if self.target and self.reads < 2 else "idle"
+            if self.status_after and self.gotos >= self.status_after[0]:
+                status = self.status_after[1]
+            bat = self.battery(self) if callable(self.battery) else self.battery
             return [{"__class": "StatusStateAttribute", "value": status, "flag": "none",
                      **({"error": {"message": "Wheel stuck"}} if err else {})},
-                    {"__class": "BatteryStateAttribute", "level": 87, "flag": "discharging"}]
+                    {"__class": "BatteryStateAttribute", "level": bat, "flag": "discharging"}]
         if path == vr.MAP_PATH:
+            if self.map_fails:
+                raise vr.RobotError("refused", "The robot's answer is not JSON")
             if self.target and self.target not in self.unreachable:
                 self.reads += 1
                 tx, ty = self.target
@@ -756,7 +770,7 @@ ROOMS = {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [4
 def test_a_receiver_placed_right_is_not_flagged_and_one_moved_4_m_is_found():
     from custom_components.padspan_ha import vacuum_findings as vf
     true = {"right": (2.0, 2.0, "main"), "moved": (6.5, 5.0, "main")}
-    pts = _robot_points(true)
+    pts = _robot_points(true, n_side=6, step=1.2)                                       # spots over both rooms
     placed = {"right": {"x_m": 2.0, "y_m": 2.0, "z_m": 1.0, "floor_id": "main"},
               "moved": {"x_m": 2.5, "y_m": 5.0, "z_m": 1.0, "floor_id": "main"}}        # 4 m from where it is
     out = vf.find_mistakes(pts + [{"id": "own", "label": "Kitchen table", "x_m": 9, "y_m": 9, "floor_id": "main",
@@ -765,15 +779,15 @@ def test_a_receiver_placed_right_is_not_flagged_and_one_moved_4_m_is_found():
     f = out["findings"][0]
     assert f["kind"] == "moved" and f["placed"]["room"] == "Kitchen" and f["found"]["room"] == "Hall"
     assert math.dist((f["found"]["x_m"], f["found"]["y_m"]), (6.5, 5.0)) < 1.0          # near its true spot
-    assert f["found"]["distance_m"] > 2.5 and f["rms_after"] <= 0.65 * f["rms_before"] and f["spots"] == 16
-    assert out["points"] == 16                                                          # only the robot's points
+    assert f["found"]["distance_m"] > 2.5 and f["rms_after"] <= 0.65 * f["rms_before"] and f["spots"] == 36
+    assert out["points"] == 36                                                          # only the robot's points
 
 
 def test_too_few_spots_are_not_judged():
     from custom_components.padspan_ha import vacuum_findings as vf
     pts = _robot_points({"far": (2.0, 2.0, "main")}, n_side=2)                          # 4 spots
     out = vf.find_mistakes(pts, {"far": {"x_m": 7.0, "y_m": 6.0, "floor_id": "main"}}, ROOMS)
-    assert out["findings"] == [] and out["thin"] == [{"source": "far", "name": "Far", "spots": 4}]
+    assert out["findings"] == [] and out["thin"] == [{"source": "far", "name": "Far", "spots": 4, "why": "few"}]
 
 
 def test_a_receiver_on_another_floor_that_hears_the_robot_strongly():
@@ -794,5 +808,235 @@ def test_findings_move_nothing():
         assert bad not in src, bad
     ws = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
     body = ws[ws.index("async def ws_vacuum_findings"):ws.index("async def ws_robot_wifi_readings")]
-    assert "async_add_executor_job(\n        find_mistakes, cal.list_points(), mdl.scanner_positions_m()" in body.replace("\r\n", "\n")
+    assert "await hass.async_add_executor_job(find_mistakes, pts, pos, rooms)" in body
     assert "async_set" not in body and "save" not in body
+
+
+# ── review fixes (2026-11-24) ───────────────────────────────────────────────
+
+def test_a_large_map_sent_in_pieces_is_read_whole(monkeypatch):
+    """content.read(n) gave only what had arrived: a map over Wi-Fi, in pieces, came out "not JSON"."""
+    aiohttp = pytest.importorskip("aiohttp")
+    from aiohttp import web
+    import homeassistant.helpers.aiohttp_client as hac
+    big = dict(_house())
+    big["padding"] = ["x" * 1000] * 2500                         # ~2.5 MB, as a real map's layers can be
+    body = json.dumps(big).encode()
+
+    async def chunked(request):
+        resp = web.StreamResponse()
+        await resp.prepare(request)
+        for i in range(0, len(body), 64 * 1024):
+            await resp.write(body[i:i + 64 * 1024])
+            await asyncio.sleep(0.002)
+        await resp.write_eof()
+        return resp
+
+    async def go():
+        app = web.Application()
+        app.router.add_get(vr.MAP_PATH, chunked)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        session = aiohttp.ClientSession()
+        monkeypatch.setattr(hac, "async_get_clientsession", lambda hass: session)
+        monkeypatch.setattr(vr, "async_check_address", AsyncMock())
+        monkeypatch.setattr(vi, "async_check_address", AsyncMock())
+        h = SimpleNamespace()
+
+        async def _exec(fn, *a):
+            return fn(*a)
+        h.async_add_executor_job = _exec
+        base = f"http://127.0.0.1:{port}"
+        try:
+            a = await vr.robot_call(h, base, "GET", vr.MAP_PATH)
+            b = await vi.fetch_url_json(h, base + vr.MAP_PATH)
+        finally:
+            await session.close()
+            await runner.cleanup()
+        return a, b
+    a, b = asyncio.run(go())
+    assert a == big and b == big
+
+
+def test_a_reply_past_the_cap_is_refused_while_it_arrives():
+    class _Content:
+        async def iter_chunked(self, n):
+            for _ in range(5):
+                yield b"x" * 4
+    resp = SimpleNamespace(content_length=None, content=_Content())
+    with pytest.raises(vi.VacuumImportError, match="too large"):
+        asyncio.run(vi.read_capped(resp, cap=10))
+    assert asyncio.run(vi.read_capped(SimpleNamespace(content_length=None, content=_Content()), cap=100)) == b"x" * 20
+    with pytest.raises(vi.VacuumImportError):
+        asyncio.run(vi.read_capped(SimpleNamespace(content_length=10 ** 9, content=_Content())))
+    for name in ("vacuum_import.py", "vacuum_run.py"):
+        assert "await resp.content.read(" not in (CC / name).read_text(encoding="utf-8"), name
+
+
+def test_a_map_that_cannot_be_read_never_hides_the_robots_state(monkeypatch, fast):
+    rob = _Valetudo(map_fails=True)
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    r = asyncio.run(_ws(wsv.ws_vacuum_robot_status, h, rooms=True)).result
+    assert r["state"]["status"] == "idle" and r["state"]["battery"] == 87
+    assert r["rooms_error"]["error"] == "refused" and "rooms" not in r
+
+
+def test_every_run_with_points_stays_undoable_and_its_record_is_kept():
+    runs = [{"id": f"r{i}", "state": "finished", "points": [f"p{i}"], "undone": i % 2 == 0} for i in range(30)]
+    vr.trim_runs(runs, {f"p{i}" for i in range(30)})
+    ids = [r["id"] for r in runs]
+    assert all(f"r{i}" in ids for i in range(1, 30, 2))                    # every run with points not undone kept
+    assert len(runs) == vr.RUNS_KEPT                                       # the undone ones went, oldest first
+    # A run whose points the owner deleted by hand can go too.
+    runs2 = [{"id": f"s{i}", "state": "finished", "points": [f"q{i}"], "undone": False} for i in range(25)]
+    vr.trim_runs(runs2, {f"q{i}" for i in range(10, 25)})
+    assert [r["id"] for r in runs2][0] == "s5" and len(runs2) == vr.RUNS_KEPT
+    card = vr.runs_for_card([{"id": "a", "points": ["1"], "undone": False}, {"id": "b", "points": [], "undone": False},
+                             {"id": "c", "points": ["2"], "undone": True}, {"id": "d", "points": [], "undone": False}])
+    assert [r["id"] for r in card] == ["d", "a"]                           # the last, then each still undoable, newest first
+
+
+def test_the_card_can_undo_an_older_run(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    first = vs.data["runs"][-1]["id"]
+    asyncio.run(_start_and_wait(h, "Hall"))
+    r = asyncio.run(_ws(wsv.ws_vacuum_robot_status, h)).result
+    assert [x["id"] for x in r["runs"]][1] == first and r["runs"][1]["points_kept"] > 0
+    assert asyncio.run(_ws(wsv.ws_vacuum_run_undo, h, run_id=first)).error is None
+
+
+def test_unloading_padspan_ends_the_run_and_sends_the_robot_home(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+
+    async def go():
+        await _ws(wsv.ws_vacuum_run_start, h)
+        eng = h.data[DOMAIN][vr.DATA_RUN]
+        while vs.data["runs"][-1]["added"] < 1:
+            await asyncio.sleep(0)
+        # A reload's new store meanwhile: the engine going is the one handed out, never a second one.
+        other = vi.VacuumStore.__new__(vi.VacuumStore)
+        assert vr.engine(h, other) is eng
+        await vr.async_shutdown_run(h)
+        return eng
+    eng = asyncio.run(go())
+    run = vs.data["runs"][-1]
+    assert run["state"] == "interrupted" and not eng.running and vr.DATA_RUN not in h.data[DOMAIN]
+    assert rob.sent(vr.CONTROL_PATH)[-1] == {"action": "home"}
+    init = (CC / "__init__.py").read_text(encoding="utf-8")
+    unload = init[init.index("async def async_unload_entry"):]
+    assert unload.index("await async_shutdown_run(hass)") < unload.index("async_stop_power_teams")
+    reset = (CC / "ws_factory_reset.py").read_text(encoding="utf-8")
+    assert reset.index("await async_shutdown_run(hass)") < reset.index('await st.async_save({"points": [], "model": {}})')
+    restore = (CC / "ws_backup.py").read_text(encoding="utf-8")
+    body = restore[restore.index("async def ws_store_backup_restore"):]
+    assert body.index("await async_shutdown_run(hass)") < body.index('stores_data = backup.get("stores", {})')
+
+
+@pytest.mark.parametrize("status", ["returning", "docked"])
+def test_a_robot_going_home_on_its_own_ends_the_run_and_is_sent_nothing(monkeypatch, fast, status):
+    rob = _Valetudo(status_after=(3, status))
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h))
+    run = vs.data["runs"][-1]
+    assert run["state"] == "robot_home" and run["added"] == 2 and rob.gotos == 3
+    assert rob.sent(vr.CONTROL_PATH) == []                                 # nothing more sent
+
+
+def test_a_low_battery_ends_the_run_or_never_starts_it(monkeypatch, fast):
+    rob = _Valetudo(battery=lambda r: 87 if r.gotos < 2 else 15)
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h))
+    run = vs.data["runs"][-1]
+    assert run["state"] == "low_battery" and run["added"] == 1 and rob.sent(vr.CONTROL_PATH) == []
+    rob2 = _Valetudo(battery=12)
+    h2, vs2, cal2, _ = _house_with(monkeypatch, rob2)
+    conn, _ = asyncio.run(_start_and_wait(h2))
+    assert conn.error[0] == "low_battery" and rob2.sent(vr.GOTO_PATH) == [] and vs2.data["runs"] == []
+
+
+def test_a_read_lost_now_and_then_is_no_reason_to_end_a_run(monkeypatch, fast):
+    rob = _Valetudo(fail_reads={2, 3})                                    # two in a row, after the start's own read
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Pantry"))
+    assert vs.data["runs"][-1]["state"] == "finished" and vs.data["runs"][-1]["added"] == 1
+    rob3 = _Valetudo(fail_reads={2, 3, 4})                                # three in a row: it gives up
+    h3, vs3, cal3, _ = _house_with(monkeypatch, rob3)
+    asyncio.run(_start_and_wait(h3, "Pantry"))
+    assert vs3.data["runs"][-1]["state"] == "failed" and vs3.data["runs"][-1]["error"] == "unreachable"
+
+
+def test_a_login_aiohttp_cannot_send_is_refused_when_saved(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    bad = asyncio.run(_ws(wsv.ws_vacuum_robot_set, h, user="robot:user", password="x"))
+    assert bad.error[0] == "bad_login" and vs.basic_auth() is None
+    bad = asyncio.run(_ws(wsv.ws_vacuum_robot_set, h, url="http://robotuser:s3cret@robot.local"))
+    assert bad.error[0] == "bad_login" and vs.data["robot"]["url"] == ""
+
+
+def test_spots_all_on_one_side_judge_nothing():
+    """Review: 8 spots in one room flagged correctly placed receivers elsewhere."""
+    from custom_components.padspan_ha import vacuum_findings as vf
+    rx = {"a": (6.5, 2.0, "main"), "b": (7.0, 6.0, "main")}
+    pts = _robot_points(rx, n_side=3, step=1.4)                           # spots in the Kitchen only (x 1..3.8)
+    placed = {k: {"x_m": v[0], "y_m": v[1], "floor_id": "main"} for k, v in rx.items()}
+    out = vf.find_mistakes(pts, placed, ROOMS)
+    assert out["findings"] == [] and {t["why"] for t in out["thin"]} == {"around"}
+
+
+def test_an_empty_floor_id_is_unknown_not_another_floor():
+    from custom_components.padspan_ha import vacuum_findings as vf
+    pts = _robot_points({"x": (3.0, 3.0, "main")})
+    out = vf.find_mistakes(pts, {"x": {"x_m": 3.0, "y_m": 3.0, "floor_id": ""}}, ROOMS)
+    assert out["findings"] == [] and [f["source"] for f in out["fine"]] == ["x"]
+
+
+def test_findings_are_kept_until_the_points_change(monkeypatch):
+    from custom_components.padspan_ha import vacuum_findings as vf
+    from custom_components.padspan_ha.const import DATA_MODEL
+    pts = _robot_points({"x": (3.0, 3.0, "main")})
+    calls = {"n": 0}
+    real = vf.find_mistakes
+
+    def counted(*a):
+        calls["n"] += 1
+        return real(*a)
+    monkeypatch.setattr(vf, "find_mistakes", counted)
+    cal = SimpleNamespace(list_points=lambda: list(pts))
+    mdl = SimpleNamespace(scanner_positions_m=lambda: {"x": {"x_m": 3.0, "y_m": 3.0, "floor_id": "main"}})
+    h = SimpleNamespace(data={DOMAIN: {DATA_CALIBRATION: cal, DATA_MODEL: mdl}})
+
+    async def _exec(fn, *a):
+        return fn(*a)
+    h.async_add_executor_job = _exec
+    a = asyncio.run(_ws(wsv.ws_vacuum_findings, h)).result
+    b = asyncio.run(_ws(wsv.ws_vacuum_findings, h)).result
+    assert a == b and calls["n"] == 1
+    pts.append({**pts[0], "id": "new"})
+    asyncio.run(_ws(wsv.ws_vacuum_findings, h))
+    assert calls["n"] == 2
+
+
+def test_a_big_house_is_searched_coarse_then_fine():
+    import time as _t
+    from custom_components.padspan_ha import vacuum_findings as vf
+    rooms = {"All": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [20, 0], [20, 15], [0, 15]]}}
+    rx = {f"r{i}": (1.0 + (i % 5) * 4.0, 1.0 + (i // 5) * 3.0, "main") for i in range(25)}
+    pts = _robot_points(rx, n_side=20, step=0.75)                        # 400 spots, 25 receivers
+    placed = {k: {"x_m": v[0], "y_m": v[1], "floor_id": "main"} for k, v in rx.items()}
+    t0 = _t.monotonic()
+    out = vf.find_mistakes(pts, placed, rooms)
+    assert _t.monotonic() - t0 < 10 and out["findings"] == []
+
+
+def test_robot_points_are_never_held_out_test_spots():
+    src = (CC / "heldout.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    loop = src[src.index("    for i, p in enumerate(pts):\n        # A room walk is training data only"):]
+    loop = loop[:loop.index("spots.append(i)")]
+    assert "if _is_robot(p):\n            continue" in loop

@@ -231,5 +231,7 @@
 "Open screens is off. Turn it on in Settings → Atlas → Open screens.": "‘Open schermen’ staat uit. Zet het aan in Instellingen → Atlas → Open schermen.",
 "Renaming needs the screen and its new name.": "Hernoemen heeft het scherm en zijn nieuwe naam nodig.",
 "An announcement needs a message.": "Een omroep heeft een bericht nodig.",
-"A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "De aanwezigheidssensor van een subzone kan geen van PadSpans eigen sensoren zijn."
+"A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "De aanwezigheidssensor van een subzone kan geen van PadSpans eigen sensoren zijn.",
+"Put the user and password in their own boxes, not in the address": "Vul de gebruiker en het wachtwoord in hun eigen vakken in, niet in het adres",
+"A Valetudo user name cannot contain a colon": "Een Valetudo-gebruikersnaam mag geen dubbele punt bevatten"
 }

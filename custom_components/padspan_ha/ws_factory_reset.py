@@ -107,6 +107,14 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     cleared = 0
     errors = []
 
+    # ── 0. A robot room location run going (vacuum_run.py) ends first: no point of
+    # it lands in the calibration emptied below, and its last save can't race the reset.
+    try:
+        from .vacuum_run import async_shutdown_run  # noqa: PLC0415
+        await async_shutdown_run(hass)
+    except Exception:
+        _quiet_error("ws_factory_reset:robot_run")
+
     # ── 1. SettingsStore — reset to DEFAULT_SETTINGS, NOT {} ─────────────
     # The purchased licence survives a factory reset. It is not configuration
     # the user is asking to clear — it is proof of payment, it cannot be read
@@ -445,15 +453,11 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
 
     # ── 9a''. Robot vacuum (vacuum_import.py) — the link, the walker and its
     # review pile; only a file that exists, emptied, and its polling stopped.
-    # A room location run going is stopped, and the robot's login emptied
+    # A room location run going was ended at step 0; the robot's login is emptied
     # (its own store, vacuum_import.AUTH_STORE_KEY: no backup carries it).
     try:
         from .vacuum_import import AUTH_STORE_KEY, DATA_VACUUM, VACUUM_STORE_KEY, _default_data  # noqa: PLC0415
-        from .vacuum_run import DATA_RUN  # noqa: PLC0415
         from .ws_common import _store_file_written  # noqa: PLC0415
-        run_obj = domain.pop(DATA_RUN, None)
-        if run_obj is not None:
-            run_obj.cancel()
         if await _store_file_written(hass, VACUUM_STORE_KEY):
             await _St(hass, 1, VACUUM_STORE_KEY).async_save(_default_data())
             cleared += 1

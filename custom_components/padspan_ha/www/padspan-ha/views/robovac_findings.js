@@ -84,9 +84,12 @@ export function openFindings(api){
         box.appendChild(mk("div", C.muted, t("How sure: {n} spots; the readings fit {before} dB off where it is placed, {after} dB off there.",
           { n: f.spots, before: f.rms_before, after: f.rms_after })));
       }
-      const a = mk("a", "display:inline-block;margin-top:6px;font-size:12px;color:#5eead4", t("Open its placement"));
-      a.href = placementLink(f.source);
-      box.appendChild(a);
+      // Not on a wall (?kiosk=1): nothing there may lead away.
+      if (!(api && api.kiosk)) {
+        const a = mk("a", "display:inline-block;margin-top:6px;font-size:12px;color:#5eead4", t("Open its placement"));
+        a.href = placementLink(f.source);
+        box.appendChild(a);
+      }
       out.push(box);
     }
     if (!(r.findings || []).length) {
@@ -94,8 +97,12 @@ export function openFindings(api){
         ? tn(r.fine.length, "No receiver looks misplaced: {n} checked.", "No receiver looks misplaced: {n} checked.")
         : t("No receiver was heard at enough spots to check yet.")));
     }
-    if ((r.thin || []).length) {
-      out.push(mk("div", `${C.muted};margin-top:10px`, t("Not enough readings to judge: {names}", { names: r.thin.map(x => `${x.name} (${x.spots})`).join(", ") })));
+    const few = (r.thin || []).filter(x => x.why !== "around"), side = (r.thin || []).filter(x => x.why === "around");
+    if (few.length) {
+      out.push(mk("div", `${C.muted};margin-top:10px`, t("Not enough readings to judge: {names}", { names: few.map(x => `${x.name} (${x.spots})`).join(", ") })));
+    }
+    if (side.length) {
+      out.push(mk("div", `${C.muted};margin-top:6px`, t("Not enough readings around it to judge: {names}", { names: side.map(x => x.name).join(", ") })));
     }
     draw(out);
   }

@@ -99,7 +99,9 @@ DWELL_S = 20.0               # the tag listened to this long (a ~200 ms beacon: 
 DWELL_MORE_S = 15.0          # once more, when too few receivers heard it
 RUN_LIMIT_S = 2 * 3600.0     # a run ends after this, wherever it is
 TAG_Z_M = 0.1                # the tag rides on the robot's top, about this off the floor
-RUNS_KEPT = 20               # runs in the history (each undoable while it is there)
+RUNS_KEPT = 20               # runs in the history; one whose points are still in calibration is never dropped
+LOW_BATTERY = 20             # %: below this a run does not start, and one going ends (the robot needs its dock)
+POLL_FAILS = 3               # robot reads in a row that may fail while it drives before the run gives up
 LABEL_PREFIX = ROBOT_LABEL     # calibration_store.is_owner_point: a run's points are PadSpan's, not the owner's
 HEARD_WINDOW_S = 60.0        # "heard now": within the last minute
 MAP_PATH = "/api/v2/robot/state/map"
@@ -118,6 +120,14 @@ class RobotError(Exception):
     def __init__(self, code: str, text: str) -> None:
         super().__init__(text)
         self.code = code
+
+
+class RobotLeft(Exception):
+    """The robot is going home on its own, or its battery is low: the run ends and sends nothing more."""
+
+    def __init__(self, why: str) -> None:
+        super().__init__(why)
+        self.why = why
 
 
 class RunRefused(Exception):
@@ -166,11 +176,13 @@ async def robot_call(hass, base: str, method: str, path: str, body: dict | None 
                 raise RobotError("refused", f"The robot answered HTTP {resp.status}")
             if method != "GET":
                 return None
-            raw = await resp.content.read(vi.MAX_JSON_BYTES + 1)
+            raw = await vi.read_capped(resp)
     except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
         raise RobotError("unreachable", f"The robot did not answer ({type(exc).__name__})") from exc
-    if len(raw) > vi.MAX_JSON_BYTES:
-        raise RobotError("refused", "The robot's answer is too large")
+    except vi.VacuumImportError as exc:
+        raise RobotError("refused", "The robot's answer is too large") from exc
+    except ValueError as exc:      # a login aiohttp will not send (a ":" in the user name), or a bad address
+        raise RobotError("bad_login", "The robot's address or login cannot be used") from exc
     try:
         return await hass.async_add_executor_job(vi._json_answer, raw)
     except vi.VacuumImportError as exc:
@@ -345,6 +357,25 @@ def run_for_client(r: dict) -> dict:
     return out
 
 
+def runs_for_card(runs: list[dict]) -> list[dict]:
+    """Newest first: the last run, and every older one whose points can still be undone."""
+    if not runs:
+        return []
+    return [runs[-1]] + [r for r in reversed(runs[:-1]) if r.get("points") and not r.get("undone")]
+
+
+def trim_runs(runs: list[dict], in_calibration: set[str]) -> None:
+    """The oldest runs over RUNS_KEPT go, but never one going, nor one with a point still in calibration."""
+    extra = len(runs) - RUNS_KEPT
+    keep = []
+    for r in runs:
+        if extra > 0 and r.get("state") != "running" and (r.get("undone") or not set(r.get("points") or []) & in_calibration):
+            extra -= 1
+            continue
+        keep.append(r)
+    runs[:] = keep
+
+
 def _points_bucket(n: int) -> str:
     return "points_0" if n <= 0 else "points_1_5" if n <= 5 else "points_6_20" if n <= 20 else "points_21_plus"
 
@@ -358,6 +389,8 @@ class RunEngine:
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
         self._starting = False                 # a start between its checks and its task: a second one waits
+        self._interrupt = False                # stopped by PadSpan itself going (unload, restore, reset)
+        self._left_dock = False                # "docked" ends a run only once the robot has left it
         # A run the store says was going is from before a restart: it is over.
         changed = False
         for r in vs.data.get("runs") or []:
@@ -404,6 +437,9 @@ class RunEngine:
         cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
         if not cal:
             raise RunRefused("not_ready", "PadSpan is still loading")
+        st = robot_state(await robot_call(hass, base, "GET", ATTRS_PATH, auth=vs.basic_auth()))
+        if isinstance(st["battery"], (int, float)) and st["battery"] < LOW_BATTERY:
+            raise RunRefused("low_battery", "The robot's battery is low: let it charge first")
         vmap = await robot_call(hass, base, "GET", MAP_PATH, auth=vs.basic_auth())
         plan = await hass.async_add_executor_job(plan_spots, vmap, room or None)
         if not plan["spots"]:
@@ -420,10 +456,11 @@ class RunEngine:
                "points": [], "undone": False, "error": "", "backup_id": backup_id, "wifi": 0}
         runs = vs.data.setdefault("runs", [])
         runs.append(run)
-        del runs[:max(0, len(runs) - RUNS_KEPT)]
+        trim_runs(runs, {str(p.get("id")) for p in cal.list_points()})
         await vs.async_save()
         self.current = run
         self._stop.clear()
+        self._interrupt = self._left_dock = False
         self._task = hass.async_create_background_task(
             self._async_run(run, plan["spots"], base, dict(lk), tag, cal), "padspan_ha robot room location run")
         self._bump("started")
@@ -435,11 +472,21 @@ class RunEngine:
         self._stop.set()
         return True
 
-    def cancel(self) -> None:
-        """Gone with the integration (a factory reset): stop now, home anyway."""
+    async def async_shutdown(self) -> None:
+        """PadSpan itself is going (unloaded, a backup restored, a factory reset): the run
+        going ends "interrupted", the robot is sent home, and its last save lands first."""
+        if not self.running:
+            return
+        self._interrupt = True
         self._stop.set()
-        if self._task and not self._task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(self._task), 30)
+        except Exception:  # noqa: BLE001 — too slow or failed: it ends here regardless
+            _quiet_error("vacuum_run:shutdown")
             self._task.cancel()
+
+    def _stopped(self) -> str:
+        return "interrupted" if self._interrupt else "stopped"
 
     async def _wait(self, s: float) -> bool:
         """Sleep s seconds; True when Stop was pressed meanwhile."""
@@ -453,15 +500,31 @@ class RunEngine:
         """Read the robot until it stands at the spot: where it stands, or None
         (timed out, or stopped)."""
         end = time.monotonic() + GOTO_TIMEOUT_S
-        last = None
+        last, fails = None, 0
         while time.monotonic() < end:
             if await self._wait(POLL_S):
                 return None
             auth = self.vs.basic_auth()
-            st = robot_state(await robot_call(self.hass, base, "GET", ATTRS_PATH, auth=auth))
+            try:
+                st = robot_state(await robot_call(self.hass, base, "GET", ATTRS_PATH, auth=auth))
+                vmap = await robot_call(self.hass, base, "GET", MAP_PATH, auth=auth)
+            except RobotError as exc:
+                # A read lost on Wi-Fi now and then is no reason to end the run; a few in a row are.
+                fails += 1
+                if exc.code == "auth" or fails >= POLL_FAILS:
+                    raise
+                continue
+            fails = 0
             if st["status"] == "error":
                 raise RobotError("robot_error", st["error"] or "The robot reports an error")
-            pos = vi.robot_spot("valetudo", await robot_call(self.hass, base, "GET", MAP_PATH, auth=auth))
+            # Going home on its own (to charge, or someone pressed Dock), or a low battery: the run ends.
+            if st["status"] == "returning" or (st["status"] == "docked" and self._left_dock):
+                raise RobotLeft("robot_home")
+            if isinstance(st["battery"], (int, float)) and st["battery"] < LOW_BATTERY:
+                raise RobotLeft("low_battery")
+            if st["status"] not in (None, "docked"):
+                self._left_dock = True
+            pos = vi.robot_spot("valetudo", vmap)
             if pos and math.hypot(pos["x"] - spot["x"], pos["y"] - spot["y"]) / 100 <= ARRIVE_M \
                     and st["status"] != "moving" and last \
                     and math.hypot(pos["x"] - last["x"], pos["y"] - last["y"]) / 100 < STILL_M:
@@ -486,7 +549,7 @@ class RunEngine:
         try:
             for i, sp in enumerate(spots):
                 if self._stop.is_set():
-                    why = "stopped"
+                    why = self._stopped()
                     break
                 if time.monotonic() > deadline:
                     why = "time_limit"
@@ -496,7 +559,7 @@ class RunEngine:
                                  {"action": "goto", "coordinates": {"x": sp["x"], "y": sp["y"]}}, auth=self.vs.basic_auth())
                 pos = await self._arrive(sp, base)
                 if self._stop.is_set():
-                    why = "stopped"
+                    why = self._stopped()
                     break
                 if pos is None:
                     run["skipped"] += 1
@@ -504,7 +567,7 @@ class RunEngine:
                 await self._wifi(run, sp, pos, lk, base)
                 readings = await self._dwell(tag)
                 if readings is None:
-                    why = "stopped"
+                    why = self._stopped()
                     break
                 if not readings:
                     run["skipped"] += 1
@@ -521,10 +584,12 @@ class RunEngine:
                 run["points"].append(saved["id"])
                 run["added"] += 1
                 await self.vs.async_save()
+        except RobotLeft as exc:
+            why = exc.why
         except RobotError as exc:
             why, run["error"] = "failed", exc.code
         except asyncio.CancelledError:
-            why = "stopped"
+            why = self._stopped()
             raise
         except Exception:  # noqa: BLE001 — the run ends, its points stay
             _quiet_error("vacuum_run:run")
@@ -556,11 +621,13 @@ class RunEngine:
         run["wifi"] = run.get("wifi", 0) + 1
 
     async def _finish(self, run: dict, why: str, base: str) -> None:
-        try:
-            await robot_call(self.hass, base, "PUT", CONTROL_PATH, {"action": "home"}, auth=self.vs.basic_auth())
-        except Exception:  # noqa: BLE001 — sent home when it can be; the run is over either way
-            _quiet_error("vacuum_run:home")
-            run["home_failed"] = True
+        # Going home already (or low on battery, on its way): nothing more is sent.
+        if why not in ("robot_home", "low_battery"):
+            try:
+                await robot_call(self.hass, base, "PUT", CONTROL_PATH, {"action": "home"}, auth=self.vs.basic_auth())
+            except Exception:  # noqa: BLE001 — sent home when it can be; the run is over either way
+                _quiet_error("vacuum_run:home")
+                run["home_failed"] = True
         run["state"], run["ended"], run["at_room"] = why, _now_iso(), ""
         try:
             await self.vs.async_save()
@@ -597,9 +664,18 @@ class RunEngine:
 
 
 def engine(hass, vs: vi.VacuumStore) -> RunEngine:
+    """The one engine: a run going is never left behind by a second one (it stays
+    stoppable); a new store gets a new engine only once none is going."""
     dom = hass.data.setdefault(DOMAIN, {})
     eng = dom.get(DATA_RUN)
-    if eng is None or eng.vs is not vs:
+    if eng is None or (eng.vs is not vs and not (eng.running or eng._starting)):
         eng = RunEngine(hass, vs)
         dom[DATA_RUN] = eng
     return eng
+
+
+async def async_shutdown_run(hass) -> None:
+    """End the run going, if any, and forget the engine (unload, restore, factory reset)."""
+    eng = hass.data.get(DOMAIN, {}).pop(DATA_RUN, None)
+    if eng is not None:
+        await eng.async_shutdown()

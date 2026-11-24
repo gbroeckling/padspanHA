@@ -48,7 +48,7 @@ const FINDINGS = {
       placed: { x_m: 3, y_m: 3, floor_id: "upper", room: "" }, found: { x_m: 3, y_m: 3, floor_id: "main", room: "Kitchen", distance_m: null } },
   ],
   fine: [{ source: "k", name: "Kitchen plug", spots: 16, rms: 1.8 }],
-  thin: [{ source: "g", name: "Garage", spots: 3 }],
+  thin: [{ source: "g", name: "Garage", spots: 3, why: "few" }, { source: "o", name: "Office", spots: 8, why: "around" }],
 };
 const READY = {
   robot: { url: "http://192.168.1.50", auth: false },
@@ -72,9 +72,9 @@ function fakeHass(status, admin = true) {
     },
   };
 }
-async function open(status, admin = true, lines = ["Where its own map says it is"]) {
+async function open(status, admin = true, lines = ["Where its own map says it is"], kiosk = false) {
   const hass = fakeHass(status, admin), toasts = [];
-  RC.openRobovacCard({ hass, toast: (m, bad) => toasts.push([m, !!bad]) }, { lines });
+  RC.openRobovacCard({ hass, kiosk, toast: (m, bad) => toasts.push([m, !!bad]) }, { lines });
   await tick(); await tick();
   return { hass, toasts };
 }
@@ -137,9 +137,13 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   const undo = hass.sent.find(m => m.type === "padspan_ha/vacuum_run_undo");
   check("undo", undo && undo.run_id === "rr_7" && /Remove the 4 points this run added/.test(asked || "") && toasts.some(([m]) => m === "Removed 4 points"), { undo, asked, toasts });
   RC.closeRobovacCard();
-  // Undone already: said, no button.
-  await open({ ...READY, runs: [{ ...last, undone: true }] });
-  check("undo", !btn("Undo this run") && sheet().textContent.includes("Undone: its points were taken out of calibration."), sheet().textContent);
+  // Undone already: said, no button; an older run with points still has its own Undo.
+  const older = { id: "rr_3", started: "2026-11-20T09:00:00+00:00", state: "finished", added: 6, skipped: 0, points_kept: 6, undone: false, room: "Hall" };
+  const { hass: h2 } = await open({ ...READY, runs: [{ ...last, undone: true }, older] });
+  check("undo", !btn("Undo this run") && sheet().textContent.includes("Undone: its points were taken out of calibration.")
+    && sheet().textContent.includes("2026-11-20 09:00 UTC, Hall: 6 points"), sheet().textContent);
+  await press(btn("Undo"));
+  check("undo", h2.sent.some(m => m.type === "padspan_ha/vacuum_run_undo" && m.run_id === "rr_3"), h2.sent);
   RC.closeRobovacCard();
 }
 
@@ -150,6 +154,23 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   check("auth", text.includes("(HTTP 401)") && text.includes("Valetudo user name and password"), text);
   check("auth", all(sheet(), "input").some(i => i.type === "password") && btn("Start a run").disabled, "login boxes, no run");
   RC.closeRobovacCard();
+}
+
+// A wall (?kiosk=1): the robot's state only; nothing that leads away or changes the house.
+{
+  await open({ ...READY, link: { ...READY.link, vacuum_entity: "vacuum.robot" }, runs: [{ id: "rr_7", state: "finished", added: 2, points_kept: 2, undone: false }] }, true, [], true);
+  const text = sheet().textContent;
+  check("wall", text.includes("Docked · battery 87 %"), text);
+  check("wall", !btn("Dock") && !btn("Start a run") && !btn("Find mistakes") && !btn("Undo this run")
+    && !btn("Open in Home Assistant") && !text.includes("Room location") && all(sheet(), "input").length === 0, text);
+  RC.closeRobovacCard();
+  // Its findings card, opened on a wall, has no link away.
+  const FI = await import(pathToFileURL(join(WWW, "views", "robovac_findings.js")).href);
+  FI.openFindings({ hass: fakeHass(READY), kiosk: true });
+  await tick(); await tick();
+  const card = all(document.body, "div").find(d => d.className === "ps-robovac-findings");
+  check("wall", card && card.textContent.includes("Hall plug") && all(card, "a").length === 0, card && card.textContent);
+  FI.closeFindings();
 }
 
 // Not an administrator: where it is, nothing read from the robot.
@@ -172,7 +193,8 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   check("findings", hass.sent.some(m => m.type === "padspan_ha/vacuum_findings") && card, hass.sent);
   check("findings", text.includes("Hall plug") && text.includes("Placed in Kitchen. The readings put it in Hall, 4 m away.")
     && text.includes("How sure: 16 spots; the readings fit 7.2 dB off where it is placed, 2.1 dB off there."), text);
-  check("findings", text.includes("It may be on the wrong floor.") && text.includes("Not enough readings to judge: Garage (3)"), text);
+  check("findings", text.includes("It may be on the wrong floor.") && text.includes("Not enough readings to judge: Garage (3)")
+    && text.includes("Not enough readings around it to judge: Office"), text);
   const links = all(card, "a").map(a => a.href);
   check("findings", links[0] === "/padspan-ha?view=maps&tab=edit&receiver=aa%3Abb%3Acc%3A00%3A00%3A01" && links.length === 2, links);
   const FI = await import(pathToFileURL(join(WWW, "views", "robovac_findings.js")).href);

@@ -50,6 +50,7 @@ const NEUTRAL = "#7dd3fc";                  // someone with no figure (Live Aboa
 const GUEST = "#fbbf24";                    // a tag lent to a guest: its ring (amber, the panel's guest pill)
 const JUMP_M = 8;                           // further than this (or another floor): there at once
 const HOLD_MS = 500;                        // a hold (lights_map.js HOLD_MS): the robot vacuum's card, on release
+const HOLD_SLOP_PX = 10;                    // moved further than this, it is no hold
 const C30 = Math.cos(Math.PI / 6);
 
 // ── light kinds → Atlas shapes ──────────────────────────────────────────────
@@ -288,10 +289,12 @@ function createLiveLayer(slot){
     // card (robovac_card.js, loaded then) through the host's use api; the click that ends the hold is not a tap.
     // Timed from the press's own stamps, as 3D's is on release: nothing runs at rest, not even while pressed.
     if (w.key === "vacuum") {
-      let t0 = null, held = false;
+      let t0 = null, held = false, x0 = 0, y0 = 0;
       const stamp = (e) => (e && Number.isFinite(e.timeStamp) ? e.timeStamp : performance.now());
-      n.addEventListener("pointerdown", (e) => { held = false; t0 = stamp(e); });
+      n.addEventListener("pointerdown", (e) => { held = false; t0 = stamp(e); x0 = e.clientX; y0 = e.clientY; });
       for (const ev of ["pointercancel", "pointerleave"]) n.addEventListener(ev, () => { t0 = null; });
+      // A finger that moves on is no hold (the Atlas's own slop, a touch's roll).
+      n.addEventListener("pointermove", (e) => { if (t0 !== null && Math.hypot(e.clientX - x0, e.clientY - y0) > HOLD_SLOP_PX) t0 = null; });
       n.addEventListener("pointerup", (e) => {
         if (t0 === null || stamp(e) - t0 < HOLD_MS) { t0 = null; return; }
         t0 = null; held = true;

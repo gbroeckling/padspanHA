@@ -895,6 +895,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Platform unload error: %s", err)
             unload_ok = False
 
+    # A robot room location run going (vacuum_run.py): over ("interrupted"), the robot
+    # sent home, before the stores it saves into go (a reload would leave it running on
+    # the old store, beyond the new one's Stop).
+    try:
+        from .vacuum_run import async_shutdown_run
+        await async_shutdown_run(hass)
+    except Exception:
+        _quiet_error("setup:unload_robot_run")
+
     # Power teams (power_team.py): their listeners and their minute tick.
     try:
         from .power_team import async_stop_power_teams

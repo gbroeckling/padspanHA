@@ -306,9 +306,12 @@ in the one you pick, each at least 40 cm from the walls. At each spot it stands 
 seconds while PadSpan listens to the beacon (a little longer if too few receivers heard it, and the
 spot is skipped if still too few did), and the spot goes into calibration at once. Calibration is
 backed up before every run. **Stop** ends the run and sends the robot back to its dock; so does the
-end of the run, a problem, or two hours. **Undo this run** takes out exactly the points that run
-added, and none of your own. A run that was going when Home Assistant restarted is simply over; its
-points stay, and can still be undone.
+end of the run, a problem, or two hours. If the robot heads back to its dock on its own, or its
+battery drops below 20 %, the run ends there and PadSpan sends it nothing more; below 20 % a run
+does not start. **Undo this run** takes out exactly the points that run added, and none of your
+own; every earlier run whose points are still there is listed on the card with its own **Undo**. A
+run that was going when Home Assistant restarted, or when PadSpan was reloaded or a backup restored,
+is over (the robot is sent home); its points stay, and can still be undone.
 
 The robot's points count as PadSpan's own, like a pinned beacon's automatic points, not as yours.
 Only a run's Undo removes them: the beacons' own clean-ups never touch them.
@@ -316,8 +319,11 @@ Only a run's Undo removes them: the beacons' own clean-ups never touch them.
 **Find mistakes** on the card opens a card of its own. From the points the runs already stored (no
 extra driving), it works out where each receiver really is, and lists the ones that look placed in
 the wrong spot, or on the wrong floor, with how sure it is and a link to that receiver's placement.
-A receiver needs to be heard at six spots or more, spread over 3 m; the others are listed as not
-enough readings. It never moves anything.
+A receiver needs to be heard at six spots or more, spread over 3 m and lying round it, so a run of
+one room says nothing about a receiver in the next; the others are listed as not enough readings.
+It never moves anything.
+
+On a wall screen the card shows only what the robot is doing and its battery.
 
 At each spot the robot also reports its own Wi-Fi signal. PadSpan keeps the last 2,000 of these for
 the Wi-Fi coverage map, and other integrations can read them.

@@ -33,7 +33,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "not-admin", "findings", "german"])
+@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "wall", "not-admin", "findings", "german"])
 def test_robovac_card(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -86,7 +86,9 @@ def test_the_robot_is_drawn_whenever_its_link_is_on():
     lm = _src("lights_map.js")
     assert "|| abSet.vacuum_import_enabled === true));" in lm
     assert "robot: h3.settings.vacuum_import_enabled === true && h3.people ? abReader(h3.people) : null," in lm
-    assert "people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true," in lm     # unchanged gates
+    # People and tags keep exactly their old gate (Pro), the robot's own read or not (review, 2026-11-24).
+    assert "people: abPro && abSet.atlas_3d_people === true, tags: abPro && abSet.atlas_3d_tags === true," in lm
+    assert 'const abPro = tierAtLeast(host.tier, "pro");' in lm
     lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert "vacuum_import_enabled: s.vacuum_import_enabled," in lp
     la = _src("live_aboard.js")
@@ -104,3 +106,24 @@ def test_the_findings_card_reads_one_command_and_links_to_the_placement():
     assert "(ctx.state.maps._draftReceivers.find(r=>r.source===_src||r.id===_src) || {}).id" in maps
     card = _src("robovac_card.js")
     assert "import(`./robovac_findings.js${new URL(import.meta.url).search}`)" in card
+
+
+def test_a_wall_gets_the_robots_state_only():
+    """?kiosk=1: nothing on it may navigate away (the other cards get the same flag)."""
+    lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert "kiosk:this._kiosk()," in lp
+    assert "kiosk: !!ctx.state.kioskMode," in _src("maps.js")
+    card = _src("robovac_card.js")
+    assert "const wall = !!(api && api.kiosk);" in card and card.count("if (wall)") >= 2
+    assert "if (!(api && api.kiosk)) {" in _src("robovac_findings.js")
+
+
+def test_a_hold_that_moves_on_is_no_hold():
+    ab = _src("atlas_aboard.js")
+    assert "const HOLD_SLOP_PX = 10;" in ab and "> HOLD_SLOP_PX) t0 = null;" in ab
+
+
+def test_the_card_stops_reading_once_it_is_gone_or_hidden():
+    card = _src("robovac_card.js")
+    assert "if (overlay.isConnected === false) { closeRobovacCard(); return; }" in card
+    assert "document.hidden" in card

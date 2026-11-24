@@ -324,7 +324,6 @@
 "stopped": "angehalten",
 "ended by a problem": "wegen eines Problems beendet",
 "stopped at the two-hour limit": "nach zwei Stunden beendet",
-"ended by a restart": "durch einen Neustart beendet",
 "running": "läuft",
 "A run is going: stop it first.": "Eine Fahrt läuft: halte sie zuerst an.",
 "Import the robot's map from Valetudo first.": "Importiere zuerst die Karte des Roboters aus Valetudo.",
@@ -407,5 +406,16 @@
 "No receiver looks misplaced: {n} checked.": {
 "one": "Kein Empfänger scheint falsch platziert: 1 geprüft.",
 "other": "Kein Empfänger scheint falsch platziert: {n} geprüft."
-}
+},
+"ended when PadSpan restarted": "beendet, als PadSpan neu startete",
+"ended: the robot went back to its dock": "beendet: der Roboter ist zur Station zurückgefahren",
+"ended: the robot's battery ran low": "beendet: der Akku des Roboters wurde knapp",
+"The robot's battery is low: let it charge first.": "Der Akku des Roboters ist schwach: lass ihn zuerst laden.",
+"That address or login cannot be used: put the user and password in their own boxes, without a colon in the user name.": "Diese Adresse oder Anmeldung geht nicht: trag Benutzer und Passwort in ihre eigenen Felder ein, ohne Doppelpunkt im Benutzernamen.",
+"Undo": "Rückgängig",
+"{when} UTC, {rooms}: {n} points": {
+"one": "{when} UTC, {rooms}: 1 Punkt",
+"other": "{when} UTC, {rooms}: {n} Punkte"
+},
+"Not enough readings around it to judge: {names}": "Zu wenige Messwerte rund um ihn für ein Urteil: {names}"
 }

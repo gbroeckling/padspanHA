@@ -77,6 +77,11 @@ def _is_auto(p: dict[str, Any]) -> bool:
     return is_beacon_auto_point(p.get("label"))
 
 
+def _is_robot(p: dict[str, Any]) -> bool:
+    from .calibration_store import is_robot_point  # noqa: PLC0415
+    return is_robot_point(p.get("label"))
+
+
 def held_in(points: list[dict[str, Any]], i: int,
             radius_m: float = HELDOUT_RADIUS_M) -> list[dict[str, Any]]:
     """The points left to answer for points[i]: none within radius_m of it
@@ -438,6 +443,10 @@ def evaluate(points: list[dict[str, Any]], *,
         # A room walk is training data only: not a test spot, so a score from
         # before a walk and one after it are taken on the same spots.
         if is_walk_point(p):
+            continue
+        # A robot run's point is training data only too (review, 2026-11-24): taken at
+        # floor level, it would move the owner's score for reasons other than accuracy.
+        if _is_robot(p):
             continue
         if _is_auto(p):
             dev = str(p.get("device_id") or "")

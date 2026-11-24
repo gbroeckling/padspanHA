@@ -4402,8 +4402,9 @@ export function buildLightsMapCard(hostIn){
   const abSlot = scr ? host.screen.slot : null;
   // A linked robot vacuum (Robot Vacuum Import on, 2026-11-24): the same read, for the robot alone, at any tier; people
   // and tags stay behind their own switches (atlas_aboard.js draws them only when on).
+  const abPro = tierAtLeast(host.tier, "pro");
   const abLive = !!(scr && host.house3d && host.house3d.people
-    && ((tierAtLeast(host.tier, "pro") && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true))
+    && ((abPro && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true))
         || abSet.vacuum_import_enabled === true));
   const abFile = !!(scr && h3 && typeof h3.load === "function");
   const abReader = (pp) => (scr && SCREEN ? SCREEN.sharedReader(abSlot, pp) : pp);
@@ -4424,7 +4425,8 @@ export function buildLightsMapCard(hostIn){
     _AB.liveLayer(abSlot).draw(snapshot !== undefined ? null : {
       stage: isoDiv, frame: _frame, frameKey: `${view.floorGap}|${view.horizGap}`, model: host.model,
       states: host.house3d.states || {}, file: abData,
-      people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true,
+      // People and tags exactly behind their old gate (Pro); the robot's own read draws the robot only.
+      people: abPro && abSet.atlas_3d_people === true, tags: abPro && abSet.atlas_3d_tags === true,
       // Hiding the device codes hides the A01-style chips, never a person's or a tag's name; the
       // scanners' squares, technical markers like the codes, go with them.
       scanners: !host.hideDeviceCodes,

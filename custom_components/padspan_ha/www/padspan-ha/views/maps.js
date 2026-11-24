@@ -10441,6 +10441,8 @@ function _lightsTab(ctx, maps, active) {
   const controlsFor = hasControlCard;
   const previewApi = {
     hass: ctx.hass, lightsByEid, lights, controlsFor,
+    // A wall (?kiosk=1): cards opened from the map (the robot's) leave nothing to navigate away to.
+    kiosk: !!ctx.state.kioskMode,
     // Whether this screen shows people (Show people, and its ⋯ People line): the room sheet names no one otherwise.
     peopleShown: peopleShownOn("builder", ctx.state.settings, ctx.state.settings?.tier),
     toggle, toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),

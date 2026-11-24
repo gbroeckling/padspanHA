@@ -650,11 +650,23 @@ async def fetch_url_json(hass, url: str, auth: tuple[str, str] | None = None) ->
                                     "Give the robot's own address instead.")
         if resp.status != 200:
             raise VacuumImportError(f"The robot answered HTTP {resp.status}")
-        raw = await resp.content.read(MAX_JSON_BYTES + 1)
-    if len(raw) > MAX_JSON_BYTES:
-        raise VacuumImportError("The map is too large")
+        raw = await read_capped(resp)
     # A few MB of JSON every tick with the link on: parsed off the event loop.
     return await hass.async_add_executor_job(_json_answer, raw)
+
+
+async def read_capped(resp, cap: int = MAX_JSON_BYTES) -> bytes:
+    """A reply's whole body, refused once it passes `cap`. content.read(n)
+    gives only what has arrived so far, and a map over Wi-Fi comes in pieces:
+    read that way it was cut off and "not JSON" (review, 2026-11-24)."""
+    if (resp.content_length or 0) > cap:
+        raise VacuumImportError("The map is too large")
+    buf = bytearray()
+    async for chunk in resp.content.iter_chunked(256 * 1024):
+        buf += chunk
+        if len(buf) > cap:
+            raise VacuumImportError("The map is too large")
+    return bytes(buf)
 
 
 def _json_answer(raw: bytes) -> Any:

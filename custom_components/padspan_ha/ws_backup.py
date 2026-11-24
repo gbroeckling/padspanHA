@@ -394,6 +394,14 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", f"Backup {backup_id} not found")
         return
 
+    # A robot room location run going (vacuum_run.py) ends first, the robot sent home:
+    # its points and its save would land on top of what is restored.
+    try:
+        from .vacuum_run import async_shutdown_run  # noqa: PLC0415
+        await async_shutdown_run(hass)
+    except Exception:
+        _quiet_error("ws_backup:robot_run")
+
     stores_data = backup.get("stores", {})
     selected_keys = msg.get("store_keys")  # None = restore all
     restored = 0

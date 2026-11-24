@@ -1306,7 +1306,10 @@ TEAM_CARD_EVENTS: frozenset[str] = frozenset({f"team_card:{w}" for w in TEAM_CAR
 ROBOT_RUN_WORDS: tuple[str, ...] = ("started", "finished", "stopped", "failed", "time_limit", "undone",
                                     "points_0", "points_1_5", "points_6_20", "points_21_plus",
                                     # a run that read the robot's Wi-Fi at its spots (never an SSID or BSSID)
-                                    "wifi_read")
+                                    "wifi_read",
+                                    # how else a run ends: the robot went home on its own, its battery ran low,
+                                    # PadSpan itself was unloaded or restored under it
+                                    "robot_home", "low_battery", "interrupted")
 ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.

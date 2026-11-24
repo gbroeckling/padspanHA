@@ -401,6 +401,7 @@ setup:unload_house3d_people
 setup:unload_object_history
 setup:unload_panel
 setup:unload_power_teams
+setup:unload_robot_run
 setup:unload_presence
 setup:unload_rain_wet
 setup:unload_tags
@@ -578,6 +579,7 @@ vacuum_import:tick
 vacuum_run:home
 vacuum_run:run
 vacuum_run:save
+vacuum_run:shutdown
 vacuum_run:wifi
 websocket:model_get_areas
 websocket:model_get_floors
@@ -598,6 +600,7 @@ ws_backup:create_maps
 ws_backup:exists
 ws_backup:restore_map_file
 ws_backup:restore_wled_listener
+ws_backup:robot_run
 ws_calibration:health_latest_point
 ws_calibration:health_live_radios
 ws_calibration:health_maps
@@ -655,6 +658,7 @@ ws_fabric:rooms_merge
 ws_fabric:sync_mode_set
 ws_factory_reset:delete_file
 ws_factory_reset:reset_bluetooth
+ws_factory_reset:robot_run
 ws_factory_reset:reset_coordinator
 ws_factory_reset:reset_presence
 ws_floorplan_import:roomplan_base64
