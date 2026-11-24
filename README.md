@@ -101,7 +101,7 @@ thermostat and light switches.
 ### Multi-Floor Intelligence
 - **Floor-transition learning** — adaptive dwell-based velocity gate prevents phantom floor changes
 - Learned cross-floor RSSI attenuation
-- Outdoor penalties (0.30× Gaussian damping) for exterior boundary rooms
+- Outdoor penalties for rooms on an Outside floor: while a device is indoors, readings for an outdoor room count 15 dB weaker, and a move between indoors and outdoors needs every vote in the window unless the position on the map agrees
 
 ### Phone & Watch Tracking
 

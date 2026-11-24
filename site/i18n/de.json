@@ -303,8 +303,8 @@
    "de": "Gelernte RSSI-Dämpfung zwischen Etagen"
   },
   {
-   "en": "Outdoor penalties for exterior boundary rooms",
-   "de": "Abzug für draußen bei Räumen an der Außenwand"
+   "en": "Outdoor penalties for rooms on an Outside floor",
+   "de": "Abzug für draußen bei Räumen auf einer Outside-Etage"
   },
   {
    "en": "Scanner Hardware",
