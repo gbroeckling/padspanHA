@@ -4149,6 +4149,9 @@ export function buildLightsMapCard(hostIn){
   // Its screen: Live Aboard's slot, else (Live Aboard off) the Atlas tab's own (host.screen).
   const showSlot = () => (h3 ? h3.slot : host.screen && host.screen.slot) || null;
   const flatShow = (key) => screenShowLine(showSlot(), key);
+  // Edgecut (⋯ list, per screen): the rooms fill the screen, as far in as every button stays whole on it (edgecutFit).
+  // A display screen's (the Atlas tab, the sidebar, a wall), never the builder's, which edits the whole house.
+  const edgecutOn = () => DISPLAY && flatShow("edgecut") === true;
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
@@ -5585,7 +5588,7 @@ export function buildLightsMapCard(hostIn){
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
-            lines: () => ["light_taps", "other_floors", ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
+            lines: () => ["light_taps", "other_floors", "edgecut", ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
             ready: () => {
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
