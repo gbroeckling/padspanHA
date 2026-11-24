@@ -17,7 +17,9 @@ für Leuchten heißt immer noch **Lights**.
 
 **Einstellungen → Funktionen → PadSpan-Lizenz** hat einen einmaligen kostenlosen Testzeitraum von
 90 Tagen ([Kapitel 25](25-padspan-pro.md)). PadSpan Bright ist derselbe Atlas für sich allein, ohne
-Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel.
+Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel. Ein Bright-Pro-Schlüssel schaltet die
+Platzierungswerkzeuge frei: Platzierung, Formen und Größen, die Advanced-Steuerung für WLED,
+Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauchen PadSpan Pro.
 
 ## So kommst du hin
 
@@ -246,7 +248,7 @@ Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.
   **Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
   the Atlas**.
 
-## WLED: Advanced und Exact look (Pro)
+## WLED: Advanced und Exact look (Pro oder Bright Pro)
 
 Die Karte eines WLED-Lichts hat **Controls | Advanced**. Advanced ist eine ganze WLED-Werkbank in
 Reitern: **Layout**, **Effect**, **Presets & playlists**, **LEDs**, **Sync & team**, **Exact look**,

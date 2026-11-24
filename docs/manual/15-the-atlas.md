@@ -15,7 +15,9 @@ lighting; the filter chip for light fixtures is still called **Lights**.
 
 **Settings → Features → PadSpan licence** has a one-time 90-day free trial
 ([chapter 25](25-padspan-pro.md)). PadSpan Bright is the same Atlas on its own, without presence
-tracking, with its own Bright Pro key.
+tracking, with its own Bright Pro key. A Bright Pro key unlocks the placement tools: placement,
+shapes and sizes, WLED's Advanced controls, Automorph and Showcase. Whole house presets, Vacation
+Mode and the heatmap need PadSpan Pro.
 
 ## Getting there
 
@@ -220,7 +222,7 @@ else WLED lights named "emergency".
 - To hide the button on a screen anyone can tap: **Settings → Atlas → Atlas — Mapped Light Control →
   Show the Test emergency lighting button on the Atlas**.
 
-## WLED: Advanced and Exact look (Pro)
+## WLED: Advanced and Exact look (Pro or Bright Pro)
 
 A WLED light's card has **Controls | Advanced**. Advanced is a whole WLED workbench in tabs:
 **Layout**, **Effect**, **Presets & playlists**, **LEDs**, **Sync & team**, **Exact look**,
