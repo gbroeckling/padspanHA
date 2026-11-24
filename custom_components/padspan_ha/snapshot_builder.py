@@ -3726,7 +3726,9 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         _cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
         if _cal:
             _pts = _cal.data.get("points", [])
-            _auto = sum(1 for p in _pts if str(p.get("label", "")).startswith("[auto]"))
+            from .calibration_store import is_owner_point  # noqa: PLC0415
+            # PadSpan's own points (a pinned beacon's [auto], a robot run's [robot]) against the owner's.
+            _auto = sum(1 for p in _pts if not is_owner_point(p.get("label")))
             _empty = sum(1 for p in _pts if not (p.get("scanner_readings") or []))
             _knn_active_count = 0
             _spatial_active_count = 0

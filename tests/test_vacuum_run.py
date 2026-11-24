@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import math
+import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -131,7 +132,7 @@ class _Valetudo:
     """Answers robot_call as Valetudo does. After a go-to the robot is half way
     (moving) on the next read and there (idle) from the one after."""
 
-    def __init__(self, vmap=None, *, unreachable=(), status_error_at=None, auth_needed=False):
+    def __init__(self, vmap=None, *, unreachable=(), status_error_at=None, auth_needed=False, wifi=None):
         self.vmap = vmap or _house()
         self.pos = (150.0 * PS, 70.0 * PS)
         self.target = None
@@ -141,6 +142,7 @@ class _Valetudo:
         self.status_error_at = status_error_at        # the go-to number after which it reports an error
         self.auth_needed = auth_needed
         self.gotos = 0
+        self.wifi = wifi                              # None: no WifiConfigurationCapability (an error, as a robot without it)
 
     async def call(self, hass, base, method, path, body=None, auth=None):
         if self.auth_needed and not auth:
@@ -152,6 +154,10 @@ class _Valetudo:
             return None
         if path == vr.CONTROL_PATH:
             return None
+        if path == vr.WIFI_PATH:
+            if self.wifi is None:
+                raise vr.RobotError("refused", "The robot answered HTTP 404")
+            return self.wifi(self) if callable(self.wifi) else self.wifi
         if path == vr.ATTRS_PATH:
             err = self.status_error_at is not None and self.gotos >= self.status_error_at
             status = "error" if err else "moving" if self.target and self.reads < 2 else "idle"
@@ -587,12 +593,12 @@ def test_nothing_starts_a_run_by_itself():
 def test_the_report_counts_runs_and_nothing_else():
     from custom_components.padspan_ha import telemetry as T
     for w in ("started", "finished", "stopped", "failed", "time_limit", "undone",
-              "points_0", "points_1_5", "points_6_20", "points_21_plus"):
+              "points_0", "points_1_5", "points_6_20", "points_21_plus", "wifi_read"):
         assert T.event_allowed(f"robot_run:{w}")
     assert not T.event_allowed("robot_run:Kitchen") and not T.event_allowed("robot_run:http://192.168.1.50")
     # Only the engine's own words: two fixed ones, how the run ended, and the points bucket.
     src = (CC / "vacuum_run.py").read_text(encoding="utf-8")
-    assert set(re.findall(r'self\._bump\(("[a-z_]+"|\w+)', src)) == {'"started"', '"undone"', "why", "_points_bucket"}
+    assert set(re.findall(r'self\._bump\(("[a-z_]+"|\w+)', src)) == {'"started"', '"undone"', '"wifi_read"', "why", "_points_bucket"}
 
 
 def test_the_login_is_kept_where_no_backup_reaches():
@@ -601,3 +607,192 @@ def test_the_login_is_kept_where_no_backup_reaches():
     assert "password" not in repr(vi._default_data())
     reset = (CC / "ws_factory_reset.py").read_text(encoding="utf-8")
     assert '_St(hass, 1, AUTH_STORE_KEY).async_save({"user": "", "password": ""})' in reset
+
+
+# ── robot points are PadSpan's, and only their run's Undo removes them (2026-11-24) ──
+
+ROBOT = "[robot] rr_abc123 Kitchen (tag 0.1 m above the floor)"
+
+
+def test_robot_points_are_automatic_not_the_owners():
+    from custom_components.padspan_ha.calibration_store import is_beacon_auto_point, is_owner_point
+    assert is_owner_point("Kitchen table") and is_owner_point("") and is_owner_point(None)
+    assert not is_owner_point("[auto] Keys") and not is_owner_point(ROBOT)
+    assert is_beacon_auto_point("[auto] Keys") and not is_beacon_auto_point(ROBOT)
+    assert vr.LABEL_PREFIX == "[robot]"
+
+
+def test_every_own_or_automatic_count_uses_the_one_helper():
+    """No module tells PadSpan's points from the owner's by a prefix of its own:
+    the label is read through calibration_store's helpers (presence_coordinator
+    writes the [auto] label; it does not test for it)."""
+    for p in sorted(CC.glob("*.py")):
+        src = p.read_text(encoding="utf-8")
+        for m in re.finditer(r'startswith\(\s*"\[(auto|robot)\]"', src):
+            raise AssertionError(f"{p.name}: {src[m.start():m.start() + 40]}")
+    for name, counted in (("plan_carry.py", 'out["points_hand"] += 1 if is_owner_point(p.get("label")) else 0'),
+                          ("snapshot_builder.py", '_auto = sum(1 for p in _pts if not is_owner_point(p.get("label")))'),
+                          ("telemetry.py", 'not is_owner_point(p.get("label")))')):
+        assert counted in (CC / name).read_text(encoding="utf-8"), name
+
+
+def _cal_store(points):
+    from custom_components.padspan_ha.calibration_store import CalibrationStore
+    cs = CalibrationStore.__new__(CalibrationStore)
+    cs.data = {"points": points}
+    cs.store = SimpleNamespace(async_save=AsyncMock())
+    cs.rf_points_changed = lambda: None
+    return cs
+
+
+def test_the_beacon_caps_and_prunes_never_take_a_robot_point():
+    tag = "AA:BB:CC:DD:EE:FF"
+    robot = [{"id": f"r{i}", "label": ROBOT, "device_id": tag, "collected_at": f"2026-11-01T00:00:{i:02d}",
+              "scanner_readings": [{"source": "a"}], "quality": "undersampled"} for i in range(8)]
+    auto = [{"id": f"a{i}", "label": "[auto] Robot tag", "device_id": tag, "collected_at": f"2026-11-02T00:00:{i:02d}",
+             "scanner_readings": [{"source": "a"}, {"source": "b"}]} for i in range(5)]
+    cs = _cal_store(robot + auto)
+    assert asyncio.run(cs.async_prune_auto_points(max_per_beacon=3)) == 2              # the beacon's own two oldest
+    assert [p["id"] for p in cs.data["points"]][:8] == [f"r{i}" for i in range(8)]
+    assert asyncio.run(cs.async_prune_one_scanner_auto_points()) == 0                 # a one-receiver robot point stays
+    assert sum(1 for p in cs.data["points"] if p["label"] == ROBOT) == 8
+
+
+def test_beacon_tunes_hard_relocation_never_takes_a_robot_point():
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    src = (CC / "www" / "padspan-ha" / "views" / "calibration.js").read_text(encoding="utf-8")
+    start = src.index("function _beaconTunePurgeIds(")
+    fn = src[start:src.index("\n}\n", start) + 3]
+    pts = [{"id": "robot", "label": ROBOT, "device_id": "AA:BB:CC:DD:EE:FF"},
+           {"id": "auto", "label": "[auto] AA:BB:CC:DD:EE:FF", "device_id": "AA:BB:CC:DD:EE:FF"}]
+    js = fn + ("\nconsole.log(JSON.stringify(_beaconTunePurgeIds(" + json.dumps(pts)
+               + ', {deviceId: "AA:BB:CC:DD:EE:FF", key: "AA:BB:CC:DD:EE:FF", label: "[robot]"}, new Set())));')
+    out = subprocess.run([node, "-e", js], capture_output=True, text=True, timeout=60)
+    assert json.loads(out.stdout.strip()) == ["auto"], out.stderr
+
+
+# ── Wi-Fi at each spot (2026-11-24) ─────────────────────────────────────────
+
+def _wifi_status(rob):
+    """Valetudo's ValetudoWifiStatus, the signal weaker the further the robot is from x = 0."""
+    return {"__class": "ValetudoWifiStatus", "state": "connected",
+            "details": {"ssid": "HomeNet", "bssid": "AA:BB:CC:00:11:22", "signal": -40 - rob.pos[0] / 100,
+                        "frequency": "5ghz", "ips": ["fe80::1", "192.168.1.50"], "upspeed": 72, "downspeed": 72}}
+
+
+def test_each_spot_keeps_the_robots_wifi_for_other_integrations(monkeypatch, fast):
+    rob = _Valetudo(wifi=_wifi_status)
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    run = vs.data["runs"][-1]
+    spots = vr.plan_spots(_house(), "Kitchen")["spots"]
+    conn = asyncio.run(_ws(wsv.ws_robot_wifi_readings, h))
+    r = conn.result
+    assert r["version"] == 1 and r["robot_ip"] == "192.168.1.50" and run["wifi"] == len(spots)
+    assert len(r["readings"]) == len(spots)
+    first = r["readings"][0]
+    assert set(first) == {"run_id", "ts", "x_m", "y_m", "floor_id", "room", "signal", "bssid", "frequency", "state"}
+    assert (first["run_id"], first["floor_id"], first["room"], first["frequency"], first["state"]) == (run["id"], "main", "Kitchen", "5ghz", "connected")
+    assert (first["x_m"], first["y_m"]) == (round(spots[0]["x"] / 100, 3), round(spots[0]["y"] / 100, 3))
+    assert first["signal"] == round(-40 - spots[0]["x"] / 100) and first["bssid"] == "aa:bb:cc:00:11:22"
+    assert "HomeNet" not in repr(r)                                         # the SSID is not kept
+
+
+def test_a_wifi_read_that_fails_never_stops_a_run(monkeypatch, fast):
+    rob = _Valetudo(wifi=None)                                              # no Wi-Fi capability: 404
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    run = vs.data["runs"][-1]
+    assert run["state"] == "finished" and run["added"] == run["spots"] and run["wifi"] == 0
+    assert vs.data["wifi"]["readings"] == []
+    assert vr.wifi_of("nonsense") is None
+    assert vr.wifi_of({"state": "not_connected"}) == {"state": "not_connected", "signal": None, "bssid": None, "frequency": None}
+
+
+def test_wifi_history_is_capped(monkeypatch, fast):
+    monkeypatch.setattr(vr, "WIFI_KEPT", 3)
+    rob = _Valetudo(wifi=_wifi_status)
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    assert len(vs.data["wifi"]["readings"]) == 3
+
+
+def test_the_wifi_command_is_admin_only_and_the_report_has_no_wifi_names():
+    src = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
+    head = src[src.index('"type": "padspan_ha/robot_wifi_readings"'):src.index("async def ws_robot_wifi_readings")]
+    assert "@websocket_api.require_admin" in head
+    tel = (CC / "telemetry.py").read_text(encoding="utf-8")
+    assert "bssid" not in tel.lower().replace("never an ssid or bssid", "") and "robot_ip" not in tel
+    assert "padspan_ha/robot_wifi_readings" in (CC / "vacuum_run.py").read_text(encoding="utf-8")
+
+
+# ── Find mistakes (vacuum_findings.py) ─────────────────────────────────────
+
+def _robot_points(rx, *, floor="main", n_side=4, step=1.5, noise=None, label="[robot] rr_t Kitchen (tag 0.1 m above the floor)"):
+    """Robot spots on a grid, each with the receivers' RSSI from the true spots in rx
+    ({source: (x, y, floor)}): -45 - 25 log10(d), plus a small fixed wobble."""
+    import itertools
+    pts = []
+    wob = noise or [0.0, 1.2, -0.8, 0.5, -1.4, 0.9, -0.3, 1.5, -1.1]
+    for k, (i, j) in enumerate(itertools.product(range(n_side), range(n_side))):
+        x, y = 1.0 + i * step, 1.0 + j * step
+        reads = []
+        for src, (tx, ty, tf) in rx.items():
+            d = math.sqrt((x - tx) ** 2 + (y - ty) ** 2 + 0.9 ** 2) if tf == floor else math.sqrt((x - tx) ** 2 + (y - ty) ** 2 + 3.0 ** 2)
+            v = -45 - 25 * math.log10(d) + wob[k % len(wob)] - (12 if tf != floor else 0)
+            reads.append({"source": src, "name": src.title(), "mean_rssi": round(v, 1)})
+        pts.append({"id": f"p{k}", "label": label, "x_m": x, "y_m": y, "floor_id": floor, "scanner_readings": reads})
+    return pts
+
+
+ROOMS = {"Kitchen": {"type": "poly", "floor_id": "main", "points_m": [[0, 0], [4, 0], [4, 7], [0, 7]]},
+         "Hall": {"type": "poly", "floor_id": "main", "points_m": [[4, 0], [8, 0], [8, 7], [4, 7]]}}
+
+
+def test_a_receiver_placed_right_is_not_flagged_and_one_moved_4_m_is_found():
+    from custom_components.padspan_ha import vacuum_findings as vf
+    true = {"right": (2.0, 2.0, "main"), "moved": (6.5, 5.0, "main")}
+    pts = _robot_points(true)
+    placed = {"right": {"x_m": 2.0, "y_m": 2.0, "z_m": 1.0, "floor_id": "main"},
+              "moved": {"x_m": 2.5, "y_m": 5.0, "z_m": 1.0, "floor_id": "main"}}        # 4 m from where it is
+    out = vf.find_mistakes(pts + [{"id": "own", "label": "Kitchen table", "x_m": 9, "y_m": 9, "floor_id": "main",
+                                   "scanner_readings": [{"source": "moved", "mean_rssi": -30}]}], placed, ROOMS)
+    assert [f["source"] for f in out["findings"]] == ["moved"] and [f["source"] for f in out["fine"]] == ["right"]
+    f = out["findings"][0]
+    assert f["kind"] == "moved" and f["placed"]["room"] == "Kitchen" and f["found"]["room"] == "Hall"
+    assert math.dist((f["found"]["x_m"], f["found"]["y_m"]), (6.5, 5.0)) < 1.0          # near its true spot
+    assert f["found"]["distance_m"] > 2.5 and f["rms_after"] <= 0.65 * f["rms_before"] and f["spots"] == 16
+    assert out["points"] == 16                                                          # only the robot's points
+
+
+def test_too_few_spots_are_not_judged():
+    from custom_components.padspan_ha import vacuum_findings as vf
+    pts = _robot_points({"far": (2.0, 2.0, "main")}, n_side=2)                          # 4 spots
+    out = vf.find_mistakes(pts, {"far": {"x_m": 7.0, "y_m": 6.0, "floor_id": "main"}}, ROOMS)
+    assert out["findings"] == [] and out["thin"] == [{"source": "far", "name": "Far", "spots": 4}]
+
+
+def test_a_receiver_on_another_floor_that_hears_the_robot_strongly():
+    from custom_components.padspan_ha import vacuum_findings as vf
+    pts = _robot_points({"upstairs": (3.0, 3.0, "main"), "attic": (3.0, 3.0, "upper")})
+    placed = {"upstairs": {"x_m": 3.0, "y_m": 3.0, "floor_id": "upper"},               # truly here, placed upstairs
+              "attic": {"x_m": 3.0, "y_m": 3.0, "floor_id": "upper"}}                  # truly upstairs: faint here
+    out = vf.find_mistakes(pts, placed, ROOMS)
+    assert [f["source"] for f in out["findings"]] == ["upstairs"]
+    f = out["findings"][0]
+    assert f["kind"] == "other_floor" and f["found"]["floor_id"] == "main" and f["strong"] >= 3
+    assert math.dist((f["found"]["x_m"], f["found"]["y_m"]), (3.0, 3.0)) < 1.0
+
+
+def test_findings_move_nothing():
+    src = (CC / "vacuum_findings.py").read_text(encoding="utf-8")
+    for bad in ("async_", "hass", ".data[", "set_scanner", "await "):
+        assert bad not in src, bad
+    ws = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
+    body = ws[ws.index("async def ws_vacuum_findings"):ws.index("async def ws_robot_wifi_readings")]
+    assert "async_add_executor_job(\n        find_mistakes, cal.list_points(), mdl.scanner_positions_m()" in body.replace("\r\n", "\n")
+    assert "async_set" not in body and "save" not in body

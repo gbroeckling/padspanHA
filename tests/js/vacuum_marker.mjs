@@ -29,8 +29,10 @@ const v = withVac.find(w => w.key === "vacuum");
 check("vac:drawn", v && v.x === 3.5 && v.y === 4.25 && v.floor_id === "main" && v.name === "Robot vacuum", v);
 check("vac:others-kept", JSON.stringify(withVac.filter(w => w.key !== "vacuum")) === before);
 check("vac:card", v && v.card.title === "Robot vacuum" && v.card.lines.includes("Seen just now"), v && v.card);
+// Show tags and Show people both off: the robot alone, from the robot's own read (the owner, 2026-11-24).
 const off = TR.wantedOf({ ...base, tags: false, snapshot: { ...snap, vacuum: { x_m: 3.5, y_m: 4.25 } } });
-check("vac:tags-off", !off.some(w => w.key === "vacuum"));
+check("vac:tags-off", off.length === 1 && off[0].key === "vacuum", off.map(w => w.key));
+check("vac:no-snapshot", TR.wantedOf({ ...base, tags: false, snapshot: null }).length === 0);
 const people = TR.wantedOf({ ...base, tags: false, people: true, snapshot: { ...snap, vacuum: { x_m: 3.5, y_m: 4.25 } } });
 check("vac:people-on", people.some(w => w.key === "vacuum") && !people.some(w => w.key === "beacon:AA"));
 check("vac:hold-said", v && v.card.lines.includes("Hold it for its card"), v && v.card);

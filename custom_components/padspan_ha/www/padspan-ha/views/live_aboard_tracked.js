@@ -114,9 +114,10 @@ export function trackedOf(snapshot){
 
 /** A linked robot vacuum (snapshot.vacuum, only there while its link is on,
  *  vacuum_import.py): drawn on the floor, where its own map says it is,
- *  whenever the snapshot is read (Show people or Show tags & scanners). A tap
- *  shows this small card; a hold opens its robovac card (robovac_card.js,
- *  2026-11-24). Null when there is none. */
+ *  whenever the snapshot is read, Show people and Show tags & scanners or
+ *  not (the robot's own read: the host's `robot` reader). A tap shows this
+ *  small card; a hold opens its robovac card (robovac_card.js, 2026-11-24).
+ *  Null when there is none. */
 export function vacuumOf(snapshot){
   const v = snapshot && snapshot.vacuum;
   const x = fin(v && v.x_m), y = fin(v && v.y_m);
@@ -313,6 +314,10 @@ export function wantedOf(d){
     out.push({ key: "scanner:" + addr, kind: "scanner", recipe: r, floor_id: s.floor_id, x, y, z, centre: true,
                card: scannerCard(addr, d.model, z, radios) });
   }
+  // The robot vacuum: drawn while its link is on, whatever people and tags show (the owner, 2026-11-24: its card
+  // must always be one hold away).
+  const v = vacuumOf(d.snapshot);
+  if (v) out.push(v);
   if (!d.people && !d.tags) return out;
   const tracked = trackedOf(d.snapshot);
   const people = d.people ? peopleOf(d.states, tracked, d.carries) : [];
@@ -327,9 +332,6 @@ export function wantedOf(d){
       if (o.guest) Object.assign(out[out.length - 1], { name: `${o.guest} · ${t("Guest")}`, guest: true });
     }
   }
-  // The robot vacuum: with tags or people, the snapshot is read, and it is drawn while its link is on (2026-11-24).
-  const v = vacuumOf(d.snapshot);
-  if (v) out.push(v);
   const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
   // Where people already stand: those PadSpan places first, then each one
   // known only by a room, so none stands on another.

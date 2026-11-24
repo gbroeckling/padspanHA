@@ -471,6 +471,7 @@ def _default_data() -> dict[str, Any]:
         "pending": [],                          # the review pile — never calibration
         "robot": {"url": ""},                   # the robot's Valetudo address, for its card and runs
         "runs": [],                             # room location runs (vacuum_run.py), the last few
+        "wifi": {"readings": [], "robot_ip": ""},   # the robot's Wi-Fi at each run spot (vacuum_run.py)
     }
 
 

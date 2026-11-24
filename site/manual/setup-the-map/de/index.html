@@ -352,8 +352,9 @@ zu lernen. Das ist freiwillig, und nichts passiert, bis du eine Fahrt startest. 
 Bluetooth-Beacon mit fester Adresse (iBeacon oder Eddystone) oben auf den Roboter, weg vom
 Laserturm. Kein AirTag und kein Tile: deren Adressen ändern sich ständig. PadSpan hört nie den
 Roboter selbst, nur den Beacon auf ihm.</p>
-<p>Der Roboter erscheint im Atlas und im 3D-Haus, solange seine Live-Position an ist und dort Personen
-oder Tags gezeigt werden. Halte ihn gedrückt, um seine Karte zu öffnen. Die Karte spricht direkt mit
+<p>Der Roboter erscheint im Atlas und im 3D-Haus, solange seine Live-Position an ist und der
+Saugroboter-Import eingeschaltet ist, ob dort Personen und Tags gezeigt werden oder nicht. Halte
+ihn gedrückt, um seine Karte zu öffnen. Die Karte spricht direkt mit
 dem Valetudo des Roboters, also braucht es weder die Saugroboter-Entität von Home Assistant noch
 MQTT. Sie zeigt, was der Roboter gerade tut, und seinen Akku, mit <b>Starten</b>, <b>Pausieren</b> und
 <b>Zur Station</b>. Nur ein Administrator kann sie benutzen.</p>
@@ -369,6 +370,17 @@ Station; das tun auch das Ende der Fahrt, ein Problem oder zwei Stunden. <b>Dies
 machen</b> nimmt genau die Punkte heraus, die diese Fahrt hinzugefügt hat, und keinen deiner eigenen.
 Eine Fahrt, die beim Neustart von Home Assistant lief, ist einfach vorbei; ihre Punkte bleiben und
 lassen sich weiterhin rückgängig machen.</p>
+<p>Die Punkte des Roboters zählen als PadSpans eigene, wie die automatischen Punkte eines
+angehefteten Beacons, nicht als deine. Nur das Rückgängigmachen einer Fahrt entfernt sie: die
+Aufräumarbeiten der Beacons rühren sie nie an.</p>
+<p><b>Fehler finden</b> auf der Karte öffnet eine eigene Karte. Aus den Punkten, die die Fahrten schon
+gespeichert haben (ohne weitere Fahrt), berechnet sie, wo jeder Empfänger wirklich steht, und
+listet die auf, die an der falschen Stelle oder auf der falschen Etage platziert scheinen, mit
+der Angabe, wie sicher das ist, und einem Link zur Platzierung dieses Empfängers. Ein Empfänger
+muss an sechs Stellen oder mehr gehört worden sein, über 3 m verteilt; die anderen stehen unter zu
+wenigen Messwerten. Sie verschiebt nie etwas.</p>
+<p>An jeder Stelle meldet der Roboter auch sein eigenes WLAN-Signal. PadSpan behält die letzten 2.000
+davon für die WLAN-Abdeckungskarte, und andere Integrationen können sie lesen.</p>
 <h2 id="mehr-als-eine-etage-sie-ausrichten">Mehr als eine Etage: sie ausrichten</h2>
 <p>Jeder Grundriss behält seinen eigenen Platz in Metern. Mit zwei oder mehr Etagen richtest du sie so
 aus, dass ein Treppenhaus auf der einen über dem Treppenhaus auf der anderen liegt. Das geht unter

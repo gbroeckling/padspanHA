@@ -39,6 +39,17 @@ const sheet = () => all(document.body, "div").find(d => d.className === "ps-robo
 const btn = (label) => all(sheet(), "button").find(b => b.textContent === label);
 const press = async (b) => { for (const f of (b._listeners.click || []).slice()) await f({ stopPropagation() {}, preventDefault() {}, target: b }); await tick(); };
 
+const FINDINGS = {
+  points: 24, runs: 2,
+  findings: [
+    { source: "aa:bb:cc:00:00:01", name: "Hall plug", kind: "moved", spots: 16, rms_before: 7.2, rms_after: 2.1,
+      placed: { x_m: 2.5, y_m: 5, floor_id: "main", room: "Kitchen" }, found: { x_m: 6.5, y_m: 5, floor_id: "main", room: "Hall", distance_m: 4.0 } },
+    { source: "upstairs-proxy", name: "Upstairs proxy", kind: "other_floor", spots: 16, strong: 9, strongest_dbm: -48.5, rms_before: null, rms_after: 1.9,
+      placed: { x_m: 3, y_m: 3, floor_id: "upper", room: "" }, found: { x_m: 3, y_m: 3, floor_id: "main", room: "Kitchen", distance_m: null } },
+  ],
+  fine: [{ source: "k", name: "Kitchen plug", spots: 16, rms: 1.8 }],
+  thin: [{ source: "g", name: "Garage", spots: 3 }],
+};
 const READY = {
   robot: { url: "http://192.168.1.50", auth: false },
   link: { map: true, valetudo: true, on: true, vacuum_entity: "" },
@@ -56,6 +67,7 @@ function fakeHass(status, admin = true) {
       if (msg.type === "padspan_ha/vacuum_robot_status") return typeof status === "function" ? status() : status;
       if (msg.type === "padspan_ha/vacuum_run_start") return { ok: true, run: { spots: 9 } };
       if (msg.type === "padspan_ha/vacuum_run_undo") return { ok: true, removed: 4 };
+      if (msg.type === "padspan_ha/vacuum_findings") return FINDINGS;
       return { ok: true };
     },
   };
@@ -149,6 +161,30 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   RC.closeRobovacCard();
 }
 
+// Find mistakes: its own card, only findings, each with the link to that receiver's placement.
+{
+  const last = { id: "rr_7", started: "2026-11-24T18:02:11+00:00", state: "finished", added: 4, skipped: 0, points_kept: 4, undone: false };
+  const { hass } = await open({ ...READY, runs: [last] });
+  await press(btn("Find mistakes"));
+  await tick(); await tick();
+  const card = all(document.body, "div").find(d => d.className === "ps-robovac-findings");
+  const text = card ? card.textContent : "";
+  check("findings", hass.sent.some(m => m.type === "padspan_ha/vacuum_findings") && card, hass.sent);
+  check("findings", text.includes("Hall plug") && text.includes("Placed in Kitchen. The readings put it in Hall, 4 m away.")
+    && text.includes("How sure: 16 spots; the readings fit 7.2 dB off where it is placed, 2.1 dB off there."), text);
+  check("findings", text.includes("It may be on the wrong floor.") && text.includes("Not enough readings to judge: Garage (3)"), text);
+  const links = all(card, "a").map(a => a.href);
+  check("findings", links[0] === "/padspan-ha?view=maps&tab=edit&receiver=aa%3Abb%3Acc%3A00%3A00%3A01" && links.length === 2, links);
+  const FI = await import(pathToFileURL(join(WWW, "views", "robovac_findings.js")).href);
+  FI.closeFindings();
+  check("findings", !all(document.body, "div").some(d => d.className === "ps-robovac-findings"), "closed");
+  RC.closeRobovacCard();
+  // No run with points: no Find mistakes button.
+  await open(READY);
+  check("findings", !btn("Find mistakes"), "no points, no button");
+  RC.closeRobovacCard();
+}
+
 // In German: the card's own words, from i18n/de/aboard2.json.
 {
   const lang = await I.useLanguage({ language: "de" }, ["aboard2"]);
@@ -157,6 +193,11 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   check("german", lang === "de" && text.includes("Raumortung") && text.includes("In der Station · Akku 87 % (lädt)"), text);
   check("german", btn("Zur Station") && btn("Fahrt starten") && btn("Diese Fahrt rückgängig machen") && text.includes("angehalten"), text);
   check("german", !text.includes("Room location") && !text.includes("Start a run"), text);
+  await press(btn("Fehler finden"));
+  await tick(); await tick();
+  const card = all(document.body, "div").find(d => d.className === "ps-robovac-findings");
+  check("german", card && card.textContent.includes("Platziert in Kitchen. Die Messwerte verorten ihn in Hall, 4 m entfernt.")
+    && card.textContent.includes("Seine Platzierung öffnen"), card && card.textContent);
   RC.closeRobovacCard();
 }
 

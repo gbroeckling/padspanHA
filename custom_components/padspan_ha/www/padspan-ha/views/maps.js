@@ -139,6 +139,12 @@ export function render(ctx){
     const tracedOn = maps.find(m => m.room_bounds && m.room_bounds[_openRoom]);
     if (tracedOn) ctx.state.activeMapId = tracedOn.id;
   }
+  // A link to one receiver (?receiver=, panel.js): the plan it is placed on.
+  const _openRx = ctx.state.maps && ctx.state.maps._openRadios && ctx.state.maps._openRadios.source;
+  if (_openRx) {
+    const placedOn = maps.find(m => (m.receivers || []).some(r => r && (r.source === _openRx || r.id === _openRx)));
+    if (placedOn) ctx.state.activeMapId = placedOn.id;
+  }
   const activeId = ctx.state.activeMapId || (maps[0] && maps[0].id) || null;
   const active = maps.find(m=>m.id===activeId) || null;
 
@@ -2408,7 +2414,9 @@ function _edit(ctx, map, allMaps, opts){
   // The Receivers page's Place / Move (views/receivers.js): a one-shot that
   // opens Radios with that receiver selected (none: just Radios).
   if(ctx.state.maps._openRadios){
-    const _want = ctx.state.maps._openRadios.rxId;
+    const _src = ctx.state.maps._openRadios.source;
+    const _want = ctx.state.maps._openRadios.rxId
+      || (_src ? (ctx.state.maps._draftReceivers.find(r=>r.source===_src||r.id===_src) || {}).id : null);
     ctx.state.maps._openRadios = null;
     ctx.state.maps._mode = "receivers";
     if(_want && ctx.state.maps._draftReceivers.some(r=>r.id===_want)) ctx.state.maps._selectedRxId = _want;

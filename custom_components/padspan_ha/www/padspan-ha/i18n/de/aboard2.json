@@ -386,5 +386,26 @@
 "Removed {n} points": {
 "one": "1 Punkt entfernt",
 "other": "{n} Punkte entfernt"
+},
+"Find mistakes": "Fehler finden",
+"Where the robot's runs say each receiver is, from the tag's readings at the spots the robot stood on. Nothing is moved here.": "Wo jeder Empfänger laut den Fahrten des Roboters steht, aus den Messwerten des Tags an den Stellen, an denen der Roboter stand. Hier wird nichts verschoben.",
+"no room": "keinem Raum",
+"No room location run has added points yet. Start one on the robot's card first.": "Noch keine Raumortungsfahrt hat Punkte hinzugefügt. Starte zuerst eine auf der Karte des Roboters.",
+"Placed on floor {placed}, yet it hears the robot strongly on floor {here} ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.": "Auf Etage {placed} platziert, hört den Roboter aber stark auf Etage {here} ({strong} Stellen, bis zu {dbm} dBm). Vielleicht steht er auf der falschen Etage.",
+"On that floor the readings put it in {room}.": "Auf dieser Etage verorten ihn die Messwerte in {room}.",
+"Placed in {placed}. The readings put it in {found}, {d} m away.": "Platziert in {placed}. Die Messwerte verorten ihn in {found}, {d} m entfernt.",
+"How sure: {n} spots; the readings fit {before} dB off where it is placed, {after} dB off there.": "Wie sicher: {n} Stellen; die Messwerte weichen am platzierten Ort um {before} dB ab, dort um {after} dB.",
+"Open its placement": "Seine Platzierung öffnen",
+"No receiver was heard at enough spots to check yet.": "Noch kein Empfänger wurde an genug Stellen gehört, um ihn zu prüfen.",
+"Not enough readings to judge: {names}": "Zu wenige Messwerte für ein Urteil: {names}",
+"Looking…": "Wird gesucht …",
+"Could not read the findings: {why}": "Die Ergebnisse ließen sich nicht lesen: {why}",
+"From {n} robot spots.": {
+"one": "Aus 1 Roboterstelle.",
+"other": "Aus {n} Roboterstellen."
+},
+"No receiver looks misplaced: {n} checked.": {
+"one": "Kein Empfänger scheint falsch platziert: 1 geprüft.",
+"other": "Kein Empfänger scheint falsch platziert: {n} geprüft."
 }
 }

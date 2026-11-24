@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-278 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+280 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |
 |---|---|---|---|---|
@@ -334,6 +334,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/radio_lost_set` | `source`, `lost` | with Enhanced security | `ws_radios.py` | Mark or unmark a BLE radio as 'lost' (excluded from location math). |
 | `padspan_ha/radio_reset` | `source` | always | `ws_radios.py` | Clears everything PadSpan holds about one receiver, for a receiver replaced or moved. |
 | `padspan_ha/receivers_to_rooms` | `undo` (optional), `dry_run` (optional) | always | `ws_fabric.py` | Every live receiver with a room that has an outline, and no position yet, put inside its room: one backup of the fabric, then one write thr… |
+| `padspan_ha/robot_wifi_readings` | – | always | `ws_vacuum.py` | The robot's Wi-Fi at each room location run spot, for other integrations (version 1). |
 | `padspan_ha/room_height_set` | `room`, `height_m` (optional), `floor_raise_m` (optional), `surface` (optional), `space` (optional) | with Enhanced security | `websocket.py` | Set one room's own height (room_meta[room].height_m) for Live Aboard: a double-height living room, a hall under a mezzanine, on a floor tha… |
 | `padspan_ha/room_tag_purge_missing` | – | with Enhanced security | `ws_follow.py` | Remove entity_ids from room_tag_map that have no current HA state (phantom/sample entities). |
 | `padspan_ha/room_tags` | – | – | `ws_follow.py` | Return the room→object map used by the UI. |
@@ -378,6 +379,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/vacuum_cal_pending_accept` | `point_id` | always | `ws_vacuum.py` | The user accepted one pending point: THE one road into calibration. |
 | `padspan_ha/vacuum_cal_pending_list` | – | always | `ws_vacuum.py` |  |
 | `padspan_ha/vacuum_cal_pending_reject` | `point_id` (optional), `all` (optional) | always | `ws_vacuum.py` |  |
+| `padspan_ha/vacuum_findings` | – | always | `ws_vacuum.py` | Receivers the robot runs' points say are placed wrongly. |
 | `padspan_ha/vacuum_import_commit` | `floor_id` (optional), `name` (optional), `include_rooms` (optional), `vacuum_entity` (optional) | always | `ws_vacuum.py` | Write the previewed candidate: a new map, its placement, new rooms only. |
 | `padspan_ha/vacuum_import_preview` | `json_text` (optional), `url` (optional), `entity_id` (optional) | always | `ws_vacuum.py` | Parse a robot vacuum's map into a candidate. |
 | `padspan_ha/vacuum_link_set` | `enabled` (optional), `vacuum_entity` (optional), `walker_enabled` (optional), `walker_tag` (optional), `unlink` (optional) | always | `ws_vacuum.py` | Turn the live position / the walker on or off. |

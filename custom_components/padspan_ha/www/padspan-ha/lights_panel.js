@@ -483,6 +483,8 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s, light_shapes: s.light_shapes,
           atlas_3d_tags: s.atlas_3d_tags, atlas_3d_carries: s.atlas_3d_carries, atlas_3d_home_idle_s: s.atlas_3d_home_idle_s,
           atlas_3d_director_people: s.atlas_3d_director_people,
+          // A linked robot vacuum is drawn on the map while Robot Vacuum Import is on (lights_map.js abLive).
+          vacuum_import_enabled: s.vacuum_import_enabled,
           atlas_3d_director: s.atlas_3d_director };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];

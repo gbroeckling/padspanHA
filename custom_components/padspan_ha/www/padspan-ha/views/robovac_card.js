@@ -32,7 +32,8 @@ const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
   .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 
 export const POLL_MS = 3000;
-const C = {
+// The sheet's look, shared with its findings card (robovac_findings.js).
+export const SHEET = {
   overlay: "position:fixed;inset:0;z-index:10000;background:rgba(3,8,5,.58);backdrop-filter:blur(6px);"
     + "-webkit-backdrop-filter:blur(6px);display:flex;justify-content:center;align-items:flex-end",
   sheet: "width:100%;max-width:520px;max-height:82vh;overflow:auto;padding:14px 16px 18px;box-sizing:border-box;"
@@ -51,6 +52,7 @@ const C = {
   warn: "font-size:12px;color:#fbbf24",
   close: "all:unset;cursor:pointer;padding:0 4px;font-size:18px;line-height:1;color:rgba(226,240,232,.7)",
 };
+const C = SHEET;
 
 // What Valetudo's StatusStateAttribute says, in words.
 const STATUS = {
@@ -271,6 +273,14 @@ export function openRobovacCard(api, info){
       row.append(sel, button(t("Start a run"), doing(() => call("vacuum_run_start", st.room ? { room: st.room } : {}),
         (r) => tn(r && r.run ? r.run.spots : 0, "Run started: {n} spot", "Run started: {n} spots")), true, !ready));
       sheet.appendChild(row);
+    }
+
+    // Find mistakes (the owner, 2026-11-24): receivers the runs' points say are misplaced, on a card of its own.
+    if ((s.runs || []).some(r => r.points_kept > 0)) {
+      sheet.appendChild(button(t("Find mistakes"), async () => {
+        try { (await import(`./robovac_findings.js${new URL(import.meta.url).search}`)).openFindings(api); }
+        catch (err) { console.warn("PadSpan: robovac_findings failed to load", err); }
+      }));
     }
 
     // The last run, and its undo.

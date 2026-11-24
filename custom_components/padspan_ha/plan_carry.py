@@ -40,6 +40,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from . import fabric_truth
+from .calibration_store import is_owner_point
 from .const import (CALIBRATION_STORE_KEY, DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, FABRIC_STORE_KEY,
                     MAPS_STORE_KEY, MODEL_STORE_KEY)
 from .quiet_errors import note as _quiet_error
@@ -196,7 +197,7 @@ def carry_plan(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
             n = to(p["x_m"], p["y_m"])
             if far((p["x_m"], p["y_m"]), n):
                 out["points"][str(p["id"])] = n
-                out["points_hand"] += 0 if str(p.get("label") or "").startswith("[auto]") else 1
+                out["points_hand"] += 1 if is_owner_point(p.get("label")) else 0
                 shift = max(shift, math.dist((float(p["x_m"]), float(p["y_m"])), n))
     for eid, v in (mdl.light_positions_m() or {}).items():
         if on_floor(v) and v.get("x_m") is not None and v.get("y_m") is not None \

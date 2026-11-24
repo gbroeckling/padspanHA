@@ -290,8 +290,9 @@ It is optional, and nothing happens until you start a run. Stick a fixed-address
 (iBeacon or Eddystone) on top of the robot, away from its laser turret. Not an AirTag or a Tile:
 their addresses keep changing. PadSpan never hears the robot itself, only the beacon on it.
 
-The robot shows on the Atlas and in the 3D house while its live position is on and people or tags
-are shown there. Press and hold it to open its card. The card talks to the robot's own Valetudo,
+The robot shows on the Atlas and in the 3D house while its live position is on and Robot Vacuum
+Import is turned on, whether people and tags are shown there or not. Press and hold it to open its
+card. The card talks to the robot's own Valetudo,
 so Home Assistant's vacuum entity and MQTT are not needed. It shows what the robot is doing and its
 battery, with **Start**, **Pause** and **Dock**. Only an administrator can use it.
 
@@ -305,6 +306,18 @@ backed up before every run. **Stop** ends the run and sends the robot back to it
 end of the run, a problem, or two hours. **Undo this run** takes out exactly the points that run
 added, and none of your own. A run that was going when Home Assistant restarted is simply over; its
 points stay, and can still be undone.
+
+The robot's points count as PadSpan's own, like a pinned beacon's automatic points, not as yours.
+Only a run's Undo removes them: the beacons' own clean-ups never touch them.
+
+**Find mistakes** on the card opens a card of its own. From the points the runs already stored (no
+extra driving), it works out where each receiver really is, and lists the ones that look placed in
+the wrong spot, or on the wrong floor, with how sure it is and a link to that receiver's placement.
+A receiver needs to be heard at six spots or more, spread over 3 m; the others are listed as not
+enough readings. It never moves anything.
+
+At each spot the robot also reports its own Wi-Fi signal. PadSpan keeps the last 2,000 of these for
+the Wi-Fi coverage map, and other integrations can read them.
 
 ## More than one floor: lining them up
 

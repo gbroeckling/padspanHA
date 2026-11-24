@@ -71,7 +71,10 @@ MIN_VERDICT_SPOTS = 10
 
 
 def _is_auto(p: dict[str, Any]) -> bool:
-    return str(p.get("label", "")).startswith("[auto]")
+    """A pinned beacon's [auto] point: copies of one spot. A robot run's points
+    are each a spot of their own, so each is a test spot (2026-11-24)."""
+    from .calibration_store import is_beacon_auto_point  # noqa: PLC0415
+    return is_beacon_auto_point(p.get("label"))
 
 
 def held_in(points: list[dict[str, Any]], i: int,

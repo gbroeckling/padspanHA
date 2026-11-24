@@ -576,6 +576,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
     "vacuum_import",                                # the Mapping tab's "Import from a robot vacuum"
     "robovac_card",                                 # the robot vacuum's card: a hold on it, on the Atlas or in 3D
+    "robovac_findings",                             # its Find mistakes card: receivers the runs say are misplaced
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
     "atlas_heights",                                # Mapping's Height row and Heights list (Live Aboard's heights)
@@ -1303,7 +1304,9 @@ TEAM_CARD_EVENTS: frozenset[str] = frozenset({f"team_card:{w}" for w in TEAM_CAR
 # by the owner, failed: the robot refused or went quiet, time_limit: two hours); a run undone; and the points one run
 # added, in buckets. Counts only, never the robot's address, a room or a name.
 ROBOT_RUN_WORDS: tuple[str, ...] = ("started", "finished", "stopped", "failed", "time_limit", "undone",
-                                    "points_0", "points_1_5", "points_6_20", "points_21_plus")
+                                    "points_0", "points_1_5", "points_6_20", "points_21_plus",
+                                    # a run that read the robot's Wi-Fi at its spots (never an SSID or BSSID)
+                                    "wifi_read")
 ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
@@ -2403,7 +2406,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # Beacon auto-calibration marks its points in the LABEL (`[auto] …`,
     # presence_coordinator / calibration_store.prune_auto_points); there has
     # never been a `source` key, and reading one counted zero on every install.
-    cal_auto = sum(1 for p in cal_points if isinstance(p, dict) and str(p.get("label") or "").startswith("[auto]"))
+    # A robot vacuum run's points (`[robot] …`, 2026-11-24) are PadSpan's too.
+    from .calibration_store import is_owner_point  # noqa: PLC0415
+    cal_auto = sum(1 for p in cal_points if isinstance(p, dict) and not is_owner_point(p.get("label")))
     # Points that never got a floor. Since #54 such a point is no longer
     # assumed to be on the ground — it stays 2D — which fixed the phantom
     # elevation but left the point contributing nothing to the storey it was

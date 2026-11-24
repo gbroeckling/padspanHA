@@ -45,6 +45,28 @@ A run:
 
 Nothing survives a Home Assistant restart: a run going then is over (its
 points stay, and stay undoable).
+
+Wi-Fi at each spot (the owner said yes to the robot for the Wi-Fi coverage
+heatmap, 2026-11-24). Once the robot stands at a spot it is asked
+GET /api/v2/robot/capabilities/WifiConfigurationCapability, Valetudo's
+ValetudoWifiStatus {state: "connected" | "not_connected" | "unknown",
+details: {ssid, bssid, signal (dBm), frequency ("2.4ghz" | "5ghz"), ips,
+upspeed, downspeed}}. Each answer is kept in the vacuum store (the last
+WIFI_KEPT); one that fails is skipped and the run goes on. Other integrations
+(UniFi Utopia, which finds the robot among UniFi's clients by its IP) read
+them through one admin-only command, versioned:
+
+  padspan_ha/robot_wifi_readings  ->  {
+      "version": 1,
+      "robot_ip": "192.168.1.50" | null,    # from details.ips, the last one known
+      "readings": [{"run_id": "rr_1a2b3c", "ts": 1764000000.0,   # epoch seconds
+                    "x_m": 3.21, "y_m": 4.5, "floor_id": "main", "room": "Kitchen",
+                    "signal": -61, "bssid": "aa:bb:cc:dd:ee:ff",
+                    "frequency": "5ghz", "state": "connected"}, ...]   # oldest first
+  }
+
+Fields Valetudo does not give are null. The SSID is not kept; neither it nor
+a BSSID goes into the opt-in report (a run that read Wi-Fi is counted, no more).
 """
 
 import asyncio
@@ -55,6 +77,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from .calibration_store import ROBOT_LABEL
 from .const import CALIBRATION_STORE_KEY, DATA_CALIBRATION, DOMAIN
 from . import vacuum_import as vi
 from .quiet_errors import note as _quiet_error
@@ -77,13 +100,16 @@ DWELL_MORE_S = 15.0          # once more, when too few receivers heard it
 RUN_LIMIT_S = 2 * 3600.0     # a run ends after this, wherever it is
 TAG_Z_M = 0.1                # the tag rides on the robot's top, about this off the floor
 RUNS_KEPT = 20               # runs in the history (each undoable while it is there)
-LABEL_PREFIX = "[robot]"
+LABEL_PREFIX = ROBOT_LABEL     # calibration_store.is_owner_point: a run's points are PadSpan's, not the owner's
 HEARD_WINDOW_S = 60.0        # "heard now": within the last minute
 MAP_PATH = "/api/v2/robot/state/map"
 ATTRS_PATH = "/api/v2/robot/state/attributes"
 GOTO_PATH = "/api/v2/robot/capabilities/GoToLocationCapability"
 CONTROL_PATH = "/api/v2/robot/capabilities/BasicControlCapability"
 CONTROL_ACTIONS = ("start", "pause", "home")
+WIFI_PATH = "/api/v2/robot/capabilities/WifiConfigurationCapability"
+WIFI_KEPT = 2000             # Wi-Fi readings kept, the oldest dropped first
+WIFI_VERSION = 1             # padspan_ha/robot_wifi_readings' shape
 
 
 class RobotError(Exception):
@@ -169,6 +195,35 @@ def robot_state(attrs: Any) -> dict[str, Any]:
             out["battery"] = round(float(lv)) if isinstance(lv, (int, float)) else None
             out["charging"] = a.get("flag") == "charging"
     return out
+
+
+def wifi_of(status: Any) -> dict[str, Any] | None:
+    """A ValetudoWifiStatus as one reading's Wi-Fi part, or None (not one)."""
+    if not isinstance(status, dict):
+        return None
+    d = status.get("details") if isinstance(status.get("details"), dict) else {}
+    sig = d.get("signal")
+    freq = d.get("frequency")
+    return {"state": str(status.get("state") or "unknown")[:20],
+            "signal": round(float(sig)) if isinstance(sig, (int, float)) and math.isfinite(sig) else None,
+            "bssid": str(d.get("bssid"))[:40].lower() if d.get("bssid") else None,
+            "frequency": freq if freq in ("2.4ghz", "5ghz") else None}
+
+
+def robot_ip(status: Any) -> str | None:
+    """The robot's own address from details.ips: an IPv4 one not link-local first."""
+    import ipaddress  # noqa: PLC0415
+    ips = ((status or {}).get("details") or {}).get("ips") if isinstance(status, dict) else None
+    good = []
+    for s in ips if isinstance(ips, list) else []:
+        try:
+            ip = ipaddress.ip_address(str(s).split("%")[0])
+        except ValueError:
+            continue
+        if not (ip.is_link_local or ip.is_loopback):
+            good.append(ip)
+    good.sort(key=lambda ip: ip.version)
+    return str(good[0]) if good else None
 
 
 # ── planning the spots ──────────────────────────────────────────────────────
@@ -362,7 +417,7 @@ class RunEngine:
         run = {"id": rid, "started": _now_iso(), "ended": None, "state": "running", "room": room or "",
                "rooms": sorted({s["room"] for s in plan["spots"]}), "small": plan["small"],
                "spots": len(plan["spots"]), "spot": 0, "at_room": "", "added": 0, "skipped": 0,
-               "points": [], "undone": False, "error": "", "backup_id": backup_id}
+               "points": [], "undone": False, "error": "", "backup_id": backup_id, "wifi": 0}
         runs = vs.data.setdefault("runs", [])
         runs.append(run)
         del runs[:max(0, len(runs) - RUNS_KEPT)]
@@ -446,6 +501,7 @@ class RunEngine:
                 if pos is None:
                     run["skipped"] += 1
                     continue
+                await self._wifi(run, sp, pos, lk, base)
                 readings = await self._dwell(tag)
                 if readings is None:
                     why = "stopped"
@@ -477,6 +533,28 @@ class RunEngine:
         finally:
             await self._finish(run, why, base)
 
+    async def _wifi(self, run: dict, sp: dict, pos: dict, lk: dict, base: str) -> None:
+        """The robot's Wi-Fi where it stands, kept for the coverage map. A read
+        that fails is skipped: it never stops the run."""
+        try:
+            status = await robot_call(self.hass, base, "GET", WIFI_PATH, auth=self.vs.basic_auth())
+        except Exception:  # noqa: BLE001 — no Wi-Fi reading at this spot, the run goes on
+            _quiet_error("vacuum_run:wifi")
+            return
+        w = wifi_of(status)
+        if not w:
+            return
+        x_m, y_m = vi._apply(lk["to_m"], pos["x"], pos["y"])
+        wifi = self.vs.data.setdefault("wifi", {"readings": [], "robot_ip": ""})
+        ip = robot_ip(status)
+        if ip:
+            wifi["robot_ip"] = ip
+        rd = wifi.setdefault("readings", [])
+        rd.append({"run_id": run["id"], "ts": round(time.time(), 1), "x_m": round(x_m, 3), "y_m": round(y_m, 3),
+                   "floor_id": lk.get("floor_id") or "", "room": sp["room"], **w})
+        del rd[:max(0, len(rd) - WIFI_KEPT)]
+        run["wifi"] = run.get("wifi", 0) + 1
+
     async def _finish(self, run: dict, why: str, base: str) -> None:
         try:
             await robot_call(self.hass, base, "PUT", CONTROL_PATH, {"action": "home"}, auth=self.vs.basic_auth())
@@ -490,6 +568,8 @@ class RunEngine:
             _quiet_error("vacuum_run:save")
         self._bump(why)
         self._bump(_points_bucket(run["added"]))
+        if run.get("wifi"):
+            self._bump("wifi_read")
         _LOGGER.info("Robot room location run %s %s: %d points added, %d spots skipped",
                      run["id"], why, run["added"], run["skipped"])
 

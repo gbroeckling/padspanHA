@@ -325,8 +325,9 @@ Bluetooth-Beacon mit fester Adresse (iBeacon oder Eddystone) oben auf den Robote
 Laserturm. Kein AirTag und kein Tile: deren Adressen ändern sich ständig. PadSpan hört nie den
 Roboter selbst, nur den Beacon auf ihm.
 
-Der Roboter erscheint im Atlas und im 3D-Haus, solange seine Live-Position an ist und dort Personen
-oder Tags gezeigt werden. Halte ihn gedrückt, um seine Karte zu öffnen. Die Karte spricht direkt mit
+Der Roboter erscheint im Atlas und im 3D-Haus, solange seine Live-Position an ist und der
+Saugroboter-Import eingeschaltet ist, ob dort Personen und Tags gezeigt werden oder nicht. Halte
+ihn gedrückt, um seine Karte zu öffnen. Die Karte spricht direkt mit
 dem Valetudo des Roboters, also braucht es weder die Saugroboter-Entität von Home Assistant noch
 MQTT. Sie zeigt, was der Roboter gerade tut, und seinen Akku, mit **Starten**, **Pausieren** und
 **Zur Station**. Nur ein Administrator kann sie benutzen.
@@ -343,6 +344,20 @@ Station; das tun auch das Ende der Fahrt, ein Problem oder zwei Stunden. **Diese
 machen** nimmt genau die Punkte heraus, die diese Fahrt hinzugefügt hat, und keinen deiner eigenen.
 Eine Fahrt, die beim Neustart von Home Assistant lief, ist einfach vorbei; ihre Punkte bleiben und
 lassen sich weiterhin rückgängig machen.
+
+Die Punkte des Roboters zählen als PadSpans eigene, wie die automatischen Punkte eines
+angehefteten Beacons, nicht als deine. Nur das Rückgängigmachen einer Fahrt entfernt sie: die
+Aufräumarbeiten der Beacons rühren sie nie an.
+
+**Fehler finden** auf der Karte öffnet eine eigene Karte. Aus den Punkten, die die Fahrten schon
+gespeichert haben (ohne weitere Fahrt), berechnet sie, wo jeder Empfänger wirklich steht, und
+listet die auf, die an der falschen Stelle oder auf der falschen Etage platziert scheinen, mit
+der Angabe, wie sicher das ist, und einem Link zur Platzierung dieses Empfängers. Ein Empfänger
+muss an sechs Stellen oder mehr gehört worden sein, über 3 m verteilt; die anderen stehen unter zu
+wenigen Messwerten. Sie verschiebt nie etwas.
+
+An jeder Stelle meldet der Roboter auch sein eigenes WLAN-Signal. PadSpan behält die letzten 2.000
+davon für die WLAN-Abdeckungskarte, und andere Integrationen können sie lesen.
 
 ## Mehr als eine Etage: sie ausrichten
 

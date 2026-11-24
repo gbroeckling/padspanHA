@@ -190,7 +190,7 @@ Anfrage ablehnen. Das sind die eigenen Befehle des Panels, keine stabile öffent
 Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dienste und Ereignisse aus
 <a href="/manual/home-assistant-reference/de/">Kapitel 14</a>. Mehr: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md">Websocket API</a>.</p>
 <p>Die folgende Tabelle ist englisch: Sie entsteht direkt aus PadSpans Code.</p>
-<p>278 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
+<p>280 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Command</th><th>Fields</th><th>Administrator</th><th>Module</th><th>What it does (its handler's first sentence, or a line written for this table)</th></tr>
@@ -399,6 +399,7 @@ Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dien
   <tr><td><code>padspan_ha/radio_lost_set</code></td><td><code>source</code>, <code>lost</code></td><td>with Enhanced security</td><td><code>ws_radios.py</code></td><td>Mark or unmark a BLE radio as 'lost' (excluded from location math).</td></tr>
   <tr><td><code>padspan_ha/radio_reset</code></td><td><code>source</code></td><td>always</td><td><code>ws_radios.py</code></td><td>Clears everything PadSpan holds about one receiver, for a receiver replaced or moved.</td></tr>
   <tr><td><code>padspan_ha/receivers_to_rooms</code></td><td><code>undo</code> (optional), <code>dry_run</code> (optional)</td><td>always</td><td><code>ws_fabric.py</code></td><td>Every live receiver with a room that has an outline, and no position yet, put inside its room: one backup of the fabric, then one write thr…</td></tr>
+  <tr><td><code>padspan_ha/robot_wifi_readings</code></td><td>–</td><td>always</td><td><code>ws_vacuum.py</code></td><td>The robot's Wi-Fi at each room location run spot, for other integrations (version 1).</td></tr>
   <tr><td><code>padspan_ha/room_height_set</code></td><td><code>room</code>, <code>height_m</code> (optional), <code>floor_raise_m</code> (optional), <code>surface</code> (optional), <code>space</code> (optional)</td><td>with Enhanced security</td><td><code>websocket.py</code></td><td>Set one room's own height (room_meta[room].height_m) for Live Aboard: a double-height living room, a hall under a mezzanine, on a floor tha…</td></tr>
   <tr><td><code>padspan_ha/room_tag_purge_missing</code></td><td>–</td><td>with Enhanced security</td><td><code>ws_follow.py</code></td><td>Remove entity_ids from room_tag_map that have no current HA state (phantom/sample entities).</td></tr>
   <tr><td><code>padspan_ha/room_tags</code></td><td>–</td><td>–</td><td><code>ws_follow.py</code></td><td>Return the room→object map used by the UI.</td></tr>
@@ -443,6 +444,7 @@ Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dien
   <tr><td><code>padspan_ha/vacuum_cal_pending_accept</code></td><td><code>point_id</code></td><td>always</td><td><code>ws_vacuum.py</code></td><td>The user accepted one pending point: THE one road into calibration.</td></tr>
   <tr><td><code>padspan_ha/vacuum_cal_pending_list</code></td><td>–</td><td>always</td><td><code>ws_vacuum.py</code></td><td></td></tr>
   <tr><td><code>padspan_ha/vacuum_cal_pending_reject</code></td><td><code>point_id</code> (optional), <code>all</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td></td></tr>
+  <tr><td><code>padspan_ha/vacuum_findings</code></td><td>–</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Receivers the robot runs' points say are placed wrongly.</td></tr>
   <tr><td><code>padspan_ha/vacuum_import_commit</code></td><td><code>floor_id</code> (optional), <code>name</code> (optional), <code>include_rooms</code> (optional), <code>vacuum_entity</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Write the previewed candidate: a new map, its placement, new rooms only.</td></tr>
   <tr><td><code>padspan_ha/vacuum_import_preview</code></td><td><code>json_text</code> (optional), <code>url</code> (optional), <code>entity_id</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Parse a robot vacuum's map into a candidate.</td></tr>
   <tr><td><code>padspan_ha/vacuum_link_set</code></td><td><code>enabled</code> (optional), <code>vacuum_entity</code> (optional), <code>walker_enabled</code> (optional), <code>walker_tag</code> (optional), <code>unlink</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Turn the live position / the walker on or off.</td></tr>

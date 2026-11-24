@@ -159,8 +159,9 @@ def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     # and by its own clock while it shows (so people move in Mapping too).
     la = _code(_VIEWS / "live_aboard.js")
     assert "const PEOPLE_MS = 5000;" in la and "Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)" in la
-    # One reader for both layers: either one on reads it, neither reads nothing.
-    assert "const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : null;" in la
+    # One reader for both layers: either one on reads it, neither reads nothing (but a linked robot
+    # vacuum's own reader, 2026-11-24: the robot alone, while Robot Vacuum Import is on).
+    assert "const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : on(p.robot) ? p.robot : null;" in la
 
 
 def test_the_layer_calls_nothing_and_keeps_no_timer() -> None:

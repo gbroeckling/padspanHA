@@ -55,6 +55,31 @@ BEACON_TUNE_SOURCE = "beacon_tune"  # source on points Beacon Tune saved (hard r
 MISSING_SCANNER_PENALTY_DB = 12.0
 _LOO_CACHE_MAX = 8        # leave-one-out answers kept (the house's, each plan's)
 
+# Who made a point, from its label (the owner, 2026-11-24: robot points are
+# automatic, not hand-placed). A pinned beacon's automatic points read
+# "[auto] …" (presence_coordinator); a robot vacuum run's "[robot] <run> …"
+# (vacuum_run.py). Both are PadSpan's, not the owner's own. Only the beacon's
+# are housekeeping's to cap, prune or replace: a run's points leave through
+# that run's Undo and nothing else.
+AUTO_LABEL = "[auto]"
+ROBOT_LABEL = "[robot]"
+
+
+def is_owner_point(label: Any) -> bool:
+    """A point the owner collected: neither a pinned beacon's [auto] nor a robot run's [robot]."""
+    s = str(label or "")
+    return not (s.startswith(AUTO_LABEL) or s.startswith(ROBOT_LABEL))
+
+
+def is_robot_point(label: Any) -> bool:
+    """A robot vacuum run's point: an exact spot, the robot's own (vacuum_findings.py reads only these)."""
+    return str(label or "").startswith(ROBOT_LABEL)
+
+
+def is_beacon_auto_point(label: Any) -> bool:
+    """A pinned beacon's own automatic point: the only kind its caps and prunes may remove."""
+    return str(label or "").startswith(AUTO_LABEL)
+
 
 def _loo_cache_key(pts: list[dict[str, Any]], fps: list[dict[str, float]]) -> bytes:
     """Everything the k-NN leave-one-out reads of its points, in their order:
@@ -528,7 +553,7 @@ class CalibrationStore:
         # Group auto-points by device_id
         by_dev: dict[str, list[dict]] = {}
         for p in points:
-            if str(p.get("label", "")).startswith("[auto]"):
+            if is_beacon_auto_point(p.get("label")):
                 did = p.get("device_id", "")
                 by_dev.setdefault(did, []).append(p)
         remove_ids: set[str] = set()
@@ -560,7 +585,7 @@ class CalibrationStore:
         keep: list[dict[str, Any]] = []
         removed = 0
         for p in points:
-            auto = str(p.get("label", "")).startswith("[auto]")
+            auto = is_beacon_auto_point(p.get("label"))
             one = len(p.get("scanner_readings") or []) < 2
             if auto and one and p.get("quality") == "undersampled":
                 removed += 1

@@ -4275,6 +4275,8 @@ export function buildLightsMapCard(hostIn){
           people: h3.settings.atlas_3d_people === true && h3.people ? abReader(h3.people) : null,
           // Show tags & scanners: the same snapshot, the same reader (read once for both).
           tags: h3.settings.atlas_3d_tags === true && h3.people ? abReader(h3.people) : null,
+          // A linked robot vacuum: the same reader, for the robot alone (the tracked layer's vacuumOf).
+          robot: h3.settings.vacuum_import_enabled === true && h3.people ? abReader(h3.people) : null,
           // Trails (people_trails.js): Traceback's last half hour, read only
           // while people or tags show and that screen turned Trails on.
           trails: (h3.settings.atlas_3d_people === true || h3.settings.atlas_3d_tags === true) && h3.trails ? h3.trails : null,
@@ -4398,8 +4400,11 @@ export function buildLightsMapCard(hostIn){
   // its furniture, doors and windows. None of it on: nothing is fetched.
   let abSet = host.house3d && host.house3d.settings ? host.house3d.settings : {};
   const abSlot = scr ? host.screen.slot : null;
-  const abLive = !!(scr && tierAtLeast(host.tier, "pro") && host.house3d && host.house3d.people
-    && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true));
+  // A linked robot vacuum (Robot Vacuum Import on, 2026-11-24): the same read, for the robot alone, at any tier; people
+  // and tags stay behind their own switches (atlas_aboard.js draws them only when on).
+  const abLive = !!(scr && host.house3d && host.house3d.people
+    && ((tierAtLeast(host.tier, "pro") && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true))
+        || abSet.vacuum_import_enabled === true));
   const abFile = !!(scr && h3 && typeof h3.load === "function");
   const abReader = (pp) => (scr && SCREEN ? SCREEN.sharedReader(abSlot, pp) : pp);
   const abFurnKey = `padspan_lv_furniture_${abSlot}`;

@@ -15,6 +15,9 @@ pending  the walker's review pile: list, accept (the one road into
 robot    the robovac card (2026-11-24): the robot's state and battery read
          from its own Valetudo, Start / Pause / Dock, its address and login.
 run      room location runs (vacuum_run.py): start, stop, undo one run.
+findings where the runs' points say a receiver really is (vacuum_findings.py).
+robot_wifi_readings  the robot's Wi-Fi at each run spot, for other
+         integrations (its shape: vacuum_run.py's docstring).
 
 All admin-gated: they parse untrusted files, reach a robot on the network, or
 write the house's maps and calibration. Registration stays in
@@ -469,9 +472,36 @@ async def ws_vacuum_run_undo(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "removed": removed})
 
 
+@websocket_api.websocket_command({"type": "padspan_ha/vacuum_findings"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
+    """Receivers the robot runs' points say are placed wrongly. Reads only; moves nothing."""
+    from .vacuum_findings import find_mistakes  # noqa: PLC0415
+    dom = hass.data.get(DOMAIN, {})
+    cal, mdl, fab = dom.get(DATA_CALIBRATION), dom.get(DATA_MODEL), dom.get(DATA_FABRIC)
+    if not cal or not mdl:
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
+        return
+    out = await hass.async_add_executor_job(
+        find_mistakes, cal.list_points(), mdl.scanner_positions_m() or {}, fab.rooms_flat() if fab else {})
+    connection.send_result(msg["id"], out)
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/robot_wifi_readings"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_robot_wifi_readings(hass: HomeAssistant, connection, msg) -> None:
+    """The robot's Wi-Fi at each room location run spot, for other integrations (version 1)."""
+    wifi = (await _store(hass)).data.get("wifi") or {}
+    connection.send_result(msg["id"], {"version": vr.WIFI_VERSION, "robot_ip": wifi.get("robot_ip") or None,
+                                       "readings": [dict(r) for r in wifi.get("readings") or []]})
+
+
 HANDLERS = (
     ws_vacuum_import_preview, ws_vacuum_import_commit, ws_vacuum_status, ws_vacuum_link_set,
     ws_vacuum_cal_pending_list, ws_vacuum_cal_pending_accept, ws_vacuum_cal_pending_reject,
     ws_vacuum_robot_status, ws_vacuum_robot_set, ws_vacuum_robot_control,
     ws_vacuum_run_start, ws_vacuum_run_stop, ws_vacuum_run_undo,
+    ws_vacuum_findings, ws_robot_wifi_readings,
 )

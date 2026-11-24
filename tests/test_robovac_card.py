@@ -33,7 +33,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "not-admin", "german"])
+@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "not-admin", "findings", "german"])
 def test_robovac_card(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -78,3 +78,29 @@ def test_the_card_calls_only_the_backend_never_the_robot():
     calls = set(__import__("re").findall(r'call\("([a-z_]+)"', src))
     assert calls == {"vacuum_robot_status", "vacuum_robot_control", "vacuum_robot_set", "vacuum_link_set",
                      "vacuum_run_start", "vacuum_run_stop", "vacuum_run_undo"}
+
+
+def test_the_robot_is_drawn_whenever_its_link_is_on():
+    """The owner, 2026-11-24: the hold must always be possible. With Robot Vacuum Import on, the flat Atlas and
+    the 3D house read the snapshot for the robot alone; people and tags keep their own switches."""
+    lm = _src("lights_map.js")
+    assert "|| abSet.vacuum_import_enabled === true));" in lm
+    assert "robot: h3.settings.vacuum_import_enabled === true && h3.people ? abReader(h3.people) : null," in lm
+    assert "people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true," in lm     # unchanged gates
+    lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert "vacuum_import_enabled: s.vacuum_import_enabled," in lp
+    la = _src("live_aboard.js")
+    assert la.count("on(p.tags) ? p.tags : on(p.robot) ? p.robot : null;") == 2
+
+
+def test_the_findings_card_reads_one_command_and_links_to_the_placement():
+    src = _src("robovac_findings.js")
+    assert '"padspan_ha/vacuum_findings"' in src and "fetch(" not in src and "/api/v2" not in src
+    assert "/padspan-ha?view=maps&tab=edit&receiver=${encodeURIComponent(" in src
+    panel = (_WWW / "panel.js").read_text(encoding="utf-8")
+    assert 'if (reqView === "maps" && reqRx && reqRx.length <= 200) this.state.maps._openRadios = { source: reqRx };' in panel
+    maps = _src("maps.js")
+    assert "if (placedOn) ctx.state.activeMapId = placedOn.id;" in maps
+    assert "(ctx.state.maps._draftReceivers.find(r=>r.source===_src||r.id===_src) || {}).id" in maps
+    card = _src("robovac_card.js")
+    assert "import(`./robovac_findings.js${new URL(import.meta.url).search}`)" in card

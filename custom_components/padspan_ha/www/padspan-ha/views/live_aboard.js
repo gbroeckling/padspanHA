@@ -3127,9 +3127,10 @@ function createSlot(slotKey){
   function syncTracked(p, vd, rebuilt){
     if (!tracked) return;
     // p.tags (only while Show tags & scanners is on) is the same reader: one
-    // read serves both layers.
+    // read serves both layers. p.robot (a linked robot vacuum, 2026-11-24)
+    // too, for the robot alone when neither is on.
     const on = (x) => !!(x && typeof x === "object");
-    const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : null;
+    const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : on(p.robot) ? p.robot : null;
     if (!pp) { peopleSnap = null; peopleAt = 0; peopleLoad = null; }
     else if (typeof pp.snapshot === "function") { peopleSnap = pp.snapshot() || null; peopleReads++; }
     else if (typeof pp.read === "function") readPeople(pp);
@@ -3188,7 +3189,7 @@ function createSlot(slotKey){
    *  scanners is on, else null (a {snapshot()} host has its own data). */
   function liveReader(){
     const p = lastP, on = (x) => !!(x && typeof x === "object");
-    const pp = !p ? null : on(p.people) ? p.people : on(p.tags) ? p.tags : null;
+    const pp = !p ? null : on(p.people) ? p.people : on(p.tags) ? p.tags : on(p.robot) ? p.robot : null;
     return pp && typeof pp.snapshot !== "function" && typeof pp.read === "function" ? pp : null;
   }
   /** The view's own clock for that read, so people and tags move in Mapping

@@ -1153,6 +1153,10 @@ class PadSpanHaApp extends HTMLElement {
       if (reqView === "settings" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._settingsTab = reqTab;
       const reqPart = q.get("part");
       if (reqView === "settings" && reqPart && /^[a-z0-9_]+$/.test(reqPart)) this.state._settingsPart = reqPart;
+      // ?view=maps&tab=edit&receiver=<source>: Edit → Radios with that receiver chosen, on the plan it is placed on
+      // (the robot's Find mistakes card, views/robovac_findings.js; maps.js _openRadios).
+      const reqRx = (q.get("receiver") || "").trim();
+      if (reqView === "maps" && reqRx && reqRx.length <= 200) this.state.maps._openRadios = { source: reqRx };
       const reqLight = q.get("light");
       if (reqLight && /^(light|fan|binary_sensor|sensor)\.[a-z0-9_]+$/.test(reqLight)) {
         this.state.maps._selLight = { eid: reqLight, mapId: null };
