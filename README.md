@@ -171,7 +171,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 - **Radio Map** — RSSI heatmap overlay using inverse distance weighting
 - **Signal distortion map** — where positions matched to calibration points (k-NN) disagree with reality
 - **Walk-to-Identify** — discover unknown devices by correlating walking motion
-- **RoomPlan Import** — import an Apple RoomPlan scan (JSON) in Mapping → Layout, as rooms to review before anything is saved
+- **RoomPlan Import** — import an Apple RoomPlan scan (a `.usdz` file, or RoomPlan JSON) in Mapping → Layout, as rooms to review before anything is saved
 - **Robot Vacuum Import** — import a robot vacuum's map (Valetudo, Dreame or Xiaomi) in Mapping → Layout as a floor plan with its rooms
 - **iPhone Setup Path** — walks an iPhone through getting its IRK, adding it and checking it resolves (on by default for a new install)
 - **RSSI Vector Capture** — record what every scanner heard, poll by poll, to replay a walk offline against changed settings
