@@ -131,6 +131,12 @@ shows open or shut from its sensor. <b>Invert</b>, next to <b>Delete</b> in the 
 that reports backwards: if a door shows the wrong state, check that first. A lock on the map shows
 its state. A tap doesn't turn it: a tap or a hold opens its card, with <b>Lock</b> or <b>Unlock</b>, and
 <b>Unlock</b> asks first.</p>
+<p>A door or window can also carry what opens it and what locks it (PadSpan Bright Pro or PadSpan Pro).
+Tick a cover (a garage door, a gate, a blind), switch, button or script on <b>Devices → Door
+Openers</b>, then link it to the door or window in <b>Mapping → Atlas builder</b>, beside its sensor and
+its lock. A tap on the door then opens one card: whether it is open or closed, <b>Open</b> or <b>Close</b>
+for a cover (<b>Trigger</b> for a switch, button or script), and the lock. A cover linked with no sensor
+says open or shut itself.</p>
 <h2 id="alarms-and-the-emergency-banner">Alarms and the emergency banner</h2>
 <p>Leak, smoke, gas and carbon monoxide sensors are drawn as a puddle or a round detector, and say
 <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> or <b>CO</b>, <b>ALARM</b> while latched, and <b>DRY</b> or <b>CLEAR</b> when quiet. When
@@ -138,6 +144,19 @@ one goes off, a red ring sweeps through its room, and it stays alarming for 2 da
 resets it, even if the sensor goes quiet. A banner shows it on every PadSpan screen, with its own
 <b>Reset</b>. Resetting clears PadSpan's memory of the alarm, not the sensor. More in
 <a href="/manual/alerts/">chapter 13</a>.</p>
+<h2 id="the-scene-row">The scene row</h2>
+<p>Under the map, and in Live Aboard, is a row of tiles: one for each Home Assistant scene that sets a
+placed light, and one for each Whole house preset whose lit lights are all on one floor (marked
+<b>Preset</b>). A tile is a small map of the floor, showing which lights the scene uses. A tap runs it;
+when all its lights are already on, a tap turns them off. <b>+ New scene</b> and ✎ open Home
+Assistant's own scene editor, for an administrator, and never on a wall screen.</p>
+<h2 id="heatmap-pro">Heatmap (Pro)</h2>
+<p><b>Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
+humidity, CO₂)</b>, off by default, adds a <b>♨ Heatmap</b> chip to the Atlas. Tap it to step through
+<b>Temperature</b>, <b>Humidity</b> and <b>CO₂</b> (the kinds your house has a sensor for), then off. Each
+room is coloured from its own sensors: the placed ones, or, with none placed, the average of the
+room's sensors at its centre. Nothing crosses a wall, a room with no sensor stays uncoloured, and a
+reading over an hour old isn't used.</p>
 <h2 id="power-teams">Power teams</h2>
 <p>Smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say)
 go dark when someone turns the wall off, and come back in the wrong colour. A power team makes the

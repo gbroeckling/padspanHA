@@ -80,6 +80,14 @@ herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schlos
 seinen Zustand. Ein Tippen schaltet es nicht: Tippen oder Halten öffnet seine Karte mit **Lock** oder
 **Unlock**, und **Unlock** fragt vorher nach.
 
+Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Bright Pro
+oder PadSpan Pro). Hak unter **Geräte → Türöffner** eine Abdeckung (ein Garagentor, ein Tor, ein
+Rollo), einen Schalter, einen Taster oder ein Skript an und verknüpf sie dann in **Karten →
+Atlas-Editor** mit der Tür oder dem Fenster, neben ihrem Sensor und ihrem Schloss. Ein Tippen auf
+die Tür öffnet dann eine Karte: ob sie offen oder zu ist, **Open** oder **Close** für eine Abdeckung
+(**Trigger** für einen Schalter, einen Taster oder ein Skript) und das Schloss. Eine Abdeckung, die
+ohne Sensor verknüpft ist, meldet offen oder zu selbst.
+
 ## Alarme und das Notfall-Banner
 
 Wasser-, Rauch-, Gas- und Kohlenmonoxidmelder werden als Pfütze oder als runder Melder gezeichnet
@@ -88,6 +96,25 @@ und zeigen **WET**, **SMOKE**, **GAS** oder **CO**, **ALARM**, solange der Alarm
 und er bleibt 2 Tage lang im Alarm oder bis ihn jemand zurücksetzt, auch wenn der Sensor ruhig wird.
 Ein Banner zeigt ihn auf jedem Bildschirm von PadSpan, mit eigenem **Zurücksetzen**. Zurücksetzen
 löscht PadSpans Erinnerung an den Alarm, nicht den Sensor. Mehr in [Kapitel 13](13-alerts.md).
+
+## Die Szenenleiste
+
+Unter der Karte, und in Live Aboard, liegt eine Reihe von Kacheln: eine für jede Szene in Home
+Assistant, die ein platziertes Licht setzt, und eine für jedes Whole house preset, dessen
+eingeschaltete Lichter alle auf einer Etage liegen (mit **Preset** markiert). Eine Kachel ist eine
+kleine Karte der Etage und zeigt, welche Lichter die Szene benutzt. Ein Tippen startet sie; sind
+alle ihre Lichter schon an, schaltet ein Tippen sie aus. **+ New scene** und ✎ öffnen den
+Szenen-Editor von Home Assistant, für einen Administrator, und nie auf einem Wandbildschirm.
+
+## Heatmap (Pro)
+
+**Einstellungen → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
+humidity, CO₂)**, ab Werk aus, gibt dem Atlas einen Chip **♨ Heatmap**. Tipp darauf, um
+**Temperature**, **Humidity** und **CO₂** durchzugehen (die Arten, für die dein Haus einen Sensor
+hat), dann aus. Jeder Raum wird nach seinen eigenen Sensoren eingefärbt: den platzierten, oder, wenn
+keiner platziert ist, dem Durchschnitt der Sensoren des Raums in seiner Mitte. Nichts geht durch
+eine Wand, ein Raum ohne Sensor bleibt ungefärbt, und ein Messwert, der älter als eine Stunde ist,
+wird nicht benutzt.
 
 ## Power-Teams
 

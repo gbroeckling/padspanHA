@@ -140,6 +140,13 @@ offen oder zu. <b>Umkehren</b>, neben <b>Löschen</b> in der Wandliste, dreht ei
 herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte zeigt
 seinen Zustand. Ein Tippen schaltet es nicht: Tippen oder Halten öffnet seine Karte mit <b>Lock</b> oder
 <b>Unlock</b>, und <b>Unlock</b> fragt vorher nach.</p>
+<p>Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Bright Pro
+oder PadSpan Pro). Hak unter <b>Geräte → Türöffner</b> eine Abdeckung (ein Garagentor, ein Tor, ein
+Rollo), einen Schalter, einen Taster oder ein Skript an und verknüpf sie dann in <b>Karten →
+Atlas-Editor</b> mit der Tür oder dem Fenster, neben ihrem Sensor und ihrem Schloss. Ein Tippen auf
+die Tür öffnet dann eine Karte: ob sie offen oder zu ist, <b>Open</b> oder <b>Close</b> für eine Abdeckung
+(<b>Trigger</b> für einen Schalter, einen Taster oder ein Skript) und das Schloss. Eine Abdeckung, die
+ohne Sensor verknüpft ist, meldet offen oder zu selbst.</p>
 <h2 id="alarme-und-das-notfall-banner">Alarme und das Notfall-Banner</h2>
 <p>Wasser-, Rauch-, Gas- und Kohlenmonoxidmelder werden als Pfütze oder als runder Melder gezeichnet
 und zeigen <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> oder <b>CO</b>, <b>ALARM</b>, solange der Alarm gehalten wird, und
@@ -147,6 +154,21 @@ und zeigen <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> oder <b>CO</b>, <b>ALARM</b>, so
 und er bleibt 2 Tage lang im Alarm oder bis ihn jemand zurücksetzt, auch wenn der Sensor ruhig wird.
 Ein Banner zeigt ihn auf jedem Bildschirm von PadSpan, mit eigenem <b>Zurücksetzen</b>. Zurücksetzen
 löscht PadSpans Erinnerung an den Alarm, nicht den Sensor. Mehr in <a href="/manual/alerts/de/">Kapitel 13</a>.</p>
+<h2 id="die-szenenleiste">Die Szenenleiste</h2>
+<p>Unter der Karte, und in Live Aboard, liegt eine Reihe von Kacheln: eine für jede Szene in Home
+Assistant, die ein platziertes Licht setzt, und eine für jedes Whole house preset, dessen
+eingeschaltete Lichter alle auf einer Etage liegen (mit <b>Preset</b> markiert). Eine Kachel ist eine
+kleine Karte der Etage und zeigt, welche Lichter die Szene benutzt. Ein Tippen startet sie; sind
+alle ihre Lichter schon an, schaltet ein Tippen sie aus. <b>+ New scene</b> und ✎ öffnen den
+Szenen-Editor von Home Assistant, für einen Administrator, und nie auf einem Wandbildschirm.</p>
+<h2 id="heatmap-pro">Heatmap (Pro)</h2>
+<p><b>Einstellungen → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
+humidity, CO₂)</b>, ab Werk aus, gibt dem Atlas einen Chip <b>♨ Heatmap</b>. Tipp darauf, um
+<b>Temperature</b>, <b>Humidity</b> und <b>CO₂</b> durchzugehen (die Arten, für die dein Haus einen Sensor
+hat), dann aus. Jeder Raum wird nach seinen eigenen Sensoren eingefärbt: den platzierten, oder, wenn
+keiner platziert ist, dem Durchschnitt der Sensoren des Raums in seiner Mitte. Nichts geht durch
+eine Wand, ein Raum ohne Sensor bleibt ungefärbt, und ein Messwert, der älter als eine Stunde ist,
+wird nicht benutzt.</p>
 <h2 id="power-teams">Power-Teams</h2>
 <p>Smarte Farbbirnen in Fassungen, die an einem Wanddimmer oder Wandschalter hängen (zum Beispiel
 Zigbee-Birnen an einem Control4-Dimmer), werden dunkel, wenn jemand an der Wand ausschaltet, und

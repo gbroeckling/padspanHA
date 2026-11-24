@@ -72,6 +72,13 @@ that reports backwards: if a door shows the wrong state, check that first. A loc
 its state. A tap doesn't turn it: a tap or a hold opens its card, with **Lock** or **Unlock**, and
 **Unlock** asks first.
 
+A door or window can also carry what opens it and what locks it (PadSpan Bright Pro or PadSpan Pro).
+Tick a cover (a garage door, a gate, a blind), switch, button or script on **Devices → Door
+Openers**, then link it to the door or window in **Mapping → Atlas builder**, beside its sensor and
+its lock. A tap on the door then opens one card: whether it is open or closed, **Open** or **Close**
+for a cover (**Trigger** for a switch, button or script), and the lock. A cover linked with no sensor
+says open or shut itself.
+
 ## Alarms and the emergency banner
 
 Leak, smoke, gas and carbon monoxide sensors are drawn as a puddle or a round detector, and say
@@ -80,6 +87,23 @@ one goes off, a red ring sweeps through its room, and it stays alarming for 2 da
 resets it, even if the sensor goes quiet. A banner shows it on every PadSpan screen, with its own
 **Reset**. Resetting clears PadSpan's memory of the alarm, not the sensor. More in
 [chapter 13](13-alerts.md).
+
+## The scene row
+
+Under the map, and in Live Aboard, is a row of tiles: one for each Home Assistant scene that sets a
+placed light, and one for each Whole house preset whose lit lights are all on one floor (marked
+**Preset**). A tile is a small map of the floor, showing which lights the scene uses. A tap runs it;
+when all its lights are already on, a tap turns them off. **+ New scene** and ✎ open Home
+Assistant's own scene editor, for an administrator, and never on a wall screen.
+
+## Heatmap (Pro)
+
+**Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
+humidity, CO₂)**, off by default, adds a **♨ Heatmap** chip to the Atlas. Tap it to step through
+**Temperature**, **Humidity** and **CO₂** (the kinds your house has a sensor for), then off. Each
+room is coloured from its own sensors: the placed ones, or, with none placed, the average of the
+room's sensors at its centre. Nothing crosses a wall, a room with no sensor stays uncoloured, and a
+reading over an hour old isn't used.
 
 ## Power teams
 

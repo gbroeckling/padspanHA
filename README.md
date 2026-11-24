@@ -144,11 +144,14 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 ### Atlas — The Device Map
 Formerly "Lights" — renamed because it outgrew the name. One isometric map of every floor, drawn the way an electrician draws a lighting plan, for placing and controlling real devices rather than just tracking BLE:
 - **Fixtures** — lights, fans, locks, and motion, temperature, humidity, air-quality and flood sensors, each placed at their real position, shape, size and rotation
+- **Smoke, gas and CO alarms** on the map beside leak sensors — an alarm rings its room red, shows on every PadSpan screen and stays up for 2 days or until someone resets it
 - **WLED control** — brightness, colour and effects live from the map
 - **Outdoor gear** — anything HA puts on an Outside floor (shed, garden, driveway) places on the real floor plate just outside the room it lives beside, instead of falling off the map
-- **Doors & windows** as real RF barriers — material-aware attenuation (steel blocks harder than hollow-core), live open/closed state, and an **Invert** toggle for a sensor that reports backwards
+- **Doors & windows** as real RF barriers — material-aware attenuation (steel blocks harder than hollow-core), live open/closed state, and an **Invert** toggle for a sensor that reports backwards. A cover (garage door, gate, blind), switch, button or script that opens it, and its lock, can be linked to the same door or window, for one card with its state, Open/Close and the lock
 - **Automorph** — a soft aura drawn on the map from a fixture into its room, in a growing set of distinct styles (Glow, Blueprint, Nebula, Halo, Bloom and more). It changes how the map looks, not what the lights do
 - **Showcase** — 20 curated visual themes for the map itself, with a presets bar to save and load a look
+- **Scene row** — under the map, a tile for each Home Assistant scene that sets a placed light, drawn as a small map of the lights it uses; a tap runs it
+- **Heatmap** (PadSpan Pro, off by default) — colours each room by its own temperature, humidity or CO₂ sensors
 - A **hover HUD** names what's under the cursor (or a touch hold) with every stacked marker as a clickable row; **Alt+click** cycles the stack when several devices sit on top of each other
 - Full touch support — pinch-zoom, drag and tap are tuned for a wall panel or phone, not just a mouse
 
