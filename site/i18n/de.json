@@ -20,7 +20,7 @@
   },
   {
    "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
-   "de": "<span class=\"badge\" data-latest-version>v0.37.0</span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
+   "de": "<span class=\"badge\" data-latest-version>v0.38.274</span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
   },
   {
    "en": "<a class=\"btn primary\" href=\"demo/\">Try the live demo</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA\">View on GitHub</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Download Latest Release</a> <a class=\"btn ghost\" href=\"#install\">Install via HACS</a>",
@@ -912,7 +912,7 @@
   },
   {
    "en": "Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version></span>. Enter your key under Settings → Features → PadSpan licence.",
-   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.37.0</span>. Gib deinen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein."
+   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.38.274</span>. Gib deinen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein."
   },
   {
    "en": "Already have PadSpan Bright Pro?",
