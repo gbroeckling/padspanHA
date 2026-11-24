@@ -135,9 +135,10 @@ await tryCase("lines: only what the flat Map honours, opened counted as the flat
   await openList(k);
   const rows = rowsOf(k);
   check("lines: only what the flat Map honours, opened counted as the flat Map's",
-    JSON.stringify(rows) === JSON.stringify(["light_taps", "other_floors"]) && SENT.includes("house3d_show:opened:flat") && !SENT.includes("house3d_show:opened")
+    JSON.stringify(rows) === JSON.stringify(["light_taps", "other_floors", "edgecut"]) && SENT.includes("house3d_show:opened:flat") && !SENT.includes("house3d_show:opened")
     && rows.every(r => SHOW.FLAT_KEYS.includes(r)) && tickOf(k, "light_taps").getAttribute("aria-checked") === "true"
-    && tickOf(k, "other_floors").getAttribute("aria-checked") === "false", { rows, SENT });
+    && tickOf(k, "other_floors").getAttribute("aria-checked") === "false"
+    && tickOf(k, "edgecut").getAttribute("aria-checked") === "false", { rows, SENT });   // Edgecut: off unless ticked
 });
 await tryCase("taps: never touched as ever; unticked here a tap on a light switches nothing; ticked again it switches", async () => {
   kept.clear();

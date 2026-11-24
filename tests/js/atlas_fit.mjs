@@ -158,4 +158,40 @@ for (const [name, m] of houses) {
   check("plate: off a wall the box keeps the 760 canvas", classic[0] <= 0 && classic[0] + classic[2] >= ISO.ISO.W, classic);
 }
 
+// ── Edgecut: the rooms fill the stage, as far in as every button stays on the safe part ──
+{
+  const box = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
+  const stage = box(0, 0, 1000, 600), safe = box(4, 40, 996, 596);
+  // A wide house drawn small (whole house at 100%), its buttons well inside it: the rooms covering the stage stops it.
+  const rooms = box(100, 150, 900, 450), few = box(300, 250, 700, 350);
+  const zc = FIT.edgeZoom(1, few, rooms, safe, stage);
+  check("edge: buttons well inside, the rooms covering the stage stop it", zc === 2, zc);
+  // Buttons out to the house's corners: they stop it, before the rooms cover.
+  const spread = box(110, 160, 890, 440);
+  const zb = FIT.edgeZoom(1, spread, rooms, safe, stage);
+  check("edge: buttons at the corners stop it before the rooms cover", zb === Math.floor(Math.min(992 / 780, 556 / 280) * 100) / 100 && zb < 2, zb);
+  // Already zoomed (z0 2): the same answer in absolute terms, from boxes measured at 2.
+  const s2 = (b) => box(b.x0 * 2, b.y0 * 2, b.x1 * 2, b.y1 * 2);
+  check("edge: measured zoomed in, the same zoom", FIT.edgeZoom(2, s2(spread), s2(rooms), safe, stage) === zb);
+  // Never below the whole house, never past the cap, nothing measurable: 100%.
+  check("edge: never below 100%", FIT.edgeZoom(1, box(0, 0, 2000, 1200), rooms, safe, stage) === 1);
+  check("edge: never past the cap", FIT.edgeZoom(1, box(499, 299, 501, 301), box(499, 299, 501, 301), safe, stage) === FIT.EDGE.max);
+  check("edge: no button counts, the rooms alone decide", FIT.edgeZoom(1, null, rooms, safe, stage) === 2, FIT.edgeZoom(1, null, rooms, safe, stage));
+  check("edge: nothing measurable, 100%", FIT.edgeZoom(1, few, null, safe, stage) === 1 && FIT.edgeZoom(1, few, rooms, box(0, 0, 0, 0), stage) === 1);
+  // Which buttons count: well inside the house; out on its far edge or outside it, cut with the edges.
+  const inside = box(480, 290, 500, 310), farEdge = box(880, 430, 900, 450), outside = box(940, 470, 960, 490);
+  const counted = FIT.edgeButtons([inside, farEdge, outside], rooms);
+  check("edge: a button out on the far edge or outside the house does not count", JSON.stringify(counted) === JSON.stringify(inside), counted);
+  check("edge: none counts, null", FIT.edgeButtons([farEdge, outside], rooms) === null && FIT.edgeButtons([], rooms) === null);
+  const zEdge = FIT.edgeZoom(1, FIT.edgeButtons([inside, farEdge, outside], rooms), rooms, safe, stage);
+  check("edge: with only the far ones out there, the rooms cover the screen", zEdge === 2, zEdge);
+  // The shift: buttons kept inside, rooms centred where that allows.
+  const sh = FIT.edgeShift(400, 700, 4, 996, 0, 1600, 0, 1000);           // rooms 0..1600 centred at 800: move 300
+  check("edge: shift centres the rooms when the buttons allow", sh === 300, sh);
+  const sh2 = FIT.edgeShift(300, 900, 4, 996, 0, 1600, 0, 1000);          // buttons to 900: at most 296 keeps them on
+  check("edge: shift never takes a button off the safe part", sh2 === 296 && 300 - sh2 >= 4 && 900 - sh2 <= 996, sh2);
+  const sh3 = FIT.edgeShift(-100, 1200, 4, 996, 0, 1600, 0, 1000);        // wider than the safe part: centred on it
+  check("edge: buttons wider than the safe part are centred on it", sh3 === 50, sh3);
+}
+
 console.log(JSON.stringify({ cases, failures }));

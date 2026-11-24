@@ -4541,7 +4541,7 @@ export function buildLightsMapCard(hostIn){
       } catch (_) { best = null; }
       const short = FIT.shortfall(drawnAt100(), best && best.px);
       let closer = isoDiv.dataset.fillCloser === "1";
-      if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand) {
+      if (short.known && short.low && whole && view.fitted && (view.zoom || 1) === 1 && !view.zoomByHand && !edgecutOn()) {
         const z = Math.min(2.5, Math.round((0.98 / short.ratio) * 100) / 100);
         if (z > 1.05) {
           view.zoom = z;
@@ -4565,6 +4565,81 @@ export function buildLightsMapCard(hostIn){
       isoDiv.dataset.fillZoom = String(view.zoom || 1);
       isoDiv.dataset.fitted = view.fitted ? `${view.floorGap}/${view.horizGap}` : "";
     });
+  };
+
+  // Edgecut (⋯ list, per screen, off unless ticked; Garry 2026-11-24: "always zoom in so almost all the screen shows
+  // rooms, and the zoom level is maxed out just before button functionality is compromised"). After every drawing: as
+  // far in as the buttons that count (lights and devices, stacks, door circles and bars well inside the house: one on
+  // the far edge or outside it is cut with the edges, atlas_fit.edgeButtons) stay whole on the stage, clear of anything
+  // laid over it (an open drawer, the corner buttons, a pinned scene row), never further than the rooms covering the
+  // stage, never below 100%. Centred on the rooms within what keeps those buttons on; then measured again and backed off
+  // until they are on the screen (a stage that cannot scroll that way, the sidebar's height, is caught there). Zoomed
+  // by hand, the hand wins until 100%. In memory only, as the wall's move in is.
+  const EDGE_BUTTONS = "g.lhex, g.lstack, g.ldoorcircle, polyline.lbarhit";
+  let edgeAsked = false;
+  const rectsOf = (nodes) => [...nodes].map(n => { const r = n.getBoundingClientRect(); return { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom }; });
+  const unionOf = (nodes) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of nodes) {
+      const r = n.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0)) continue;
+      x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top); x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom);
+    }
+    return Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
+  };
+  // The stage less what lies over it: each overlay takes the side that leaves the most of the stage.
+  const edgeSafe = () => {
+    const st = stageOnScreen();
+    let s = { ...st };
+    const over = [];
+    const walk = (p) => { for (const n of p.children) { if (n === isoDiv) continue; over.push(n); walk(n); } };   // not the drawing's thousands
+    walk(mapCard);
+    for (const n of over) {
+      const cs = getComputedStyle(n);
+      if (!/^(absolute|fixed|sticky)$/.test(cs.position) || cs.pointerEvents === "none" || cs.visibility === "hidden") continue;
+      const r = n.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0) || r.right <= s.x0 || r.left >= s.x1 || r.bottom <= s.y0 || r.top >= s.y1) continue;
+      const cuts = [{ ...s, y0: r.bottom }, { ...s, y1: r.top }, { ...s, x0: r.right }, { ...s, x1: r.left }]
+        .filter(c => c.x1 > c.x0 && c.y1 > c.y0);
+      if (cuts.length) s = cuts.reduce((a, c) => ((c.x1 - c.x0) * (c.y1 - c.y0) > (a.x1 - a.x0) * (a.y1 - a.y0) ? c : a));
+    }
+    const g = FIT.EDGE.gap;
+    return { st, s: { x0: s.x0 + g, y0: s.y0 + g, x1: s.x1 - g, y1: s.y1 - g } };
+  };
+  const edgecut = () => {
+    if (edgeAsked) return;
+    edgeAsked = true;
+    const later = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f) => setTimeout(f, 50);
+    later(() => {
+      edgeAsked = false;
+      if (!FIT || !edgecutOn() || view.zoomByHand || !isoDiv.isConnected || (h3 && la3dOn())) return;
+      const rooms = () => unionOf(isoDiv.querySelectorAll('g[data-role="floorslab"]'));
+      const buttons = () => FIT.edgeButtons(rectsOf(isoDiv.querySelectorAll(EDGE_BUTTONS)), rooms());
+      let R = rooms(), B = buttons();
+      const { st, s } = edgeSafe();
+      if (!R || !(s.x1 > s.x0) || !(s.y1 > s.y0)) return;
+      let z = FIT.edgeZoom(view.zoom || 1, B, R, s, st);
+      for (let i = 0; i < 8; i++) {
+        if (Math.abs(z - (view.zoom || 1)) > 0.005) { view.zoom = z; applyZoom(false); }
+        R = rooms(); B = buttons();
+        if (!R) return;
+        // No button counts: the rooms are simply centred on the stage.
+        isoDiv.scrollLeft += B ? FIT.edgeShift(B.x0, B.x1, s.x0, s.x1, R.x0, R.x1, st.x0, st.x1) : (R.x0 + R.x1 - st.x0 - st.x1) / 2;
+        isoDiv.scrollTop += B ? FIT.edgeShift(B.y0, B.y1, s.y0, s.y1, R.y0, R.y1, st.y0, st.y1) : (R.y0 + R.y1 - st.y0 - st.y1) / 2;
+        B = buttons();
+        if (!B || (B.x0 >= s.x0 - 1 && B.x1 <= s.x1 + 1 && B.y0 >= s.y0 - 1 && B.y1 <= s.y1 + 1) || z <= 1) break;
+        z = Math.max(1, Math.floor(z * 94) / 100);   // a button off the screen: a little further out
+      }
+      view.edgecut = true;
+      isoDiv.dataset.edgecut = String(view.zoom || 1);
+    });
+  };
+  // Unticked (here, in the 3D look's ⋯ list or Views ▾, or by the list's reset): the whole house again, once.
+  const edgecutOff = () => {
+    if (!view.edgecut) return;
+    view.edgecut = false;
+    view.zoom = 1; applyZoom(false);
+    isoDiv.scrollLeft = 0; isoDiv.scrollTop = 0;
   };
 
   let drawnWhole = false;   // the last rebuildISO drew a new <svg> (not patched)
@@ -4659,6 +4734,7 @@ export function buildLightsMapCard(hostIn){
     mountForest(svgStr);
     mountWeather(svgStr);
     applyZoom();
+    if (edgecutOn()) edgecut(); else edgecutOff();
     if (WALL) checkFill();
     // The sidebar's flat map follows this screen's ⋯ "Tap a light to switch it" (wireUseSurface).
     isoDiv._psLightTaps = DISPLAY ? () => flatShow("light_taps") !== false : null;
@@ -5604,6 +5680,8 @@ export function buildLightsMapCard(hostIn){
             },
             // A tap reads its line when it lands; the floors and the scene row are drawn again.
             changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; }
+              // Edgecut ticked: the hand's zoom is let go (the drawing below fits it; unticked, it goes back to the whole house).
+              if ((key === "edgecut" || key === null) && edgecutOn()) view.zoomByHand = false;
               // "Furniture from scans" ticked: its reader is fetched now, and the map drawn again when it arrives.
               if (key === "scan_furniture" && scanOn()) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
               if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });
