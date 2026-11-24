@@ -103,6 +103,20 @@ function filled(floors, cam, aspect, n = 41, m = 31){
   }
   return hit / (n * m);
 }
+/** Do the rooms (their floors and wall tops) reach past every edge of the view, as the camera sees them? The rule
+ *  (Garry, 2026-11-24: "Cut the edges left to right"): the house spans the view left to right and top to bottom. */
+function reaches(floors, cam, aspect){
+  const { dir, right, up } = EDGE.cameraAxes(cam.theta, cam.phi), eye = cam.target.map((v, i) => v + dir[i] * cam.radius);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const f of floors) for (const P of f.polys) for (const [x, z] of P) for (const y of [f.y, f.y + (f.h || 0)]) {
+    const q = [x - eye[0], y - eye[1], z - eye[2]], d = -dot(q, dir);
+    if (!(d > 1e-6)) return true;
+    const u = dot(q, right) / (d * TV * aspect), v = dot(q, up) / (d * TV);
+    u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
+  }
+  return u0 <= -1 + 1e-6 && u1 >= 1 - 1e-6 && v0 <= -1 + 1e-6 && v1 >= 1 - 1e-6;
+}
 const box = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
 /** One floor of rooms at height y, and the corners the view frames (floor and wall top). */
 const floorOf = (y, polys, h = 2.5) => ({ floor: { y, h, polys }, pts: polys.flatMap(P => P.flatMap(([x, z]) => [[x, y, z], [x, y + h, z]])) });
@@ -110,27 +124,30 @@ const fit = (o) => EDGE.edgecutFit({ tanH: TV * 4 / 3, tanV: TV, rMin: 1.5, ...o
 const camOf = (f, theta, phi) => ({ theta, phi, radius: f.r, target: f.target });
 
 // ── math ────────────────────────────────────────────────────────────────────
-await tryCase("math: at an angle the rooms fill the view to every edge, and a step farther they don't", async () => {
-  // A 20 × 12 m house seen from a corner, tilted: filling the view cuts its corners off.
+await tryCase("math: at an angle the rooms reach every edge of the view, and a step farther they don't", async () => {
+  // A 20 × 12 m house seen from a corner, tilted: spanning the view cuts its corners off.
   const { floor, pts } = floorOf(0, [box(0, 0, 10, 12), box(10, 0, 20, 12)]), theta = 0.3, phi = 0.6;
   const f = fit({ floors: [floor], pts, theta, phi, rMax: 30 });
-  const at = filled([floor], camOf(f, theta, phi), 4 / 3), out = filled([floor], { ...camOf(f, theta, phi), radius: f.r * 1.03 }, 4 / 3);
-  check("math: at an angle the rooms fill the view to every edge, and a step farther they don't",
-    f && at === 1 && out < 1 && f.r > 30 / 4 && f.r < 30, { f, at, out });
+  const at = reaches([floor], camOf(f, theta, phi), 4 / 3), out = reaches([floor], { ...camOf(f, theta, phi), radius: f.r * 1.03 }, 4 / 3);
+  check("math: at an angle the rooms reach every edge of the view, and a step farther they don't",
+    f && at && !out && f.r > 30 / 4 && f.r < 30, { f, at, out });
 });
-await tryCase("math: a steep view can't fill to its far edge: four times nearer, no more, and fuller than the whole house", async () => {
+await tryCase("math: a steep view spans the view too, well short of the cap, and fuller than the whole house", async () => {
+  // The first build asked every corner of a tilted view to show a room: the top corners look past the far wall, so it
+  // always went to the cap (four times nearer, a room or two). Spanning the view is the rule, as on the flat map.
   const { floor, pts } = floorOf(0, [box(0, 0, 20, 12)]), theta = Math.PI / 4, phi = 0.98;
   const f = fit({ floors: [floor], pts, theta, phi, rMax: 40 });
-  const at = filled([floor], camOf(f, theta, phi), 4 / 3), whole = filled([floor], { ...camOf(f, theta, phi), radius: 40 }, 4 / 3);
-  check("math: a steep view can't fill to its far edge: four times nearer, no more, and fuller than the whole house",
-    f && near(f.r, 10, 1e-9) && at < 1 && at > whole + 0.2, { f, at, whole });
+  const at = reaches([floor], camOf(f, theta, phi), 4 / 3), out = reaches([floor], { ...camOf(f, theta, phi), radius: f.r * 1.03 }, 4 / 3);
+  const fuller = filled([floor], camOf(f, theta, phi), 4 / 3) > filled([floor], { ...camOf(f, theta, phi), radius: 40 }, 4 / 3) + 0.2;
+  check("math: a steep view spans the view too, well short of the cap, and fuller than the whole house",
+    f && at && !out && f.r > 40 / 4 + 1 && f.r < 40 && fuller, { f, at, out, fuller });
 });
 await tryCase("math: straight down on a long house, the ends are cut, the middle is in the middle", async () => {
   const { floor, pts } = floorOf(0, [box(0, 0, 24, 6)]), theta = 0, phi = 0.0015;
   const f = fit({ floors: [floor], pts, theta, phi, rMax: 20 });
-  const at = filled([floor], camOf(f, theta, phi), 4 / 3), out = filled([floor], { ...camOf(f, theta, phi), radius: f.r * 1.03 }, 4 / 3);
+  const at = reaches([floor], camOf(f, theta, phi), 4 / 3), out = reaches([floor], { ...camOf(f, theta, phi), radius: f.r * 1.03 }, 4 / 3);
   check("math: straight down on a long house, the ends are cut, the middle is in the middle",
-    f && at === 1 && out < 1 && near(f.target[0], 12, 1e-6) && near(f.target[2], 3, 0.05), { f, at, out });
+    f && at && !out && filled([floor], camOf(f, theta, phi), 4 / 3) === 1 && near(f.target[0], 12, 1e-6) && near(f.target[2], 3, 0.05), { f, at, out });
 });
 await tryCase("math: filled already at the whole house: the whole house; too thin to fill: four times nearer, no more", async () => {
   const big = floorOf(0, [box(-100, -100, 100, 100)]);
@@ -140,20 +157,21 @@ await tryCase("math: filled already at the whole house: the whole house; too thi
   check("math: filled already at the whole house: the whole house; too thin to fill: four times nearer, no more",
     a && near(a.r, 20, 1e-9) && b && near(b.r, 40 / EDGE.ZOOM_MAX, 1e-9) && EDGE.ZOOM_MAX === 4, { a, b });
 });
-await tryCase("math: two floors fill together; a hole between rooms is not filled", async () => {
-  // The lower floor's east half under an upper floor's west half: from above they fill the view as one.
+await tryCase("math: two floors span the view together; a courtyard is framed as the house round it", async () => {
+  // The lower floor's east half under an upper floor's west half: from above they span the view as one.
   const lo = floorOf(0, [box(10, 0, 20, 10)]), hi = floorOf(3, [box(0, 0, 10, 10)]), theta = 0, phi = 0.0015;
   const f = fit({ floors: [lo.floor, hi.floor], pts: [...lo.pts, ...hi.pts], theta, phi, rMax: 20 });
-  const both = filled([lo.floor, hi.floor], camOf(f, theta, phi), 4 / 3), one = filled([hi.floor], camOf(f, theta, phi), 4 / 3);
-  // A courtyard in the middle: the camera can't fill the view round it, so it comes as near as it may.
+  const both = reaches([lo.floor, hi.floor], camOf(f, theta, phi), 4 / 3), one = reaches([hi.floor], camOf(f, theta, phi), 4 / 3);
+  // A courtyard in the middle: framed as the house round it is (the hole shows, as on the flat map), not by a room or two.
   const ring = floorOf(0, [box(0, 0, 20, 4), box(0, 4, 8, 12), box(12, 4, 20, 12), box(0, 12, 20, 16)]);
-  const g = fit({ floors: [ring.floor], pts: ring.pts, theta, phi, rMax: 20 });
-  check("math: two floors fill together; a hole between rooms is not filled",
-    f && both === 1 && one < 1 && g && near(g.r, 20 / 4, 1e-9), { f, both, one, g });
+  const solid = floorOf(0, [box(0, 0, 20, 16)]);
+  const g = fit({ floors: [ring.floor], pts: ring.pts, theta, phi, rMax: 20 }), h = fit({ floors: [solid.floor], pts: solid.pts, theta, phi, rMax: 20 });
+  check("math: two floors span the view together; a courtyard is framed as the house round it",
+    f && both && !one && g && h && near(g.r, h.r, 1e-6) && g.r > 20 / 4 + 1, { f, both, one, g, h });
 });
 await tryCase("math: bad numbers: nothing to frame, no view, NaN: null, at once", async () => {
   const t0 = Date.now(), { floor, pts } = floorOf(0, [box(0, 0, 4, 4)]);
-  const a = fit({ floors: [], pts, theta: 0, phi: 1, rMax: 30 }), b = fit({ floors: [floor], pts, theta: 0, phi: 1, tanV: 0, rMax: 30 });
+  const a = fit({ floors: [floor], pts: [], theta: 0, phi: 1, rMax: 30 }), b = fit({ floors: [floor], pts, theta: 0, phi: 1, tanV: 0, rMax: 30 });
   const c = fit({ floors: [floor], pts, theta: NaN, phi: 1, rMax: 30 }), d = fit({ floors: [floor], pts: [[NaN, 0, 0]], theta: 0, phi: 1, rMax: 30 });
   check("math: bad numbers: nothing to frame, no view, NaN: null, at once",
     a === null && b === null && c === null && d === null && Date.now() - t0 < 1000, { a, b, c, d });
@@ -257,10 +275,11 @@ await tryCase("views: Views ▾ → Edgecut ticks this screen's line, counted, a
   click(q("[data-la3d-more]")); await settle();
   const listed = ticked("edgecut");
   click(q(".la3d-sx")); await settle();
-  const fill = filled(s.edgecut.floors, s.cam, 4 / 3), farther = filled(s.edgecut.floors, { ...s.cam, radius: s.cam.radius * 1.03 }, 4 / 3);
+  const fill = filled(s.edgecut.floors, s.cam, 4 / 3), reach = reaches(s.edgecut.floors, s.cam, 4 / 3);
+  const farther = reaches(s.edgecut.floors, { ...s.cam, radius: s.cam.radius * 1.03 }, 4 / 3);
   check("views: Views ▾ → Edgecut ticks this screen's line, counted, and frames: rooms to every edge, nearer than the whole house, the angle kept",
     pref("edge-a").edgecut === true && listed === true && H.sent.slice(sent).includes("house3d_show:show:edgecut") && s.edgecut.on && s.edgecut.holds
-    && ((fill === 1 && farther < 1) || near(s.cam.radius, s.screen.fitR / 4, 1e-6)) && fill > filled(s.edgecut.floors, was.cam, 4 / 3) + 0.2
+    && ((reach && !farther) || near(s.cam.radius, s.screen.fitR / 4, 1e-6)) && fill > filled(s.edgecut.floors, was.cam, 4 / 3) + 0.2
     && s.cam.radius < was.cam.radius * 0.9 && s.cam.radius >= s.screen.fitR / 4 - 1e-9
     && near(s.cam.theta, was.cam.theta, 1e-9) && near(s.cam.phi, was.cam.phi, 1e-9) && (await viewsLine()).on === true,
     { cam: s.cam, was: was.cam, fitR: s.screen.fitR, fill, farther, listed, pref: pref("edge-a") });
@@ -325,7 +344,7 @@ await tryCase("always: a floor chosen frames it again; a new size at once", asyn
   check("always: a floor chosen frames it again; a new size at once",
     main.edgecut.holds && up.edgecut.holds && !near(up.edgecut.at.target, main.edgecut.at.target, 1e-3) && back.edgecut.holds && sameCam(back.cam, main.cam)
     && wide.edgecut.holds && !near(wide.cam.radius, main.cam.radius, 1e-3) && near(wide.cam.theta, main.cam.theta, 1e-9) && near(wide.cam.phi, main.cam.phi, 1e-9)
-    && filled(wide.edgecut.floors, wide.cam, 1000 / 600) === 1,
+    && reaches(wide.edgecut.floors, wide.cam, 1000 / 600),
     { main: main.edgecut.at, up: up.edgecut.at, back: back.cam, wide: wide.cam });
 });
 await tryCase("hand: moved by hand it is left alone; the flight home after a minute is Edgecut again", async () => {
