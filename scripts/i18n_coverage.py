@@ -84,6 +84,9 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "atlasmap2": ("views/lights_map.js#atlasmap2",),
     "aboard": ("views/live_aboard.js",),
     "aboard2": ("views/live_aboard_panel.js", "views/live_aboard_people.js", "views/live_aboard_tracked.js", "views/live_aboard_looks.js", "views/live_aboard_rooms.js", "views/live_aboard_director.js", "views/live_aboard_show.js", "views/live_aboard_motion.js", "views/live_aboard_devices.js", "views/live_aboard_use.js"),
+    "furnish": ("views/live_aboard_edit.js", "views/live_aboard_furnish.js", "views/live_aboard_house.js"),
+    "furnish2": ("views/live_aboard_strip.js", "views/live_aboard_runs.js", "views/live_aboard_photo.js", "views/live_aboard_import.js"),
+    "furniture": ("views/live_aboard_furniture.js",),
 }
 SERVER = "server"
 
