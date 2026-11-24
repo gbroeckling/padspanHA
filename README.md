@@ -10,7 +10,12 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 [![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in **Settings → Marketplace** (Home Assistant 2026.11 and newer) or in HACS (older versions). Or search either one for PadSpan.
 
-**What you need:** Home Assistant 2024.8 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/).
+**What do you want PadSpan for?**
+
+- **The whole house on one screen.** Every light, door, lock, alarm and sensor on a plan of your home, each in its room. Tap a light, see what's open, and a leak or smoke alarm turns its room red on every screen until someone resets it. Put it on a wall tablet with the free kiosk link. Needs only Home Assistant 2024.8 or newer. [See it](https://padspan.traks.ca/demo/?page=atlas)
+- **Who's in which room.** Every phone, watch and tag, room by room, on every floor, with a week of replay. Needs at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/). [See it](https://padspan.traks.ca/demo/?page=panel)
+- **Your floor plan.** Scan your rooms with an iPhone, start from your robot vacuum's map (experimental), or draw them, with split levels, room heights and lofts as they really are. Pro adds the house in 3D. [See it](https://padspan.traks.ca/demo/?page=atlas3d)
+- **Every light in its place.** Free: every light on the map in its room, and a wall dimmer with its smart bulbs working as one light. Pro: each light exactly where it hangs, in its real shape. [See it](https://padspan.traks.ca/demo/?page=atlas)
 
 **Free and open source (GPL-3.0).** PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, plus Live Aboard (your house in 3D, like looking into a house in The Sims) and Furnish. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md#try-it-free-for-90-days)).
 
@@ -82,7 +87,7 @@ thermostat and light switches.
 - Interactive device registry: merge duplicates, add identities, relabel, delete
 
 ### Floor Plans & Maps
-- Upload a floor plan picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works), or start from a phone's room scan or a blank floor
+- Upload a floor plan picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works) or a PDF (you pick the page), or start from a phone's room scan or a blank floor
 - **Two-point measure tool** for precise real-world scale calibration with aspect ratio validation
 - Draw room boundary polygons directly over blueprints
 - Multi-floor **3D isometric visualization** with live object positions
