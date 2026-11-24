@@ -20,7 +20,7 @@
   },
   {
    "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
-   "de": "<span class=\"badge\" data-latest-version>v0.37.0</span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
+   "de": "<span class=\"badge\" data-latest-version>v0.38.274</span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
   },
   {
    "en": "<a class=\"btn primary\" href=\"demo/\">Try the live demo</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA\">View on GitHub</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Download Latest Release</a> <a class=\"btn ghost\" href=\"#install\">Install via HACS</a>",
@@ -303,8 +303,8 @@
    "de": "Gelernte RSSI-Dämpfung zwischen Etagen"
   },
   {
-   "en": "Outdoor penalties for exterior boundary rooms",
-   "de": "Abzug für draußen bei Räumen an der Außenwand"
+   "en": "Outdoor penalties for rooms on an Outside floor",
+   "de": "Abzug für draußen bei Räumen auf einer Outside-Etage"
   },
   {
    "en": "Scanner Hardware",
@@ -455,8 +455,8 @@
    "de": "Aufblinken und Ausblenden bei Bewegung, angeglichen an die Haltezeit jedes Sensors"
   },
   {
-   "en": "<b>Automorph</b> — a soft aura from each fixture into its room",
-   "de": "<b>Automorph</b>: ein weicher Lichtschein von jeder Leuchte in ihren Raum"
+   "en": "<b>Automorph</b> — a soft aura drawn on the map from each fixture into its room",
+   "de": "<b>Automorph</b>: ein weicher Lichtschein, auf der Karte von jeder Leuchte in ihren Raum gezeichnet"
   },
   {
    "en": "<b>Showcase</b> presentation mode, now with 20 selectable themes <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">— see them all <span class=\"pill soon\">New</span></a>",
@@ -912,7 +912,7 @@
   },
   {
    "en": "Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version></span>. Enter your key under Settings → Features → PadSpan licence.",
-   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.37.0</span>. Gib deinen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein."
+   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.38.274</span>. Gib deinen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein."
   },
   {
    "en": "Already have PadSpan Bright Pro?",

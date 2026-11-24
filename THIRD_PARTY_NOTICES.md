@@ -31,6 +31,48 @@ PadSpan HA bundles the following third-party software under its own licence, unm
   licences in the files named above: BSD (PDFium JBIG2, OpenJPEG), MIT (qcms), the Foxit font licence
   and GPL-2.0 with a font exception (Liberation Sans, Red Hat).
 
+## Preact and htm
+
+- Files, in the panel's `lib/` folder:
+  - `custom_components/padspan_ha/www/padspan-ha/lib/preact.js` and
+    `custom_components/padspan_ha/www/padspan-ha/lib/preact.mjs`: Preact's minified build.
+  - `custom_components/padspan_ha/www/padspan-ha/lib/preact-hooks.js` and
+    `custom_components/padspan_ha/www/padspan-ha/lib/preact-hooks-local.mjs`: Preact's hooks, with the import
+    pointed at the local Preact file.
+  - `custom_components/padspan_ha/www/padspan-ha/lib/htm.js` and
+    `custom_components/padspan_ha/www/padspan-ha/lib/htm.mjs`: htm's minified build.
+  - `custom_components/padspan_ha/www/padspan-ha/lib/preact-bundle.js` and
+    `custom_components/padspan_ha/www/padspan-ha/lib/preact-bundle.mjs` are PadSpan's own: they re-export the above.
+  The minified files carry no version number.
+- Used by: the Live Tracker screen (`views/purelive.js`).
+- Sources: https://github.com/preactjs/preact and https://github.com/developit/htm
+- Licences: Preact, the MIT License, below. htm, Apache License, Version 2.0,
+  https://www.apache.org/licenses/LICENSE-2.0, Copyright 2018 Google Inc.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2015-present Jason Miller
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
 ## three.js r170
 
 - Files: `custom_components/padspan_ha/www/padspan-ha/vendor/three/three.module.min.js`

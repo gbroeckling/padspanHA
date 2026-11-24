@@ -24,9 +24,9 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 ## Why PadSpan?
 
-Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
+Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with alerts to your phone or email, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
 
-It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shelly Gen2+ set as a Bluetooth scanner, the same ones Bermuda uses) and Home Assistant's own Bluetooth are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
+It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shelly Gen2+ set as a Bluetooth scanner, the same ones Bermuda uses) and Home Assistant's own Bluetooth are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. ESP32s running Tasmota with Bluetooth come in over MQTT the same way (experimental: **Manage → HA Entities → Tasmota BLE**). No custom firmware. No cloud dependency. The tracking runs locally.
 
 ---
 
@@ -68,7 +68,7 @@ thermostat and light switches.
 ### Presence Tracking
 - Room-level BLE device tracking (5-second refresh)
 - **Follow mode** — animated room map + movement timeline for any tracked device
-- Multi-device simultaneous tracking with per-device email alerts (60 s rate limit)
+- Multi-device simultaneous tracking with per-device movement alerts to your phone or email (60 s rate limit)
 - Kalman-filtered RSSI smoothing (replaces simple moving averages)
 - Home/away detection: each named device's `device_tracker` is `home` (its state is the room) or `not_home`
 - **Phone & watch tracking** — guided setup wizard with [irk-capture](https://github.com/DerekSeaman/irk-capture) integration, HA Companion App iBeacon for Android, and IRK resolution for Apple devices
@@ -92,7 +92,7 @@ thermostat and light switches.
 - Line up floors in 3D Stack: each plan keeps its own place in metres (there is no master map)
 
 ### Calibration
-- Walk-around fingerprint collection with a **standalone phone-friendly panel**
+- Walk-around fingerprint collection from the panel's **Calibration** screen, on a phone, tablet or computer
 - k-NN fingerprint matching + OLS path-loss model fitting per scanner
 - Coverage heatmap with guided "walk here next" target suggestions
 - Leave-one-out cross-validation for model quality scoring
@@ -101,7 +101,7 @@ thermostat and light switches.
 ### Multi-Floor Intelligence
 - **Floor-transition learning** — adaptive dwell-based velocity gate prevents phantom floor changes
 - Learned cross-floor RSSI attenuation
-- Outdoor penalties (0.30× Gaussian damping) for exterior boundary rooms
+- Outdoor penalties for rooms on an Outside floor: while a device is indoors, readings for an outdoor room count 15 dB weaker, and a move between indoors and outdoors needs every vote in the window unless the position on the map agrees
 
 ### Phone & Watch Tracking
 
@@ -132,7 +132,7 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 - Assign scanners to floors and rooms on the map
 
 ### Alerts & Automation
-- Email alerts on room change (per device, 60-second rate limit)
+- Alerts when a device changes room, arrives or leaves (per device, 60-second rate limit on room changes), sent through Home Assistant's own notify services: the Companion app for a phone, or a mail integration such as SMTP for email. PadSpan has no mailer of its own, so set those up in Home Assistant first
 - HA entities: **device trackers** (the state is the room, or `not_home`), **area sensors**, **distance sensors**, and binary sensors for Vacation Mode, guests at home and sub-zones
 - Home Assistant events when a named device arrives or leaves (`padspan_device_arrived`, `padspan_device_departed`) and when a followed one changes room (`padspan_room_change`), for your own automations
 
@@ -144,11 +144,14 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 ### Atlas — The Device Map
 Formerly "Lights" — renamed because it outgrew the name. One isometric map of every floor, drawn the way an electrician draws a lighting plan, for placing and controlling real devices rather than just tracking BLE:
 - **Fixtures** — lights, fans, locks, and motion, temperature, humidity, air-quality and flood sensors, each placed at their real position, shape, size and rotation
+- **Smoke, gas and CO alarms** on the map beside leak sensors — an alarm rings its room red, shows on every PadSpan screen and stays up for 2 days or until someone resets it
 - **WLED control** — brightness, colour and effects live from the map
 - **Outdoor gear** — anything HA puts on an Outside floor (shed, garden, driveway) places on the real floor plate just outside the room it lives beside, instead of falling off the map
-- **Doors & windows** as real RF barriers — material-aware attenuation (steel blocks harder than hollow-core), live open/closed state, and an **Invert** toggle for a sensor that reports backwards
-- **Automorph** — a soft aura grown from a fixture into its room, in a growing set of distinct styles (Glow, Blueprint, Nebula, Halo, Bloom and more)
+- **Doors & windows** as real RF barriers — material-aware attenuation (steel blocks harder than hollow-core), live open/closed state, and an **Invert** toggle for a sensor that reports backwards. A cover (garage door, gate, blind), switch, button or script that opens it, and its lock, can be linked to the same door or window, for one card with its state, Open/Close and the lock
+- **Automorph** — a soft aura drawn on the map from a fixture into its room, in a growing set of distinct styles (Glow, Blueprint, Nebula, Halo, Bloom and more). It changes how the map looks, not what the lights do
 - **Showcase** — 20 curated visual themes for the map itself, with a presets bar to save and load a look
+- **Scene row** — under the map, a tile for each Home Assistant scene that sets a placed light, drawn as a small map of the lights it uses; a tap runs it
+- **Heatmap** (PadSpan Pro, off by default) — colours each room by its own temperature, humidity or CO₂ sensors
 - A **hover HUD** names what's under the cursor (or a touch hold) with every stacked marker as a clickable row; **Alt+click** cycles the stack when several devices sit on top of each other
 - Full touch support — pinch-zoom, drag and tap are tuned for a wall panel or phone, not just a mouse
 
@@ -161,7 +164,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual
 - **Sample mode** — fully functional demo with synthetic data, no hardware needed
-- Standalone calibration panel optimized for phone use during walk-around collection
+- Calibration is a screen of the main panel that you can open on a phone during walk-around collection
 - **NVR-style movement playback** — replay tracked device movement on the 3D map
 
 ### Experimental Features (Settings → Features)
@@ -171,7 +174,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 - **Radio Map** — RSSI heatmap overlay using inverse distance weighting
 - **Signal distortion map** — where positions matched to calibration points (k-NN) disagree with reality
 - **Walk-to-Identify** — discover unknown devices by correlating walking motion
-- **RoomPlan Import** — import an Apple RoomPlan scan (JSON) in Mapping → Layout, as rooms to review before anything is saved
+- **RoomPlan Import** — import an Apple RoomPlan scan (a `.usdz` file, or RoomPlan JSON) in Mapping → Layout, as rooms to review before anything is saved
 - **Robot Vacuum Import** — import a robot vacuum's map (Valetudo, Dreame or Xiaomi) in Mapping → Layout as a floor plan with its rooms
 - **iPhone Setup Path** — walks an iPhone through getting its IRK, adding it and checking it resolves (on by default for a new install)
 - **RSSI Vector Capture** — record what every scanner heard, poll by poll, to replay a walk offline against changed settings

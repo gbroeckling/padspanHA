@@ -13,6 +13,13 @@ berechnet wird. Das ist eine gute erste Antwort. Die Kalibrierung macht sie bess
 Türöffnungen und an den Wänden zwischen Räumen, wo zwei Räume am schwersten auseinanderzuhalten
 sind.
 
+In einem Haus mit Karte entscheidet weiterhin die Position, die aus den Plätzen der Empfänger
+berechnet wird, über den Raum, sobald sie in einem gezeichneten Raum liegt. Die Kalibrierung macht
+diese Position besser (jeder Empfänger bekommt aus deinen Punkten seine eigene Signalanpassung), und
+der Abgleich mit deinen Kalibrierpunkten entscheidet über den Raum, wenn sich keine solche Position
+berechnen lässt. **Die bessere Methode für dieses Haus wählen** (unten, ab Werk aus) lässt
+stattdessen die Kalibrierpunkte entscheiden, wenn sie in deinem Haus besser abgeschnitten haben.
+
 Die Kalibrierung ist kostenlos und in jedem Modus im Hauptmenü, mit denselben Reitern in Einfach und
 Erweitert.
 
@@ -278,6 +285,8 @@ kalibriert hat, kann PadSpan nicht vom Nachbarraum unterscheiden, also kalibrier
 
 **Für Experten:** **Einstellungen → Ortung → Positionierung und Kalibrierung** hat das
 **Positionierungsverfahren** („An Kalibrierpunkten abgeglichen“, der Standard, oder „Gelerntes
-Modell (experimentell)“), **Adaptives Lernen**, das aus Räumen lernt, bei denen PadSpan schon sicher
+Modell (experimentell)“), **Die bessere Methode für dieses Haus wählen** (ab Werk aus: nimmt von
+Kartenposition und Kalibrierabgleich das, was an Kalibrierstellen, die es nicht kannte, besser
+abgeschnitten hat), **Adaptives Lernen**, das aus Räumen lernt, bei denen PadSpan schon sicher
 ist, und **Erinnerungen zur Kalibriergenauigkeit**. Jede Einstellung dort steht in
 [Kapitel 20](20-settings-reference.md).

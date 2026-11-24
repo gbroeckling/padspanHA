@@ -150,7 +150,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <h1>PadSpan™ HA</h1>
   <p class="tag">The most comprehensive BLE room-presence system for Home Assistant. It doesn't just know you're home — it knows <b>which room</b> every Bluetooth device is in, updated every 5 seconds.</p>
   <div class="badges">
-    <span class="badge" data-latest-version>v0.37.0</span>
+    <span class="badge" data-latest-version>v0.38.274</span>
     <span class="badge">HA 2024.8+</span>
     <span class="badge">HACS</span>
     <span class="badge">GPL-3.0</span>
@@ -5361,7 +5361,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <li>Walls as RF barriers with per-material attenuation</li>
       <li>Floor-transition learning with adaptive velocity gate</li>
       <li>Learned cross-floor RSSI attenuation</li>
-      <li>Outdoor penalties for exterior boundary rooms</li>
+      <li>Outdoor penalties for rooms on an Outside floor</li>
     </ul></div>
     <div class="feat"><h3>Scanner Hardware</h3><ul>
       <li>Tested with 20+ ESP32 boards</li>
@@ -5424,7 +5424,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>Fans, motion &amp; temperature sensors and locks placed the same way</li>
         <li>Doors &amp; windows on a wall — live open/closed state, modelled as real RF barriers</li>
         <li>Motion flash and fade normalized across every sensor's hardware hold time</li>
-        <li><b>Automorph</b> — a soft aura from each fixture into its room</li>
+        <li><b>Automorph</b> — a soft aura drawn on the map from each fixture into its room</li>
         <li><b>Showcase</b> presentation mode, now with 20 selectable themes <a href="/showcase-themes.html" style="color:var(--acc)">— see them all <span class="pill soon">New</span></a></li>
       </ul>
       <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
@@ -5704,7 +5704,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
         document.getElementById("pl-kick").textContent="PadSpan Pro for life";document.getElementById("pl-price").textContent="$168";
         document.getElementById("pl-later").textContent="";document.getElementById("pl-amount").value="168.00";})();</script>
-      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.37.0</span>. Enter your key under Settings → Features → PadSpan licence.</p>
+      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.38.274</span>. Enter your key under Settings → Features → PadSpan licence.</p>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
         <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>
         <p style="font-size:12px;color:var(--mut,#94a3b8);margin:0 0 10px">Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.</p>

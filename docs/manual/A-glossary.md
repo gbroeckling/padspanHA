@@ -87,7 +87,8 @@ starts it as new. It keeps your licence key.
 every 15 minutes near its owner and once a day away.
 
 **Fingerprint.** What every receiver heard at a calibration point. PadSpan matches a device's live
-readings to the nearest fingerprints.
+readings to the nearest fingerprints. In a house with a map, the position worked out from the
+receivers decides the room first ([chapter 11](11-calibration.md)).
 
 **Floor.** A Home Assistant floor (Settings → Areas, labels & zones). Each floor can have floor plans
 and its own height.

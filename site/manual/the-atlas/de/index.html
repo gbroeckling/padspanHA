@@ -69,8 +69,9 @@ footer p{margin:4px 0}
 <h1 id="15-der-atlas">15. Der Atlas</h1>
 <p><a href="/manual/de/">Inhalt</a></p>
 <p>Der Atlas ist PadSpans Gerätekarte: deine Etagen und Räume als Plan gezeichnet, mit Lichtern,
-Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo sie wirklich sind, und jedes davon mit
-einem Tippen schaltbar. Er hieß „Lights“, bis er über die Beleuchtung hinauswuchs; der Filter-Chip
+Ventilatoren, Schlössern, Sensoren, Türen und Fenstern da, wo sie wirklich sind. Ein Tippen schaltet
+ein Licht oder einen Ventilator; ein Sensor sagt, was er misst, und bei einem Schloss oder einer
+verknüpften Tür öffnet sich die zugehörige Karte. Er hieß „Lights“, bis er über die Beleuchtung hinauswuchs; der Filter-Chip
 für Leuchten heißt immer noch <b>Lights</b>.</p>
 <h2 id="kostenlos-und-pro">Kostenlos und Pro</h2>
 <ul>
@@ -81,7 +82,9 @@ Advanced-Steuerung für WLED, Whole house presets, Vacation Mode und Öffner aus
 </ul>
 <p><b>Einstellungen → Funktionen → PadSpan-Lizenz</b> hat einen einmaligen kostenlosen Testzeitraum von
 90 Tagen (<a href="/manual/padspan-pro/de/">Kapitel 25</a>). PadSpan Bright ist derselbe Atlas für sich allein, ohne
-Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel.</p>
+Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel. Ein Bright-Pro-Schlüssel schaltet die
+Platzierungswerkzeuge frei: Platzierung, Formen und Größen, die Advanced-Steuerung für WLED,
+Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauchen PadSpan Pro.</p>
 <h2 id="so-kommst-du-hin">So kommst du hin</h2>
 <ul>
 <li><b>Karten → Atlas-Editor</b>: wo du Geräte platzierst und bearbeitest.</li>
@@ -118,8 +121,10 @@ Bewegungsmelder: Corner, Ceiling, High on the wall; ein Wassermelder: Floor), Ze
 einzustellen.</p>
 <h2 id="die-karte-benutzen">Die Karte benutzen</h2>
 <ul>
-<li><b>Ein Tippen schaltet</b> ein Gerät. <b>Halten</b> (ein goldener Ring füllt sich, während du hältst),
-oder Shift oder Alt mit einem Klick, <b>wählt</b> es zum Bearbeiten <b>aus</b>. Ziehen verschiebt es.</li>
+<li><b>Ein Tippen schaltet</b> ein Licht oder einen Ventilator. Bei einem Sensor sagt ein Tippen, was er
+misst; bei einem Schloss öffnet es dessen Karte. <b>Halten</b> (ein goldener Ring füllt sich, während
+du hältst), oder Shift oder Alt mit einem Klick, <b>wählt</b> ein Gerät zum Bearbeiten <b>aus</b>. Ziehen
+verschiebt es.</li>
 <li><b>Geräte übereinander</b>: Fahr mit der Maus darüber, oder halte den Finger darauf, und das Feld oben
 links nennt alles, was dort übereinanderliegt. <b>Alt+Klick</b> geht sie der Reihe nach durch.</li>
 <li><b>Das Blatt eines Raums</b>: Tipp auf den Namen des Raums für jedes Gerät darin, <b>All lights on /
@@ -134,8 +139,16 @@ Aktualisieren der Karte.</li>
 <p>Eine Tür oder ein Fenster, auf einer Wand markiert
 (<a href="/manual/walls-and-signal-loss/de/#türen-und-fenster-die-aufgehen">Kapitel 10</a>), zeigt nach seinem Sensor
 offen oder zu. <b>Umkehren</b>, neben <b>Löschen</b> in der Wandliste, dreht einen Sensor um, der verkehrt
-herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte
-schließt mit einem Tippen ab und auf und zeigt seinen Zustand.</p>
+herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte zeigt
+seinen Zustand. Ein Tippen schaltet es nicht: Tippen oder Halten öffnet seine Karte mit <b>Lock</b> oder
+<b>Unlock</b>, und <b>Unlock</b> fragt vorher nach.</p>
+<p>Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Bright Pro
+oder PadSpan Pro). Hak unter <b>Geräte → Türöffner</b> eine Abdeckung (ein Garagentor, ein Tor, ein
+Rollo), einen Schalter, einen Taster oder ein Skript an und verknüpf sie dann in <b>Karten →
+Atlas-Editor</b> mit der Tür oder dem Fenster, neben ihrem Sensor und ihrem Schloss. Ein Tippen auf
+die Tür öffnet dann eine Karte: ob sie offen oder zu ist, <b>Open</b> oder <b>Close</b> für eine Abdeckung
+(<b>Trigger</b> für einen Schalter, einen Taster oder ein Skript) und das Schloss. Eine Abdeckung, die
+ohne Sensor verknüpft ist, meldet offen oder zu selbst.</p>
 <h2 id="alarme-und-das-notfall-banner">Alarme und das Notfall-Banner</h2>
 <p>Wasser-, Rauch-, Gas- und Kohlenmonoxidmelder werden als Pfütze oder als runder Melder gezeichnet
 und zeigen <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> oder <b>CO</b>, <b>ALARM</b>, solange der Alarm gehalten wird, und
@@ -143,6 +156,21 @@ und zeigen <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> oder <b>CO</b>, <b>ALARM</b>, so
 und er bleibt 2 Tage lang im Alarm oder bis ihn jemand zurücksetzt, auch wenn der Sensor ruhig wird.
 Ein Banner zeigt ihn auf jedem Bildschirm von PadSpan, mit eigenem <b>Zurücksetzen</b>. Zurücksetzen
 löscht PadSpans Erinnerung an den Alarm, nicht den Sensor. Mehr in <a href="/manual/alerts/de/">Kapitel 13</a>.</p>
+<h2 id="die-szenenleiste">Die Szenenleiste</h2>
+<p>Unter der Karte, und in Live Aboard, liegt eine Reihe von Kacheln: eine für jede Szene in Home
+Assistant, die ein platziertes Licht setzt, und eine für jedes Whole house preset, dessen
+eingeschaltete Lichter alle auf einer Etage liegen (mit <b>Preset</b> markiert). Eine Kachel ist eine
+kleine Karte der Etage und zeigt, welche Lichter die Szene benutzt. Ein Tippen startet sie; sind
+alle ihre Lichter schon an, schaltet ein Tippen sie aus. <b>+ New scene</b> und ✎ öffnen den
+Szenen-Editor von Home Assistant, für einen Administrator, und nie auf einem Wandbildschirm.</p>
+<h2 id="heatmap-pro">Heatmap (Pro)</h2>
+<p><b>Einstellungen → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
+humidity, CO₂)</b>, ab Werk aus, gibt dem Atlas einen Chip <b>♨ Heatmap</b>. Tipp darauf, um
+<b>Temperature</b>, <b>Humidity</b> und <b>CO₂</b> durchzugehen (die Arten, für die dein Haus einen Sensor
+hat), dann aus. Jeder Raum wird nach seinen eigenen Sensoren eingefärbt: den platzierten, oder, wenn
+keiner platziert ist, dem Durchschnitt der Sensoren des Raums in seiner Mitte. Nichts geht durch
+eine Wand, ein Raum ohne Sensor bleibt ungefärbt, und ein Messwert, der älter als eine Stunde ist,
+wird nicht benutzt.</p>
 <h2 id="power-teams">Power-Teams</h2>
 <p>Smarte Farbbirnen in Fassungen, die an einem Wanddimmer oder Wandschalter hängen (zum Beispiel
 Zigbee-Birnen an einem Control4-Dimmer), werden dunkel, wenn jemand an der Wand ausschaltet, und
@@ -200,8 +228,9 @@ wird bis dahin voll hell. Ein Team, das schon an ist, bleibt, wie es ist. <b>Sav
 <ul>
 <li><b>Showcase</b>: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
 zusammen). Wähl eines in der Werkzeugleiste des Atlas unter <b>Presentation</b>.</li>
-<li><b>Automorph</b>: ein weicher Schein von einer Leuchte hinaus in ihren Raum, in verschiedenen Stilen
-zur Wahl (Werkzeugleiste → Automorph).</li>
+<li><b>Automorph</b>: ein weicher Schein, auf der Karte von einer Leuchte hinaus in ihren Raum gezeichnet,
+in verschiedenen Stilen zur Wahl (Werkzeugleiste → Automorph). Er ändert das Aussehen der Karte,
+nicht die Lichter.</li>
 <li><b>Die Presets-Leiste</b> speichert einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
 Etage, Abstand und Anordnung) unter einem Namen, und <b>Apply</b> holt ihn zurück.</li>
 <li><b>Whole house presets</b> merkt sich das Haus selbst: <b>Set</b> hält den Zustand jedes Lichts und
@@ -230,7 +259,8 @@ wie er ist.</li>
 </ul>
 <h2 id="wetter-draußen">Wetter draußen</h2>
 <p>Wenn es regnet oder schneit, fällt auf dem Atlas zarter Regen oder Schnee rund um das Haus, nie über
-einem Raum. Pro animiert das Wetter; die kostenlose Karte zeigt es unbewegt. Richte es ein unter
+einem Raum. PadSpan Pro oder PadSpan Bright Pro animiert das Wetter; die kostenlose Karte zeigt es
+unbewegt. Richte es ein unter
 <b>Einstellungen → Atlas → Atlas — Mapped Light Control → Outdoor weather</b> (Modus Erweitert): der
 Schalter (ab Werk an), ein Regensensor (freiwillig), die Wetter-Entität, der Warnungssensor (wird
 von selbst gefunden) und <b>Strength</b> (0,5× bis 1,5×).</p>
@@ -262,7 +292,7 @@ schaltet der Test diese Lichter nicht unter ihr aus.</li>
 <b>Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
 the Atlas</b>.</li>
 </ul>
-<h2 id="wled-advanced-und-exact-look-pro">WLED: Advanced und Exact look (Pro)</h2>
+<h2 id="wled-advanced-und-exact-look-pro-oder-bright-pro">WLED: Advanced und Exact look (Pro oder Bright Pro)</h2>
 <p>Die Karte eines WLED-Lichts hat <b>Controls | Advanced</b>. Advanced ist eine ganze WLED-Werkbank in
 Reitern: <b>Layout</b>, <b>Effect</b>, <b>Presets &amp; playlists</b>, <b>LEDs</b>, <b>Sync &amp; team</b>, <b>Exact look</b>,
 <b>Settings</b>, <b>Backup</b> und <b>Info</b>.</p>

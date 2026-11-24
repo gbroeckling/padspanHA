@@ -5129,7 +5129,7 @@ export function buildLightsMapCard(hostIn){
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
       mapB.setAttribute("title", "The flat map");
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
-      d3B.setAttribute("title", why || "Live Aboard (experimental): the house you can walk around");
+      d3B.setAttribute("title", why || "Live Aboard (experimental): your house in 3D, to turn, pan and zoom");
       if (why) { d3B.setAttribute("aria-disabled", "true"); d3B.setAttribute("aria-describedby", whyId); d3B.style.opacity = "0.45"; }
       else { d3B.removeAttribute("aria-disabled"); d3B.removeAttribute("aria-describedby"); }
       whyEl.textContent = why;

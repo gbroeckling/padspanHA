@@ -3,9 +3,9 @@
 [Contents](README.md)
 
 The Atlas is PadSpan's device map: your floors and rooms drawn as a plan, with lights, fans, locks,
-sensors, doors and windows where they really are, and every one of them switchable with a tap. It
-was called "Lights" until it grew past lighting; the filter chip for light fixtures is still called
-**Lights**.
+sensors, doors and windows where they really are. A tap switches a light or a fan; a sensor says
+what it reads, and a lock or a linked door opens its card. It was called "Lights" until it grew past
+lighting; the filter chip for light fixtures is still called **Lights**.
 
 ## Free and Pro
 
@@ -15,7 +15,9 @@ was called "Lights" until it grew past lighting; the filter chip for light fixtu
 
 **Settings → Features → PadSpan licence** has a one-time 90-day free trial
 ([chapter 25](25-padspan-pro.md)). PadSpan Bright is the same Atlas on its own, without presence
-tracking, with its own Bright Pro key.
+tracking, with its own Bright Pro key. A Bright Pro key unlocks the placement tools: placement,
+shapes and sizes, WLED's Advanced controls, Automorph and Showcase. Whole house presets, Vacation
+Mode and the heatmap need PadSpan Pro.
 
 ## Getting there
 
@@ -52,8 +54,9 @@ placed device; tick several to set them at once.
 
 ## Using the map
 
-- **A tap switches** a device. **A hold** (a gold ring fills as you hold), or Shift or Alt with a
-  click, **selects** it for editing. A drag moves it.
+- **A tap switches** a light or a fan. On a sensor, a tap says what it reads; on a lock, it opens the
+  lock's card. **A hold** (a gold ring fills as you hold), or Shift or Alt with a click, **selects** a
+  device for editing. A drag moves it.
 - **Devices on top of each other**: hover, or hold a touch, and the box at the top left names
   everything stacked there. **Alt+click** steps through them.
 - **A room's sheet**: tap the room's name for every device in it, **All lights on / off**, its fans,
@@ -67,8 +70,16 @@ placed device; tick several to set them at once.
 
 A door or window marked on a wall ([chapter 10](10-walls-and-signal-loss.md#doors-and-windows-that-open))
 shows open or shut from its sensor. **Invert**, next to **Delete** in the wall list, flips a sensor
-that reports backwards: if a door shows the wrong state, check that first. A lock on the map locks
-and unlocks with a tap and shows its state.
+that reports backwards: if a door shows the wrong state, check that first. A lock on the map shows
+its state. A tap doesn't turn it: a tap or a hold opens its card, with **Lock** or **Unlock**, and
+**Unlock** asks first.
+
+A door or window can also carry what opens it and what locks it (PadSpan Bright Pro or PadSpan Pro).
+Tick a cover (a garage door, a gate, a blind), switch, button or script on **Devices → Door
+Openers**, then link it to the door or window in **Mapping → Atlas builder**, beside its sensor and
+its lock. A tap on the door then opens one card: whether it is open or closed, **Open** or **Close**
+for a cover (**Trigger** for a switch, button or script), and the lock. A cover linked with no sensor
+says open or shut itself.
 
 ## Alarms and the emergency banner
 
@@ -78,6 +89,23 @@ one goes off, a red ring sweeps through its room, and it stays alarming for 2 da
 resets it, even if the sensor goes quiet. A banner shows it on every PadSpan screen, with its own
 **Reset**. Resetting clears PadSpan's memory of the alarm, not the sensor. More in
 [chapter 13](13-alerts.md).
+
+## The scene row
+
+Under the map, and in Live Aboard, is a row of tiles: one for each Home Assistant scene that sets a
+placed light, and one for each Whole house preset whose lit lights are all on one floor (marked
+**Preset**). A tile is a small map of the floor, showing which lights the scene uses. A tap runs it;
+when all its lights are already on, a tap turns them off. **+ New scene** and ✎ open Home
+Assistant's own scene editor, for an administrator, and never on a wall screen.
+
+## Heatmap (Pro)
+
+**Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
+humidity, CO₂)**, off by default, adds a **♨ Heatmap** chip to the Atlas. Tap it to step through
+**Temperature**, **Humidity** and **CO₂** (the kinds your house has a sensor for), then off. Each
+room is coloured from its own sensors: the placed ones, or, with none placed, the average of the
+room's sensors at its centre. Nothing crosses a wall, a room with no sensor stays uncoloured, and a
+reading over an hour old isn't used.
 
 ## Power teams
 
@@ -135,8 +163,8 @@ An administrator changes the wake-up and the curve. The sun curve is adapted fro
 
 - **Showcase**: 20 themes for the whole map (colour, room edges, glow and light pools together).
   Pick one in the Atlas toolbar under **Presentation**.
-- **Automorph**: a soft glow from a fixture out into its room, in a choice of styles (toolbar →
-  Automorph).
+- **Automorph**: a soft glow drawn on the map from a fixture out into its room, in a choice of styles
+  (toolbar → Automorph). It changes the map's look, not the lights.
 - **The presets bar** saves a whole look (theme, Automorph style, and if you like floor, spacing and
   layout) under a name, and **Apply** brings it back.
 - **Whole house presets** remembers the house itself: **Set** keeps every light's and fan's state
@@ -164,8 +192,8 @@ lights less at once). Turning it on or off needs an administrator.
 ## Outdoor weather
 
 When it rains or snows, faint rain or snow falls around the house on the Atlas, never over a room.
-Pro animates it; the free map shows it still. Set it up in **Settings → Atlas → Atlas — Mapped Light
-Control → Outdoor weather** (Advanced mode): the switch (on by default), a rain sensor (optional), the
+PadSpan Pro or PadSpan Bright Pro animates it; the free map shows it still. Set it up in
+**Settings → Atlas → Atlas — Mapped Light Control → Outdoor weather** (Advanced mode): the switch (on by default), a rain sensor (optional), the
 weather entity, the warnings sensor (found by itself) and **Strength** (0.5× to 1.5×).
 
 - **Light rain** when it's wet: a rain sensor decides if you chose one, otherwise the weather entity.
@@ -194,7 +222,7 @@ else WLED lights named "emergency".
 - To hide the button on a screen anyone can tap: **Settings → Atlas → Atlas — Mapped Light Control →
   Show the Test emergency lighting button on the Atlas**.
 
-## WLED: Advanced and Exact look (Pro)
+## WLED: Advanced and Exact look (Pro or Bright Pro)
 
 A WLED light's card has **Controls | Advanced**. Advanced is a whole WLED workbench in tabs:
 **Layout**, **Effect**, **Presets & playlists**, **LEDs**, **Sync & team**, **Exact look**,
