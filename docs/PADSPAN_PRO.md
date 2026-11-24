@@ -2,7 +2,8 @@
 
 PadSpan HA is free, and the presence tracking stays free. **PadSpan Pro** unlocks the paid parts on
 the same install: placing lights and devices exactly on the Atlas (shapes, sizes, WLED, Automorph,
-Showcase), the 3D house (Live Aboard), Forensics, Busy Times and Locate. See
+Showcase), the 3D house (Live Aboard) with Furnish, wall mode, Whole house presets and Vacation Mode,
+Forensics, Busy Times and Locate, and the AI features. See
 [Editions](../README.md#editions) for exactly what each tier unlocks.
 
 Everything below is in **Settings → Features → PadSpan licence** unless it says otherwise. Starting
