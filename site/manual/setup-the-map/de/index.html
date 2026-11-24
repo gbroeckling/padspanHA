@@ -123,16 +123,20 @@ der Einrichtung; sobald der Grundriss existiert, klick einen Chip an, um dorthin
 <b>Beenden</b> verlässt ihn und behält, was du gezeichnet hast. Der Wizard endet mit <b>Abschluss</b>, und
 dort ist der eine Knopf, den du nicht übersehen darfst: <b>Auf die Karte setzen</b>.</p>
 <h2 id="schritt-1-grundriss-hochladen">Schritt 1. Grundriss hochladen</h2>
-<p>Ein Bild einer Etage. Es muss nicht perfekt sein: Ein Foto eines Papierplans oder deiner eigenen
-Skizze reicht.</p>
+<p>Ein Bild einer Etage oder ein PDF davon. Es muss nicht perfekt sein: Ein Foto eines Papierplans oder
+deiner eigenen Skizze reicht.</p>
 <ol>
 <li><b>Etage (aus HA)</b>: die Home-Assistant-Etage, zu der dieser Grundriss gehört. <b>Außen
 (experimentell)</b> ist für einen Garten oder Hof; ein Haus kann einen Außen-Grundriss haben.</li>
 <li><b>Kartenname</b>: freiwillig. Bleibt er leer, nimmt er den Namen der Datei.</li>
 <li><b>Maximale Größe</b>: die längste Seite in Pixeln nach der Umwandlung, 1600, solange du es nicht
 änderst.</li>
-<li>Wähle das Bild: PNG, JPG, GIF, BMP, WebP oder SVG. Zieh auf der Vorschau, um es zuzuschneiden,
-wenn du willst; <b>Zuschnitt zurücksetzen</b> fängt von vorn an.</li>
+<li>Wähle das Bild: PNG, JPG, GIF, BMP, WebP oder SVG, oder ein PDF, etwa die Zeichnung des
+Architekten. Hat das PDF mehrere Seiten, fragt PadSpan, welche Seite der Grundriss ist; diese
+Seite wird in deinem Browser als Bild gezeichnet und geht weiter wie jedes andere. Ein
+passwortgeschütztes PDF lässt sich nicht lesen: Speichere es vorher ohne Passwort oder als Bild.
+Zieh auf der Vorschau, um es zuzuschneiden, wenn du willst; <b>Zuschnitt zurücksetzen</b> fängt von
+vorn an.</li>
 <li>Ist das Bild deine eigene Zeichnung, hak <b>Das ist meine eigene Skizze, nicht maßstabsgetreu</b>
 an. PadSpan fragt dann nach einer Länge in jeder Richtung.</li>
 <li>Wähle <b>Hochladen und umwandeln</b>. PadSpan bewahrt den Grundriss in Home Assistant auf, wo ihn nur
@@ -310,7 +314,8 @@ zuerst. Je weiter unten in der Liste, desto grober der Grundriss.</p>
 <ol>
 <li><b>Nach einer vorhandenen Zeichnung suchen.</b> Die Zeichnungen des Bauträgers oder Architekten, das
 Verkaufsexposé, die Bauakte der Gemeinde, ein Versicherungsgutachten, der Fluchtwegplan an einer
-Wand. Ein Foto, gerade über die Seite gehalten, reicht.</li>
+Wand. Ein PDF geht so hoch, wie es ist; bei Papier reicht ein Foto, gerade über die Seite
+gehalten.</li>
 <li><b>Die Etage mit einem iPhone oder iPad scannen.</b> Dafür brauchst du ein Pro-Modell mit LiDAR
 (iPhone 12 Pro oder ein neueres Pro, iPad Pro 2020 oder neuer). Jede Raumscan-App, die Apples
 RoomPlan nutzt, kann den Scan als USDZ-Datei teilen (manche bieten auch RoomPlan-JSON). Scanne
