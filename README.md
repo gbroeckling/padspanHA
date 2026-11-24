@@ -24,7 +24,7 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 ## Why PadSpan?
 
-Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
+Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with alerts to your phone or email, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
 
 It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shelly Gen2+ set as a Bluetooth scanner, the same ones Bermuda uses) and Home Assistant's own Bluetooth are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
 
@@ -68,7 +68,7 @@ thermostat and light switches.
 ### Presence Tracking
 - Room-level BLE device tracking (5-second refresh)
 - **Follow mode** — animated room map + movement timeline for any tracked device
-- Multi-device simultaneous tracking with per-device email alerts (60 s rate limit)
+- Multi-device simultaneous tracking with per-device movement alerts to your phone or email (60 s rate limit)
 - Kalman-filtered RSSI smoothing (replaces simple moving averages)
 - Home/away detection: each named device's `device_tracker` is `home` (its state is the room) or `not_home`
 - **Phone & watch tracking** — guided setup wizard with [irk-capture](https://github.com/DerekSeaman/irk-capture) integration, HA Companion App iBeacon for Android, and IRK resolution for Apple devices
@@ -132,7 +132,7 @@ For devices where you can't get an IRK, the experimental **MAC Rotation Bridging
 - Assign scanners to floors and rooms on the map
 
 ### Alerts & Automation
-- Email alerts on room change (per device, 60-second rate limit)
+- Alerts when a device changes room, arrives or leaves (per device, 60-second rate limit on room changes), sent through Home Assistant's own notify services: the Companion app for a phone, or a mail integration such as SMTP for email. PadSpan has no mailer of its own, so set those up in Home Assistant first
 - HA entities: **device trackers** (the state is the room, or `not_home`), **area sensors**, **distance sensors**, and binary sensors for Vacation Mode, guests at home and sub-zones
 - Home Assistant events when a named device arrives or leaves (`padspan_device_arrived`, `padspan_device_departed`) and when a followed one changes room (`padspan_room_change`), for your own automations
 
