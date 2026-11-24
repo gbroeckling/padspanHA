@@ -903,8 +903,8 @@
    "de": "<span id=\"pl-price\">89</span> <small style=\"font-size:14px;font-weight:600\">CAD, einmalig</small>"
   },
   {
-   "en": "PadSpan Pro for life. No renewals, ever. <span id=\"pl-later\">$89 until November 30, 2026; from December 1 it's $168.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.",
-   "de": "PadSpan Pro auf Lebenszeit. Nie wieder verlängern. <span id=\"pl-later\">89 CAD (ca. 59 €) bis zum 30. November 2026, ab dem 1. Dezember 168 CAD (ca. 112 €).</span> Du hast schon einen PadSpan-Schlüssel? Bezahl mit derselben E-Mail-Adresse, dann gilt dieser Schlüssel lebenslang."
+   "en": "PadSpan Pro for life. No renewals, ever. <span id=\"pl-later\">$89 until November 30, 2026, then $168 until December 15. After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.",
+   "de": "PadSpan Pro auf Lebenszeit. Nie wieder verlängern. <span id=\"pl-later\">89 CAD (ca. 59 €) bis zum 30. November 2026, dann 168 CAD (ca. 112 €) bis zum 15. Dezember. Nach dem 15. Dezember gibt es keine Lebenszeit-Lizenz mehr: PadSpan bekommt jede Woche neue Versionen, und ein einmaliger Preis trägt das nicht, deshalb wird Pro zu 85 CAD (ca. 56 €) für zwei Jahre oder 49 CAD (ca. 33 €) im Jahr. Jede neue PadSpan-Funktion ist enthalten, solange dein Pro läuft.</span> Du hast schon einen PadSpan-Schlüssel? Bezahl mit derselben E-Mail-Adresse, dann gilt dieser Schlüssel lebenslang."
   },
   {
    "en": "Buy PadSpan Pro for life with PayPal",
@@ -1317,8 +1317,9 @@
   "style=\"margin-top:auto\">Install free</a>": "style=\"margin-top:auto\">Kostenlos installieren</a>",
   "style=\"margin-top:auto\">Get Pro</a>": "style=\"margin-top:auto\">Pro kaufen</a>",
   ">Donate with PayPal</a>": ">Mit PayPal spenden</a>",
-  "textContent=\"PadSpan Pro for life\"": "textContent=\"PadSpan Pro auf Lebenszeit\"",
-  "textContent=\"$168\"": "textContent=\"168\""
+  "textContent=\"$168\"": "textContent=\"168\"",
+  "textContent=\"PadSpan Pro for life · until December 15\"": "textContent=\"PadSpan Pro auf Lebenszeit · bis 15. Dezember\"",
+  "textContent=\"After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.\"": "textContent=\"Nach dem 15. Dezember gibt es keine Lebenszeit-Lizenz mehr: PadSpan bekommt jede Woche neue Versionen, und ein einmaliger Preis trägt das nicht, deshalb wird Pro zu 85 CAD (ca. 56 €) für zwei Jahre oder 49 CAD (ca. 33 €) im Jahr. Jede neue PadSpan-Funktion ist enthalten, solange dein Pro läuft.\""
  },
  "whatsnew": "  <div class=\"kick\">Neuigkeiten</div>\n  <h2>Was sich geändert hat</h2>\n  <p class=\"lede\">Die Versionshinweise gibt es nur auf Englisch: <a href=\"/?hl=en#whatsnew\">in einfachen Worten auf der englischen Seite</a>, mit allen Versionen seit v0.21, und jede einzelne Änderung im <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\">Changelog</a>.</p>"
 }
