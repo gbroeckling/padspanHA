@@ -493,9 +493,8 @@ async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_robot_wifi_readings(hass: HomeAssistant, connection, msg) -> None:
     """The robot's Wi-Fi at each room location run spot, for other integrations (version 1)."""
-    wifi = (await _store(hass)).data.get("wifi") or {}
-    connection.send_result(msg["id"], {"version": vr.WIFI_VERSION, "robot_ip": wifi.get("robot_ip") or None,
-                                       "readings": [dict(r) for r in wifi.get("readings") or []]})
+    await _store(hass)
+    connection.send_result(msg["id"], vr.robot_wifi_snapshot(hass))
 
 
 HANDLERS = (

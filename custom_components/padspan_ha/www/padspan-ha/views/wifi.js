@@ -10,10 +10,17 @@
  * in the same colours as its radio map. The tab exists only while UniFi Utopia answers.
  * UniFi Utopia also says what is worth fixing (findings, most urgent first) and where its access
  * points are (put there by an administrator, or estimated from the devices that hear them best).
+ *
+ * The robot vacuum (2026-11-24, the owner): when the answer has "robot" readings (PadSpan's room location
+ * runs, joined by UniFi Utopia with what the access point heard), they are a layer of their own: small
+ * marks at the robot's spots, coloured by the robot's own signal, never in the coverage colours or the
+ * findings. They are taken about 0.1 m off the floor (weaker than at hand height), and the robot's own
+ * dBm and the access point's side are different scales, so the details give both, apart.
  */
 
 const V = new URL(import.meta.url).search;
 const RM = await import(`./radio_map.js${V}`);
+const { t } = await import(`./i18n.js${V}`);
 
 export const WORST = -85;     // dBm at the red end of the ramp
 export const BEST = -45;      // dBm at the green end
@@ -117,19 +124,47 @@ function bbox(rooms, pts, extra = []) {
   return { x0: Math.min(...xs) - pad, y0: Math.min(...ys) - pad, x1: Math.max(...xs) + pad, y1: Math.max(...ys) + pad };
 }
 
+const ROBOT_KEY = "padspan_wifi_robot";   // "0": the robot layer turned off in this browser
+
+/** The robot vacuum's readings in the answer that can be drawn (an older UniFi Utopia has none). */
+export function robotReadings(data) {
+  const R = data && data.robot && Array.isArray(data.robot.readings) ? data.robot.readings : [];
+  return R.filter((r) => r && Number.isFinite(r.x) && Number.isFinite(r.y) && Number.isFinite(r.own) && r.floor);
+}
+
+/** The robot layer: on unless turned off in this browser. */
+export function robotOn() {
+  try { return localStorage.getItem(ROBOT_KEY) !== "0"; } catch (_e) { return true; }
+}
+
+function setRobotOn(on) {
+  try { localStorage.setItem(ROBOT_KEY, on ? "1" : "0"); } catch (_e) { /* storage blocked: this visit only */ }
+}
+
+/** One robot reading's details: its own signal, the access point, the access point's side when joined, when. */
+export function robotDetails(r) {
+  const lines = [t("Robot at floor level: {dbm} dBm (what a device at this spot hears)", { dbm: Math.round(r.own) })];
+  if (r.ap) lines.push(t("Access point: {ap}", { ap: r.ap }));
+  if (r.ap && Number.isFinite(r.ap_side)) lines.push(t("{ap} hears the robot at {dbm} dBm", { ap: r.ap, dbm: Math.round(r.ap_side) }));
+  if (Number.isFinite(r.ts)) lines.push(new Date(r.ts * 1000).toLocaleString());
+  return lines.join("\n");
+}
+
 /** The access points with a spot on this floor (put there, or estimated). */
 export function floorAPs(data, floor) {
   return (data.aps || []).filter((a) => a && a.floor === floor && Number.isFinite(a.x) && Number.isFinite(a.y));
 }
 
 /** The floor drawing: rooms, the coloured coverage, each room's typical reading, the placed devices,
- *  the access points, and a ring round what the picked finding is about (opt.focus). */
+ *  the robot's readings when its layer is on (opt.robot, this floor's and band's), the access points,
+ *  and a ring round what the picked finding is about (opt.focus). */
 export function floorSVG(ctx, data, floor, band, opt = {}) {
   const { esc } = ctx.helpers;
   const rooms = floorRooms(ctx.state.model, floor);
   const pts = points(data, floor, band);
   const aps = floorAPs(data, floor);
-  const bb = bbox(rooms, pts, aps);
+  const robot = opt.robot || [];
+  const bb = bbox(rooms, pts, [...aps, ...robot]);
   if (!bb) return "";
   const W = bb.x1 - bb.x0, H = bb.y1 - bb.y0, fs = Math.max(0.28, Math.min(W, H) / 38);
   const parts = [];
@@ -164,6 +199,11 @@ export function floorSVG(ctx, data, floor, band, opt = {}) {
   for (const f of data.fixed || []) {
     if (f.floor !== floor || f.band !== band) continue;
     parts.push(`<g data-wifi="device"><circle cx="${f.x}" cy="${f.y}" r="${fs * 0.42}" fill="${colour(f.median)}" stroke="#0b0f0c" stroke-width="${fs * 0.1}"><title>${esc(f.name || "")}: ${Math.round(f.median)} dBm</title></circle></g>`);
+  }
+  for (const r of robot) {
+    // A small diamond, so it is never taken for a placed device's dot.
+    const d = fs * 0.3;
+    parts.push(`<g data-wifi="robot"><path d="M ${r.x} ${r.y - d} L ${r.x + d} ${r.y} L ${r.x} ${r.y + d} L ${r.x - d} ${r.y} Z" fill="${colour(r.own)}" stroke="#0b0f0c" stroke-width="${fs * 0.07}"><title>${esc(robotDetails(r))}</title></path></g>`);
   }
   const fo = opt.focus;
   if (fo && fo.floor === floor) {
@@ -393,10 +433,20 @@ export function render(ctx) {
     sel.addEventListener("change", () => { s.ap = sel.value; s.ts = 0; load(ctx); });
     bar.appendChild(sel);
   }
+  // The robot vacuum's layer: a choice only when there are readings, on until turned off in this browser.
+  const robotAll = robotReadings(D);
+  const robotShown = robotAll.length > 0 && robotOn();
+  const robotHere = robotShown ? robotAll.filter((r) => r.floor === s.floor && r.band === s.band) : [];
+  const robotBands = [...new Set(robotAll.map((r) => r.band).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+  if (robotAll.length) {
+    bar.appendChild(el("span", { style: "width:12px" }));
+    bar.appendChild(chip(ctx, t("Robot (floor level, {band} GHz)", { band: robotBands.join(" / ") || "2.4" }), robotShown,
+      () => { setRobotOn(!robotShown); ctx.actions.renderRooms(); }, { "data-wifi-layer": "robot" }));
+  }
   root.appendChild(bar);
 
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus }) : "";
+  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus, robot: robotHere }) : "";
   const pics = el("div", { "data-wifi": "map" });
   if (svg) pics.innerHTML = svg;
   else pics.appendChild(el("div", { style: "color:#94a3b8;padding:18px" }, "This floor has no rooms drawn in PadSpan yet."));
@@ -408,6 +458,12 @@ export function render(ctx) {
     el("span", {}, `${BEST} dBm, excellent`),
   ]);
   root.appendChild(legend);
+  if (robotShown) {
+    const none = robotHere.length ? "" : " " + t("None on this floor at {band} GHz: the robot's readings are at {bands} GHz.",
+      { band: s.band, bands: robotBands.join(" / ") || "?" });
+    root.appendChild(el("div", { "data-wifi": "robot-note", style: "font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5" },
+      t("Diamonds: the robot vacuum's own Wi-Fi where it stood on its room location runs. Taken at floor height, they read weaker than at hand height, so they are kept apart from the coverage colours. Point at one for what the access point heard from it.") + none));
+  }
 
   const cellsHere = (D.cells || []).filter((c) => c.floor === s.floor && c.band === s.band);
   const fixedHere = (D.fixed || []).filter((f) => f.floor === s.floor && f.band === s.band);

@@ -67,6 +67,8 @@ them through one admin-only command, versioned:
 
 Fields Valetudo does not give are null. The SSID is not kept; neither it nor
 a BSSID goes into the opt-in report (a run that read Wi-Fi is counted, no more).
+Another integration in the same Home Assistant can read the same answer
+without the websocket: robot_wifi_snapshot(hass) below.
 """
 
 import asyncio
@@ -594,6 +596,23 @@ class RunEngine:
         await self.vs.async_save()
         self._bump("undone")
         return removed
+
+
+def robot_wifi_snapshot(hass) -> dict[str, Any] | None:
+    """The robot's Wi-Fi readings, the same version-1 shape as
+    padspan_ha/robot_wifi_readings (the module docstring), for another
+    integration in the same Home Assistant to call directly: UniFi Utopia's
+    Wi-Fi survey reads it (as custom_components.padspan_ha.vacuum_run, once
+    PadSpan is loaded) and joins each reading with what its access point hears
+    from the robot. None while the vacuum store is not loaded yet. Reads only,
+    never waits, never loads the store; the readings are copies."""
+    vs = hass.data.get(DOMAIN, {}).get(vi.DATA_VACUUM)
+    data = getattr(vs, "data", None)
+    if not isinstance(data, dict):
+        return None
+    wifi = data.get("wifi") or {}
+    return {"version": WIFI_VERSION, "robot_ip": wifi.get("robot_ip") or None,
+            "readings": [dict(r) for r in wifi.get("readings") or []]}
 
 
 def engine(hass, vs: vi.VacuumStore) -> RunEngine:

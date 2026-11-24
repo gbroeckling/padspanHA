@@ -13,6 +13,8 @@
 //   bands    2.4 and 5 GHz always have a button; a room-only reading counts for its floor
 //   refresh  it asks again each minute by itself while open, never under an open picker
 //   findings what to fix, on top; a click shows it on the plan; access points drawn, dragged, reset
+//   robot    the robot vacuum's floor-level layer: its own marks and details, on by default, off
+//            remembered per browser, never in the coverage colours, counts or findings; German words
 //
 // usage: wifi.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -291,6 +293,87 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   } finally {
     globalThis.setTimeout = realST; globalThis.clearTimeout = realCT;
   }
+}
+
+// The robot vacuum's floor-level layer (UniFi Utopia 0.4.0.8's "robot"): its own marks, never the coverage colours.
+{
+  const ROBOT = { version: 1, readings: [
+    { x: 1, y: 1, floor: "main", band: "2.4", own: -62, ap: "AP Garage", ap_side: -71, ts: 1764000000, run: "rr_1" },
+    { x: 4, y: 3, floor: "main", band: "2.4", own: -81, ap: "AP Garage", ap_side: null, ts: 1764000060, run: "rr_1" },
+    { x: 2, y: 2, floor: "upper", band: "2.4", own: -70, ap: null, ap_side: null, ts: 1764000120, run: "rr_1" },
+    { x: 3, y: 3, floor: "main", band: "2.4", own: null, ap: null, ap_side: null, ts: 1764000180, run: "rr_1" },
+  ] };
+  const withRobot = { ...DATA, robot: ROBOT };
+  const MARK = /<g data-wifi="robot">[\s\S]*?<\/g>/g;
+  const robotMarks = (root) => (q(root, '[data-wifi="map"]').innerHTML.match(MARK) || []);
+  const open = async (data, floor = "main", band = "2.4") => {
+    const h = host({ data });
+    W.render(h.ctx); await tick(); await tick();
+    h.ctx.state._wifi.floor = floor; h.ctx.state._wifi.band = band;
+    return { ...h, root: W.render(h.ctx) };
+  };
+  localStorage.clear();
+  const plain = await open(DATA);
+  check("robot: an answer without robot readings: no layer choice, no marks, no note",
+    !q(plain.root, '[data-wifi-layer="robot"]') && !robotMarks(plain.root).length && !q(plain.root, '[data-wifi="robot-note"]'));
+  const on = await open(withRobot);
+  const tog = q(on.root, '[data-wifi-layer="robot"]');
+  check("robot: the layer choice, named with its band and floor level, on by default",
+    tog && text(tog) === "Robot (floor level, 2.4 GHz)" && /background:#1f3d2b/.test(tog.getAttribute("style") || ""), tog && text(tog));
+  const marks = robotMarks(on.root);
+  check("robot: a mark at each of this floor's readings, none for one without a signal", marks.length === 2
+    && /M 1 0\.\d+/.test(marks[0]) && marks.every((m) => !/\b3 3\b/.test(m)), marks);
+  check("robot: coloured by its own signal on the screen's scale", marks[0].includes(`fill="${W.colour(-62)}"`) && marks[1].includes(`fill="${W.colour(-81)}"`));
+  check("robot: details give its own dBm, the access point, the access point's side when joined, and when",
+    /Robot at floor level: -62 dBm/.test(marks[0]) && /Access point: AP Garage/.test(marks[0]) && /AP Garage hears the robot at -71 dBm/.test(marks[0])
+    && marks[0].includes(new Date(1764000000 * 1000).toLocaleString()), marks[0]);
+  check("robot: not joined: no access point side said", /-81 dBm/.test(marks[1]) && !/hears the robot/.test(marks[1]), marks[1]);
+  const note = q(on.root, '[data-wifi="robot-note"]');
+  check("robot: a note under the layer: floor height, weaker than at hand height", note && /floor height/.test(text(note)) && /weaker than at hand height/.test(text(note)), text(note));
+  // Not mixed in: the drawing without its marks is the drawing without the robot; the readings, rooms, counts and findings as before.
+  const bare = await open(DATA);
+  check("robot: nothing else on the map changes (no coverage colour, no room reading, no device)",
+    q(on.root, '[data-wifi="map"]').innerHTML.replace(MARK, "") === q(bare.root, '[data-wifi="map"]').innerHTML);
+  check("robot: not in the coverage readings", JSON.stringify(W.points(withRobot, "main", "2.4")) === JSON.stringify(W.points(DATA, "main", "2.4")));
+  check("robot: counts line as before", text(q(on.root, '[data-wifi="counts"]')) === text(q(bare.root, '[data-wifi="counts"]')));
+  const fnd = { ...withRobot, findings: [{ id: "weak:x", kind: "weak", level: "bad", title: "x has very weak Wi-Fi", detail: "-87 dBm", advice: "", floor: "main", x: 1, y: 1, band: "2.4" }] };
+  const fr = await open(fnd);
+  check("robot: findings as UniFi Utopia gave them, none added", all(fr.root, "[data-wifi-finding]").length === 1);
+  const up = await open(withRobot, "upper");
+  check("robot: each floor its own readings", robotMarks(up.root).length === 1 && /-70 dBm/.test(robotMarks(up.root)[0]) && !/Access point:/.test(robotMarks(up.root)[0]));
+  const five = await open(withRobot, "main", "5");
+  check("robot: on 5 GHz no marks, and the note says the readings are on 2.4 GHz",
+    !robotMarks(five.root).length && /None on this floor at 5 GHz: the robot's readings are at 2\.4 GHz/.test(text(q(five.root, '[data-wifi="robot-note"]'))));
+  // Turned off: remembered in this browser, also on the next visit; on again the same way.
+  q(on.root, '[data-wifi-layer="robot"]').click();
+  const off = W.render(on.ctx);
+  check("robot: turned off: no marks, no note, the choice still there to turn it on",
+    localStorage.getItem("padspan_wifi_robot") === "0" && !robotMarks(off).length && !q(off, '[data-wifi="robot-note"]') && !!q(off, '[data-wifi-layer="robot"]'));
+  const again = await open(withRobot);
+  check("robot: off is remembered per browser", !robotMarks(again.root).length);
+  q(again.root, '[data-wifi-layer="robot"]').click();
+  check("robot: on again", localStorage.getItem("padspan_wifi_robot") === "1" && robotMarks(W.render(again.ctx)).length === 2);
+  const evil = await open({ ...DATA, robot: { version: 1, readings: [{ x: 1, y: 1, floor: "main", band: "2.4", own: -60, ap: "<img src=x onerror=1>", ap_side: -70, ts: 1764000000 }] } });
+  check("robot: an access point's name is text, never markup", !/<img/.test(q(evil.root, '[data-wifi="map"]').innerHTML) && /&lt;img/.test(q(evil.root, '[data-wifi="map"]').innerHTML));
+  const older = await open({ ...DATA, robot: { version: 1 } });
+  check("robot: no readings list: no layer", !q(older.root, '[data-wifi-layer="robot"]'));
+  // In German (i18n/de/aboard2.json, the robot's words): the choice and the note.
+  const I = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href + "?b=test");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u) => {
+    const p = new URL(String(u)).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+    return { ok: true, json: async () => JSON.parse(readFileSync(decodeURIComponent(p), "utf-8")) };
+  };
+  try {
+    const got = await I.useLanguage({ locale: { language: "de" } }, ["aboard2"]);
+    const de = await open(withRobot);
+    check("robot: in German, the layer and its note", got === "de" && text(q(de.root, '[data-wifi-layer="robot"]')) === "Roboter (Bodenhöhe, 2.4 GHz)"
+      && /Bodenhöhe/.test(text(q(de.root, '[data-wifi="robot-note"]'))) && /Roboter in Bodenhöhe: -62 dBm/.test(robotMarks(de.root)[0]), text(q(de.root, '[data-wifi-layer="robot"]')));
+  } finally {
+    await I.useLanguage({ locale: { language: "en" } });
+    globalThis.fetch = realFetch;
+  }
+  localStorage.clear();
 }
 
 console.log(JSON.stringify({ cases, failures }));
