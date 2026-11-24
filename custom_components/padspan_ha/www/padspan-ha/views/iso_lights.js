@@ -1952,6 +1952,10 @@ export function shapeSvg(kind, cx, cy, r, attrs){
     case "diamond":
       return poly([[cx,cy-r],[cx+HW,cy],[cx,cy+r],[cx-HW,cy]]
         .map(p=>`${n(p[0])},${n(p[1])}`).join(" "));
+    // A Wi-Fi access point: the rounded square of a ceiling or wall puck. Solid, like every glyph here.
+    case "wifiap":
+      return `<rect x="${n(cx-HW*0.86)}" y="${n(cy-HW*0.86)}" width="${n(HW*1.72)}" height="${n(HW*1.72)}" `+
+             `rx="${n(HW*0.42)}" ${attrs}/>`;
     default:
       return poly(hexPts(cx,cy,r));
   }
@@ -2057,6 +2061,9 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
     }
     // The detector's vent ring and its sounder in the middle.
     case "smokealarm": return ring(cx,cy,HW*0.6)+dot(cx,cy,HW*0.2);
+    // The Wi-Fi sign: two arcs over a dot.
+    case "wifiap":     return path(sub(arcPts(cx,cy+HW*0.32,HW*0.62,HW*0.62,225,315,8)))+
+                              path(sub(arcPts(cx,cy+HW*0.32,HW*0.34,HW*0.34,225,315,6)))+dot(cx,cy+HW*0.32,HW*0.1);
     // A plain fixture plate: bevel, plus the lamp behind it.
     default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }

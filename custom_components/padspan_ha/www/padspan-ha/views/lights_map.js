@@ -495,7 +495,7 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
 // ── Device classes on the map ────────────────────────────────────────────────
 // The layer chips: the map keeps every class in view and DIMS the others,
 // because a fan's place on the ceiling is context for the light beside it.
-export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["humidity","Humidity"],["air","Air"],["lock","Locks"],["door","Doors/Windows"],["flood","Emergency"]];
+export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["humidity","Humidity"],["air","Air"],["lock","Locks"],["door","Doors/Windows"],["flood","Emergency"],["wifi","Wi-Fi"]];
 
 // Automorph's style dropdown vocabulary — derived from AUTOMORPH_STYLE_LABELS
 // itself (iso_lights.js) rather than a hand-copied list. A style added there
@@ -3279,6 +3279,8 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,
+      // UniFi Utopia's access points: their "Online" sensor says so (light_codes.js isWifiAccessPoint).
+      wifi_access_point: states[eid].attributes?.wifi_access_point === true,
       state:         states[eid].state,   // "on" | "off" | "unavailable"
       // Captured now that binary_sensor. admits TWO distinct device_class
       // families (motion/occupancy and door/window) — isMotionSensor and

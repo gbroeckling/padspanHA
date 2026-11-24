@@ -57,6 +57,8 @@ _ENTITIES = [
     {"entity_id": "sensor.rh", "device_class": "humidity"},
     {"entity_id": "sensor.t", "device_class": "temperature"},
     {"entity_id": "lock.front"},
+    # UniFi Utopia's access point: its "Online" sensor carries the marker (2026-11-23).
+    {"entity_id": "binary_sensor.u6_online", "device_class": "connectivity", "wifi_access_point": True},
 ]
 
 
@@ -106,6 +108,7 @@ def test_assign_light_codes_is_winner_takes_all_in_row_order(tmp_path):
         "sensor.rh": ("H", ["isHumidity"], "humidity"),
         "sensor.t": ("T", ["isTemp"], "temp"),
         "lock.front": ("L", ["isLock"], "lock"),
+        "binary_sensor.u6_online": ("N", ["isWifiAp"], "wifiap"),
     }
     for eid, (letter, on, cls) in want.items():
         got = out[eid]
@@ -114,6 +117,7 @@ def test_assign_light_codes_is_winner_takes_all_in_row_order(tmp_path):
         assert got["cls"] == cls, (eid, got)
     assert out["binary_sensor.leak"]["shape"] == "flood", "a leak sensor must never reach the floodLIGHT name heuristic"
     assert out["lock.front"]["shape"] == "lock"
+    assert out["binary_sensor.u6_online"]["shape"] == "wifiap"
 
 
 def test_the_generic_series_never_issues_a_class_letter(tmp_path):
@@ -140,7 +144,7 @@ def test_the_capability_helpers_answer_from_the_table(tmp_path):
         if key.startswith("_"):
             continue
         assert got["casts"] == (key in lights), f"{key}: only a real light casts light"
-    read_only = {"motion", "door", "flood", "air", "humidity", "temp"}
+    read_only = {"motion", "door", "flood", "air", "humidity", "temp", "wifiap"}
     for key in read_only:
         assert out[key]["ctl"] is False and out[key]["card"] is False, f"{key} is read-only"
     for key in ("light", "wled", "partition", "fan", "lock"):
@@ -149,7 +153,7 @@ def test_the_capability_helpers_answer_from_the_table(tmp_path):
     assert out["light"]["card"] is False and out["_dimmablePlain"] is True, "a plain light earns a card only by being dimmable"
     # A door is never a point marker at all — not a "fixed glyph" carve-out.
     assert out["door"]["fixed"] is False and out["fan"]["fixed"] is False
-    assert all(out[k]["fixed"] for k in ("motion", "flood", "air", "humidity", "temp", "lock"))
+    assert all(out[k]["fixed"] for k in ("motion", "flood", "air", "humidity", "temp", "lock", "wifiap"))
     assert out["light"]["border"] == "DEF" and out["lock"]["border"] != "DEF"
     assert out["_null"] is True
 
@@ -176,7 +180,7 @@ def _flag_keys() -> list[str]:
     only has to not crash at import/collection time).
     """
     if _NODE is None:
-        return ["isFan", "isMotion", "isDoor", "isTemp", "isAir", "isHumidity", "isLock", "isFlood", "isWled", "isPartition"]
+        return ["isFan", "isMotion", "isDoor", "isTemp", "isAir", "isHumidity", "isLock", "isFlood", "isWled", "isPartition", "isWifiAp"]
     import tempfile
     with tempfile.TemporaryDirectory() as td:
         return _run(Path(td), "console.log(JSON.stringify(LC.DEVICE_CLASSES.map(c=>c.flagKey).filter(Boolean)));\n")
@@ -231,6 +235,9 @@ _ADMISSION_CASES = [
     ("sensor.other_enum", {"device_class": "enum", "friendly_name": "Power On Behavior"}, False),
     ("sensor.battery", {"device_class": "battery"}, False),
     ("lock.front", {}, True),
+    # An access point only by UniFi Utopia's marker, never by its class or name alone.
+    ("binary_sensor.u6_online", {"device_class": "connectivity", "wifi_access_point": True}, True),
+    ("binary_sensor.router_online", {"device_class": "connectivity", "friendly_name": "Access point online"}, False),
 ]
 
 

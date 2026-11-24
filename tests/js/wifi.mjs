@@ -179,8 +179,8 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
       detail: "Alex's phone spent 2.0 hours there on weak Wi-Fi.", advice: "An access point nearer makes the most difference.",
       floor: "upper", room: "Office", band: "5" },
   ];
-  const APS = [{ mac: "f0:00:00:00:00:0a", name: "AP Upstairs", floor: "upper", x: 6, y: 2, placed: "estimated" },
-               { mac: "f0:00:00:00:00:0b", name: "AP Garage", floor: "main", x: 5, y: 4, placed: "you" },
+  const APS = [{ mac: "f0:00:00:00:00:0a", name: "AP Upstairs", floor: "upper", x: 6, y: 2, placed: "estimated", entity_id: "binary_sensor.ap_upstairs_online" },
+               { mac: "f0:00:00:00:00:0b", name: "AP Garage", floor: "main", x: 5, y: 4, placed: "padspan", entity_id: "binary_sensor.ap_garage_online" },
                { mac: "f0:00:00:00:00:0c", name: "AP Nowhere", floor: null, x: null, y: null, placed: null }];
   const D2 = { ...DATA, findings: FINDINGS, aps: APS };
   const apTag = (svg, mac) => { const i = svg.indexOf(`data-mac="${mac}"`); return i < 0 ? "" : svg.slice(i, svg.indexOf("</g>", i)); };
@@ -192,7 +192,8 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   check("what to fix: on top, most urgent first, each with what it is and what to do",
     fc && root.children.indexOf(fc) === 1 && rows.length === 2 && rows[0].getAttribute("data-wifi-finding") === "far_ap:WLED PillTaker"
     && /Restart it/.test(text(rows[0])) && /1.4 m away/.test(text(rows[0])), text(fc));
-  check("a far-access-point finding says neighbours' antennas differ", /strong sign, not proof/.test(text(fc)));
+  check("a far-access-point finding says neighbours' transmitters and antennas differ",
+    /transmitters and antennas/.test(text(fc)) && /strong sign, not proof/.test(text(fc)));
   rows[1].click(); await tick();
   root = W.render(ctx);
   check("a click on a phone finding: its floor and band, its room ringed",
@@ -204,33 +205,32 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   check("a click on a device finding: its floor and band, a ring at the device",
     ctx.state._wifi.floor === "main" && ctx.state._wifi.band === "2.4" && /<circle data-wifi="focus" cx="3" cy="2"/.test(map), map.slice(0, 200));
   const solid = apTag(map, "f0:00:00:00:00:0b");
-  check("access points on their floor, named; one put by you drawn solid",
+  check("access points on their floor, named; one placed in Mapping drawn solid",
     solid && /AP Garage/.test(solid) && !/stroke-dasharray/.test(solid) && !apTag(map, "f0:00:00:00:00:0a"), solid.slice(0, 160));
   ctx.state._wifi.floor = "upper"; ctx.state._wifi.focus = null;
   root = W.render(ctx);
   const est = apTag(q(root, '[data-wifi="map"]').innerHTML, "f0:00:00:00:00:0a");
-  check("an estimated access point is drawn dashed, and can be dragged by an administrator", /stroke-dasharray/.test(est) && /cursor:grab/.test(est), est.slice(0, 160));
+  check("an estimated access point is drawn dashed; nothing on this screen drags it", /stroke-dasharray/.test(est)
+    && !/cursor:grab/.test(q(root, '[data-wifi="map"]').innerHTML), est.slice(0, 160));
   const card = q(root, '[data-wifi="aps"]');
-  check("where the access points are: each with its floor, how it was placed, a reset for one put by you",
-    card && /AP Nowhere/.test(text(card)) && /no placed device hears it yet/.test(text(card)) && /put here by you/.test(text(card))
-    && all(card, "[data-wifi-ap-reset]").length === 1, text(card));
+  check("where the access points are: how each is placed, and Mapping is where they are placed",
+    card && /placed in Mapping, like any device/.test(text(card)) && /placed in Mapping/.test(text(card))
+    && /estimated/.test(text(card)) && /no placed device hears it yet/.test(text(card)) && !q(card, "select"), text(card));
+  check("a button to Mapping for each access point UniFi Utopia added to Home Assistant; none without",
+    all(card, "[data-wifi-ap-place]").length === 2 && /update UniFi Utopia/.test(text(card)), all(card, "[data-wifi-ap-place]").length);
   const before = calls.length;
-  q(card, "[data-wifi-ap-reset]").click(); await tick(); await tick();
-  const sent = calls.slice(before).find((m) => m.type === "unifi_utopia/wifi_ap_set");
-  check("back to the estimate: UniFi Utopia told, with no spot", sent && sent.mac === "f0:00:00:00:00:0b" && sent.floor === null, calls.slice(before));
-  const sel = q(card, '[data-wifi-ap-floor="f0:00:00:00:00:0c"]');
-  sel.value = "main"; sel.dispatchEvent({ type: "change" }); await tick(); await tick();
-  const moved = calls.slice(before).filter((m) => m.type === "unifi_utopia/wifi_ap_set").pop();
-  check("an access point given a floor: put in the middle of that floor's rooms, to drag from there",
-    moved && moved.mac === "f0:00:00:00:00:0c" && moved.floor === "main" && moved.x === 3 && moved.y === 2.5, moved);
+  q(card, '[data-wifi-ap-place="f0:00:00:00:00:0a"]').click(); await tick();
+  check("Place in Mapping: Mapping's devices, that access point selected; nothing sent to UniFi Utopia",
+    ctx.state.view === "maps" && ctx.state.mapsTab === "lights" && ctx.state.maps._selLight.eid === "binary_sensor.ap_upstairs_online"
+    && ctx.state.maps._focusRow === "binary_sensor.ap_upstairs_online" && calls.length === before, ctx.state.maps);
+  ctx.state.view = "wifi";
   // Not an administrator: the findings and the access points, nothing to change.
   const viewer = host({ data: D2, admin: false });
   W.render(viewer.ctx); await tick(); await tick();
   viewer.ctx.state._wifi.floor = "upper";
   const vr = W.render(viewer.ctx);
-  check("anyone else: findings and access points shown, no dragging, no access point list",
-    !!q(vr, '[data-wifi="findings"]') && /data-wifi="ap-mark"/.test(q(vr, '[data-wifi="map"]').innerHTML)
-    && !/cursor:grab/.test(q(vr, '[data-wifi="map"]').innerHTML) && !q(vr, '[data-wifi="aps"]'));
+  check("anyone else: findings and access points shown, no access point list",
+    !!q(vr, '[data-wifi="findings"]') && /data-wifi="ap-mark"/.test(q(vr, '[data-wifi="map"]').innerHTML) && !q(vr, '[data-wifi="aps"]'));
   // Many findings: six, then all on asking. None yet: said so. An older UniFi Utopia: no list.
   const many = Array.from({ length: 8 }, (_, i) => ({ id: `weak:d${i}`, kind: "weak", level: "bad", title: `d${i} has very weak Wi-Fi`, detail: "-87 dBm", advice: "", floor: "main", x: 1, y: 1, band: "2.4" }));
   const hm = host({ data: { ...DATA, findings: many, aps: [] } });

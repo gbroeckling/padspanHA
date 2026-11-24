@@ -45,5 +45,5 @@ def test_the_tab_follows_unifi_utopias_answer():
 def test_the_view_asks_only_unifi_utopia():
     v = (_WWW / "views" / "wifi.js").read_text(encoding="utf-8")
     types = {t for t in __import__("re").findall(r'type: "([a-z_/]+)"', v)}
-    assert types == {"unifi_utopia/wifi_heatmap", "unifi_utopia/wifi_links", "unifi_utopia/wifi_link_set",
-                     "unifi_utopia/wifi_ap_set"}, types
+    # Access points are placed in Mapping (the Atlas) since 2026-11-23: nothing here places one.
+    assert types == {"unifi_utopia/wifi_heatmap", "unifi_utopia/wifi_links", "unifi_utopia/wifi_link_set"}, types

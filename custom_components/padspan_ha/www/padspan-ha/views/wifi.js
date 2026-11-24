@@ -173,13 +173,13 @@ export function floorSVG(ctx, data, floor, band, opt = {}) {
   }
   for (const a of aps) {
     // A rounded square with three arcs; dashed while it is only an estimate.
-    const r = fs * 0.62, est = a.placed !== "you";
-    parts.push(`<g data-wifi="ap-mark" data-mac="${esc(a.mac)}" transform="translate(${a.x},${a.y})" style="${opt.drag ? "cursor:grab" : ""}">`
+    const r = fs * 0.62, est = a.placed !== "you" && a.placed !== "padspan";
+    parts.push(`<g data-wifi="ap-mark" data-mac="${esc(a.mac)}" transform="translate(${a.x},${a.y})">`
       + `<rect x="${-r}" y="${-r}" width="${2 * r}" height="${2 * r}" rx="${r * 0.35}" fill="#0b1220" stroke="#60a5fa" stroke-width="${fs * 0.12}"${est ? ` stroke-dasharray="${fs * 0.25} ${fs * 0.18}"` : ""}/>`
       + `<path d="M ${-r * 0.55} ${-r * 0.05} Q 0 ${-r * 0.6} ${r * 0.55} ${-r * 0.05} M ${-r * 0.32} ${r * 0.18} Q 0 ${-r * 0.15} ${r * 0.32} ${r * 0.18}" fill="none" stroke="#93c5fd" stroke-width="${fs * 0.1}" stroke-linecap="round"/>`
       + `<circle cx="0" cy="${r * 0.42}" r="${fs * 0.09}" fill="#93c5fd"/>`
       + `<text y="${r + fs * 1.0}" font-size="${fs * 0.85}" text-anchor="middle" fill="#93c5fd" style="paint-order:stroke" stroke="#0b0f0c" stroke-width="${fs * 0.22}">${esc(a.name || a.mac)}</text>`
-      + `<title>${esc(a.name || a.mac)}: ${est ? "estimated from the devices that hear it best" : "put here by you"}</title></g>`);
+      + `<title>${esc(a.name || a.mac)}: ${est ? "estimated from the devices that hear it best" : "placed"}</title></g>`);
   }
   return `<svg viewBox="${bb.x0} ${bb.y0} ${W} ${H}" style="width:100%;height:auto;max-height:72vh;background:#0b0f0c;border-radius:10px">${parts.join("")}</svg>`;
 }
@@ -211,7 +211,7 @@ function again(ctx, ms) {
     if (ctx.state.view !== "wifi" || (s.root && s.root.isConnected === false)) return;  // the next visit loads afresh
     const rn = s.root && s.root.getRootNode ? s.root.getRootNode() : null;
     const a = rn && rn.activeElement;
-    if ((a && a.tagName === "SELECT" && s.root.contains(a)) || s.dragging) { again(ctx, 15000); return; }
+    if (a && a.tagName === "SELECT" && s.root.contains(a)) { again(ctx, 15000); return; }
     load(ctx);
   }, ms);
   if (s.timer && s.timer.unref) s.timer.unref();   // node (the tests): never what keeps it running
@@ -265,54 +265,25 @@ function findingsCard(ctx, D) {
   }
   if (F.some((f) => f.kind === "far_ap")) {
     box.appendChild(el("div", { style: "font-size:11px;color:#64748b;margin-top:6px" },
-      "Devices differ in their antennas: a gap of 15 dB or more between neighbours is a strong sign, not proof."));
+      "Devices differ in their transmitters and antennas, so a gap between neighbours is a strong sign, not proof."));
   }
   return box;
 }
 
-/** An administrator drags an access point on the plan; UniFi Utopia keeps where it was put. */
-function dragAPs(ctx, pics) {
-  const s = st(ctx);
-  const svg = pics.querySelector && pics.querySelector("svg");
-  if (!svg || !svg.getScreenCTM) return;
-  const at = (ev) => {
-    const m = svg.getScreenCTM();
-    if (!m) return null;
-    const pt = svg.createSVGPoint();
-    pt.x = ev.clientX; pt.y = ev.clientY;
-    return pt.matrixTransform(m.inverse());
-  };
-  svg.addEventListener("pointerdown", (ev) => {
-    const g = ev.target && ev.target.closest ? ev.target.closest('[data-wifi="ap-mark"]') : null;
-    const p = g && at(ev);
-    if (!p) return;
-    ev.preventDefault();
-    s.dragging = { mac: g.getAttribute("data-mac"), g, x: p.x, y: p.y, x0: p.x, y0: p.y };
-    try { svg.setPointerCapture(ev.pointerId); } catch (_e) { /* capture is a nicety */ }
-  });
-  svg.addEventListener("pointermove", (ev) => {
-    const d = s.dragging, p = d && at(ev);
-    if (!p) return;
-    d.x = p.x; d.y = p.y;
-    d.g.setAttribute("transform", `translate(${p.x},${p.y})`);
-  });
-  const drop = async () => {
-    const d = s.dragging;
-    if (!d) return;
-    s.dragging = null;
-    if (Math.hypot(d.x - d.x0, d.y - d.y0) < 0.2) { ctx.actions.renderRooms(); return; }   // a click, not a move
-    try {
-      const r = await ctx.actions.callWS({ type: "unifi_utopia/wifi_ap_set", mac: d.mac, floor: s.floor, x: d.x, y: d.y });
-      if (r && Array.isArray(r.aps) && s.data) s.data.aps = r.aps;
-    } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
-    ctx.actions.renderRooms();
-  };
-  svg.addEventListener("pointerup", drop);
-  svg.addEventListener("pointercancel", drop);
+/** Open Mapping's device placement with this access point selected (its "Online" sensor on the Atlas). */
+export function placeInMapping(ctx, eid) {
+  ctx.state.view = "maps";
+  ctx.state.mapsTab = "lights";
+  ctx.state.maps = ctx.state.maps || {};
+  ctx.state.maps._selLight = { eid, mapId: null };
+  ctx.state.maps._focusRow = eid;
+  if (ctx.actions.renderNav) ctx.actions.renderNav();
+  ctx.actions.renderRooms();
 }
 
-/** Where each access point is: its floor, and back to the estimate. */
-function apCard(ctx, D, floors) {
+/** Where each access point is. They are placed in Mapping like any device (UniFi Utopia adds each one to
+ *  Home Assistant); until then the plan shows where the devices that hear it best suggest, dashed. */
+function apCard(ctx, D) {
   const { el } = ctx.helpers;
   const s = st(ctx);
   const A = (D.aps || []).filter((a) => a && "placed" in a);
@@ -322,37 +293,20 @@ function apCard(ctx, D, floors) {
   box.addEventListener("toggle", () => { s.apsOpen = box.open; });
   box.appendChild(el("summary", { style: "cursor:pointer;font-weight:600;font-size:13px" }, "Where the access points are"));
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin:6px 0" },
-    "Dashed ones are estimated from the devices that hear them best. Drag one on the plan to where it really is; pick its floor here first if it is on another."));
-  const set = async (a, floor, x, y) => {
-    try {
-      const r = await ctx.actions.callWS({ type: "unifi_utopia/wifi_ap_set", mac: a.mac, floor, x, y });
-      if (r && Array.isArray(r.aps) && s.data) s.data.aps = r.aps;
-    } catch (e) { ctx.toast(ctx.helpers.errorText(e), true); }
-    ctx.actions.renderRooms();
-  };
+    "Access points are placed in Mapping, like any device. Until one is, the plan shows it dashed, where the devices that hear it best suggest."));
   for (const a of A) {
-    const sel = el("select", { class: "select", style: "width:auto;font-size:12px;padding:3px 8px", "data-wifi-ap-floor": a.mac });
-    for (const [v, t] of [["", "No spot"], ...floors.map((f) => [f.id, f.name])]) {
-      const o = el("option", { value: v }, t);
-      if ((a.floor || "") === v) o.selected = true;
-      sel.appendChild(o);
-    }
-    sel.addEventListener("change", () => {
-      if (!sel.value) { set(a, null, null, null); return; }
-      // Onto another floor: in the middle of its rooms, to drag from there.
-      const rooms = floorRooms(ctx.state.model, sel.value), bb = bbox(rooms, []);
-      const x = bb ? (bb.x0 + bb.x1) / 2 : 0, y = bb ? (bb.y0 + bb.y1) / 2 : 0;
-      s.floor = sel.value;
-      set(a, sel.value, Number.isFinite(a.x) && a.floor === sel.value ? a.x : x, Number.isFinite(a.y) && a.floor === sel.value ? a.y : y);
-    });
-    const how = a.placed === "you" ? "put here by you" : (a.placed === "estimated" ? "estimated" : "no placed device hears it yet");
+    const how = a.placed === "padspan" ? "placed in Mapping"
+      : a.placed === "you" ? "put here on this screen before"
+        : a.placed === "estimated" ? "estimated" : "no placed device hears it yet";
     const row = el("div", { style: "display:flex;gap:10px;align-items:center;margin:4px 0;font-size:12px;flex-wrap:wrap" }, [
-      el("span", { style: "min-width:180px;font-weight:600" }, String(a.name || a.mac)), sel,
+      el("span", { style: "min-width:180px;font-weight:600" }, String(a.name || a.mac)),
       el("span", { style: "color:#94a3b8" }, how),
     ]);
-    if (a.placed === "you") {
-      row.appendChild(el("button", { class: "btn inline", style: "font-size:12px;padding:2px 8px", "data-wifi-ap-reset": a.mac,
-        onclick: () => set(a, null, null, null) }, "Back to the estimate"));
+    if (a.entity_id) {
+      row.appendChild(el("button", { class: "btn inline", style: "font-size:12px;padding:2px 8px", "data-wifi-ap-place": a.mac,
+        onclick: () => placeInMapping(ctx, a.entity_id) }, a.placed === "padspan" ? "Move in Mapping" : "Place in Mapping"));
+    } else if (a.placed !== "padspan") {
+      row.appendChild(el("span", { style: "color:#64748b" }, "(update UniFi Utopia to place it in Mapping)"));
     }
     box.appendChild(row);
   }
@@ -442,12 +396,9 @@ export function render(ctx) {
   root.appendChild(bar);
 
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus, drag: admin }) : "";
+  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus }) : "";
   const pics = el("div", { "data-wifi": "map" });
-  if (svg) {
-    pics.innerHTML = svg;
-    if (admin) dragAPs(ctx, pics);
-  }
+  if (svg) pics.innerHTML = svg;
   else pics.appendChild(el("div", { style: "color:#94a3b8;padding:18px" }, "This floor has no rooms drawn in PadSpan yet."));
   root.appendChild(pics);
 
@@ -478,7 +429,7 @@ export function render(ctx) {
     root.appendChild(tbl);
   }
   if (admin) {
-    const ac = apCard(ctx, D, floors);
+    const ac = apCard(ctx, D);
     if (ac) root.appendChild(ac);
   }
   if (D.status && admin) root.appendChild(linksCard(ctx));

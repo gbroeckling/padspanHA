@@ -58,7 +58,7 @@ export const SHAPE_OF_KIND = {
   pot_ring: "perimeter", cove: "perimeter",
 };
 // A sensor's glyph is its class's, never a fixture's.
-const SENSOR_SHAPES = new Set(["motion", "tempreadout", "humidityreadout", "airquality", "lock", "door", "flood"]);
+const SENSOR_SHAPES = new Set(["motion", "tempreadout", "humidityreadout", "airquality", "lock", "door", "flood", "wifiap"]);
 /** {entity id: shape} for the lights the 3D file gives a kind with an Atlas
  *  shape, whose Atlas shape the person never set (settings.light_shapes). */
 export function kindShapes(file, lightsByEid, shapeOverrides){

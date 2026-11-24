@@ -268,6 +268,13 @@ export function isLock(l) {
   return String(l.entity_id || "").startsWith("lock.");
 }
 
+// A Wi-Fi access point (2026-11-23: "access point placement should be a part of padspan, in mapping ...
+// just like other devices"). UniFi Utopia adds each one to Home Assistant as a device whose "Online"
+// sensor carries wifi_access_point: true; that marker, not a name, is what makes it one. Read-only.
+export function isWifiAccessPoint(l) {
+  return !!(l && l.wifi_access_point === true);
+}
+
 // Health — a device can be reachable and still not actually be DOING its
 // job. What "healthy" means differs by class, so this isn't one check:
 //
@@ -378,6 +385,8 @@ export const HUMIDITY_BORDER = "#818cf8";
 // or MOTION_BORDER's blue: a flood alarm should read as urgent at a glance,
 // not blend in as just another sensor colour.
 export const FLOOD_BORDER = "#ef4444";
+// The Wi-Fi coverage screen's blue (its menu colour), so an access point reads the same on both.
+export const WIFIAP_BORDER = "#60a5fa";
 
 // ── Device-class registry (Phase 2a, docs/PHASE2_STRATEGIC_REVIEW.md §5) ───
 // ONE row per class, in PRECEDENCE order (first match wins — a light.*
@@ -422,6 +431,7 @@ export const DEVICE_CLASSES = [
   { key: "humidity",  flagKey: "isHumidity",  test: isHumiditySensor,   code: "H", border: HUMIDITY_BORDER,  shape: "humidityreadout", filterClass: "humidity", castsLight: false, controllable: false, fixedGlyph: true,  controlCard: false, inPresets: false, health: "fresh", placedReading: true },
   { key: "temp",      flagKey: "isTemp",      test: isTempSensor,       code: "T", border: TEMP_BORDER,      shape: "tempreadout",     filterClass: "temp",     castsLight: false, controllable: false, fixedGlyph: true,  controlCard: false, inPresets: false, health: "fresh", placedReading: true },
   { key: "lock",      flagKey: "isLock",      test: isLock,             code: "L", border: LOCK_BORDER,      shape: "lock",            filterClass: "lock",     castsLight: false, controllable: true,  fixedGlyph: true,  controlCard: true, inPresets: false,  health: "jammed", placedReading: false },
+  { key: "wifiap",    flagKey: "isWifiAp",    test: isWifiAccessPoint,  code: "N", border: WIFIAP_BORDER,    shape: "wifiap",          filterClass: "wifi",     castsLight: false, controllable: false, fixedGlyph: true,  controlCard: false, inPresets: false, health: null, placedReading: false },
   { key: "wled",      flagKey: "isWled",      test: isWledLight,        code: "W", border: WLED_BORDER,      shape: null,              filterClass: "strip",    castsLight: true,  controllable: true,  fixedGlyph: false, controlCard: true, inPresets: true ,  health: "effects", placedReading: false },
   { key: "partition", flagKey: "isPartition", test: isPartitionLight,   code: "P", border: PARTITION_BORDER, shape: null,              filterClass: "strip",    castsLight: true,  controllable: true,  fixedGlyph: false, controlCard: true, inPresets: true ,  health: null, placedReading: false },
   { key: "light",     flagKey: null,          test: null,               code: null, border: null,            shape: null,              filterClass: "light",    castsLight: true,  controllable: true,  fixedGlyph: false, controlCard: false, inPresets: true , health: null, placedReading: false },
@@ -483,7 +493,8 @@ const _TESTABLE_CLASSES = DEVICE_CLASSES.filter(c => c.test && !c.castsLight);
 // HA state's `.attributes` object (or undefined).
 export function isAtlasEntity(eid, attrs) {
   if (_WHOLE_DOMAINS.some(d => eid.startsWith(d))) return true;
-  const stub = { entity_id: eid, device_class: attrs && attrs.device_class, friendly_name: attrs && attrs.friendly_name };
+  const stub = { entity_id: eid, device_class: attrs && attrs.device_class, friendly_name: attrs && attrs.friendly_name,
+                 wifi_access_point: !!(attrs && attrs.wifi_access_point === true) };
   return _TESTABLE_CLASSES.some(c => c.test(stub));
 }
 
@@ -520,6 +531,7 @@ export const LIGHT_SHAPES = [
   ["door",      "Door/window sensor"],
   ["flood",     "Leak sensor"],
   ["smokealarm", "Smoke / gas / CO alarm"],
+  ["wifiap",    "Wi-Fi access point"],
 ];
 
 // "perimeter" is drawn once, structurally differently from every shape
