@@ -10,6 +10,8 @@
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
 const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const { mapXform, fabricWorldRooms, worldGauge, metresToWorld } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // Keyed morph for the current-frame object markers — see its own header for
@@ -57,7 +59,7 @@ export function render(ctx) {
     const msg = document.createElement("div");
     msg.className = "card";
     msg.style.cssText = "text-align:center;padding:20px;color:#94a3b8";
-    msg.textContent = "No floor plans yet, so there's no map to replay movement on. Add one in Maps. Insights and Busy Times work without one.";
+    msg.textContent = t("No floor plans yet, so there's no map to replay movement on. Add one in Maps. Insights and Busy Times work without one.");
     outer.appendChild(msg);
     // A render before the maps list arrives lands here too: the deep link
     // (?view=insights|busytimes) is used up only once the maps have loaded,
@@ -237,9 +239,9 @@ export function render(ctx) {
 
   function _getFocusLbl(idx) {
     const fz = _isoPos[Math.max(0, Math.min(idx, _isoPos.length-1))];
-    if (fz === null) return "All floors";
-    if (Array.isArray(fz)) return `Floors ${sortedIsoLevels.indexOf(fz[0])+1}–${sortedIsoLevels.indexOf(fz[1])+1}`;
-    return `Floor ${sortedIsoLevels.indexOf(fz)+1}`;
+    if (fz === null) return t("All floors");
+    if (Array.isArray(fz)) return t("Floors {a}–{b}", { a: sortedIsoLevels.indexOf(fz[0])+1, b: sortedIsoLevels.indexOf(fz[1])+1 });
+    return t("Floor {n}", { n: sortedIsoLevels.indexOf(fz)+1 });
   }
 
   // ── Traceback state ────────────────────────────────────────────────────
@@ -252,7 +254,7 @@ export function render(ctx) {
     range: null,
     objKeys: [],
     filterKey: null,
-    filterName: "All objects",
+    filterName: t("All objects"),
     rangePreset: 300,
     startTs: null,
     endTs: null,
@@ -745,7 +747,7 @@ export function render(ctx) {
         const py = Math.round(_clearOfRoomName(o.r, px, pos[1] + offY, 34, 30, 65));
         const col = _colorMap[o.k] || "#fbbf24";
         const lbl = _friendlyLabel(o);
-        const tip = `${lbl} | Room: ${o.r}${o.rssi ? " | RSSI: " + o.rssi + " dBm" : ""}`;
+        const tip = `${lbl} | ${t("Room: {room}", { room: o.r })}${o.rssi ? " | RSSI: " + o.rssi + " dBm" : ""}`;
 
         // One <g> per object, keyed + anchored, so mergeObjectLayer can
         // glide it to its next-frame position instead of the whole overlay
@@ -978,15 +980,15 @@ export function render(ctx) {
 
     // Unplaced label
     if (unplacedCount > 0) {
-      s += `<text x="${unplacedBaseX}" y="${unplacedBaseY - 14}" fill="#94a3b8" font-size="10" font-weight="600">Unplaced (${unplacedCount})</text>`;
+      s += `<text x="${unplacedBaseX}" y="${unplacedBaseY - 14}" fill="#94a3b8" font-size="10" font-weight="600">${_esc(t("Unplaced ({n})", { n: unplacedCount }))}</text>`;
     }
 
     // Count badge
     const placedCount = results.length - unplacedCount;
     if (results.length) {
       const badgeTxt = placedCount === results.length
-        ? `${results.length} new object${results.length !== 1 ? "s" : ""} discovered`
-        : `${results.length} discovered (${placedCount} placed, ${unplacedCount} unplaced)`;
+        ? tn(results.length, "{n} new object discovered", "{n} new objects discovered")
+        : t("{n} discovered ({placed} placed, {unplaced} unplaced)", { n: results.length, placed: placedCount, unplaced: unplacedCount });
       // Size from the actual text (multi-digit counts can run past a fixed width).
       const badgeW = Math.min(badgeTxt.length * 6.5 + 24, 400);
       s += `<rect x="6" y="${viewY + 4}" width="${badgeW}" height="22" rx="4" fill="#071008" opacity="0.85"/>`;
@@ -1079,7 +1081,7 @@ export function render(ctx) {
     _chainedPending = hs.pending;
     hs.pending.then(_houseLoaded);
   }
-  const _retryHtml = `<button class="btn tiny" data-house-retry>Retry</button>`;
+  const _retryHtml = `<button class="btn tiny" data-house-retry>${_esc(t("Retry"))}</button>`;
   function _wireRetry() {
     const retry = mapDiv.querySelector && mapDiv.querySelector("[data-house-retry]");
     if (retry) retry.addEventListener("click", () => { tb.house.window = null; tb.house.error = null; _renderHouseFrame(); });
@@ -1100,7 +1102,7 @@ export function render(ctx) {
     // written, so it says "Loading".
     if (devices && !hs.eids.length) houseActivity.refreshHouseDevices(ctx, hs, _onHouseRegistry);
     if (devices && stale && !hs.loading && hs.eids.length) _startHouseLoad();
-    const errLine = devices && hs.error ? `House history unavailable: ${_esc(hs.error.substring(0, 80))} ${_retryHtml}` : null;
+    const errLine = devices && hs.error ? `${_esc(t("House history unavailable: {why}", { why: hs.error.substring(0, 80) }))} ${_retryHtml}` : null;
 
     if (!tb.frames.length) {
       mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">${
@@ -1134,13 +1136,13 @@ export function render(ctx) {
     for (const e of events) { if (e.t <= ts * 1000) done++; else break; }
     const changedTxt = changed.length
       ? " · " + changed.slice(0, 3).map(e => `${_esc(e.name)} → ${_esc(e.to)}`).join(", ")
-        + (changed.length > 3 ? ` +${changed.length - 3} more` : "")
+        + (changed.length > 3 ? " " + _esc(t("+{n} more", { n: changed.length - 3 })) : "")
       : "";
-    const status = !devices ? "Beacons on your Atlas map"
-      : hs.loading ? "Loading house history…"
-      : errLine || (`${done} of ${events.length} device changes so far` + changedTxt
-        + (houseActivity.inVacation(hs.vacationPeriods, ts * 1000) ? " · 🌴 Vacation Mode on" : "")
-        + (frame.house && !(frame.o || []).length ? " · no tracked beacon home" : ""));
+    const status = !devices ? _esc(t("Beacons on your Atlas map"))
+      : hs.loading ? _esc(t("Loading house history…"))
+      : errLine || (_esc(t("{done} of {n} device changes so far", { done, n: events.length })) + changedTxt
+        + (houseActivity.inVacation(hs.vacationPeriods, ts * 1000) ? " · " + _esc(t("🌴 Vacation Mode on")) : "")
+        + (frame.house && !(frame.o || []).length ? " · " + _esc(t("no tracked beacon home")) : ""));
     mapDiv.innerHTML =
       `<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;font-size:12px;flex-wrap:wrap">` +
       `<span style="font-family:monospace;font-weight:700;color:#fbbf24;font-size:15px">${_esc(_fmtDate(ts))}</span>` +
@@ -1186,13 +1188,13 @@ export function render(ctx) {
     houseEventsCard.innerHTML = "";
     const head = document.createElement("div");
     head.style.cssText = "font-weight:700;font-size:13px;margin-bottom:6px;color:#fbbf24";
-    head.textContent = "🏠 House activity";
+    head.textContent = t("🏠 House activity");
     houseEventsCard.appendChild(head);
     if (!events.length) {
       const m = document.createElement("div");
       m.className = "muted";
-      m.textContent = hs.loading ? "Loading…" : hs.error ? "House history unavailable — see Retry above the map."
-        : "Nothing on the Atlas changed in this window.";
+      m.textContent = hs.loading ? t("Loading…") : hs.error ? t("House history unavailable — see Retry above the map.")
+        : t("Nothing on the Atlas changed in this window.");
       houseEventsCard.appendChild(m);
       return;
     }
@@ -1202,7 +1204,7 @@ export function render(ctx) {
       const note = document.createElement("div");
       note.className = "muted";
       note.style.cssText = "font-size:11px;margin-bottom:4px";
-      note.textContent = `Showing ${shown.length} of ${events.length} changes, around the playhead — scrub to see others.`;
+      note.textContent = t("Showing {shown} of {n} changes, around the playhead — scrub to see others.", { shown: shown.length, n: events.length });
       houseEventsCard.appendChild(note);
     }
     for (const e of shown) {
@@ -1412,7 +1414,7 @@ export function render(ctx) {
     hdr.style.cssText = "display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap";
     const title = document.createElement("span");
     title.style.cssText = "font-weight:700;font-size:15px;color:#fbbf24";
-    title.textContent = "Traceback Playback";
+    title.textContent = t("Traceback Playback");
     hdr.appendChild(title);
     hdr.appendChild(ctx.helpers.helpBtn("traceback_overview"));
     ctrlCard.appendChild(hdr);
@@ -1422,13 +1424,13 @@ export function render(ctx) {
     rangeRow.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px";
     const rangeLbl = document.createElement("span");
     rangeLbl.style.cssText = "font-size:12px;color:#94a3b8";
-    rangeLbl.textContent = "Time range:";
+    rangeLbl.textContent = t("Time range:");
     rangeRow.appendChild(rangeLbl);
 
     const presets = [
       { label: "5 min", s: 300 }, { label: "15 min", s: 900 }, { label: "30 min", s: 1800 },
-      { label: "1 hr", s: 3600 }, { label: "4 hr", s: 14400 }, { label: "12 hr", s: 43200 },
-      { label: "1 day", s: 86400 }, { label: "3 days", s: 259200 }, { label: "7 days", s: 604800 },
+      { label: t("1 hr"), s: 3600 }, { label: t("4 hr"), s: 14400 }, { label: t("12 hr"), s: 43200 },
+      { label: t("1 day"), s: 86400 }, { label: t("3 days"), s: 259200 }, { label: t("7 days"), s: 604800 },
     ];
     for (const p of presets) {
       const btn = document.createElement("button");
@@ -1457,7 +1459,7 @@ export function render(ctx) {
     const _customBtn = document.createElement("button");
     _customBtn.className = "btn inline";
     _customBtn.style.cssText = "font-size:10px;padding:2px 8px;color:#94a3b8";
-    _customBtn.textContent = "Go";
+    _customBtn.textContent = t("Go");
     _customBtn.addEventListener("click", async () => {
       const v = parseInt(_customInput.value);
       if (v && v > 0) {
@@ -1477,7 +1479,7 @@ export function render(ctx) {
     dtRow.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px";
     const dtLbl = document.createElement("span");
     dtLbl.style.cssText = "font-size:12px;color:#94a3b8";
-    dtLbl.textContent = "Custom range:";
+    dtLbl.textContent = t("Custom range:");
     dtRow.appendChild(dtLbl);
 
     const _toLocalISO = (ts) => {
@@ -1508,7 +1510,7 @@ export function render(ctx) {
     const dtGoBtn = document.createElement("button");
     dtGoBtn.className = "btn inline";
     dtGoBtn.style.cssText = "font-size:11px;padding:3px 12px;color:#fbbf24;border-color:#92400e;font-weight:600";
-    dtGoBtn.textContent = "Load";
+    dtGoBtn.textContent = t("Load");
     dtGoBtn.addEventListener("click", async () => {
       const sVal = startInput.value, eVal = endInput.value;
       if (!sVal || !eVal) return;
@@ -1532,14 +1534,14 @@ export function render(ctx) {
     filterRow.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px";
     const filterLbl = document.createElement("span");
     filterLbl.style.cssText = "font-size:12px;color:#94a3b8";
-    filterLbl.textContent = "Object:";
+    filterLbl.textContent = t("Object:");
     filterRow.appendChild(filterLbl);
 
     const filterSelect = document.createElement("select");
     filterSelect.style.cssText = "background:#071008;color:#e2e8f0;border:1px solid #2d6a4f;border-radius:4px;padding:3px 8px;font-size:12px;max-width:280px";
     const allOpt = document.createElement("option");
     allOpt.value = "";
-    allOpt.textContent = "All objects";
+    allOpt.textContent = t("All objects");
     if (!tb.filterKey) allOpt.selected = true;
     filterSelect.appendChild(allOpt);
 
@@ -1555,7 +1557,7 @@ export function render(ctx) {
     const _cleanName = (n) => (n || "").replace(/^entity:/, "").replace(/^ble:/, "").replace(/^sensor\./, "").replace(/^device_tracker\./, "").replace(/_/g, " ");
     for (const [kind, items] of Object.entries(byKind).sort()) {
       const grp = document.createElement("optgroup");
-      grp.label = kind === "ble" ? "BLE Devices" : kind === "entity" ? "HA Entities" : kind === "ibeacon" ? "iBeacons" : kind === "private_ble" ? "Private BLE" : kind;
+      grp.label = kind === "ble" ? t("BLE Devices") : kind === "entity" ? t("HA Entities") : kind === "ibeacon" ? "iBeacons" : kind === "private_ble" ? t("Private BLE") : kind;
       for (const item of items.sort((a, b) => (a.name || "").localeCompare(b.name || ""))) {
         const opt = document.createElement("option");
         opt.value = item.key;
@@ -1568,7 +1570,7 @@ export function render(ctx) {
     filterSelect.addEventListener("change", async () => {
       _stopPlayback();
       tb.filterKey = filterSelect.value || null;
-      tb.filterName = filterSelect.options[filterSelect.selectedIndex]?.textContent || "All objects";
+      tb.filterName = filterSelect.options[filterSelect.selectedIndex]?.textContent || t("All objects");
       await _loadTracebackData();
       _buildControls();
       _renderFrame();
@@ -1578,21 +1580,21 @@ export function render(ctx) {
     const infoLbl = document.createElement("span");
     infoLbl.style.cssText = "font-size:11px;color:#64748b;margin-left:auto";
     if (tb.frames.length) {
-      const rangeNote = tb._autoExpanded ? "auto-expanded to full range" : `${_fmtDuration(tb.rangePreset)} window`;
-      infoLbl.textContent = `${tb.frames.length} frames | ${rangeNote}`;
+      const rangeNote = tb._autoExpanded ? t("auto-expanded to full range") : t("{duration} window", { duration: _fmtDuration(tb.rangePreset) });
+      infoLbl.textContent = t("{n} frames | {range}", { n: tb.frames.length, range: rangeNote });
     } else {
-      infoLbl.textContent = tb.filterKey ? "No data for this object" : "No data in range";
+      infoLbl.textContent = tb.filterKey ? t("No data for this object") : t("No data in range");
     }
     filterRow.appendChild(infoLbl);
     if (tb.frames.length) {
       const exportCsvBtn = document.createElement("button");
       exportCsvBtn.className = "btn tiny";
-      exportCsvBtn.textContent = "Export CSV";
+      exportCsvBtn.textContent = t("Export CSV");
       exportCsvBtn.addEventListener("click", _exportTracebackCsv);
       filterRow.appendChild(exportCsvBtn);
       const exportJsonBtn = document.createElement("button");
       exportJsonBtn.className = "btn tiny";
-      exportJsonBtn.textContent = "Export JSON";
+      exportJsonBtn.textContent = t("Export JSON");
       exportJsonBtn.addEventListener("click", _exportTracebackJson);
       filterRow.appendChild(exportJsonBtn);
     }
@@ -1602,9 +1604,9 @@ export function render(ctx) {
       const empty = document.createElement("div");
       empty.style.cssText = "text-align:center;padding:20px;color:#64748b;font-size:13px";
       if (tb.filterKey) {
-        empty.textContent = `No traceback data found for "${tb.filterName}". This object may not have been seen recently or may not be identified/followed. Only identified and followed objects are recorded.`;
+        empty.textContent = t("No traceback data found for \"{name}\". This object may not have been seen recently or may not be identified/followed. Only identified and followed objects are recorded.", { name: tb.filterName });
       } else {
-        empty.textContent = "No traceback data in this time range. Only identified and followed objects are recorded (~10s intervals). Try a longer time range or check back after some time.";
+        empty.textContent = t("No traceback data in this time range. Only identified and followed objects are recorded (~10s intervals). Try a longer time range or check back after some time.");
       }
       ctrlCard.appendChild(empty);
       return;
@@ -1619,7 +1621,7 @@ export function render(ctx) {
     rewBtn.className = "btn inline";
     rewBtn.style.cssText = "font-size:14px;padding:2px 8px;color:#fbbf24";
     rewBtn.innerHTML = "&#9198;";
-    rewBtn.title = "Jump to start";
+    rewBtn.title = t("Jump to start");
     rewBtn.addEventListener("click", () => { tb.frameIdx = 0; _renderFrame(); _updateScrubber(); });
     transport.appendChild(rewBtn);
 
@@ -1628,7 +1630,7 @@ export function render(ctx) {
     stepBackBtn.className = "btn inline";
     stepBackBtn.style.cssText = "font-size:14px;padding:2px 8px;color:#fbbf24";
     stepBackBtn.innerHTML = "&#124;&#9664;";
-    stepBackBtn.title = "Previous frame";
+    stepBackBtn.title = t("Previous frame");
     stepBackBtn.addEventListener("click", () => {
       if (tb.frameIdx > 0) { tb.frameIdx--; _renderFrame(); _updateScrubber(); }
     });
@@ -1641,7 +1643,7 @@ export function render(ctx) {
       ? "font-size:16px;padding:3px 12px;background:#92400e;color:#fbbf24;border-color:#fbbf24;font-weight:700"
       : "font-size:16px;padding:3px 12px;color:#fbbf24;border-color:#92400e";
     playBtn.innerHTML = tb.playing ? "&#9646;&#9646;" : "&#9654;";
-    playBtn.title = tb.playing ? "Pause" : "Play";
+    playBtn.title = tb.playing ? t("Pause") : t("Play");
     playBtn.addEventListener("click", () => {
       if (tb.playing) { _stopPlayback(); } else { _startPlayback(); }
       _buildControls();
@@ -1653,7 +1655,7 @@ export function render(ctx) {
     stepFwdBtn.className = "btn inline";
     stepFwdBtn.style.cssText = "font-size:14px;padding:2px 8px;color:#fbbf24";
     stepFwdBtn.innerHTML = "&#9654;&#124;";
-    stepFwdBtn.title = "Next frame";
+    stepFwdBtn.title = t("Next frame");
     stepFwdBtn.addEventListener("click", () => {
       if (tb.frameIdx < tb.frames.length - 1) { tb.frameIdx++; _renderFrame(); _updateScrubber(); }
     });
@@ -1664,7 +1666,7 @@ export function render(ctx) {
     endBtn.className = "btn inline";
     endBtn.style.cssText = "font-size:14px;padding:2px 8px;color:#fbbf24";
     endBtn.innerHTML = "&#9197;";
-    endBtn.title = "Jump to end";
+    endBtn.title = t("Jump to end");
     endBtn.addEventListener("click", () => { tb.frameIdx = tb.frames.length - 1; _renderFrame(); _updateScrubber(); });
     transport.appendChild(endBtn);
 
@@ -1673,7 +1675,7 @@ export function render(ctx) {
     rtWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin-left:8px";
     const rtLbl = document.createElement("span");
     rtLbl.style.cssText = "font-size:11px;color:#94a3b8;white-space:nowrap";
-    rtLbl.textContent = "Run time:";
+    rtLbl.textContent = t("Run time:");
     rtWrap.appendChild(rtLbl);
 
     const rtSlider = document.createElement("input");
@@ -1683,7 +1685,7 @@ export function render(ctx) {
     rtSlider.step = "30";
     rtSlider.value = String(tb.playDurationS);
     rtSlider.style.cssText = "width:100px;accent-color:#fbbf24;cursor:pointer;height:20px";
-    rtSlider.title = "How long the full playback takes";
+    rtSlider.title = t("How long the full playback takes");
 
     const rtValLbl = document.createElement("span");
     rtValLbl.style.cssText = "font-size:11px;color:#fbbf24;font-weight:600;min-width:36px;font-family:monospace";
@@ -1750,7 +1752,7 @@ export function render(ctx) {
   // Floor focus slider
   const floorLbl = document.createElement("span");
   floorLbl.style.cssText = "font-size:12px;color:#94a3b8";
-  floorLbl.textContent = "Floor:";
+  floorLbl.textContent = t("Floor:");
   // A label, its slider and its value are one unit that does not break: when
   // the row wraps (a phone) the whole unit moves to the next line, never the
   // slider alone. A plain inline span, so an unwrapped row is laid out as it
@@ -1808,7 +1810,7 @@ export function render(ctx) {
   // Spacing slider
   const ovSpacingLbl = document.createElement("span");
   ovSpacingLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:8px";
-  ovSpacingLbl.textContent = "Spacing:";
+  ovSpacingLbl.textContent = t("Spacing:");
   const gapUnit = _ctrlUnit();
   gapUnit.appendChild(ovSpacingLbl);
 
@@ -1861,8 +1863,8 @@ export function render(ctx) {
   const ovSaveBtn = document.createElement("button");
   ovSaveBtn.className = "btn inline";
   ovSaveBtn.style.cssText = "padding:2px 10px;font-size:12px";
-  ovSaveBtn.title = "Save these slider positions so both Overview and Traceback use the same layout";
-  ovSaveBtn.textContent = "Save";
+  ovSaveBtn.title = t("Save these slider positions so both Overview and Traceback use the same layout");
+  ovSaveBtn.textContent = t("Save");
   ovSaveBtn.addEventListener("click", async ()=>{
     ovSaveBtn.disabled = true;
     try{
@@ -1880,9 +1882,9 @@ export function render(ctx) {
         overview_iso_horiz_gap: ctx.state._overviewHorizGap,
         overview_iso_focus:     ctx.state._overviewIsoFocusIdx,
       });
-      ovSaveLbl.textContent = "Saved \u2713";
+      ovSaveLbl.textContent = t("Saved \u2713");
       setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);
-    }catch(e){ ovSaveLbl.textContent = "Error"; }
+    }catch(e){ ovSaveLbl.textContent = t("Error"); }
     ovSaveBtn.disabled = false;
   });
 
@@ -1890,8 +1892,8 @@ export function render(ctx) {
   const ovResetBtn = document.createElement("button");
   ovResetBtn.className = "btn inline";
   ovResetBtn.style.cssText = "padding:2px 10px;font-size:12px;margin-left:6px";   // a gap from Save
-  ovResetBtn.title = "Reset sliders to default values";
-  ovResetBtn.textContent = "Reset";
+  ovResetBtn.title = t("Reset sliders to default values");
+  ovResetBtn.textContent = t("Reset");
   ovResetBtn.addEventListener("click", async ()=>{
     ctx.state._overviewFloorGap = 150; _ovFG = 150;
     ctx.state._overviewHorizGap = 0;   _ovHG = 0;
@@ -1900,15 +1902,15 @@ export function render(ctx) {
     focusZ = _isoPos[0];
     ovGapSlider.value   = "150"; ovGapLbl.textContent   = "150";
     ovHorizSlider.value = "0";   ovHorizLbl.textContent = "0";
-    focusSlider.value   = "0";   focusLbl.textContent   = "All floors";
+    focusSlider.value   = "0";   focusLbl.textContent   = t("All floors");
     _rebuildRoomPositions();
     _renderFrame();
     ovResetBtn.disabled = true;
     try{
       await ctx.actions.settingsSet({ overview_iso_floor_gap:150, overview_iso_horiz_gap:0, overview_iso_focus:0, traceback_house_focus:0 });
-      ovSaveLbl.textContent = "Reset \u2713";
+      ovSaveLbl.textContent = t("Reset \u2713");
       setTimeout(()=>{ ovSaveLbl.textContent = ""; }, 2000);
-    }catch(e){ ovSaveLbl.textContent = "Error"; }
+    }catch(e){ ovSaveLbl.textContent = t("Error"); }
     ovResetBtn.disabled = false;
   });
   // Save and Reset stay side by side, 6px apart, and 8px clear of the L/R
@@ -1957,11 +1959,11 @@ export function render(ctx) {
     hdr.style.cssText = "display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap";
     const title = document.createElement("span");
     title.style.cssText = "font-weight:700;font-size:15px;color:#e879f9";
-    title.textContent = "New Objects Heard";
+    title.textContent = t("New Objects Heard");
     hdr.appendChild(title);
     const desc = document.createElement("span");
     desc.style.cssText = "font-size:11px;color:#94a3b8";
-    desc.textContent = "Find objects first discovered in a time window";
+    desc.textContent = t("Find objects first discovered in a time window");
     hdr.appendChild(desc);
     discoCard.appendChild(hdr);
 
@@ -1971,7 +1973,7 @@ export function render(ctx) {
 
     const fromLbl = document.createElement("span");
     fromLbl.style.cssText = "font-size:12px;color:#94a3b8";
-    fromLbl.textContent = "From";
+    fromLbl.textContent = t("From");
     rangeRow.appendChild(fromLbl);
 
     const fromInput = document.createElement("input");
@@ -1985,7 +1987,7 @@ export function render(ctx) {
 
     const fromUnit = document.createElement("span");
     fromUnit.style.cssText = "font-size:12px;color:#94a3b8";
-    fromUnit.textContent = "min ago";
+    fromUnit.textContent = t("min ago");
     rangeRow.appendChild(fromUnit);
 
     const toLbl = document.createElement("span");
@@ -2004,14 +2006,14 @@ export function render(ctx) {
 
     const toUnit = document.createElement("span");
     toUnit.style.cssText = "font-size:12px;color:#94a3b8";
-    toUnit.textContent = "min ago";
+    toUnit.textContent = t("min ago");
     rangeRow.appendChild(toUnit);
 
     // Search button
     const searchBtn = document.createElement("button");
     searchBtn.className = "btn inline";
     searchBtn.style.cssText = "margin-left:8px;padding:4px 16px;font-size:12px;font-weight:600;background:#2d1854;border-color:#7c3aed;color:#e879f9";
-    searchBtn.textContent = "Search";
+    searchBtn.textContent = t("Search");
     searchBtn.addEventListener("click", () => {
       tb.discoFromMin = Math.max(0, parseInt(fromInput.value, 10) || 0);
       tb.discoToMin = Math.max(0, parseInt(toInput.value, 10) || 0);
@@ -2028,18 +2030,18 @@ export function render(ctx) {
     presetRow.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px";
     const presetLbl = document.createElement("span");
     presetLbl.style.cssText = "font-size:11px;color:#64748b";
-    presetLbl.textContent = "Quick:";
+    presetLbl.textContent = t("Quick:");
     presetRow.appendChild(presetLbl);
 
     const presets = [
-      { label: "Last 5 min", from: 5, to: 0 },
-      { label: "Last 15 min", from: 15, to: 0 },
-      { label: "Last 30 min", from: 30, to: 0 },
-      { label: "Last 1 hr", from: 60, to: 0 },
-      { label: "Last 4 hr", from: 240, to: 0 },
-      { label: "30-60 min ago", from: 60, to: 30 },
-      { label: "1-2 hr ago", from: 120, to: 60 },
-      { label: "2-4 hr ago", from: 240, to: 120 },
+      { label: t("Last 5 min"), from: 5, to: 0 },
+      { label: t("Last 15 min"), from: 15, to: 0 },
+      { label: t("Last 30 min"), from: 30, to: 0 },
+      { label: t("Last 1 hr"), from: 60, to: 0 },
+      { label: t("Last 4 hr"), from: 240, to: 0 },
+      { label: t("30-60 min ago"), from: 60, to: 30 },
+      { label: t("1-2 hr ago"), from: 120, to: 60 },
+      { label: t("2-4 hr ago"), from: 240, to: 120 },
     ];
     for (const p of presets) {
       const btn = document.createElement("button");
@@ -2066,7 +2068,7 @@ export function render(ctx) {
     if (!tb.discoResults.length) {
       const empty = document.createElement("div");
       empty.style.cssText = "text-align:center;padding:16px;color:#64748b;font-size:13px";
-      empty.textContent = "No new objects discovered in this time window. Try a wider range or check that objects are within scanner range.";
+      empty.textContent = t("No new objects discovered in this time window. Try a wider range or check that objects are within scanner range.");
       discoCard.appendChild(empty);
       return;
     }
@@ -2076,7 +2078,7 @@ export function render(ctx) {
     summRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap";
     const summLbl = document.createElement("span");
     summLbl.style.cssText = "font-size:13px;font-weight:600;color:#e879f9";
-    summLbl.textContent = `${tb.discoResults.length} object${tb.discoResults.length !== 1 ? "s" : ""} found`;
+    summLbl.textContent = tn(tb.discoResults.length, "{n} object found", "{n} objects found");
     summRow.appendChild(summLbl);
     // Kind breakdown
     const kindCounts = {};
@@ -2096,7 +2098,7 @@ export function render(ctx) {
     tbl.className = "table";
     tbl.style.cssText = "width:100%;font-size:12px";
     const thead = document.createElement("thead");
-    thead.innerHTML = `<tr><th style="width:50px">Kind</th><th>Name / Address</th><th>Room</th><th>First Seen</th><th>RSSI</th><th>Source</th></tr>`;
+    thead.innerHTML = `<tr><th style="width:50px">${_esc(t("Kind"))}</th><th>${_esc(t("Name / Address"))}</th><th>${_esc(t("Room"))}</th><th>${_esc(t("First Seen"))}</th><th>RSSI</th><th>${_esc(t("Source"))}</th></tr>`;
     tbl.appendChild(thead);
 
     const tbody = document.createElement("tbody");
@@ -2126,7 +2128,7 @@ export function render(ctx) {
       const kindBadge = document.createElement("span");
       kindBadge.style.cssText = "font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;" +
         "background:" + col + "22;color:" + col + ";border:1px solid " + col + "44";
-      kindBadge.textContent = obj.kind === "ibeacon" ? "iBeacon" : obj.kind === "private_ble" ? "pBLE" : obj.kind === "entity" ? "Entity" : "BLE";
+      kindBadge.textContent = obj.kind === "ibeacon" ? "iBeacon" : obj.kind === "private_ble" ? "pBLE" : obj.kind === "entity" ? t("Entity") : "BLE";
       kindTd.appendChild(kindBadge);
       tr.appendChild(kindTd);
 
@@ -2164,7 +2166,7 @@ export function render(ctx) {
         const fsDate = new Date(obj.first_seen);
         const agoMs = Date.now() - fsDate.getTime();
         const agoMin = Math.round(agoMs / 60000);
-        fsTd.textContent = agoMin < 1 ? "just now" : agoMin < 60 ? `${agoMin}m ago` : `${(agoMin / 60).toFixed(1)}h ago`;
+        fsTd.textContent = agoMin < 1 ? t("just now") : agoMin < 60 ? t("{n}m ago", { n: agoMin }) : t("{n}h ago", { n: (agoMin / 60).toFixed(1) });
         fsTd.title = fsDate.toLocaleString();
       } else {
         fsTd.textContent = "—";
@@ -2201,7 +2203,7 @@ export function render(ctx) {
     // Tip
     const tip = document.createElement("div");
     tip.style.cssText = "font-size:10px;color:#64748b;margin-top:8px";
-    tip.textContent = "Click any row or map pin to view full object details (manufacturer data, services, signal sources, etc.)";
+    tip.textContent = t("Click any row or map pin to view full object details (manufacturer data, services, signal sources, etc.)");
     discoCard.appendChild(tip);
   }
 
@@ -2282,16 +2284,16 @@ export function render(ctx) {
     return btn;
   };
 
-  modeRow.appendChild(_makeModeBtn("Playback", "playback"));
-  modeRow.appendChild(_makeModeBtn("New Objects", "discovery"));
-  modeRow.appendChild(_makeModeBtn("Insights", "insights"));
-  modeRow.appendChild(_makeModeBtn("Busy Times", "busytimes"));
+  modeRow.appendChild(_makeModeBtn(t("Playback"), "playback"));
+  modeRow.appendChild(_makeModeBtn(t("New Objects"), "discovery"));
+  modeRow.appendChild(_makeModeBtn(t("Insights"), "insights"));
+  modeRow.appendChild(_makeModeBtn(t("Busy Times"), "busytimes"));
 
   // Full house activity (PadSpan Pro) — an option of Playback, off until picked.
   const houseBtn = document.createElement("button");
   houseBtn.className = "btn inline";
   const _paintHouseBtn = () => {
-    houseBtn.textContent = tb.house.on ? "🏠 Full house activity: on" : "🏠 Full house activity";
+    houseBtn.textContent = tb.house.on ? t("🏠 Full house activity: on") : t("🏠 Full house activity");
     houseBtn.style.cssText = "margin-left:auto;font-size:12px;padding:4px 14px;" + (tb.house.on
       ? "font-weight:700;background:#fbbf2422;color:#fbbf24;border-color:#fbbf24"
       : "color:#94a3b8;border-color:#1b3526");
@@ -2317,10 +2319,9 @@ export function render(ctx) {
   let _devicesPending = false;
   const devicesBtn = document.createElement("button");
   devicesBtn.className = "btn inline";
-  devicesBtn.title = "Play every device the Atlas shows back through its state over the chosen period — lights, doors, "
-    + "locks, motion, temperature, humidity and air — with every tracked object; what changed is ringed on the map";
+  devicesBtn.title = t("Play every device the Atlas shows back through its state over the chosen period — lights, doors, locks, motion, temperature, humidity and air — with every tracked object; what changed is ringed on the map");
   const _paintDevicesBtn = () => {
-    devicesBtn.textContent = tb.house.devices ? "💡 Devices: on" : "💡 Devices";
+    devicesBtn.textContent = tb.house.devices ? t("💡 Devices: on") : t("💡 Devices");
     devicesBtn.style.cssText = "font-size:12px;padding:4px 14px;" + (tb.house.devices
       ? "font-weight:700;background:#fbbf2422;color:#fbbf24;border-color:#fbbf24"
       : "color:#94a3b8;border-color:#1b3526");
@@ -2343,7 +2344,7 @@ export function render(ctx) {
     // would keep the beacons to that one.
     if (on && tb.filterKey) {
       tb.filterKey = null;
-      tb.filterName = "All objects";
+      tb.filterName = t("All objects");
       _devicesPending = true;
       try { await _loadTracebackData(); } finally { _devicesPending = false; }
       // Left while it reloaded: the view on screen now keeps what its button
@@ -2400,16 +2401,16 @@ export function render(ctx) {
   {
     const distCard = el("div",{class:"card",style:"margin-top:12px"});
     distCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-      el("div",{style:"font-weight:700;font-size:14px;color:#5eead4"},"\ud83d\udeb6 Distance Traveled"),
+      el("div",{style:"font-weight:700;font-size:14px;color:#5eead4"},t("\ud83d\udeb6 Distance Traveled")),
     ]));
     distCard.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
-      "Select a time window and click Load to see how far each object has moved."));
+      t("Select a time window and click Load to see how far each object has moved.")));
 
     // Time window selector + load button
     const windowRow = el("div",{style:"display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap;align-items:center"});
     const windows = [
-      {label:"15 min", mins:15}, {label:"1 hour", mins:60}, {label:"4 hours", mins:240},
-      {label:"24 hours", mins:1440}, {label:"7 days", mins:10080},
+      {label:"15 min", mins:15}, {label:t("1 hour"), mins:60}, {label:t("4 hours"), mins:240},
+      {label:t("24 hours"), mins:1440}, {label:t("7 days"), mins:10080},
     ];
     if (!ctx.state._distWindow) ctx.state._distWindow = 240;
     const _distBtns = [];
@@ -2435,7 +2436,7 @@ export function render(ctx) {
     customInput.style.cssText = "width:60px;padding:2px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:10px";
     customInput.value = ctx.state._distWindow && !windows.some(w => w.mins === ctx.state._distWindow) ? ctx.state._distWindow : "";
     const customBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px"});
-    customBtn.textContent = "Go";
+    customBtn.textContent = t("Go");
     customBtn.addEventListener("click", () => {
       const v = parseInt(customInput.value);
       if (v && v > 0) { ctx.state._distWindow = v; _updateDistBtnStyles(); _updateDistWindowLbl(); _loadDist(); }
@@ -2449,7 +2450,7 @@ export function render(ctx) {
     const _updateDistWindowLbl = () => {
       const mins = ctx.state._distWindow;
       const preset = windows.find(w => w.mins === mins);
-      _distWindowLbl.textContent = preset ? `Showing: ${preset.label}` : `Showing: ${mins < 60 ? mins + " min" : (mins/60) + " hours"}`;
+      _distWindowLbl.textContent = preset ? t("Showing: {window}", { window: preset.label }) : t("Showing: {window}", { window: mins < 60 ? mins + " min" : t("{n} hours", { n: mins/60 }) });
     };
     _updateDistWindowLbl();
     distCard.appendChild(_distWindowLbl);
@@ -2487,7 +2488,7 @@ export function render(ctx) {
 
     async function _loadDist() {
       distResults.innerHTML = "";
-      distResults.appendChild(el("div",{style:"text-align:center;color:#94a3b8;padding:12px"},"Loading\u2026"));
+      distResults.appendChild(el("div",{style:"text-align:center;color:#94a3b8;padding:12px"},t("Loading\u2026")));
       try {
         const now = Date.now() / 1000;
         const mins = ctx.state._distWindow || 240;
@@ -2498,7 +2499,7 @@ export function render(ctx) {
         distResults.innerHTML = "";
 
         if (frames.length < 2) {
-          distResults.appendChild(el("div",{style:"color:#64748b;font-size:12px;padding:8px"}, `No traceback data in the last ${mins < 60 ? mins+" min" : (mins/60)+" hr"}.`));
+          distResults.appendChild(el("div",{style:"color:#64748b;font-size:12px;padding:8px"}, t("No traceback data in the last {window}.", { window: mins < 60 ? mins+" min" : t("{n} hr", { n: mins/60 }) })));
           return;
         }
 
@@ -2580,7 +2581,7 @@ export function render(ctx) {
 
         const sorted = Object.entries(objDist).sort((a,b) => b[1].dist_m - a[1].dist_m);
         if (!sorted.length) {
-          distResults.appendChild(el("div",{style:"color:#64748b;font-size:12px;padding:8px"}, "No tracked objects found."));
+          distResults.appendChild(el("div",{style:"color:#64748b;font-size:12px;padding:8px"}, t("No tracked objects found.")));
           return;
         }
 
@@ -2589,7 +2590,7 @@ export function render(ctx) {
         const filterSel = document.createElement("select");
         filterSel.style.cssText = "padding:3px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:11px";
         const allOpt = document.createElement("option");
-        allOpt.value = ""; allOpt.textContent = `All objects (${sorted.length})`;
+        allOpt.value = ""; allOpt.textContent = t("All objects ({n})", { n: sorted.length });
         filterSel.appendChild(allOpt);
         for (const [key, od] of sorted) {
           const opt = document.createElement("option");
@@ -2598,7 +2599,7 @@ export function render(ctx) {
           filterSel.appendChild(opt);
         }
         filterSel.addEventListener("change", () => { ctx.state._distFilter = filterSel.value; _renderTable(); });
-        filterRow.appendChild(el("span",{style:"font-size:10px;color:#64748b;flex:none;white-space:nowrap"},"Filter:"));
+        filterRow.appendChild(el("span",{style:"font-size:10px;color:#64748b;flex:none;white-space:nowrap"},t("Filter:")));
         filterRow.appendChild(filterSel);
         distResults.appendChild(filterRow);
 
@@ -2611,7 +2612,7 @@ export function render(ctx) {
           const filter = ctx.state._distFilter;
           const shown = filter ? sorted.filter(([k]) => k === filter) : sorted;
           const tbl = el("div",{style:"display:grid;grid-template-columns:1fr auto auto auto auto;gap:3px 10px;font-size:11px;align-items:center"});
-          for (const h of ["Object","Distance","Room Changes","Reliability",""]) {
+          for (const h of [t("Object"),t("Distance"),t("Room Changes"),t("Reliability"),""]) {
             tbl.appendChild(el("div",{style:"font-weight:600;color:#64748b;font-size:10px;text-transform:uppercase"},h));
           }
           const hrs = Math.max(0.01, mins / 60);
@@ -2631,8 +2632,8 @@ export function render(ctx) {
               nameDiv.appendChild(refBadge);
               // For reference devices, distance = phantom jitter (quality metric)
               if (dist > 5) {
-                const warnBadge = el("span",{style:"font-size:8px;padding:0 4px;margin-left:3px;border-radius:3px;background:#f8717122;color:#f87171;border:1px solid #f8717144;vertical-align:middle"}, `${distStr} jitter`);
-                warnBadge.title = "This stationary device shows phantom distance — indicates BLE positioning noise in your setup";
+                const warnBadge = el("span",{style:"font-size:8px;padding:0 4px;margin-left:3px;border-radius:3px;background:#f8717122;color:#f87171;border:1px solid #f8717144;vertical-align:middle"}, t("{dist} jitter", { dist: distStr }));
+                warnBadge.title = t("This stationary device shows phantom distance — indicates BLE positioning noise in your setup");
                 nameDiv.appendChild(warnBadge);
               }
             }
@@ -2644,40 +2645,40 @@ export function render(ctx) {
             const actDiv = el("div",{style:"display:flex;gap:3px;justify-content:flex-end"});
             // Investigate button
             const invBtn = el("button",{class:"btn tiny",style:"font-size:10px;padding:1px 4px"}, "\ud83d\udd0d");
-            invBtn.title = `Investigate: ${totalSteps} steps, ${od.jitter_steps||0} filtered as jitter, max step ${od.max_step?.toFixed(1)||0}m`;
+            invBtn.title = t("Investigate: {steps} steps, {jitter} filtered as jitter, max step {max}m", { steps: totalSteps, jitter: od.jitter_steps||0, max: od.max_step?.toFixed(1)||0 });
             invBtn.addEventListener("click", () => {
               const msg = [
                 `\ud83d\udd0d ${od.label || key}`,
-                `Total steps: ${totalSteps}`,
-                `Good steps: ${goodSteps} (${reliability}%)`,
-                `Jitter filtered: ${od.jitter_steps||0}`,
-                `Max single step: ${od.max_step?.toFixed(1)||0} m`,
-                `Room changes: ${od.transitions}`,
-                `Distance: ${distStr}`,
-                reliability < 50 ? `\u26a0 Low reliability — mostly jitter. Consider marking as stationary.` : "",
+                t("Total steps: {n}", { n: totalSteps }),
+                t("Good steps: {n} ({pct}%)", { n: goodSteps, pct: reliability }),
+                t("Jitter filtered: {n}", { n: od.jitter_steps||0 }),
+                t("Max single step: {m} m", { m: od.max_step?.toFixed(1)||0 }),
+                t("Room changes: {n}", { n: od.transitions }),
+                t("Distance: {dist}", { dist: distStr }),
+                reliability < 50 ? t("\u26a0 Low reliability — mostly jitter. Consider marking as stationary.") : "",
               ].filter(Boolean).join("\n");
               alert(msg);
             });
             actDiv.appendChild(invBtn);
             // Mark as stationary reference — still tracked, but flagged for accuracy monitoring
             const isStationary = _stationarySet.has(String(key).toUpperCase());
-            const statBtn = el("button",{class:"btn tiny",style:`font-size:10px;padding:1px 4px;${isStationary ? "color:#52b788;border-color:#52b788" : "color:#f59e0b;border-color:#92400e"}`}, isStationary ? "\u2713 Ref" : "\ud83d\udccc Ref");
-            statBtn.title = isStationary ? "This device is a stationary reference — click to remove" : "Mark as stationary reference (known-fixed device for accuracy monitoring)";
+            const statBtn = el("button",{class:"btn tiny",style:`font-size:10px;padding:1px 4px;${isStationary ? "color:#52b788;border-color:#52b788" : "color:#f59e0b;border-color:#92400e"}`}, isStationary ? t("\u2713 Ref") : t("\ud83d\udccc Ref"));
+            statBtn.title = isStationary ? t("This device is a stationary reference — click to remove") : t("Mark as stationary reference (known-fixed device for accuracy monitoring)");
             statBtn.addEventListener("click", async () => {
               try {
                 const existing = (ctx.state.settings?.distance_stationary_devices || []).map(s => String(s));
                 let updated;
                 if (isStationary) {
                   updated = existing.filter(s => s.toUpperCase() !== String(key).toUpperCase());
-                  ctx.toast(`${od.label || key} removed as reference`);
+                  ctx.toast(t("{name} removed as reference", { name: od.label || key }));
                 } else {
-                  if (!confirm(`Mark "${od.label || key}" as a stationary reference?\n\nStationary references are devices you KNOW don't move (TVs, fixed beacons). Their phantom distance reveals BLE positioning jitter — high distance on a stationary device means your scanner setup needs attention.\n\nThe device stays visible with a reference badge.`)) return;
+                  if (!confirm(t("Mark \"{name}\" as a stationary reference?\n\nStationary references are devices you KNOW don't move (TVs, fixed beacons). Their phantom distance reveals BLE positioning jitter — high distance on a stationary device means your scanner setup needs attention.\n\nThe device stays visible with a reference badge.", { name: od.label || key }))) return;
                   updated = [...new Set([...existing, key])];
-                  ctx.toast(`${od.label || key} marked as stationary reference`);
+                  ctx.toast(t("{name} marked as stationary reference", { name: od.label || key }));
                 }
                 await ctx.actions.settingsSet({ distance_stationary_devices: updated });
                 _loadDist();
-              } catch(e) { ctx.toast("Failed: " + ctx.helpers.errorText(e), true); }
+              } catch(e) { ctx.toast(t("Failed: {why}", { why: ctx.helpers.errorText(e) }), true); }
             });
             actDiv.appendChild(statBtn);
             tbl.appendChild(actDiv);
@@ -2688,24 +2689,24 @@ export function render(ctx) {
           const totalStr = totalDist >= 1000 ? `${(totalDist/1000).toFixed(2)} km` : `${totalDist.toFixed(0)} m`;
           const avgReliability = shown.length ? Math.round(shown.reduce((s,[,od]) => s + ((od.steps - (od.jitter_steps||0)) / Math.max(1,od.steps)) * 100, 0) / shown.length) : 0;
           tblDiv.appendChild(el("div",{style:"margin-top:8px;font-size:10px;color:#64748b"},
-            `${shown.length} object${shown.length!==1?"s":""} \u00b7 ${totalStr} total \u00b7 ${avgReliability}% avg reliability \u00b7 ${frames.length} frames`));
+            t("{objects} \u00b7 {total} total \u00b7 {pct}% avg reliability \u00b7 {frames} frames", { objects: tn(shown.length, "{n} object", "{n} objects"), total: totalStr, pct: avgReliability, frames: frames.length })));
           // Show stationary reference summary
           const refDevices = shown.filter(([,od]) => od.isRef);
           if (refDevices.length) {
             const refJitter = refDevices.reduce((s,[,od]) => s + od.dist_m, 0);
             const refStr = refJitter >= 1000 ? `${(refJitter/1000).toFixed(2)} km` : `${refJitter.toFixed(1)} m`;
-            const jitterQuality = refJitter < 10 ? "Excellent" : refJitter < 50 ? "Good" : refJitter < 200 ? "Fair" : "Poor";
+            const jitterQuality = refJitter < 10 ? t("Excellent") : refJitter < 50 ? t("Good") : refJitter < 200 ? t("Fair") : t("Poor");
             const jitterColor = refJitter < 10 ? "#52b788" : refJitter < 50 ? "#5eead4" : refJitter < 200 ? "#f59e0b" : "#f87171";
             tblDiv.appendChild(el("div",{style:`margin-top:6px;padding:6px 8px;background:${jitterColor}11;border:1px solid ${jitterColor}33;border-radius:6px;font-size:10px`}, [
-              el("span",{style:`color:${jitterColor};font-weight:700`}, `BLE Accuracy: ${jitterQuality}`),
-              el("span",{style:"color:#94a3b8;margin-left:6px"}, `${refDevices.length} stationary ref${refDevices.length!==1?"s":""} show ${refStr} phantom distance (lower = better scanner positioning)`),
+              el("span",{style:`color:${jitterColor};font-weight:700`}, t("BLE Accuracy: {quality}", { quality: jitterQuality })),
+              el("span",{style:"color:#94a3b8;margin-left:6px"}, tn(refDevices.length, "{n} stationary ref show {dist} phantom distance (lower = better scanner positioning)", "{n} stationary refs show {dist} phantom distance (lower = better scanner positioning)", { dist: refStr })),
             ]));
           }
         }
         _renderTable();
       } catch(err) {
         distResults.innerHTML = "";
-        distResults.appendChild(el("div",{style:"color:#f87171;font-size:12px"}, "Failed to load: " + (err.message || err)));
+        distResults.appendChild(el("div",{style:"color:#f87171;font-size:12px"}, t("Failed to load: {why}", { why: err.message || err })));
       }
     }
 

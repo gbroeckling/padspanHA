@@ -40,6 +40,9 @@ const { tierAtLeast, currentTier } =
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+
 let _cache = null, _loading = null, _loadingDays = null, _error = null, _days = 7;
 let _cacheMode = null;   // the data mode _cache was read in: the sample house's is never shown as Live's
 
@@ -49,13 +52,13 @@ export function render(ctx) {
   if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _cache = null; _error = null; }
 
   root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap" }, [
-    el("h2", {}, "Busy Times"),
+    el("h2", {}, t("Busy Times")),
     helpBtn("busytimes"),
-    el("span", { class: "muted", style: "font-size:11px" }, "which rooms are busiest, and when — aggregated across every tracked object"),
+    el("span", { class: "muted", style: "font-size:11px" }, t("which rooms are busiest, and when — aggregated across every tracked object")),
   ]));
 
   if (!tierAtLeast(currentTier(ctx.state.settings), "pro")) {
-    root.appendChild(_buildProGateCard(ctx, "Busy Times"));
+    root.appendChild(_buildProGateCard(ctx, t("Busy Times")));
     return root;
   }
 
@@ -68,7 +71,7 @@ export function render(ctx) {
   root.appendChild(el("div", { style: "display:flex;gap:6px;margin-bottom:10px" }, dayBtnEls));
 
   const status = el("span", { class: "muted", style: "font-size:11px" }, "");
-  const refresh = el("button", { class: "btn inline" }, "Refresh");
+  const refresh = el("button", { class: "btn inline" }, t("Refresh"));
   refresh.addEventListener("click", () => load(true));
   root.appendChild(el("div", { style: "display:flex;gap:10px;align-items:center;margin-bottom:12px" }, [refresh, status]));
 
@@ -78,17 +81,17 @@ export function render(ctx) {
   const renderBody = () => {
     body.innerHTML = "";
     if (_error) {
-      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, "Failed: " + _error)));
+      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, t("Failed: {why}", { why: _error }))));
       return;
     }
     if (!_cache) {
-      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, "Loading…")));
+      body.appendChild(el("div", { class: "card" }, el("div", { class: "muted" }, t("Loading…"))));
       return;
     }
     if (!_cache.days.length) {
       body.appendChild(el("div", { class: "card" }, [
         el("div", { class: "muted" },
-          "No traceback history yet for the selected range — Busy Times builds from the same history Traceback and Insights use."),
+          t("No traceback history yet for the selected range — Busy Times builds from the same history Traceback and Insights use.")),
       ]));
       return;
     }
@@ -100,7 +103,7 @@ export function render(ctx) {
   // itself (inside Traceback there is no poll re-render to repair a copy
   // that returned early — review 2026-09-23).
   const load = async (fresh) => {
-    status.textContent = fresh ? "Refreshing…" : "Loading…";
+    status.textContent = fresh ? t("Refreshing…") : t("Loading…");
     // A request for a different day range finishes first, then this one runs.
     while (_loading && _loadingDays !== _days) await _loading;
     if (!_loading) {
@@ -109,7 +112,7 @@ export function render(ctx) {
         _error = null;
         try {
           const res = await ctx.actions.wsCall("padspan_ha/insights_get", { days: _days });
-          if (!res || !Array.isArray(res.days)) throw new Error("unexpected reply");
+          if (!res || !Array.isArray(res.days)) throw new Error(t("unexpected reply"));
           _cache = res;
         } catch (e) { _cache = null; _error = (e && (e.message || e.code)) ? String(e.message || e.code) : "failed"; }
       })();
@@ -119,7 +122,7 @@ export function render(ctx) {
     renderBody();
     await _loading;
     const n = _cache ? _cache.days.length : 0;
-    status.textContent = _error ? "" : `${n} day${n === 1 ? "" : "s"} of history`;
+    status.textContent = _error ? "" : tn(n, "{n} day of history", "{n} days of history");
     renderBody();
   };
 
@@ -193,15 +196,15 @@ function _buildBusyGrid(ctx, data) {
 
   const rooms = Object.keys(roomTotals).sort((a, b) => roomTotals[b] - roomTotals[a]);
   if (!rooms.length) {
-    card.appendChild(el("div", { class: "muted" }, "No dwell time recorded yet in this range."));
+    card.appendChild(el("div", { class: "muted" }, t("No dwell time recorded yet in this range.")));
     return card;
   }
   const maxTotal = Math.max(...rooms.map(r => roomTotals[r]));
 
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap" }, [
-    el("div", { style: "font-weight:700;font-size:14px" }, "Room Activity"),
+    el("div", { style: "font-weight:700;font-size:14px" }, t("Room Activity")),
     el("span", { class: "muted", style: "font-size:10px" },
-      "colour = total time occupied, relative to the busiest room in range · red bar = that room's busiest hour"),
+      t("colour = total time occupied, relative to the busiest room in range · red bar = that room's busiest hour")),
   ]));
 
   const COLS = 2, BW = 380, BH = 210, GAP = 16, PX = 14, PY = 14;
@@ -216,13 +219,13 @@ function _buildBusyGrid(ctx, data) {
   rooms.forEach((room, idx) => {
     const col = idx % COLS, row = Math.floor(idx / COLS);
     const x = PX + col * (BW + GAP), y = PY + row * (BH + GAP);
-    const t = maxTotal > 0 ? roomTotals[room] / maxTotal : 0;
-    const color = _heatColor(t);
+    const share = maxTotal > 0 ? roomTotals[room] / maxTotal : 0;
+    const color = _heatColor(share);
 
-    s += `<rect x="${x}" y="${y}" width="${BW}" height="${BH}" fill="${color}" fill-opacity="${(0.12 + t * 0.18).toFixed(2)}" stroke="${color}" stroke-width="1.5" rx="10"/>`;
+    s += `<rect x="${x}" y="${y}" width="${BW}" height="${BH}" fill="${color}" fill-opacity="${(0.12 + share * 0.18).toFixed(2)}" stroke="${color}" stroke-width="1.5" rx="10"/>`;
     s += `<text x="${x + 14}" y="${y + 26}" fill="${color}" font-size="15" font-weight="700">${_esc(room)}</text>`;
     s += `<text x="${x + 14}" y="${y + 50}" fill="#e2e8f0" font-size="22" font-weight="700">${_fmtDuration(roomTotals[room])}</text>`;
-    s += `<text x="${x + 14}" y="${y + 66}" fill="#4a6052" font-size="9">total occupied time, this range</text>`;
+    s += `<text x="${x + 14}" y="${y + 66}" fill="#4a6052" font-size="9">${_esc(t("total occupied time, this range"))}</text>`;
 
     // 24-hour sparkline — when this room gets busy, not just how much.
     const hourly = roomHourly[room] || new Array(24).fill(0);
@@ -240,7 +243,7 @@ function _buildBusyGrid(ctx, data) {
     s += `<text x="${x + 14}" y="${baseY + 12}" fill="#4a6052" font-size="8">0:00</text>`;
     s += `<text x="${x + BW - 14}" y="${baseY + 12}" text-anchor="end" fill="#4a6052" font-size="8">23:00</text>`;
     if (peakVal > 0) {
-      s += `<text x="${x + BW - 14}" y="${y + 50}" text-anchor="end" fill="#f87171" font-size="10">busiest ${String(peakHour).padStart(2, "0")}:00</text>`;
+      s += `<text x="${x + BW - 14}" y="${y + 50}" text-anchor="end" fill="#f87171" font-size="10">${_esc(t("busiest {hour}:00", { hour: String(peakHour).padStart(2, "0") }))}</text>`;
     }
   });
 
@@ -255,10 +258,10 @@ function _buildProGateCard(ctx, featureName) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:6px" },
-    `${featureName} is a PadSpan Pro feature`));
+    t("{feature} is a PadSpan Pro feature", { feature: featureName })));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Unlock it, and everything else gated, with a PadSpan Pro key."));
-  card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, "Settings → Features → PadSpan licence"));
+    t("Unlock it, and everything else gated, with a PadSpan Pro key.")));
+  card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, t("Settings → Features → PadSpan licence")));
   // The trial is all of PadSpan Pro (since 2026-10-27), so the card says it
   // unlocks Busy Times too. Null once there is any key.
   const trial = trialOfferFromCtx(ctx, "busy_times", { feature: featureName });
