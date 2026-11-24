@@ -283,6 +283,29 @@ Two more ways, in Advanced, on **Mapping → Layout**:
 [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/)
 go further.
 
+### Room location runs with the robot
+
+A robot that runs Valetudo, with its map imported that way, can also help PadSpan learn your rooms.
+It is optional, and nothing happens until you start a run. Stick a fixed-address Bluetooth beacon
+(iBeacon or Eddystone) on top of the robot, away from its laser turret. Not an AirTag or a Tile:
+their addresses keep changing. PadSpan never hears the robot itself, only the beacon on it.
+
+The robot shows on the Atlas and in the 3D house while its live position is on and people or tags
+are shown there. Press and hold it to open its card. The card talks to the robot's own Valetudo,
+so Home Assistant's vacuum entity and MQTT are not needed. It shows what the robot is doing and its
+battery, with **Start**, **Pause** and **Dock**. Only an administrator can use it.
+
+Under **Room location** the card lists what a run needs: the robot's address (and its Valetudo user
+and password, if its login is on), its map from Valetudo, and the beacon on the robot, with whether
+PadSpan hears it now. **Start a run** sends the robot to spots about 1.5 m apart in every room, or
+in the one you pick, each at least 40 cm from the walls. At each spot it stands still for about 20
+seconds while PadSpan listens to the beacon (a little longer if too few receivers heard it, and the
+spot is skipped if still too few did), and the spot goes into calibration at once. Calibration is
+backed up before every run. **Stop** ends the run and sends the robot back to its dock; so does the
+end of the run, a problem, or two hours. **Undo this run** takes out exactly the points that run
+added, and none of your own. A run that was going when Home Assistant restarted is simply over; its
+points stay, and can still be undone.
+
 ## More than one floor: lining them up
 
 Each plan keeps its own place in metres. With two floors or more, line them up so a stairwell on

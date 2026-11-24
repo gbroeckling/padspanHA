@@ -346,6 +346,29 @@ einen Raumscan.</li>
 <p><a href="/guides/floor-plans/de/">Welcher Grundriss für Home Assistant?</a> und
 <a href="/guides/robot-vacuum-floor-plan/de/">Dein Saugroboter hat deinen Grundriss schon gezeichnet</a>
 gehen weiter.</p>
+<h3 id="raumortung-mit-dem-roboter">Raumortung mit dem Roboter</h3>
+<p>Ein Roboter mit Valetudo, dessen Karte so importiert wurde, kann PadSpan auch helfen, deine Räume
+zu lernen. Das ist freiwillig, und nichts passiert, bis du eine Fahrt startest. Kleb einen
+Bluetooth-Beacon mit fester Adresse (iBeacon oder Eddystone) oben auf den Roboter, weg vom
+Laserturm. Kein AirTag und kein Tile: deren Adressen ändern sich ständig. PadSpan hört nie den
+Roboter selbst, nur den Beacon auf ihm.</p>
+<p>Der Roboter erscheint im Atlas und im 3D-Haus, solange seine Live-Position an ist und dort Personen
+oder Tags gezeigt werden. Halte ihn gedrückt, um seine Karte zu öffnen. Die Karte spricht direkt mit
+dem Valetudo des Roboters, also braucht es weder die Saugroboter-Entität von Home Assistant noch
+MQTT. Sie zeigt, was der Roboter gerade tut, und seinen Akku, mit <b>Starten</b>, <b>Pausieren</b> und
+<b>Zur Station</b>. Nur ein Administrator kann sie benutzen.</p>
+<p>Unter <b>Raumortung</b> zeigt die Karte, was eine Fahrt braucht: die Adresse des Roboters (und seinen
+Valetudo-Benutzer und sein Passwort, wenn die Anmeldung an ist), seine Karte aus Valetudo und den
+Beacon auf dem Roboter, und ob PadSpan ihn gerade hört. <b>Fahrt starten</b> schickt den Roboter zu
+Stellen etwa 1,5 m auseinander in jedem Raum oder in dem, den du wählst, jede mindestens 40 cm von
+den Wänden. An jeder Stelle steht er etwa 20 Sekunden still, während PadSpan dem Beacon zuhört
+(etwas länger, wenn zu wenige Empfänger ihn gehört haben, und die Stelle wird übersprungen, wenn es
+dann immer noch zu wenige sind), und die Stelle kommt sofort in die Kalibrierung. Vor jeder Fahrt
+wird die Kalibrierung gesichert. <b>Stopp</b> beendet die Fahrt und schickt den Roboter zurück zur
+Station; das tun auch das Ende der Fahrt, ein Problem oder zwei Stunden. <b>Diese Fahrt rückgängig
+machen</b> nimmt genau die Punkte heraus, die diese Fahrt hinzugefügt hat, und keinen deiner eigenen.
+Eine Fahrt, die beim Neustart von Home Assistant lief, ist einfach vorbei; ihre Punkte bleiben und
+lassen sich weiterhin rückgängig machen.</p>
 <h2 id="mehr-als-eine-etage-sie-ausrichten">Mehr als eine Etage: sie ausrichten</h2>
 <p>Jeder Grundriss behält seinen eigenen Platz in Metern. Mit zwei oder mehr Etagen richtest du sie so
 aus, dass ein Treppenhaus auf der einen über dem Treppenhaus auf der anderen liegt. Das geht unter

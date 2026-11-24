@@ -74,6 +74,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         not, how many colour bulbs of each brand and integration the house
         has — words from fixed lists, never a name or an entity id
         (env.power_teams); and the team card's buttons used (TEAM_CARD_EVENTS)
+    robot vacuum room location runs: started, how each ended, undone, and
+        the points a run added in buckets (ROBOT_RUN_EVENTS); never the
+        robot's address, a room or a name
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -571,6 +574,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
     "vacuum_import",                                # the Mapping tab's "Import from a robot vacuum"
+    "robovac_card",                                 # the robot vacuum's card: a hold on it, on the Atlas or in 3D
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
     "atlas_heights",                                # Mapping's Height row and Heights list (Live Aboard's heights)
@@ -1294,6 +1298,12 @@ TEAM_CARD_WORDS: tuple[str, ...] = ("opened", "power_cut", "power_on", "day", "s
                                     # 2026-11-22: Sleep in 30 min, a morning skipped, a bedtime or a night light saved
                                     "sleep_now", "wake_skip", "bedtime_saved", "night_saved")
 TEAM_CARD_EVENTS: frozenset[str] = frozenset({f"team_card:{w}" for w in TEAM_CARD_WORDS} | {"team_tap"})
+# Room location runs with the robot vacuum (vacuum_run.py, 2026-11-24): a run started; how it ended (finished, stopped
+# by the owner, failed: the robot refused or went quiet, time_limit: two hours); a run undone; and the points one run
+# added, in buckets. Counts only, never the robot's address, a room or a name.
+ROBOT_RUN_WORDS: tuple[str, ...] = ("started", "finished", "stopped", "failed", "time_limit", "undone",
+                                    "points_0", "points_1_5", "points_6_20", "points_21_plus")
+ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
 WIZARD_DRAW_WORDS: tuple[str, ...] = ("name", "no_room", "kept")
@@ -1764,7 +1774,7 @@ def event_allowed(name: str) -> bool:
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
-            or name in TEAM_CARD_EVENTS)
+            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

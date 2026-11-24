@@ -371,7 +371,8 @@ def test_walker_needs_its_own_switch_and_a_tag():
 def test_defaults_are_off_and_read_nothing():
     h = _hass()
     vs = _vstore(h)
-    assert vs.data == {"link": None, "walker": {"enabled": False, "tag": ""}, "pending": []}
+    assert vs.data == {"link": None, "walker": {"enabled": False, "tag": ""}, "pending": [],
+                       "robot": {"url": ""}, "runs": []}
     assert vs.link_on() is False
     vs.start()                                                 # no link on: no timer at all
     assert vs._unsub is None
@@ -410,7 +411,7 @@ def test_snapshot_only_carries_the_vacuum_when_linked():
 def test_every_vacuum_command_is_admin_only():
     src = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
     cmds = re.findall(r'"type": "padspan_ha/(vacuum_[a-z_]+)"', src)
-    assert len(cmds) == len(wsv.HANDLERS) == 7
+    assert len(cmds) == len(wsv.HANDLERS) == 13
     for chunk in src.split("@websocket_api.websocket_command(")[1:]:
         head = chunk[:chunk.index("async def")]
         assert "@websocket_api.require_admin" in head

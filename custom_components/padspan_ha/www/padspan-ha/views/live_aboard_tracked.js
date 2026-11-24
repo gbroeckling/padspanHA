@@ -113,15 +113,18 @@ export function trackedOf(snapshot){
 }
 
 /** A linked robot vacuum (snapshot.vacuum, only there while its link is on,
- *  vacuum_import.py): drawn with the tags, on the floor, where its own map
- *  says it is. Null when there is none. */
+ *  vacuum_import.py): drawn on the floor, where its own map says it is,
+ *  whenever the snapshot is read (Show people or Show tags & scanners). A tap
+ *  shows this small card; a hold opens its robovac card (robovac_card.js,
+ *  2026-11-24). Null when there is none. */
 export function vacuumOf(snapshot){
   const v = snapshot && snapshot.vacuum;
   const x = fin(v && v.x_m), y = fin(v && v.y_m);
   if (x === null || y === null) return null;
   return { key: "vacuum", kind: "beacon", recipe: null, floor_id: v.floor_id || null, x, y, z: 0.05, centre: true,
            name: t("Robot vacuum"), halo: haloOf(1),
-           card: { title: t("Robot vacuum"), lines: ["Where its own map says it is", seenText(fin(v.ts) !== null ? Date.now() / 1000 - v.ts : null) || t("Seen just now")] } };
+           card: { title: t("Robot vacuum"), lines: [t("Where its own map says it is"), seenText(fin(v.ts) !== null ? Date.now() / 1000 - v.ts : null) || t("Seen just now"),
+                                                    t("Hold it for its card")] } };
 }
 
 /** What each person carries (settings.atlas_3d_carries, picked in People &
@@ -323,9 +326,10 @@ export function wantedOf(d){
                  name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios), room: o.room });
       if (o.guest) Object.assign(out[out.length - 1], { name: `${o.guest} · ${t("Guest")}`, guest: true });
     }
-    const v = vacuumOf(d.snapshot);
-    if (v) out.push(v);
   }
+  // The robot vacuum: with tags or people, the snapshot is read, and it is drawn while its link is on (2026-11-24).
+  const v = vacuumOf(d.snapshot);
+  if (v) out.push(v);
   const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
   // Where people already stand: those PadSpan places first, then each one
   // known only by a room, so none stands on another.

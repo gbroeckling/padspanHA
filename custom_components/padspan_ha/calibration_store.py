@@ -457,6 +457,20 @@ class CalibrationStore:
             self.rf_points_changed()
         return changed
 
+    async def async_delete_points(self, point_ids: set[str]) -> int:
+        """Remove exactly the points with these ids, in one save (a robot
+        run's undo, vacuum_run.py: a run is many points, and one save each
+        would write the whole file that many times). How many went."""
+        ids = {str(i) for i in point_ids if i}
+        pts = self.data.get("points", [])
+        keep = [p for p in pts if p.get("id") not in ids]
+        removed = len(pts) - len(keep)
+        if removed:
+            self.data["points"] = keep
+            await self.store.async_save(self.data)
+            self.rf_points_changed()
+        return removed
+
     async def async_clear_all(self) -> int:
         count = len(self.data.get("points", []))
         self.data = {"points": [], "model": {}}

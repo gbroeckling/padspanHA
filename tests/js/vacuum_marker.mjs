@@ -4,7 +4,9 @@
 //
 // The robot vacuum in the 3D house (views/live_aboard_tracked.js vacuumOf,
 // wantedOf): a snapshot with no `vacuum` key draws exactly what it drew
-// before; with one, a "Robot vacuum" marker stands where its map says.
+// before; with one, a "Robot vacuum" marker stands where its map says,
+// whenever the snapshot is read (Show tags or Show people; 2026-11-24), and
+// its small card says a hold opens its robovac card.
 //
 // usage: vacuum_marker.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -29,4 +31,7 @@ check("vac:others-kept", JSON.stringify(withVac.filter(w => w.key !== "vacuum"))
 check("vac:card", v && v.card.title === "Robot vacuum" && v.card.lines.includes("Seen just now"), v && v.card);
 const off = TR.wantedOf({ ...base, tags: false, snapshot: { ...snap, vacuum: { x_m: 3.5, y_m: 4.25 } } });
 check("vac:tags-off", !off.some(w => w.key === "vacuum"));
+const people = TR.wantedOf({ ...base, tags: false, people: true, snapshot: { ...snap, vacuum: { x_m: 3.5, y_m: 4.25 } } });
+check("vac:people-on", people.some(w => w.key === "vacuum") && !people.some(w => w.key === "beacon:AA"));
+check("vac:hold-said", v && v.card.lines.includes("Hold it for its card"), v && v.card);
 console.log(JSON.stringify({ cases, failures }));

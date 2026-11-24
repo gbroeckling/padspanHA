@@ -4421,6 +4421,8 @@ export function buildLightsMapCard(hostIn){
       // scanners' squares, technical markers like the codes, go with them.
       scanners: !host.hideDeviceCodes,
       carries: abSet.atlas_3d_carries || null, names: abNames,
+      // A hold on the robot vacuum opens its card through this map's use api (atlas_aboard.js, robovac_card.js).
+      useApi: typeof host.house3d.useApi === "function" ? host.house3d.useApi : null,
       focused: (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), outdoor: isOutdoorFloorId,
       home: () => { const rn = isoDiv.getRootNode ? isoDiv.getRootNode() : null; return rn && rn.host ? rn : document.body; } }, snapshot);
   };

@@ -12,6 +12,9 @@ commit   writes the kept candidate through the existing writers — a NEW map,
 link     turns the live position and the calibration walker on or off.
 pending  the walker's review pile: list, accept (the one road into
          calibration_store.async_add_point), reject.
+robot    the robovac card (2026-11-24): the robot's state and battery read
+         from its own Valetudo, Start / Pause / Dock, its address and login.
+run      room location runs (vacuum_run.py): start, stop, undo one run.
 
 All admin-gated: they parse untrusted files, reach a robot on the network, or
 write the house's maps and calibration. Registration stays in
@@ -30,6 +33,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, NOT_LOADED_MESSAGE
 from . import vacuum_import as vi
+from . import vacuum_run as vr
 from .quiet_errors import note as _quiet_error
 from .util import AddressRefused
 from .ws_common import id_text
@@ -98,7 +102,7 @@ async def ws_vacuum_import_preview(hass: HomeAssistant, connection, msg) -> None
             cand = await hass.async_add_executor_job(vi.parse_valetudo, vmap)
         elif msg.get("url"):
             url = vi.valetudo_map_url(msg["url"])
-            vmap = await vi.fetch_url_json(hass, url)
+            vmap = await vi.fetch_url_json(hass, url, vs.basic_auth())
             cand = await hass.async_add_executor_job(vi.parse_valetudo, vmap)
             read = {"read": "url", "ref": url, "format": "valetudo"}
         elif msg.get("entity_id"):
@@ -318,7 +322,156 @@ async def ws_vacuum_cal_pending_reject(hass: HomeAssistant, connection, msg) -> 
     connection.send_result(msg["id"], {"ok": True, "rejected": n, "pending": len(vs.pending_list())})
 
 
+# ── the robovac card and room location runs (vacuum_run.py, 2026-11-24) ────
+# The browser never calls the robot: these do, from here, so its address and
+# login stay on the Home Assistant side. A robot that cannot be read is said in
+# the answer (state.error), not as a failed command, so the card still shows
+# what is set up and what is missing. A refusal's code is what the card words.
+
+async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) -> dict:
+    eng = vr.engine(hass, vs)
+    await eng.async_settle()
+    lk = vs.data.get("link") if isinstance(vs.data.get("link"), dict) else None
+    base = vr.robot_base(vs)
+    tag = str((vs.data.get("walker") or {}).get("tag") or "")
+    out: dict = {
+        "robot": {"url": base, "auth": bool(vs.basic_auth())},
+        "link": {"map": bool(lk and lk.get("map_id")), "valetudo": bool(lk and lk.get("format") == "valetudo"),
+                 "on": vs.link_on(), "vacuum_entity": (lk or {}).get("vacuum_entity") or ""},
+        "tag": {"address": tag, **vr.tag_heard(hass, tag)},
+        "state": None,
+        "run": vr.run_for_client(eng.current) if eng.current and eng.running else None,
+        "runs": [vr.run_for_client(r) for r in reversed((vs.data.get("runs") or [])[-5:])],
+        "live": vi.live_position(hass),
+    }
+    if base:
+        try:
+            out["state"] = vr.robot_state(await vr.robot_call(hass, base, "GET", vr.ATTRS_PATH, auth=vs.basic_auth()))
+            if rooms:
+                vmap = await vr.robot_call(hass, base, "GET", vr.MAP_PATH, auth=vs.basic_auth())
+                out["rooms"] = (await hass.async_add_executor_job(vr.plan_spots, vmap, None))["rooms"]
+        except vr.RobotError as exc:
+            out["state"] = {"error": exc.code, "text": str(exc)}
+        except AddressRefused as exc:
+            out["state"] = {"error": "address_refused", "text": str(exc)}
+        except vi.VacuumImportError as exc:
+            out["state"] = {"error": "refused", "text": str(exc)}
+    return out
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_robot_status",
+    vol.Optional("rooms", default=False): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_robot_status(hass: HomeAssistant, connection, msg) -> None:
+    """The robovac card: the robot as its Valetudo reports it, what a run needs, the last runs."""
+    connection.send_result(msg["id"], await _robot_status(hass, await _store(hass), msg.get("rooms", False)))
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_robot_set",
+    vol.Optional("url"): id_text,
+    vol.Optional("user"): id_text,
+    vol.Optional("password"): id_text,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_robot_set(hass: HomeAssistant, connection, msg) -> None:
+    """The robot's Valetudo address, and its user and password when Valetudo asks for them."""
+    vs = await _store(hass)
+    if "url" in msg:
+        url = msg["url"].strip().rstrip("/")
+        try:
+            if url:
+                vi.valetudo_map_url(url)              # http(s) only, as the import takes it
+        except vi.VacuumImportError as exc:
+            connection.send_error(msg["id"], "invalid", str(exc))
+            return
+        vs.data.setdefault("robot", {})["url"] = url
+        await vs.async_save()
+    if "user" in msg or "password" in msg:
+        user = msg.get("user", vs.auth.get("user") or "").strip()
+        await vs.async_save_auth(user, msg.get("password", vs.auth.get("password") or "") if user else "")
+    connection.send_result(msg["id"], await _robot_status(hass, vs, False))
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_robot_control",
+    vol.Required("action"): vol.In(vr.CONTROL_ACTIONS),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_robot_control(hass: HomeAssistant, connection, msg) -> None:
+    """Start, Pause or Dock, through Valetudo's BasicControlCapability (not while a run goes)."""
+    vs = await _store(hass)
+    base = vr.robot_base(vs)
+    try:
+        if not base:
+            raise vr.RunRefused("no_address", "Give the robot's address first")
+        if vr.engine(hass, vs).running:
+            raise vr.RunRefused("busy", "Stop the run first")
+        await vr.robot_call(hass, base, "PUT", vr.CONTROL_PATH, {"action": msg["action"]}, auth=vs.basic_auth())
+    except (vr.RunRefused, vr.RobotError) as exc:
+        connection.send_error(msg["id"], exc.code, str(exc))
+        return
+    except AddressRefused as exc:
+        connection.send_error(msg["id"], "address_refused", str(exc))
+        return
+    connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_run_start",
+    vol.Optional("room"): id_text,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_run_start(hass: HomeAssistant, connection, msg) -> None:
+    """Start a room location run (every room, or one): calibration is backed up first."""
+    vs = await _store(hass)
+    try:
+        run = await vr.engine(hass, vs).async_start((msg.get("room") or "").strip() or None)
+    except (vr.RunRefused, vr.RobotError) as exc:
+        connection.send_error(msg["id"], exc.code, str(exc))
+        return
+    except AddressRefused as exc:
+        connection.send_error(msg["id"], "address_refused", str(exc))
+        return
+    except vi.VacuumImportError as exc:
+        connection.send_error(msg["id"], "refused", str(exc))
+        return
+    connection.send_result(msg["id"], {"ok": True, "run": vr.run_for_client(run)})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/vacuum_run_stop"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_run_stop(hass: HomeAssistant, connection, msg) -> None:
+    """Stop the run going: the robot is sent home, the points so far stay."""
+    connection.send_result(msg["id"], {"ok": True, "stopped": vr.engine(hass, await _store(hass)).stop()})
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_run_undo",
+    vol.Required("run_id"): id_text,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_run_undo(hass: HomeAssistant, connection, msg) -> None:
+    """Remove exactly one run's points from calibration."""
+    try:
+        removed = await vr.engine(hass, await _store(hass)).async_undo(msg["run_id"])
+    except vr.RunRefused as exc:
+        connection.send_error(msg["id"], exc.code, str(exc))
+        return
+    connection.send_result(msg["id"], {"ok": True, "removed": removed})
+
+
 HANDLERS = (
     ws_vacuum_import_preview, ws_vacuum_import_commit, ws_vacuum_status, ws_vacuum_link_set,
     ws_vacuum_cal_pending_list, ws_vacuum_cal_pending_accept, ws_vacuum_cal_pending_reject,
+    ws_vacuum_robot_status, ws_vacuum_robot_set, ws_vacuum_robot_control,
+    ws_vacuum_run_start, ws_vacuum_run_stop, ws_vacuum_run_undo,
 )

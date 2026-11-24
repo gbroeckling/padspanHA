@@ -575,6 +575,9 @@ vacation_mode:tick_bump
 vacation_mode:tick_wled_power
 vacation_mode:who_from_connection
 vacuum_import:tick
+vacuum_run:home
+vacuum_run:run
+vacuum_run:save
 websocket:model_get_areas
 websocket:model_get_floors
 wled_exact:give_back_all

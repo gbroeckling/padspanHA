@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-272 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+278 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |
 |---|---|---|---|---|
@@ -381,6 +381,12 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/vacuum_import_commit` | `floor_id` (optional), `name` (optional), `include_rooms` (optional), `vacuum_entity` (optional) | always | `ws_vacuum.py` | Write the previewed candidate: a new map, its placement, new rooms only. |
 | `padspan_ha/vacuum_import_preview` | `json_text` (optional), `url` (optional), `entity_id` (optional) | always | `ws_vacuum.py` | Parse a robot vacuum's map into a candidate. |
 | `padspan_ha/vacuum_link_set` | `enabled` (optional), `vacuum_entity` (optional), `walker_enabled` (optional), `walker_tag` (optional), `unlink` (optional) | always | `ws_vacuum.py` | Turn the live position / the walker on or off. |
+| `padspan_ha/vacuum_robot_control` | `action` | always | `ws_vacuum.py` | Start, Pause or Dock, through Valetudo's BasicControlCapability (not while a run goes). |
+| `padspan_ha/vacuum_robot_set` | `url` (optional), `user` (optional), `password` (optional) | always | `ws_vacuum.py` | The robot's Valetudo address, and its user and password when Valetudo asks for them. |
+| `padspan_ha/vacuum_robot_status` | `rooms` (optional) | always | `ws_vacuum.py` | The robovac card: the robot as its Valetudo reports it, what a run needs, the last runs. |
+| `padspan_ha/vacuum_run_start` | `room` (optional) | always | `ws_vacuum.py` | Start a room location run (every room, or one): calibration is backed up first. |
+| `padspan_ha/vacuum_run_stop` | – | always | `ws_vacuum.py` | Stop the run going: the robot is sent home, the points so far stay. |
+| `padspan_ha/vacuum_run_undo` | `run_id` | always | `ws_vacuum.py` | Remove exactly one run's points from calibration. |
 | `padspan_ha/vacuum_status` | – | always | `ws_vacuum.py` |  |
 | `padspan_ha/version` | – | – | `websocket.py` | Return version info. |
 | `padspan_ha/wled_backups` | `action` (optional), `backup_id` (optional), `pin` (optional) | – | `ws_wled.py` | List, take, or read a stored backup of a WLED device's cfg/presets. |

@@ -49,6 +49,7 @@ const SCANNER = "#cbd5e1";                  // a plain scanner
 const NEUTRAL = "#7dd3fc";                  // someone with no figure (Live Aboard's soft marker)
 const GUEST = "#fbbf24";                    // a tag lent to a guest: its ring (amber, the panel's guest pill)
 const JUMP_M = 8;                           // further than this (or another floor): there at once
+const HOLD_MS = 500;                        // a hold (lights_map.js HOLD_MS): the robot vacuum's card, on release
 const C30 = Math.cos(Math.PI / 6);
 
 // ── light kinds → Atlas shapes ──────────────────────────────────────────────
@@ -283,6 +284,24 @@ function createLiveLayer(slot){
       if (I && I.card && d && typeof d.home === "function") showCard(I.card, n.getBoundingClientRect(), d.home(), w.key);
     };
     n.addEventListener("pointerdown", (e) => e.stopPropagation());
+    // The robot vacuum (2026-11-24, the owner: "press and hold on a map to surface [it]"): a hold opens its robovac
+    // card (robovac_card.js, loaded then) through the host's use api; the click that ends the hold is not a tap.
+    // Timed from the press's own stamps, as 3D's is on release: nothing runs at rest, not even while pressed.
+    if (w.key === "vacuum") {
+      let t0 = null, held = false;
+      const stamp = (e) => (e && Number.isFinite(e.timeStamp) ? e.timeStamp : performance.now());
+      n.addEventListener("pointerdown", (e) => { held = false; t0 = stamp(e); });
+      for (const ev of ["pointercancel", "pointerleave"]) n.addEventListener(ev, () => { t0 = null; });
+      n.addEventListener("pointerup", (e) => {
+        if (t0 === null || stamp(e) - t0 < HOLD_MS) { t0 = null; return; }
+        t0 = null; held = true;
+        const api = d && typeof d.useApi === "function" ? d.useApi() : null, I = items.get(w.key);
+        if (api) import(`./robovac_card.js${new URL(import.meta.url).search}`)
+          .then(m => m.openRobovacCard(api, { lines: (I && I.card && I.card.lines) || [] }))
+          .catch(err => console.warn("PadSpan: robovac_card failed to load", err));
+      });
+      n.addEventListener("click", (e) => { if (held) { held = false; e.stopPropagation(); e.stopImmediatePropagation(); } });
+    }
     n.addEventListener("click", tap);
     items.set(w.key, it);
     return it;

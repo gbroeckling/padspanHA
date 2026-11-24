@@ -36,6 +36,12 @@ Three things, every one of them off until the user asks for it:
      becomes a PENDING point: its known position and the tag's readings.
      Nothing reaches calibration from here. Only an accepted point is handed
      to calibration_store.async_add_point, one at a time, by the user.
+
+  4. ROOM LOCATION RUNS (vacuum_run.py, 2026-11-24): the owner starts a run
+     from the robot's card; the robot is sent to spots in each room and the
+     tag's readings there are ADDED to calibration, after a backup, each run
+     undoable as a whole. The store keeps the robot's address and the runs'
+     history; its user and password are kept apart (AUTH_STORE_KEY).
 """
 
 import base64
@@ -57,6 +63,9 @@ from .util import address_url, async_check_address
 _LOGGER = logging.getLogger(__name__)
 
 VACUUM_STORE_KEY = "padspan_ha.vacuum"
+# The robot's Valetudo user and password (2026-11-24): a store of their own,
+# so no backup carries them (ws_common._ALL_STORE_KEYS does not name it).
+AUTH_STORE_KEY = "padspan_ha.vacuum_auth"
 DATA_VACUUM = "vacuum_import"
 
 MAX_JSON_BYTES = 30 * 1024 * 1024       # a huge Dreame map is a few MB of JSON
@@ -272,6 +281,13 @@ def _apply(aff: list[float], x: float, y: float) -> tuple[float, float]:
     return (aff[0] * x + aff[1] * y + aff[2], aff[3] * x + aff[4] * y + aff[5])
 
 
+def segment_name(layer: dict, n: int) -> str:
+    """A segment's room name: its own, else "Room <its id>" (else its place, from 1)."""
+    md = layer.get("metaData") or {}
+    name = str(md.get("name") or "").strip() or f"Room {md.get('segmentId') or n + 1}"
+    return name[:60]
+
+
 def parse_valetudo(vmap: Any) -> dict[str, Any]:
     """A ValetudoMap JSON into an import candidate (see _candidate)."""
     if not isinstance(vmap, dict) or not isinstance(vmap.get("layers"), list):
@@ -300,9 +316,7 @@ def parse_valetudo(vmap: Any) -> dict[str, Any]:
             continue
         layers.append((kind, len(segs), px))
         if kind == "segment":
-            md = lay.get("metaData") or {}
-            name = str(md.get("name") or "").strip() or f"Room {md.get('segmentId') or len(segs) + 1}"
-            segs.append((name[:60], set(px)))
+            segs.append((segment_name(lay, len(segs)), set(px)))
     if not layers:
         raise VacuumImportError("The map has no floor, walls or rooms in it")
     xs = [p[0] for _, _, px in layers for p in px]
@@ -455,6 +469,8 @@ def _default_data() -> dict[str, Any]:
         "link": None,                          # set by an import commit, off until turned on
         "walker": {"enabled": False, "tag": ""},
         "pending": [],                          # the review pile — never calibration
+        "robot": {"url": ""},                   # the robot's Valetudo address, for its card and runs
+        "runs": [],                             # room location runs (vacuum_run.py), the last few
     }
 
 
@@ -465,7 +481,9 @@ class VacuumStore:
         from homeassistant.helpers.storage import Store  # noqa: PLC0415
         self.hass = hass
         self.store = Store(hass, 1, VACUUM_STORE_KEY)
+        self.auth_store = Store(hass, 1, AUTH_STORE_KEY)
         self.data: dict[str, Any] = _default_data()
+        self.auth: dict[str, str] = {"user": "", "password": ""}
         self.live: dict[str, Any] | None = None
         self.preview: dict[str, Any] | None = None   # the last parsed candidate, for its commit
         self._last_spot: tuple[float, float, str] | None = None
@@ -477,9 +495,21 @@ class VacuumStore:
             base = _default_data()
             base.update({k: loaded[k] for k in base if k in loaded})
             self.data = base
+        auth = await async_load_readable(self.auth_store, lambda d: isinstance(d, dict))
+        if isinstance(auth, dict):
+            self.auth = {"user": str(auth.get("user") or ""), "password": str(auth.get("password") or "")}
 
     async def async_save(self) -> None:
         await self.store.async_save(self.data)
+
+    async def async_save_auth(self, user: str, password: str) -> None:
+        self.auth = {"user": user, "password": password}
+        await self.auth_store.async_save(self.auth)
+
+    def basic_auth(self) -> tuple[str, str] | None:
+        """(user, password) for the robot's Valetudo, or None when none is set."""
+        a = getattr(self, "auth", None) or {}
+        return (a["user"], a.get("password") or "") if a.get("user") else None
 
     # The link ---------------------------------------------------------------
     def link_on(self) -> bool:
@@ -511,7 +541,7 @@ class VacuumStore:
     async def async_read_payload(self, link: dict) -> Any:
         kind, ref = link.get("read"), link.get("ref") or ""
         if kind == "url":
-            return await fetch_url_json(self.hass, ref)
+            return await fetch_url_json(self.hass, ref, self.basic_auth())
         if kind == "camera_png":
             png = await camera_image(self.hass, ref)
             # Unpacking a few MB of map JSON every tick: off the event loop.
@@ -602,17 +632,18 @@ async def camera_image(hass, entity_id: str) -> bytes:
     return img.content
 
 
-async def fetch_url_json(hass, url: str) -> Any:
+async def fetch_url_json(hass, url: str, auth: tuple[str, str] | None = None) -> Any:
     """GET a Valetudo map from the robot's REST API (the address the user gave).
 
     Never this machine itself nor a link-local address (util.async_check_address,
     on every address the name resolves to: AddressRefused), and a redirect is
-    not followed: it could lead to either."""
+    not followed: it could lead to either. `auth`: Valetudo's basic-auth
+    user and password, when the owner turned it on there."""
     from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
     import aiohttp  # noqa: PLC0415
     await async_check_address(hass, url, "the robot")
-    async with async_get_clientsession(hass).get(url, timeout=aiohttp.ClientTimeout(total=15),
-                                                 allow_redirects=False) as resp:
+    async with async_get_clientsession(hass).get(url, timeout=aiohttp.ClientTimeout(total=15), allow_redirects=False,
+                                                 auth=aiohttp.BasicAuth(*auth) if auth else None) as resp:
         if 300 <= resp.status < 400:
             raise VacuumImportError(f"The robot's address sent PadSpan on to another address (HTTP {resp.status}). "
                                     "Give the robot's own address instead.")

@@ -400,6 +400,14 @@ export function createUseSurface(o){
       return;
     }
     if (r !== "tap" && r !== "open") return;
+    // The robot vacuum (2026-11-24, the owner: "press and hold on a map to surface [it]"): a hold opens its robovac
+    // card (robovac_card.js, loaded then), a tap its small card as ever.
+    if (tgt.key === "vacuum" && r === "open") {
+      import(`./robovac_card.js${new URL(import.meta.url).search}`)
+        .then(m => m.openRobovacCard(api, { lines: (tgt.card && tgt.card.lines) || [] }))
+        .catch(err => console.warn("PadSpan: robovac_card failed to load", err));
+      return;
+    }
     if (tgt.kind === "tag" || tgt.kind === "scanner" || tgt.kind === "person") { showCard(tgt); return; }
     // A button standing for several lights: each with its switch, on the Atlas's own sheet.
     if (tgt.kind === "lights") { if (typeof api.openLights === "function") api.openLights(tgt.eids); return; }
@@ -468,6 +476,7 @@ export function createUseSurface(o){
         canDrag = !!l0.dimmable && String(t.eid).startsWith("light.");
       }
       if (t.kind === "door" && doorMover(t.bar)) holdable = true;   // a door that moves: hold for Home Assistant's own controls
+      if (t.key === "vacuum") holdable = true;                       // the robot vacuum: hold for its robovac card
       // "Rooms as light switches": a hold is the room's sheet, a hold then a drag dims its dimmable lights.
       let dimEids = null;
       if (t.kind === "room" && t.sw) {
