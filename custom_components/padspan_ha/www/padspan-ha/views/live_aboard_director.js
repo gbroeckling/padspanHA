@@ -39,6 +39,11 @@
 // One look at the states a second while there are triggers, on the sidebar;
 // nothing asked of Home Assistant, no frames at rest.
 
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export const HOLD_MS = 20000;              // the card up, then home
 export const TOUCH_GRACE_MS = 20000;       // touched this recently: the camera is theirs
 export const COOLDOWN_MS = 120000;         // a person or tag flown to at most this often
@@ -91,8 +96,8 @@ export function watchedOf(raw){
  *  words, or null. */
 export function arrivedOf(w, was, room, stWas, st, home = (s) => personIsHome(s)){
   const sw = stWas ? String(stWas.state) : "";
-  if (!w.rooms.length && stWas !== undefined && sw && !BAD.has(sw) && st && !home(stWas) && home(st)) return "Arrived home";
-  if (was !== undefined && room && room !== was && (!w.rooms.length || w.rooms.includes(room))) return `Went into ${room}`;
+  if (!w.rooms.length && stWas !== undefined && sw && !BAD.has(sw) && st && !home(stWas) && home(st)) return t("Arrived home");
+  if (was !== undefined && room && room !== was && (!w.rooms.length || w.rooms.includes(room))) return t("Went into {room}", { room });
   return null;
 }
 
@@ -101,15 +106,15 @@ export function wordsOf(eid, st){
   const at = (st && st.attributes) || {}, dc = String(at.device_class || "");
   switch (eid.split(".")[0]) {
     case "event":
-      if (dc === "doorbell") return "Someone rang the doorbell";
-      return at.event_type ? `Event: ${String(at.event_type).replace(/_/g, " ")}` : "Event";
-    case "alarm_control_panel": return "The alarm is going off";
+      if (dc === "doorbell") return t("Someone rang the doorbell");
+      return at.event_type ? t("Event: {type}", { type: String(at.event_type).replace(/_/g, " ") }) : t("Event");
+    case "alarm_control_panel": return t("The alarm is going off");
     default:
-      if (["door", "garage_door", "opening", "window"].includes(dc)) return "Opened";
+      if (["door", "garage_door", "opening", "window"].includes(dc)) return t("Opened");
       if (["smoke", "gas", "carbon_monoxide", "heat", "moisture", "safety", "problem", "tamper"].includes(dc))
-        return `Alarm: ${dc.replace(/_/g, " ")}`;
-      if (["motion", "occupancy", "presence", "moving"].includes(dc)) return "Motion";
-      return "Turned on";
+        return t("Alarm: {kind}", { kind: dc.replace(/_/g, " ") });
+      if (["motion", "occupancy", "presence", "moving"].includes(dc)) return t("Motion");
+      return t("Turned on");
   }
 }
 
@@ -191,7 +196,7 @@ export function createDirector(v){
     const name = doc.createElement("div"); name.className = "la3d-dname";
     name.textContent = who;
     const x = doc.createElement("button");
-    x.type = "button"; x.textContent = "×"; x.title = "Close"; x.setAttribute("aria-label", "Close");
+    x.type = "button"; x.textContent = "×"; x.title = t("Close"); x.setAttribute("aria-label", t("Close"));
     x.addEventListener("click", v.guard((e) => { stop(e); hide(); }));
     top.append(name, x);
     const what = doc.createElement("div"); what.className = "la3d-dwhat"; what.textContent = words;

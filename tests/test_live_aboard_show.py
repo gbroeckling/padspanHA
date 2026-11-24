@@ -123,6 +123,8 @@ def test_both_hosts_hand_over_a_way_to_settings_and_mapping_but_not_in_basic() -
 
 def test_the_list_module_imports_nothing_and_asks_nothing_of_home_assistant() -> None:
     code = _code(_VIEWS / "live_aboard_show.js")
+    # Its one import is the panel's translator (views/i18n.js: its words, nothing of Home Assistant).
+    code = code.replace("await import(`./i18n.js${new URL(import.meta.url).search}`)", "", 1)
     assert "import(" not in code and not re.search(r"^\s*import\s", code, re.M)
     for word in ("callWS", "hass", "settings_set", "saveSetting", "localStorage", "fetch("):
         assert word not in code, word
@@ -144,7 +146,7 @@ def test_tap_a_light_to_switch_it_is_on_for_every_house_and_governs_both_looks()
     import re as _re
     show = _js(_VIEWS / "live_aboard_show.js")
     line = _re.search(r'\{ key: "light_taps"[^\n]*\}', show).group(0)
-    assert 'words: "Tap a light to switch it"' in line and "flat: true" in line and "dflt" not in line
+    assert 'get words() { return t("Tap a light to switch it"); }' in line and "flat: true" in line and "dflt" not in line
     assert 'flat: true, dflt: false }' in show                    # Other floors, faded: off unless ticked, as before
     la = _js(_VIEWS / "live_aboard.js")
     assert "light_taps" not in la[la.index("function showHouseOf(p){"):la.index("function showHidden(p, on){")]
@@ -167,7 +169,7 @@ def test_the_help_says_a_tap_switches_and_where_it_is_turned_off_in_every_langua
         data = json.loads((_WWW / "i18n" / lang / "help.json").read_text(encoding="utf-8"))
         assert "Tap a light to switch it" in data[m.group(1)] and "Tap a light to switch it" in data[f.group(1)], lang
     la = _js(_VIEWS / "live_aboard.js")
-    assert '"Tap a light to switch it. Hold it for brightness and colour.",' in la and "tap a light · hold for controls" in la
+    assert 't("Tap a light to switch it. Hold it for brightness and colour."),' in la and "tap a light · hold for controls" in la
 
 
 def test_on_a_wall_the_whole_list_fits_the_screen_without_scrolling() -> None:

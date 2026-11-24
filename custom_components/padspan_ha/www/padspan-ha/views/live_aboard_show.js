@@ -33,6 +33,12 @@
 // this file holds the list, the prefs, the opt-in report's words and the
 // dropdown itself. Imports nothing: the view and the house module read it.
 
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, currentLanguage } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, currentLanguage: () => "en" }));
+
 /** The groups, in the order they are listed. */
 export const SHOW_GROUPS = [
   ["lights", "Lights"], ["motion", "Motion and sensors"], ["openings", "Doors, windows and locks"],
@@ -46,68 +52,71 @@ export const SHOW_GROUPS = [
  * hidden (alarms); later: a line a later piece wires (left out until then).
  */
 export const SHOW_ITEMS = [
-  { key: "lights", group: "lights", words: "Lights", hint: "Ceiling lights, pots, pendants, lamps: every light that isn't a strip or a fan", link: "place" },
-  { key: "glow", group: "lights", words: "Light glow", hint: "The pool, glow and wash a light that is on throws (the bulbs stay)" },
-  { key: "strips", group: "lights", words: "LED strips", hint: "Strips, coves, valances, under-cabinet and TV lights", link: "place" },
-  { key: "fans", group: "lights", words: "Ceiling fans", hint: "Fans and their blades", link: "place" },
+  { key: "lights", group: "lights", get words() { return t("Lights"); }, get hint() { return t("Ceiling lights, pots, pendants, lamps: every light that isn't a strip or a fan"); }, link: "place" },
+  { key: "glow", group: "lights", get words() { return t("Light glow"); }, get hint() { return t("The pool, glow and wash a light that is on throws (the bulbs stay)"); } },
+  { key: "strips", group: "lights", get words() { return t("LED strips"); }, get hint() { return t("Strips, coves, valances, under-cabinet and TV lights"); }, link: "place" },
+  { key: "fans", group: "lights", get words() { return t("Ceiling fans"); }, get hint() { return t("Fans and their blades"); }, link: "place" },
   // The scene row under the map (scene_row.js): on wherever the house has a
   // scene or a one-floor preset; not set up, the line opens Home Assistant's
   // new-scene editor (an administrator's, never on a wall).
-  { key: "scenes", group: "lights", words: "Scene row", hint: "The lighting scenes under the map: tap one to run it, again to turn it off", link: "scene_new", flat: true },
+  { key: "scenes", group: "lights", get words() { return t("Scene row"); }, get hint() { return t("The lighting scenes under the map: tap one to run it, again to turn it off"); }, link: "scene_new", flat: true },
   // Not a drawing: a tap on a light or an LED strip switches it, in 3D and on the flat Map
   // (live_aboard_use.js tapSwitch, lights_map.js wireUseSurface). On unless a screen unticks it
   // (a wall in a busy room). The Atlas tab and its walls only (live_aboard.js showRows: mapOnly).
-  { key: "light_taps", group: "lights", words: "Tap a light to switch it", hint: "Here and on the flat Map. Off: a tap on a light switches nothing on this screen; holding still opens its controls", flat: true },
+  { key: "light_taps", group: "lights", get words() { return t("Tap a light to switch it"); }, get hint() { return t("Here and on the flat Map. Off: a tap on a light switches nothing on this screen; holding still opens its controls"); }, flat: true },
   // Not a drawing either: what a tap lands on (live_aboard.js buttonsOn). Every light of the floors showing is a button
   // of one size on screen, and a tap anywhere else in a room opens the room's sheet. Off unless a screen ticks it (a
   // wall read from across a room); the 3D look on the Atlas tab and its walls only, and only while taps switch lights.
-  { key: "light_buttons", group: "lights", words: "Lights as buttons", hint: "Each light is a round button you can see and hit from across the room; buttons that overlap list their lights. A tap anywhere else in a room opens that room's lights. Holding a sensor still opens it", dflt: false },
+  { key: "light_buttons", group: "lights", get words() { return t("Lights as buttons"); }, get hint() { return t("Each light is a round button you can see and hit from across the room; buttons that overlap list their lights. A tap anywhere else in a room opens that room's lights. Holding a sensor still opens it"); }, dflt: false },
   // Not a drawing either (live_aboard.js roomSwitchOn; 2026-11-14: lights "close to useless" in the 3D look: an
   // unlit fixture is a dark dot in a dark house, and people want a room's lights, seldom one light). A room's floor is
   // the switch for its lights, and a touch lights the house up so it can be seen. Off unless a screen ticks it.
-  { key: "room_switch", group: "lights", words: "Rooms as light switches", hint: "Tap a room's floor: its lights go on or off together. Hold: the room's list. Hold, then drag up or down: dims the room. At night the first touch lights the house up for 20 seconds so everything can be seen", dflt: false },
-  { key: "motion_sensors", group: "motion", words: "Motion sensors", hint: "The sensors on the walls and their markers", link: "place" },
-  { key: "motion_rooms", group: "motion", words: "Motion in rooms", hint: "A room's floor glowing after motion, and the Motion chip" },
-  { key: "motion_reach", group: "motion", words: "Motion reach", hint: "The patch of floor a sensor sees, shown on a trigger or a tap" },
-  { key: "readouts", group: "motion", words: "Temperature and air", hint: "The chips under room names: temperature, humidity, air", link: "place" },
-  { key: "alarms", group: "motion", words: "Leak, smoke, CO and gas alarms", hint: "Always shown, with their ring and pill", always: true, link: "place" },
-  { key: "doors", group: "openings", words: "Doors", hint: "Every door leaf; the doorway stays open", link: "walls" },
-  { key: "windows", group: "openings", words: "Windows", hint: "Every pane; the opening stays", link: "walls" },
-  { key: "covers", group: "openings", words: "Garage doors and gates", hint: "Doors that follow a cover in Home Assistant", link: "walls" },
-  { key: "locks", group: "openings", words: "Locks", hint: "Lock markers, and an unlocked door's red glow", link: "place" },
-  { key: "railings", group: "openings", words: "Railings", hint: "Deck rails, stair rails and the rails on open edges", link: "walls" },
-  { key: "radios", group: "tracked", words: "Receivers (radios)", hint: "The Bluetooth receivers (scanners) where they are placed", link: "receivers" },
+  { key: "room_switch", group: "lights", get words() { return t("Rooms as light switches"); }, get hint() { return t("Tap a room's floor: its lights go on or off together. Hold: the room's list. Hold, then drag up or down: dims the room. At night the first touch lights the house up for 20 seconds so everything can be seen"); }, dflt: false },
+  { key: "motion_sensors", group: "motion", get words() { return t("Motion sensors"); }, get hint() { return t("The sensors on the walls and their markers"); }, link: "place" },
+  { key: "motion_rooms", group: "motion", get words() { return t("Motion in rooms"); }, get hint() { return t("A room's floor glowing after motion, and the Motion chip"); } },
+  { key: "motion_reach", group: "motion", get words() { return t("Motion reach"); }, get hint() { return t("The patch of floor a sensor sees, shown on a trigger or a tap"); } },
+  { key: "readouts", group: "motion", get words() { return t("Temperature and air"); }, get hint() { return t("The chips under room names: temperature, humidity, air"); }, link: "place" },
+  { key: "alarms", group: "motion", get words() { return t("Leak, smoke, CO and gas alarms"); }, get hint() { return t("Always shown, with their ring and pill"); }, always: true, link: "place" },
+  { key: "doors", group: "openings", get words() { return t("Doors"); }, get hint() { return t("Every door leaf; the doorway stays open"); }, link: "walls" },
+  { key: "windows", group: "openings", get words() { return t("Windows"); }, get hint() { return t("Every pane; the opening stays"); }, link: "walls" },
+  { key: "covers", group: "openings", get words() { return t("Garage doors and gates"); }, get hint() { return t("Doors that follow a cover in Home Assistant"); }, link: "walls" },
+  { key: "locks", group: "openings", get words() { return t("Locks"); }, get hint() { return t("Lock markers, and an unlocked door's red glow"); }, link: "place" },
+  { key: "railings", group: "openings", get words() { return t("Railings"); }, get hint() { return t("Deck rails, stair rails and the rails on open edges"); }, link: "walls" },
+  { key: "radios", group: "tracked", get words() { return t("Receivers (radios)"); }, get hint() { return t("The Bluetooth receivers (scanners) where they are placed"); }, link: "receivers" },
   // People and tags are switched for the house in Views ▾ while Live Aboard is on (settings.js says so): no Settings link.
-  { key: "tags", group: "tracked", words: "Beacons and tags", hint: "Every tag PadSpan places, with its name" },
-  { key: "people", group: "tracked", words: "People", hint: "Each person where their phone or tag is" },
-  { key: "trails", group: "tracked", words: "Trails, last 30 min", hint: "Where each person and tag went in the last half hour" },
-  { key: "codes", group: "tracked", words: "Device codes", hint: "The small code chips beside devices", link: "place" },
-  { key: "furniture", group: "house", words: "Furniture", hint: "Every piece placed in Furnish", link: "furnish" },
-  { key: "devices", group: "house", words: "Devices in furniture", hint: "Pieces that are a device (a TV, a washer): their screens and lights", link: "furnish" },
+  { key: "tags", group: "tracked", get words() { return t("Beacons and tags"); }, get hint() { return t("Every tag PadSpan places, with its name"); } },
+  { key: "people", group: "tracked", get words() { return t("People"); }, get hint() { return t("Each person where their phone or tag is"); } },
+  { key: "trails", group: "tracked", get words() { return t("Trails, last 30 min"); }, get hint() { return t("Where each person and tag went in the last half hour"); } },
+  { key: "codes", group: "tracked", get words() { return t("Device codes"); }, get hint() { return t("The small code chips beside devices"); }, link: "place" },
+  { key: "furniture", group: "house", get words() { return t("Furniture"); }, get hint() { return t("Every piece placed in Furnish"); }, link: "furnish" },
+  { key: "devices", group: "house", get words() { return t("Devices in furniture"); }, get hint() { return t("Pieces that are a device (a TV, a washer): their screens and lights"); }, link: "furnish" },
   // A phone's room scan (views/rough_plan.js) knows where the furniture stood that day. Never pieces the person placed:
   // a faint guide, read beside the 3D file (house3d_get's scan_pieces), in 3D and on the flat Map. Off unless a screen
   // ticks it (owner, 2026-11-16: "an option in the pulldown, normally off").
-  { key: "scan_furniture", group: "house", words: "Furniture from scans", hint: "Where the furniture stood when a phone scanned the floor: a faint guide, not pieces you placed", flat: true, dflt: false },
-  { key: "stairs", group: "house", words: "Stairs", hint: "The flights (the opening in the floor stays)", link: "furnish" },
-  { key: "room_names", group: "house", words: "Room names", hint: "Each room's name on its floor", link: "rooms" },
-  { key: "room_outlines", group: "house", words: "Room outlines", hint: "The coloured line round each room", link: "rooms" },
+  { key: "scan_furniture", group: "house", get words() { return t("Furniture from scans"); }, get hint() { return t("Where the furniture stood when a phone scanned the floor: a faint guide, not pieces you placed"); }, flat: true, dflt: false },
+  { key: "stairs", group: "house", get words() { return t("Stairs"); }, get hint() { return t("The flights (the opening in the floor stays)"); }, link: "furnish" },
+  { key: "room_names", group: "house", get words() { return t("Room names"); }, get hint() { return t("Each room's name on its floor"); }, link: "rooms" },
+  { key: "room_outlines", group: "house", get words() { return t("Room outlines"); }, get hint() { return t("The coloured line round each room"); }, link: "rooms" },
   // Not a drawing: how the rooms by name are offered (live_aboard_rooms.js). Off unless a screen ticks it (owner,
   // 2026-11-19: less on screen): one Rooms ▾ everywhere; ticked, a wide screen has every room in a row along the top.
   // Listed only where the row can show (not a narrow screen, not a wall: live_aboard.js showRows).
-  { key: "room_row", group: "house", words: "Room chips along the top", hint: "Every named room as a button in a row along the top, instead of one Rooms ▾ button", link: "rooms", dflt: false },
-  { key: "floor_outlines", group: "house", words: "Floor outlines", hint: "The faint line round each floor", link: "la3d" },
+  { key: "room_row", group: "house", get words() { return t("Room chips along the top"); }, get hint() { return t("Every named room as a button in a row along the top, instead of one Rooms ▾ button"); }, link: "rooms", dflt: false },
+  { key: "floor_outlines", group: "house", get words() { return t("Floor outlines"); }, get hint() { return t("The faint line round each floor"); }, link: "la3d" },
   // The flat Map's (lights_map.js focusAlone): with one floor chosen it is drawn alone, as big as the screen,
   // unless this is ticked. Off unless ticked (dflt: false, the house's own for every house).
-  { key: "other_floors", group: "house", words: "Other floors, faded", hint: "On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen", flat: true, dflt: false },
+  { key: "other_floors", group: "house", get words() { return t("Other floors, faded"); }, get hint() { return t("On the flat Map with one floor chosen: the other floors stay, faded. Off: the chosen floor fills the screen"); }, flat: true, dflt: false },
   // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
   // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).
-  { key: "glass_walls", group: "house", words: "Glass walls", hint: "The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)", dflt: false },
-  { key: "roof", group: "house", words: "Roof", hint: "The roof, seen from outside (the Roof button too)" },
-  { key: "rain", group: "look", words: "Rain and snow", hint: "Rain and snow falling round the house", link: "weather" },
-  { key: "theme", group: "look", words: "Theme colours", hint: "Off: the Classic look on this screen", link: "showcase" },
-  { key: "forest", group: "look", words: "West Coast Forest trees", hint: "The trees round the house", link: "showcase" },
+  { key: "glass_walls", group: "house", get words() { return t("Glass walls"); }, get hint() { return t("The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)"); }, dflt: false },
+  { key: "roof", group: "house", get words() { return t("Roof"); }, get hint() { return t("The roof, seen from outside (the Roof button too)"); } },
+  { key: "rain", group: "look", get words() { return t("Rain and snow"); }, get hint() { return t("Rain and snow falling round the house"); }, link: "weather" },
+  { key: "theme", group: "look", get words() { return t("Theme colours"); }, get hint() { return t("Off: the Classic look on this screen"); }, link: "showcase" },
+  { key: "forest", group: "look", get words() { return t("West Coast Forest trees"); }, get hint() { return t("The trees round the house"); }, link: "showcase" },
 ];
 const BY_KEY = new Map(SHOW_ITEMS.map(it => [it.key, it]));
+// The groups' names in the panel's language (SHOW_GROUPS stays the English list).
+const GROUP_WORDS = { lights: () => t("Lights"), motion: () => t("Motion and sensors"), openings: () => t("Doors, windows and locks"),
+  tracked: () => t("People and tracking"), house: () => t("The house"), look: () => t("Weather and look") };
 /** The lines the flat Map honours too (lights_map.js flatShow): the only ones its own ⋯ list shows. */
 export const FLAT_KEYS = SHOW_ITEMS.filter(it => it.flat).map(it => it.key);
 /** The lines a person can tick (not the alarms, not a line still to come). */
@@ -126,6 +135,20 @@ export const LINK_WORDS = {
   // Home Assistant's own scene editor (scene_row.js SCENE_PLACE), not a PadSpan page.
   scene_new: ["Home Assistant", "Home Assistant → Settings → Automations & scenes → Scenes"],
 };
+// The same in the panel's language: linkWords(key) is [the screen, the way there] (LINK_WORDS stays the English one).
+const LINK_T = {
+  place: () => [t("Mapping"), t("Mapping → Atlas builder, where devices are placed")],
+  walls: () => [t("Mapping"), t("Mapping → Edit, where walls, doors and windows are drawn")],
+  rooms: () => [t("Mapping"), t("Mapping → Edit, where rooms are drawn and named")],
+  receivers: () => [t("Mapping"), t("Mapping → Edit, where receivers are placed")],
+  furnish: () => [t("Mapping"), t("Mapping → Furnish")],
+  la3d: () => [t("Settings"), t("Settings → Atlas → Live Aboard")],
+  weather: () => [t("Settings"), t("Settings → Atlas → Outdoor weather")],
+  showcase: () => [t("Mapping"), t("Mapping → Atlas builder → Showcase options")],
+  atlas: () => [t("Settings"), t("Settings → Atlas")],
+  scene_new: () => ["Home Assistant", t("Home Assistant → Settings → Automations & scenes → Scenes")],
+};
+const linkWords = (key) => (LINK_T[key] ? LINK_T[key]() : LINK_WORDS[key]);
 /** Where each is, for the host's goTo({view, tab, part}): the panel's own
  *  screen, its tab, and the card on it (settings.js data-focus-part). */
 export const GO_TO = {
@@ -217,11 +240,11 @@ export function rowsOf(on, ready){
     for (const it of SHOW_ITEMS) {
       if (it.group !== g || it.later) continue;
       const r = ready && ready[it.key];
-      const link = it.link && LINK_WORDS[it.link] ? { where: it.link, words: LINK_WORDS[it.link][0], title: LINK_WORDS[it.link][1] } : null;
+      const link = it.link && LINK_WORDS[it.link] ? { where: it.link, words: linkWords(it.link)[0], title: linkWords(it.link)[1] } : null;
       rows.push({ key: it.key, words: it.words, hint: it.hint, always: !!it.always, on: !!on[it.key],
                   setup: r && typeof r === "object" ? r : null, link });
     }
-    if (rows.length) groups.push({ group: g, words: gw, rows });
+    if (rows.length) groups.push({ group: g, words: GROUP_WORDS[g] ? GROUP_WORDS[g]() : gw, rows });
   }
   return groups;
 }
@@ -235,36 +258,37 @@ export function setupLine(key, admin, canGo = true, why = null, kiosk = false){
   const it = BY_KEY.get(key);
   const name = it ? it.words : key;
   if (key === "people" || key === "tags") {
-    const sw = key === "people" ? "Show people" : "Show tags & scanners";
-    return { text: admin ? `${name} are off for the whole house. Turn them on?` : `${name} are off for the whole house: an administrator turns them on (Views ▾ → ${sw}).`,
-             go: null, perm: key, button: admin ? "Show me the switch ›" : null };
+    return { text: key === "people"
+               ? (admin ? t("People are off for the whole house. Turn them on?") : t("People are off for the whole house: an administrator turns them on (Views ▾ → Show people)."))
+               : (admin ? t("Beacons and tags are off for the whole house. Turn them on?") : t("Beacons and tags are off for the whole house: an administrator turns them on (Views ▾ → Show tags & scanners).")),
+             go: null, perm: key, button: admin ? t("Show me the switch ›") : null };
   }
   const SAYS = {
-    lights: "No lights are placed yet.", light_taps: "No lights are placed yet.", light_buttons: "No lights are placed yet.", strips: "No LED strips are placed yet.", fans: "No ceiling fans are placed yet.",
-    motion_sensors: "No motion sensors are placed yet.", motion_rooms: "No motion sensors are placed yet.", motion_reach: "No motion sensors are placed yet.",
-    readouts: "No temperature or air sensors are placed yet.", locks: "No locks are placed yet.",
-    doors: "No doors are drawn yet.", windows: "No windows are drawn yet.", covers: "No door follows a garage door or gate yet.",
-    railings: "No deck or stair rails yet.", radios: "No receivers are placed yet.", furniture: "No furniture yet.",
-    devices: "No furniture is a device yet.", stairs: "No stairs yet.",
-    scan_furniture: "No floor plan here came from a phone's room scan with furniture in it (Mapping → Upload → No floor plan? → Scan the floor).", room_names: "No rooms are drawn yet.",
-    room_outlines: "No rooms are drawn yet.", room_row: "No rooms are drawn yet.", rain: "Rain and snow aren't set up yet: they need a weather source.",
-    theme: "No theme is on yet.", forest: "The trees come with the West Coast Forest theme.",
-    floor_outlines: "Floor outlines come with the Atlas's look.",
-    trails: "Trails follow people and tags: turn one of them on first.",
-    trails_live: "Trails need live data (Traceback's last half hour).",
-    scenes: "No lighting scenes yet: a Home Assistant scene with a placed light, or a Whole house preset that lights one floor.",
+    lights: t("No lights are placed yet."), light_taps: t("No lights are placed yet."), light_buttons: t("No lights are placed yet."), strips: t("No LED strips are placed yet."), fans: t("No ceiling fans are placed yet."),
+    motion_sensors: t("No motion sensors are placed yet."), motion_rooms: t("No motion sensors are placed yet."), motion_reach: t("No motion sensors are placed yet."),
+    readouts: t("No temperature or air sensors are placed yet."), locks: t("No locks are placed yet."),
+    doors: t("No doors are drawn yet."), windows: t("No windows are drawn yet."), covers: t("No door follows a garage door or gate yet."),
+    railings: t("No deck or stair rails yet."), radios: t("No receivers are placed yet."), furniture: t("No furniture yet."),
+    devices: t("No furniture is a device yet."), stairs: t("No stairs yet."),
+    scan_furniture: t("No floor plan here came from a phone's room scan with furniture in it (Mapping → Upload → No floor plan? → Scan the floor)."), room_names: t("No rooms are drawn yet."),
+    room_outlines: t("No rooms are drawn yet."), room_row: t("No rooms are drawn yet."), rain: t("Rain and snow aren't set up yet: they need a weather source."),
+    theme: t("No theme is on yet."), forest: t("The trees come with the West Coast Forest theme."),
+    floor_outlines: t("Floor outlines come with the Atlas's look."),
+    trails: t("Trails follow people and tags: turn one of them on first."),
+    trails_live: t("Trails need live data (Traceback's last half hour)."),
+    scenes: t("No lighting scenes yet: a Home Assistant scene with a placed light, or a Whole house preset that lights one floor."),
   };
-  const said = typeof why === "string" && why ? why : SAYS[key] || `${name} isn't set up yet.`;
+  const said = typeof why === "string" && why ? why : SAYS[key] || t("{name} isn't set up yet.", { name });
   const go = it && it.link && key !== "trails" ? it.link : null;
   // Where, in words: a PadSpan page is named as one, for a wall's "from another screen".
-  const where = go ? (go === "scene_new" ? LINK_WORDS[go][1] : `PadSpan → ${LINK_WORDS[go][1]}`) : "";
+  const where = go ? (go === "scene_new" ? linkWords(go)[1] : `PadSpan → ${linkWords(go)[1]}`) : "";
   const make = key === "scenes";
   const text = !go ? said
-    : kiosk ? `${said} ${make ? "Make one" : "Set it up"} from another screen, in ${where}.`
-    : !admin ? `${said} An administrator ${make ? "makes scenes" : "sets it up"} in ${LINK_WORDS[go][1]}.`
-    : canGo ? `${said} ${make ? "Make one?" : "Set it up?"}` : `${said} It's ${make ? "done" : "set up"} in ${LINK_WORDS[go][1]}.`;
+    : kiosk ? said + " " + (make ? t("Make one from another screen, in {where}.", { where }) : t("Set it up from another screen, in {where}.", { where }))
+    : !admin ? said + " " + (make ? t("An administrator makes scenes in {where}.", { where: linkWords(go)[1] }) : t("An administrator sets it up in {where}.", { where: linkWords(go)[1] }))
+    : canGo ? said + " " + (make ? t("Make one?") : t("Set it up?")) : said + " " + (make ? t("It's done in {where}.", { where: linkWords(go)[1] }) : t("It's set up in {where}.", { where: linkWords(go)[1] }));
   const can = admin && canGo && !kiosk;
-  return { text, go: can ? go : null, perm: null, button: can && go ? "Yes ›" : null };
+  return { text, go: can ? go : null, perm: null, button: can && go ? t("Yes ›") : null };
 }
 
 /**
@@ -410,8 +434,8 @@ export function createShowMenu(v){
   const btn = v.button || d("button", "la3d-more", "⋯");
   if (!v.button) {
     btn.type = "button";
-    btn.title = "Show on this screen: pick what the map shows";
-    btn.setAttribute("aria-label", "Show on this screen: pick what the map shows");
+    btn.title = t("Show on this screen: pick what the map shows");
+    btn.setAttribute("aria-label", t("Show on this screen: pick what the map shows"));
     btn.setAttribute("aria-haspopup", "true");
     btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("data-la3d-more", "");
@@ -452,9 +476,11 @@ export function createShowMenu(v){
         const words = d("span", null);
         words.style.minWidth = "0";
         words.appendChild(d("span", "la3d-sname", r.words));
-        words.appendChild(d("span", "la3d-snote", r.always ? "Always shown" : r.hint));
+        words.appendChild(d("span", "la3d-snote", r.always ? t("Always shown") : r.hint));
         tick.append(box0, words);
-        tick.title = r.always ? `${r.words}: always shown, so an alarm is never missed` : `${r.on ? "Hide" : "Show"} ${r.words.toLowerCase()} on this screen`;
+        // In English the line's name is lower case inside the sentence; other languages keep their capitals.
+        const inSentence = currentLanguage() === "en" ? r.words.toLowerCase() : r.words;
+        tick.title = r.always ? t("{what}: always shown, so an alarm is never missed", { what: r.words }) : r.on ? t("Hide {what} on this screen", { what: inSentence }) : t("Show {what} on this screen", { what: inSentence });
         // Not set up: greyed, a dashed box (people and tags: a tap still takes an administrator to their switch).
         if (r.setup) tick.classList.add("la3d-snot");
         if (r.always || (r.setup && !r.setup.perm)) { tick.setAttribute("aria-disabled", "true"); if (r.setup) tick.title = r.setup.text; }
@@ -463,7 +489,7 @@ export function createShowMenu(v){
         if (r.link && v.canGo(r.link.where) && !(r.setup && r.setup.button)) {
           const a = d("button", "la3d-slink", `${r.link.words} ›`);
           a.type = "button";
-          a.title = `Open ${r.link.title}`;
+          a.title = t("Open {where}", { where: r.link.title });
           a.setAttribute("data-go", r.link.where);
           a.addEventListener("click", v.guard((e) => { stop(e); close(); v.go(r.link.where, r.key); }));
           row.appendChild(a);
@@ -495,27 +521,27 @@ export function createShowMenu(v){
     if (v.onOpen) v.onOpen();
     box = d("div", "la3d-show");
     box.setAttribute("role", "dialog");
-    box.setAttribute("aria-label", "Show on this screen");
+    box.setAttribute("aria-label", t("Show on this screen"));
     box.setAttribute("data-la3d-show", "");
     for (const ev of ["pointerdown", "pointerup", "wheel", "dblclick", "contextmenu"]) box.addEventListener(ev, stop);
     const head = d("div", "la3d-shead");
-    head.appendChild(d("b", null, "Show on this screen"));
-    head.appendChild(d("span", null, "Only this screen changes"));
+    head.appendChild(d("b", null, t("Show on this screen")));
+    head.appendChild(d("span", null, t("Only this screen changes")));
     const x = d("button", "la3d-sx", "✕");
-    x.type = "button"; x.title = "Close"; x.setAttribute("aria-label", "Close");
+    x.type = "button"; x.title = t("Close"); x.setAttribute("aria-label", t("Close"));
     x.addEventListener("click", v.guard((e) => { stop(e); close(); }));
     head.appendChild(x);
     const body = d("div", "la3d-sbody");
     body.setAttribute("role", "menu");
     const foot = d("div", "la3d-sfoot");
-    const reset = d("button", "la3d-sreset", "Back to house defaults");
+    const reset = d("button", "la3d-sreset", t("Back to house defaults"));
     reset.type = "button";
-    reset.title = "Show everything as the house's settings say, on this screen";
+    reset.title = t("Show everything as the house's settings say, on this screen");
     reset.addEventListener("click", v.guard((e) => { stop(e); if (!v.changed()) return; v.reset(); paint(); }));
     foot.appendChild(reset);
     if (v.canGo("atlas")) {
-      const set = d("button", "la3d-sset", "Settings → Atlas ›");
-      set.type = "button"; set.title = "Open Settings → Atlas: the house's own settings";
+      const set = d("button", "la3d-sset", t("Settings → Atlas ›"));
+      set.type = "button"; set.title = t("Open Settings → Atlas: the house's own settings");
       set.addEventListener("click", v.guard((e) => { stop(e); close(); v.go("atlas", null); }));
       foot.appendChild(set);
     }

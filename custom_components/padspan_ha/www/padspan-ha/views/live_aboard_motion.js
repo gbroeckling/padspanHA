@@ -45,6 +45,11 @@
 // it in. Reads nothing of Home Assistant: the states the host passes.
 
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 const { computeMotionOccupancyPairs } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
 const { deviceClassOf, healthOf } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
@@ -261,13 +266,13 @@ export function ageWords(g){
 }
 /** The hover box's words: "Motion · Kitchen · 3 min ago". */
 export function hoverWords(model, where, g){
-  const what = model === "presence" ? "Presence" : "Motion";
+  const what = model === "presence" ? t("Presence") : t("Motion");
   let when;
-  if (!g) when = "quiet";
-  else if (g.none) when = "no reading";
-  else if (g.stuck) when = `stuck on for ~${Math.max(1, Math.round(g.elapsed / 3600000))} h`;
-  else if (g.steady) when = "someone here";
-  else { const w = ageWords(g); when = w === "now" ? "now" : w === "just now" ? w : `${w} ago`; }
+  if (!g) when = t("quiet");
+  else if (g.none) when = t("no reading");
+  else if (g.stuck) when = t("stuck on for ~{n} h", { n: Math.max(1, Math.round(g.elapsed / 3600000)) });
+  else if (g.steady) when = t("someone here");
+  else { const w = ageWords(g); when = w === "now" ? t("now") : w === "just now" ? t("just now") : t("{age} ago", { age: w }); }
   return `${what} · ${where} · ${when}`;
 }
 /** The Motion chip's rooms: the newest (on first), at most `max`, never a
@@ -844,7 +849,7 @@ export function createMotionLayer(ctx){
       const S = sensors.find(x => x.eid === eid);
       if (!S) return null;
       const l = S.l || {};
-      const where = S.room ? S.room.name : l.area_name || String(l.friendly_name || "Outside").replace(/\b(motion|occupancy|presence|sensor)\b/gi, " ").replace(/\s+/g, " ").trim() || "Outside";
+      const where = S.room ? S.room.name : l.area_name || String(l.friendly_name || t("Outside")).replace(/\b(motion|occupancy|presence|sensor)\b/gi, " ").replace(/\s+/g, " ").trim() || t("Outside");
       return hoverWords(S.model, where, markGlow(S));
     },
     /** What is hovered or pressed (eid, or null): its coverage shows. True
@@ -877,10 +882,10 @@ export function createMotionLayer(ctx){
         if (!P.glow) continue;
         const S = P.all.find(x => x.give === P.glow) || P.all[0];
         const l = S.l || {};
-        rows.push({ name: P.room ? P.room.name : l.area_name || chipName(l) || "Outside", eid: S.eid, glow: P.glow });
+        rows.push({ name: P.room ? P.room.name : l.area_name || chipName(l) || t("Outside"), eid: S.eid, glow: P.glow });
       }
       // Over nothing (no patch): the marker's own.
-      for (const S of sensors) if (!S.patch && S.own && !S.own.none) rows.push({ name: chipName(S.l || {}) || "Outside", eid: S.eid, glow: S.own });
+      for (const S of sensors) if (!S.patch && S.own && !S.own.none) rows.push({ name: chipName(S.l || {}) || t("Outside"), eid: S.eid, glow: S.own });
       return chipRooms(rows, max);
     },
     state(){
@@ -950,7 +955,7 @@ export function createMotionChip(o){
   keyEl.className = "la3d-mkey";
   keyEl.hidden = true;
   const kb = doc.createElement("b");
-  kb.textContent = "Motion colours: how long ago";
+  kb.textContent = t("Motion colours: how long ago");
   const kr = doc.createElement("div");
   kr.className = "la3d-mrow";
   for (const [words, i] of COLOUR_KEY) {
@@ -975,7 +980,7 @@ export function createMotionChip(o){
       if (!rows.length) { el.hidden = true; keyEl.hidden = true; return true; }
       el.hidden = false;
       const lbl = doc.createElement("span");
-      lbl.textContent = "Motion:";
+      lbl.textContent = t("Motion:");
       lbl.style.marginRight = "2px";
       el.appendChild(lbl);
       rows.forEach((r, i) => {
@@ -983,7 +988,7 @@ export function createMotionChip(o){
         const b = doc.createElement("button");
         b.type = "button";
         b.style.color = r.color;
-        b.title = `Go to ${r.name}`;
+        b.title = t("Go to {room}", { room: r.name });
         b.setAttribute("data-eid", r.eid);
         b.appendChild(doc.createTextNode(r.name));
         const a = doc.createElement("span");
@@ -997,8 +1002,8 @@ export function createMotionChip(o){
       info.type = "button";
       info.className = "la3d-minfo";
       info.textContent = "ⓘ";
-      info.title = "What the colours mean";
-      info.setAttribute("aria-label", "What the motion colours mean");
+      info.title = t("What the colours mean");
+      info.setAttribute("aria-label", t("What the motion colours mean"));
       info.addEventListener("click", (e) => { stop(e); keyEl.hidden = !keyEl.hidden; });
       el.appendChild(info);
       return true;

@@ -36,6 +36,8 @@
 const THREE = await import(`../vendor/three/three.module.min.js${new URL(import.meta.url).search}`);
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
 const USE = await import(`./live_aboard_use.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // Part C: the 3D file's rules (doors and windows drawn in 3D, a barrier's
 // hinge, swing, sill and head, device heights), read through the host.
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
@@ -199,7 +201,7 @@ const NARROW_W = 560;                      // under this the bar is one compact 
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
 const GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/LIVE_ABOARD_GUIDE.md";
-const WET_INK = "#38bdf8", WET_WORD = "☔ Window open in the rain";
+const WET_INK = "#38bdf8";
 const WINDOW_GLOW = "#ffc978";                           // a lit room's window at night, from outside
 const HEAT_A = 0.66;                                     // the heat map's strength over a room's floor
 const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transform:translateX(-50%);display:none;max-width:calc(100% - 140px);
@@ -872,17 +874,17 @@ function createSlot(slotKey){
       }
       return s;
     };
-    const WALLS = [["Cut", "Cut away the walls between you and the rooms", "cut"], ["Up", "All walls up", "up"], ["Down", "All walls down", "down"],
-                   ["Glass", "See-through glass walls between you and the rooms", "glass"]];
-    const ANGLES = [["Iso", "The Atlas's angle", "iso"], ["Top", "Straight down", "top"], ["⟳ 90°", "Turn the house a quarter", "turn"],
-                    ["Fit", "Fit the floors that are showing", "fit"]];
-    const walls = seg("Walls", WALLS.map(([t, title, m]) => [t, title, () => setWalls(m, true)]));
+    const WALLS = [[t("Cut"), t("Cut away the walls between you and the rooms"), "cut"], [t("Up"), t("All walls up"), "up"], [t("Down"), t("All walls down"), "down"],
+                   [t("Glass"), t("See-through glass walls between you and the rooms"), "glass"]];
+    const ANGLES = [[t("Iso"), t("The Atlas's angle"), "iso"], [t("Top"), t("Straight down"), "top"], ["⟳ 90°", t("Turn the house a quarter"), "turn"],
+                    [t("Fit"), t("Fit the floors that are showing"), "fit"]];
+    const walls = seg(t("Walls"), WALLS.map(([t, title, m]) => [t, title, () => setWalls(m, true)]));
     walls.setAttribute("data-la3d-walls", "");
     walls.classList.add("la3d-w");
     // The roof: shown from outside (Auto) or never (Off); on a narrow screen, in Walls ▾.
-    const ROOF = [["Roof: Auto", "The roof shows when you look at the house from outside", "auto"], ["Roof: Off", "Never show the roof", "off"]];
+    const ROOF = [[t("Roof: Auto"), t("The roof shows when you look at the house from outside"), "auto"], [t("Roof: Off"), t("Never show the roof"), "off"]];
     if (STOREY) {
-      const rb = seg(null, [["Roof", "The roof: shown from outside (Auto) or never (Off)", () => setRoof(roofPick() === "off" ? "auto" : "off")]]);
+      const rb = seg(null, [[t("Roof"), t("The roof: shown from outside (Auto) or never (Off)"), () => setRoof(roofPick() === "off" ? "auto" : "off")]]);
       rb.querySelector("button").setAttribute("data-la3d-roof", "");
       walls.appendChild(rb.querySelector("button"));
     }
@@ -891,12 +893,12 @@ function createSlot(slotKey){
     views.classList.add("la3d-w");
     // The floor stepper: ▲ the floor above, its name (a tap: the floor's
     // sheet), ▼ the floor below, All. It drives the floor chips' choice.
-    const floor = seg(null, [["▲", "The floor above", () => stepFloor(1)], ["", "", () => openFloorSheet()],
-                             ["▼", "The floor below", () => stepFloor(-1)], ["All", "Every floor", () => stepFloor(0)],
-                             ["⇕", "Explode: pull the floors apart to see each one", () => toggleExplode()]]);
+    const floor = seg(null, [["▲", t("The floor above"), () => stepFloor(1)], ["", "", () => openFloorSheet()],
+                             ["▼", t("The floor below"), () => stepFloor(-1)], [t("All"), t("Every floor"), () => stepFloor(0)],
+                             ["⇕", t("Explode: pull the floors apart to see each one"), () => toggleExplode()]]);
     floor.classList.add("la3d-floor");
     floor.setAttribute("data-la3d-floor", "");
-    floor.setAttribute("aria-label", "Floor");
+    floor.setAttribute("aria-label", t("Floor"));
     floorEls = [...floor.querySelectorAll("button")];
     if (floorEls[1]) floorEls[1].classList.add("la3d-fname");
     if (floorEls[3]) floorEls[3].classList.add("la3d-w");           // narrow: All is in View ▾
@@ -904,16 +906,16 @@ function createSlot(slotKey){
     floor.style.display = "none";
     // Views: every floor (to go straight to one), the whole house, and views
     // saved from the camera on this browser.
-    const vbtn = seg(null, [["Views ▾", "A floor, the whole house, or a view you saved",
+    const vbtn = seg(null, [[t("Views ▾"), t("A floor, the whole house, or a view you saved"),
       () => openMenu(vbtn, [...floorItems(), ...(floorSteps ? [null] : []), ...viewItems(false)])]]);
     vbtn.classList.add("la3d-w");
     vbtn.setAttribute("data-la3d-saved", "");
     // A narrow screen: one row — Walls ▾, View ▾, the floor stepper, full screen.
-    const wbtn = seg(null, [["Walls ▾", "Cut, Up, Down or Glass, and the roof", () => openMenu(wbtn, [
+    const wbtn = seg(null, [[t("Walls ▾"), t("Cut, Up, Down or Glass, and the roof"), () => openMenu(wbtn, [
       ...WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m, true) })),
       ...(STOREY ? [null, ...ROOF.map(([t, title, v]) => ({ text: t, title, on: roofPick() === v, act: () => setRoof(v) }))] : [])])]]);
     wbtn.classList.add("la3d-n");
-    const abtn = seg(null, [["View ▾", "Angles, the floors, the whole house and your views", () => openMenu(abtn, [
+    const abtn = seg(null, [[t("View ▾"), t("Angles, the floors, the whole house and your views"), () => openMenu(abtn, [
       ...ANGLES.map(([t, , n]) => ({ text: t, act: () => preset(n, true) })),
       ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems()])]]);
     abtn.classList.add("la3d-n");
@@ -927,7 +929,7 @@ function createSlot(slotKey){
     right.append(views, vbtn, full);
     bar.append(left, right);
     // Furnish on a narrow screen: the plan or the 3D view (a wide one shows both).
-    planSeg = seg(null, [["3D", "The house in 3D", () => setPlanOnly(false)], ["Plan", "Straight down on the floor showing", () => setPlanOnly(true)]]);
+    planSeg = seg(null, [["3D", t("The house in 3D"), () => setPlanOnly(false)], [t("Plan"), t("Straight down on the floor showing"), () => setPlanOnly(true)]]);
     planSeg.setAttribute("data-la3d-plan", "");
     planSeg.style.display = "none";
     left.appendChild(planSeg);
@@ -940,8 +942,8 @@ function createSlot(slotKey){
     // The map alone: one small button brings the bars back.
     soloBtn = d("button", "la3d-solo");
     soloBtn.type = "button"; soloBtn.textContent = "☰";
-    soloBtn.title = "Show the controls";
-    soloBtn.setAttribute("aria-label", "Show the controls");
+    soloBtn.title = t("Show the controls");
+    soloBtn.setAttribute("aria-label", t("Show the controls"));
     soloBtn.setAttribute("data-la3d-solo", "");
     soloBtn.addEventListener("click", guard((e) => { e.stopPropagation(); setBare(false, true); }));
     root.appendChild(soloBtn);
@@ -968,7 +970,7 @@ function createSlot(slotKey){
         onClose: () => { const s = roomSheet; roomSheet = null; if (s) s.close(); } });
     }
     tipEl = d("div", "la3d-tip");
-    tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
+    tipEl.textContent = t("Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there");
     root.appendChild(tipEl);
     mchip = MOTION ? MOTION.createMotionChip({ root, fly: (eid) => findDevice(eid) }) : null;
     // A window open while it rains: one line under the Motion chip; a tap flies there.
@@ -989,8 +991,8 @@ function createSlot(slotKey){
     // turns with the camera. A tap turns the house to north up.
     const compass = d("button", "la3d-compass");
     compass.type = "button";
-    compass.title = "North up";
-    compass.setAttribute("aria-label", "Compass: turn the view to north up");
+    compass.title = t("North up");
+    compass.setAttribute("aria-label", t("Compass: turn the view to north up"));
     compass.innerHTML = '<svg viewBox="-26 -26 52 52" aria-hidden="true">'
       + '<circle r="23" fill="none" stroke="rgba(226,240,232,.18)" stroke-width="1.2"/>'
       + '<g class="la3d-rose"><path d="M0,-15 L4.6,0 L-4.6,0 Z" fill="#ef5350"/><path d="M0,15 L4.6,0 L-4.6,0 Z" fill="#cfd8d3"/>'
@@ -1016,9 +1018,9 @@ function createSlot(slotKey){
     // Shown on release of a spin: nothing is saved until Save.
     pill = d("span", "lv-zoomseg la3d-north");
     pill.setAttribute("role", "group");
-    pill.setAttribute("aria-label", "North");
-    pillBtns = [["Save north", "Keep north where the needle points", () => saveNorth()],
-                ["Cancel", "Put north back", () => cancelNorth()]].map(([text, title, act]) => {
+    pill.setAttribute("aria-label", t("North"));
+    pillBtns = [[t("Save north"), t("Keep north where the needle points"), () => saveNorth()],
+                [t("Cancel"), t("Put north back"), () => cancelNorth()]].map(([text, title, act]) => {
       const b = d("button");
       b.type = "button"; b.textContent = text; b.title = title;
       b.addEventListener("click", guard((e) => { e.stopPropagation(); act(); }));
@@ -1205,15 +1207,15 @@ function createSlot(slotKey){
     s.textContent = c.on ? String(c.on) : "";
     return s;
   }
-  const activityText = (c) => (c && (c.on || c.motion) ? `${c.on} on${c.motion ? ` · ${c.motion} motion` : ""}` : "nothing on");
+  const activityText = (c) => (c && (c.on || c.motion) ? t("{n} on", { n: c.on }) + (c.motion ? " · " + t("{n} motion", { n: c.motion }) : "") : t("nothing on"));
   /** The floor's name and its dot, into `el` (the stepper's name, the corner). */
   function nameInto(el, s, i){
-    const t = document.createElement("span");
-    t.className = "la3d-fn";
-    t.textContent = s.all && i === null ? "All floors" : s.names[i] || "";
+    const span = document.createElement("span");
+    span.className = "la3d-fn";
+    span.textContent = s.all && i === null ? t("All floors") : s.names[i] || "";
     const dot = i === null ? null : dotOf(s.counts && s.counts[i]);
     const fb = i === null ? null : badgeOf(i);
-    el.replaceChildren(...(fb ? [fb] : []), ...(dot ? [t, dot] : [t]));
+    el.replaceChildren(...(fb ? [fb] : []), ...(dot ? [span, dot] : [span]));
   }
   /** The Atlas's number for a floor (its plate's badge: 1 at the bottom, in
    *  the plate's colour), with the Atlas's look. */
@@ -1235,7 +1237,7 @@ function createSlot(slotKey){
     up.disabled = s.at >= n - 1;
     down.disabled = s.at <= 0;
     nameInto(name, s, s.at);
-    name.title = `${s.names[s.at] || ""}: everything on this floor${s.counts ? ` (${activityText(s.counts[s.at])})` : ""}`;
+    name.title = t("{floor}: everything on this floor", { floor: s.names[s.at] || "" }) + (s.counts ? ` (${activityText(s.counts[s.at])})` : "");
     all.setAttribute("aria-pressed", String(!!s.all));
     name.setAttribute("aria-pressed", String(!s.all));
   }
@@ -1245,12 +1247,12 @@ function createSlot(slotKey){
   function floorItems(){
     const s = floorSteps;
     if (!s) return [];
-    return [{ text: "All floors", on: s.all, act: () => stepFloor(0) },
+    return [{ text: t("All floors"), on: s.all, act: () => stepFloor(0) },
             ...s.names.map((name, i) => ({ text: name, on: !s.all && s.at === i, dot: s.counts ? s.counts[i] : null, badge: i,
                                            title: s.counts ? `${name}: ${activityText(s.counts[i])}` : name,
                                            act: () => { const q = floorSteps; if (q && i < q.names.length && (q.all || i !== q.at)) q.go(i); } })),
             // ⇕ is hidden on a narrow screen: Explode is here too.
-            ...(s.all && s.names.length > 1 ? [{ text: "⇕ Explode", on: !!explodeGap(), act: () => toggleExplode() }] : [])];
+            ...(s.all && s.names.length > 1 ? [{ text: t("⇕ Explode"), on: !!explodeGap(), act: () => toggleExplode() }] : [])];
   }
   /** The floors listed over `anchor`; with the map alone too (the corner's). */
   function openFloorList(anchor){
@@ -1289,7 +1291,7 @@ function createSlot(slotKey){
     const s = floorSteps;
     if (!cornerEl || !bare || !s) return;
     nameInto(cornerEl, s, s.all ? null : s.at);
-    cornerEl.title = s.all ? "All floors: tap for the list" : `${s.names[s.at]}${s.counts ? `, ${activityText(s.counts[s.at])}` : ""}: tap for the list`;
+    cornerEl.title = s.all ? t("All floors: tap for the list") : t("{floor}: tap for the list", { floor: s.names[s.at] + (s.counts ? `, ${activityText(s.counts[s.at])}` : "") });
     cornerEl.classList.remove("on");
     void cornerEl.offsetWidth;                               // the fade starts again
     cornerEl.classList.add("on");
@@ -1339,12 +1341,12 @@ function createSlot(slotKey){
         if (!o.wet) { o.wet = new THREE.Mesh(shared.glassBox, shared.wetMat); o.wet.matrixAutoUpdate = false; o.wet.renderOrder = 4; F.group.add(o.wet); }
         placeWet(F, P, !!P.cut);
         const dl = lbe[o.eid];
-        rows.push({ F, P, name: String((dl && dl.friendly_name) || (o.bar && o.bar.name) || "A window") });
+        rows.push({ F, P, name: String((dl && dl.friendly_name) || (o.bar && o.bar.name) || t("A window")) });
       } else if (o.wet) { o.wet.matrix.copy(ZERO); o.wet.matrixWorldNeedsUpdate = true; }
     }
     wetRows = rows;
     if (rows.length) HOUSE.countHouse3dOnce("house3d_wet_window", send);
-    const text = rows.length ? `${WET_WORD} · ${rows[0].name}${rows.length > 1 ? ` and ${rows.length - 1} more` : ""}` : "";
+    const text = rows.length ? `${t("☔ Window open in the rain")} · ${rows[0].name}${rows.length > 1 ? " " + t("and {n} more", { n: rows.length - 1 }) : ""}` : "";
     if (wetEl && text !== wetKey) {
       wetKey = text;
       wetEl.textContent = text;
@@ -1390,15 +1392,15 @@ function createSlot(slotKey){
   function writeViews(v){ prefSet(PREF_VIEWS + slotKey, JSON.stringify(v.slice(-VIEWS_MAX))); }
   function viewItems(){
     const saved = readViews();
-    return [{ text: "Whole house", act: () => wholeHouse() }, { text: "How it works", act: () => showHint(true) },
+    return [{ text: t("Whole house"), act: () => wholeHouse() }, { text: t("How it works"), act: () => showHint(true) },
             ...saved.map((v, i) => ({ text: v.name, act: () => goView(v), del: () => { saved.splice(i, 1); writeViews(saved); } })),
-            { text: "Save this view", act: () => saveView() },
-            ...(trailsOffered() ? [{ text: `Trails, last 30 min: ${prefGet(PREF_TRAILS) === "1" ? "On" : "Off"}`, on: prefGet(PREF_TRAILS) === "1",
-                                     title: "Where each person and tag went in the last half hour (this screen only)", act: () => toggleTrails() }] : []),
-            ...(LOOKPICK && !furnishOn ? [{ text: `Look: ${lookWords()} ›`, data: "la3d-look",
-                                            title: "The colours and light on this screen: Classic, Studio or a Showcase theme, and one after sunset",
+            { text: t("Save this view"), act: () => saveView() },
+            ...(trailsOffered() ? [{ text: prefGet(PREF_TRAILS) === "1" ? t("Trails, last 30 min: On") : t("Trails, last 30 min: Off"), on: prefGet(PREF_TRAILS) === "1",
+                                     title: t("Where each person and tag went in the last half hour (this screen only)"), act: () => toggleTrails() }] : []),
+            ...(LOOKPICK && !furnishOn ? [{ text: t("Look: {look} ›", { look: lookWords() }), data: "la3d-look",
+                                            title: t("The colours and light on this screen: Classic, Studio or a Showcase theme, and one after sunset"),
                                             act: () => openLookMenu() }] : []),
-            ...(showMenu ? [{ text: "Show on this screen ⋯", title: "Pick what this screen shows: lights, sensors, people, rain… (the ⋯ beside the compass)",
+            ...(showMenu ? [{ text: t("Show on this screen ⋯"), title: t("Pick what this screen shows: lights, sensors, people, rain… (the ⋯ beside the compass)"),
                               act: () => showMenu.open() }] : []),
             ...(panel ? panel.menuItems() : [])];
   }
@@ -1417,13 +1419,13 @@ function createSlot(slotKey){
     return hit ? String(hit.name) : null;
   }
   function saveView(){
-    const v = readViews(), base = roomNear(cam.target.x, cam.target.z) || "My view";
+    const v = readViews(), base = roomNear(cam.target.x, cam.target.z) || t("My view");
     let name = base;
     for (let n = 2; v.some(x => x.name === name); n++) name = `${base} ${n}`;
     v.push({ name, theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray(),
              floor: floorSteps ? (floorSteps.all ? -1 : floorSteps.at) : null });
     writeViews(v);
-    toast(`Saved "${name}" in Views`);
+    toast(t("Saved \"{name}\" in Views", { name }));
   }
   function goView(v){
     const s = floorSteps;
@@ -1453,23 +1455,23 @@ function createSlot(slotKey){
   function lookPickNow(p){ const L = lookHere(); return LOOKPICK.pickNow(L, L.night !== null && nightNow(p)); }
   /** The Look line in Views ▾: the pick, and the one after sunset. */
   function lookWords(){
-    const L = lookHere(), t = themesOf(rawP), w = (pick) => LOOKPICK.pickWords(pick, t);
-    return L.night === null ? w(L.day) : `${w(L.day)}, ${w(L.night)} after sunset`;
+    const L = lookHere(), themes = themesOf(rawP), w = (pick) => LOOKPICK.pickWords(pick, themes);
+    return L.night === null ? w(L.day) : t("{day}, {night} after sunset", { day: w(L.day), night: w(L.night) });
   }
   /** The list: Same as Settings, Live Aboard's own looks, the Showcase themes this tier has, and By the sun. */
   function lookItems(){
-    const L = lookHere(), t = themesOf(rawP), sun = L.night !== null, cur = sun && lookFor === "night" ? L.night : L.day;
-    const G = LOOKPICK.lookGroups(t, LOOKS ? LOOKS.SHOWCASE_LOOKS : null, STUDIO);   // Studio's module: its sky for the swatch, nothing run
+    const L = lookHere(), themes = themesOf(rawP), sun = L.night !== null, cur = sun && lookFor === "night" ? L.night : L.day;
+    const G = LOOKPICK.lookGroups(themes, LOOKS ? LOOKS.SHOWCASE_LOOKS : null, STUDIO);   // Studio's module: its sky for the swatch, nothing run
     // By the sun first (a long list scrolls): with it on, which part of the day the list picks for.
-    const out = [{ text: "By the sun: another look after sunset", check: true, on: sun, data: "la3d-bysun",
-                   title: "One look by day and another after sunset (Home Assistant's sun)", act: () => toggleBySun() }];
+    const out = [{ text: t("By the sun: another look after sunset"), check: true, on: sun, data: "la3d-bysun",
+                   title: t("One look by day and another after sunset (Home Assistant's sun)"), act: () => toggleBySun() }];
     if (sun) {
-      out.push({ seg: [{ text: "By day", on: lookFor !== "night", act: () => { lookFor = "day"; openLookMenu(); } },
-                       { text: "After sunset", on: lookFor === "night", act: () => { lookFor = "night"; openLookMenu(); } }] });
+      out.push({ seg: [{ text: t("By day"), on: lookFor !== "night", act: () => { lookFor = "day"; openLookMenu(); } },
+                       { text: t("After sunset"), on: lookFor === "night", act: () => { lookFor = "night"; openLookMenu(); } }] });
     }
     out.push(null);
-    out.push({ text: `Same as Settings (${LOOKPICK.settingsWords(rawP, t)})`, on: cur === LOOKPICK.SETTINGS, data: "la3d-look-settings",
-               title: "Settings → Atlas → Live Aboard's Look, and the Atlas's Showcase theme", act: () => setLook(LOOKPICK.SETTINGS) });
+    out.push({ text: t("Same as Settings ({look})", { look: LOOKPICK.settingsWords(rawP, themes) }), on: cur === LOOKPICK.SETTINGS, data: "la3d-look-settings",
+               title: t("Settings → Atlas → Live Aboard's Look, and the Atlas's Showcase theme"), act: () => setLook(LOOKPICK.SETTINGS) });
     for (const g of G.groups) {
       out.push({ head: g.head });
       for (const it of g.items) out.push({ text: it.words, swatch: it.swatch, on: cur === it.pick, act: () => setLook(it.pick) });
@@ -1576,7 +1578,7 @@ function createSlot(slotKey){
       row.appendChild(b);
       if (it.del) {
         const x = d("button", "la3d-mx");
-        x.type = "button"; x.textContent = "✕"; x.title = `Forget "${it.text}"`;
+        x.type = "button"; x.textContent = "✕"; x.title = t("Forget \"{name}\"", { name: it.text });
         x.setAttribute("aria-label", x.title);
         x.addEventListener("click", guard((e) => { e.stopPropagation(); closeMenu(); it.del(); }));
         row.appendChild(x);
@@ -1620,18 +1622,18 @@ function createSlot(slotKey){
     const card = document.createElement("div");
     card.className = "la3d-card";
     card.setAttribute("role", "dialog");
-    card.setAttribute("aria-label", "How Live Aboard works");
+    card.setAttribute("aria-label", t("How Live Aboard works"));
     const ul = d("ul");
-    for (const t of ["Live Aboard is experimental: it is still changing, and some of your house may not show yet.",
-                     "Tap a light to switch it. Hold it for brightness and colour.",
-                     "Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms.",
-                     "Double-tap a room to go there.",
-                     "Walls: Cut, Up or Down. ▲ and ▼ change the floor you see.",
+    for (const line of ["Live Aboard is experimental: it is still changing, and some of your house may not show yet.",
+                     t("Tap a light to switch it. Hold it for brightness and colour."),
+                     t("Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms."),
+                     t("Double-tap a room to go there."),
+                     t("Walls: Cut, Up or Down. ▲ and ▼ change the floor you see."),
                      ...(mapOnly ? ["Zoom in and the bars step aside for the map alone; ☰ brings them back. The corners button fills the screen.",
-                                    "With the map alone, PgUp and PgDn change the floor and Home shows them all. Touch the map and the floor's name shows in the corner: tap it to pick a floor."] : [])]) {
-      ul.appendChild(d("li", t));
+                                    t("With the map alone, PgUp and PgDn change the floor and Home shows them all. Touch the map and the floor's name shows in the corner: tap it to pick a floor.")] : [])]) {
+      ul.appendChild(d("li", line));
     }
-    const ok = d("button", "Got it");
+    const ok = d("button", t("Got it"));
     ok.type = "button";
     ok.addEventListener("click", guard((e) => {
       e.stopPropagation();
@@ -1640,10 +1642,10 @@ function createSlot(slotKey){
       hintCard = null;
     }));
     // The whole guide, in a new tab (Views ▾ → How it works brings this card back).
-    const more = d("a", "The full guide: everything Live Aboard does, and building in Edit");
+    const more = d("a", t("The full guide: everything Live Aboard does, and building in Edit"));
     more.href = GUIDE_URL; more.target = "_blank"; more.rel = "noopener";
     more.className = "la3d-guide";
-    card.append(d("b", "Live Aboard"), ul, more, ok);
+    card.append(d("b", t("Live Aboard")), ul, more, ok);
     root.appendChild(card);
     hintCard = card;
   }
@@ -1665,7 +1667,7 @@ function createSlot(slotKey){
     observers.push(() => canvas.removeEventListener("webglcontextlost", onLost));
     buildRoot();
     canvas.setAttribute("role", "img");
-    canvas.setAttribute("aria-label", "Live Aboard");
+    canvas.setAttribute("aria-label", t("Live Aboard"));
     root.insertBefore(canvas, bar);
     scene = new THREE.Scene();
     scene.background = new THREE.Color(BG);
@@ -1699,7 +1701,7 @@ function createSlot(slotKey){
       lightTaps: () => lightTapsOn(),
       switched: (ok) => showSend(`house3d_show:light_tap:${ok ? "ok" : "failed"}`),
       // A light a tap switched says so, with the way back (proposal 4): a wrong one costs one more tap.
-      switchedTo: (eid, on, undo) => { const l = lbe[eid]; toast(`${(l && l.friendly_name) || eid} ${on ? "on" : "off"}`, undo, "Undo"); },
+      switchedTo: (eid, on, undo) => { const l = lbe[eid]; toast(on ? t("{name} on", { name: (l && l.friendly_name) || eid }) : t("{name} off", { name: (l && l.friendly_name) || eid }), undo, t("Undo")); },
       // The ⋯ list's "Lights as buttons": the buttons to paint; a tap on a sensor, a readout or a lock goes to its room
       // (not while a class chip picks its kind out: then it is what the screen is for); each button tap counted.
       buttons: () => buttonsUi(),
@@ -1708,7 +1710,7 @@ function createSlot(slotKey){
       // "Rooms as light switches": a room switched or dimmed from its floor says so (a switch with the way back).
       roomSwitched: (room, what, n, undo) => {
         showSend(`house3d_show:room_tap:${what}`);
-        if (what !== "dim") toast(`${room}: ${n} light${n === 1 ? "" : "s"} ${what}`, undo, "Undo");
+        if (what !== "dim") toast(what === "on" ? tn(n, "{room}: {n} light on", "{room}: {n} lights on", { room }) : what === "off" ? tn(n, "{room}: {n} light off", "{room}: {n} lights off", { room }) : `${room}: ${n} light${n === 1 ? "" : "s"} ${what}`, undo, t("Undo"));
       },
       // A room opened by a tap: its panel beside the house (live_aboard_rooms.js), flown to and tinted.
       openRoom: (room) => openRoomPanel(room),
@@ -1791,7 +1793,7 @@ function createSlot(slotKey){
    *  step a floor, Home is every floor, as the stepper's ▲ ▼ and All. */
   function wireKeys(){
     canvas.tabIndex = 0;
-    canvas.setAttribute("aria-label", "Live Aboard: PgUp and PgDn change the floor, Home shows them all");
+    canvas.setAttribute("aria-label", t("Live Aboard: PgUp and PgDn change the floor, Home shows them all"));
     canvas.addEventListener("keydown", guard((e) => {
       const d = { PageUp: 1, PageDown: -1, Home: 0 }[e.key];
       if (d === undefined || !floorSteps || e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
@@ -2492,28 +2494,28 @@ function createSlot(slotKey){
   function saveNorth(){
     if (northPreview === null) { hidePill(); return; }
     const b = northPreview, was = northHold ? northHold.b : storedBearing, save = saveNorthCb;
-    if (typeof save !== "function") { cancelNorth(); toast("North can't be saved from here", null); return; }
+    if (typeof save !== "function") { cancelNorth(); toast(t("North can't be saved from here"), null); return; }
     for (const x of pillBtns) x.disabled = true;
     Promise.resolve().then(() => save(b)).then(guard(() => {
       northHold = { b, until: Date.now() + NORTH_HOLD_MS };
       northPreview = null;
       hidePill();
       drawSun(bearingNow(), true);
-      toast("North saved", () => undoNorth(was, save));
+      toast(t("North saved"), () => undoNorth(was, save));
     }), guard(() => {
       for (const x of pillBtns) x.disabled = false;
-      toast("Could not save north", null);
+      toast(t("Could not save north"), null);
     }));
   }
   function undoNorth(was, save){
     Promise.resolve().then(() => save(was)).then(guard(() => {
       northHold = { b: was, until: Date.now() + NORTH_HOLD_MS };
       drawSun(bearingNow(), true);
-      toast("North put back", null);
-    }), guard(() => toast("Could not put north back", null)));
+      toast(t("North put back"), null);
+    }), guard(() => toast(t("Could not put north back"), null)));
   }
   // A note over the view that fades out by itself (CSS), with an action.
-  function toast(text, act, word = "Undo"){
+  function toast(text, act, word = t("Undo")){
     if (!root) return;
     for (const old of root.querySelectorAll(".la3d-toast")) old.remove();
     const t = document.createElement("div");
@@ -2769,7 +2771,7 @@ function createSlot(slotKey){
     }
     m.matrixWorldNeedsUpdate = true;
   }
-  const OPEN_WORD = { open: "Open", closed: "Closed", locked: "Locked", unlocked: "Unlocked", none: "No reading" };
+  const OPEN_WORD = { open: "Open", closed: t("Closed"), locked: t("Locked"), unlocked: t("Unlocked"), none: t("No reading") };
   /** A lock linked to a door (the barrier's linked_lock_entity_id) is shown
    *  on it: unlocked, the door glows as an unlocked lock does. */
   function paintLock(F, P){
@@ -3370,7 +3372,7 @@ function createSlot(slotKey){
     g.add(sp);
     sensorRes.push(tex, mat);
     const C = { F, room, sensors, outdoor: !room, sprite: sp, tex, canvas: c, key: null, text: "", pillW: 0.5, px: 0,
-                name: room ? null : sensors.map(S => chipName(S)).find(Boolean) || "Outside" };
+                name: room ? null : sensors.map(S => chipName(S)).find(Boolean) || t("Outside") };
     for (const S of sensors) S.chip = C;
     placeChip(C);
     return C;
@@ -3399,7 +3401,7 @@ function createSlot(slotKey){
       const dash = r.kind === "temp" ? "–°" : r.kind === "humidity" ? "–%" : "–";
       const text = r.live ? r.text : dash;
       // The Atlas's look: the air in the Atlas's words ("Air Good", its room sheet's).
-      const air = atlas && r.live ? `Air ${airQualityWord(airQualityBadness(lbe[S.eid] || S.l || {}))}` : `Air: ${text}`;
+      const air = atlas && r.live ? t("Air {word}", { word: airQualityWord(airQualityBadness(lbe[S.eid] || S.l || {})) }) : t("Air: {text}", { text });
       parts.push({ text: r.kind === "air" ? air : text, color: r.live ? r.color : HOUSE.STALE_INK, live: !!r.live });
     }
     return parts;
@@ -3847,10 +3849,10 @@ function createSlot(slotKey){
     for (const { F: G, P } of openings) if (mine(G) && (P.open.kind === "door" || P.open.kind === "window") && P.open.state === "open") open++;
     if (tracked && shownHere("people")) for (const q of tracked.people()) if (mine(byId.get(q.floor))) ppl++;
     const parts = [];
-    if (on) parts.push(`${on} ${on === 1 ? "light" : "lights"} on`);
-    if (open) parts.push(`${open} open`);
-    if (ppl) parts.push(`${ppl} ${ppl === 1 ? "person" : "people"}`);
-    return { name: String(F.fl.name || F.fl.id), line: parts.join(" · ") || "Nothing on" };
+    if (on) parts.push(tn(on, "{n} light on", "{n} lights on"));
+    if (open) parts.push(t("{n} open", { n: open }));
+    if (ppl) parts.push(tn(ppl, "{n} person", "{n} people"));
+    return { name: String(F.fl.name || F.fl.id), line: parts.join(" · ") || t("Nothing on") };
   }
   /** The whole house: a tag beside each floor, top floor first, never on each
    *  other (each lower one keeps below the one over it). A tap shows that floor
@@ -3895,8 +3897,8 @@ function createSlot(slotKey){
         b.textContent = w.name; sp.textContent = w.line;
         T.el.replaceChildren(b, sp);
         T.el.style.fontSize = `${Math.round(12 * k * 10) / 10}px`;
-        T.el.title = `${w.name}: ${w.line}. Tap to show this floor alone`;
-        T.el.setAttribute("aria-label", `${w.name}: ${w.line}. Show this floor alone`);
+        T.el.title = t("{name}: {line}. Tap to show this floor alone", { name: w.name, line: w.line });
+        T.el.setAttribute("aria-label", t("{name}: {line}. Show this floor alone", { name: w.name, line: w.line }));
         T.w = T.el.offsetWidth || 0; T.h = T.el.offsetHeight || 0;
       }
       // Beside the floor: left of its leftmost corner on screen (else right of its rightmost), level with it.
@@ -4631,13 +4633,13 @@ function createSlot(slotKey){
       toggle: (eid) => {
         const l = lb[eid], was = !!(l && l.state === "on");
         return Promise.resolve(api.toggle(eid)).then((ok) => {
-          if (ok === true && l && !l.isLock) toast(`${l.friendly_name || eid} ${was ? "off" : "on"}`, () => api.toggle(eid), "Undo");
+          if (ok === true && l && !l.isLock) toast(was ? t("{name} off", { name: l.friendly_name || eid }) : t("{name} on", { name: l.friendly_name || eid }), () => api.toggle(eid), t("Undo"));
           return ok;
         });
       },
       setMany: (eids, on) => {
         const r = api.setMany(eids, on), n = eids.length, fans = eids.every(e => String(e).startsWith("fan."));
-        toast(`${room}: ${n} ${fans ? (n === 1 ? "fan" : "fans") : (n === 1 ? "light" : "lights")} ${on ? "on" : "off"}`, () => api.setMany(eids, !on), "Undo");
+        toast(fans ? (on ? tn(n, "{room}: {n} fan on", "{room}: {n} fans on", { room }) : tn(n, "{room}: {n} fan off", "{room}: {n} fans off", { room })) : (on ? tn(n, "{room}: {n} light on", "{room}: {n} lights on", { room }) : tn(n, "{room}: {n} light off", "{room}: {n} lights off", { room })), () => api.setMany(eids, !on), t("Undo"));
         return r;
       } };
   }
@@ -4816,9 +4818,9 @@ function createSlot(slotKey){
   function buttonTarget(b){
     if (b.lights.length === 1) return { ...deviceTarget({ eid: b.lights[0].eid, v: b.v }), btn: "light" };
     const eids = b.lights.map(L => L.eid);
-    return { kind: "lights", key: "lights:" + eids.join(","), eids, anchor: b.v, btn: "several", label: `${eids.length} lights here — lists them` };
+    return { kind: "lights", key: "lights:" + eids.join(","), eids, anchor: b.v, btn: "several", label: t("{n} lights here — lists them", { n: eids.length }) };
   }
-  const roomWords = (room) => { const n = Object.values(lbe).filter(l => l && l.area_name === room).length; return n ? `${room} — opens its ${n} device${n === 1 ? "" : "s"}` : null; };
+  const roomWords = (room) => { const n = Object.values(lbe).filter(l => l && l.area_name === room).length; return n ? tn(n, "{room} — opens its {n} device", "{room} — opens its {n} devices", { room }) : null; };
   /** With the buttons on, a room's floor is pressed anywhere: its sheet (a room with nothing in it is no target). */
   function roomTarget(x, y){
     const sw = roomSwitchOn();
@@ -4829,7 +4831,7 @@ function createSlot(slotKey){
     const agg = sw ? roomAggregate(Object.values(lbe).filter(Boolean), at.r.name) : null;
     if (agg && agg.lightsTotal) {
       return { kind: "room", key: "room:" + at.r.name, room: at.r.name, quad, sw: true,
-               label: `${at.r.name} — ${agg.lightsOn ? `${agg.lightsOn} of ${agg.lightsTotal} on: tap for off` : `${agg.lightsTotal} light${agg.lightsTotal === 1 ? "" : "s"}: tap for on`} · hold for its list` };
+               label: t("{room} — {what} · hold for its list", { room: at.r.name, what: agg.lightsOn ? t("{on} of {n} on: tap for off", { on: agg.lightsOn, n: agg.lightsTotal }) : tn(agg.lightsTotal, "{n} light: tap for on", "{n} lights: tap for on") }) };
     }
     return { kind: "room", key: "room:" + at.r.name, room: at.r.name, quad, btn: "room", label };
   }
@@ -4983,7 +4985,7 @@ function createSlot(slotKey){
       if (s.kind !== "room" && blocked(s.at, own, true)) continue;
       if (s.kind === "room") {
         return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,
-                        label: roomWords(s.room) || `${s.room} — opens its 0 devices` }, under: [] };
+                        label: roomWords(s.room) || t("{room} — opens its 0 devices", { room: s.room }) }, under: [] };
       }
       const o = s.P.open, b = o.bar, l = lbe[o.eid], st = lastP && lastP.states ? lastP.states[o.eid] : null, bar = HOUSE.barrierCardOf(b);
       const name = b.name || (l && l.friendly_name) || (st && st.attributes && st.attributes.friendly_name) || o.eid;
@@ -5311,9 +5313,9 @@ function createSlot(slotKey){
   }
   // What a part of Save that failed was, said plainly (the rest was saved).
   const PART_FAILED = {
-    read_failed: "Live Aboard's file couldn't be read", save_failed: "Live Aboard's file couldn't be written",
-    house3d_newer: "a newer PadSpan saved Live Aboard's file, and this version never changes it",
-    house3d_sample: "this is the sample house; switch to Live to edit your own",
+    read_failed: t("Live Aboard's file couldn't be read"), save_failed: t("Live Aboard's file couldn't be written"),
+    house3d_newer: t("a newer PadSpan saved Live Aboard's file, and this version never changes it"),
+    house3d_sample: t("this is the sample house; switch to Live to edit your own"),
   };
   const why = (err) => PART_FAILED[err && err.code] || String((err && (err.message || err.code)) || err);
   /** Edit's Save: one Save, two writes. The heights the draft changed (from
@@ -5342,7 +5344,7 @@ function createSlot(slotKey){
       const before = DRAFT.recordHeights({ light_positions_m: savedRecords() });
       try { await put(split.heights); }
       catch (err) {
-        throw Object.assign(new Error(`the heights couldn't be saved (${why(err)}). Nothing was changed; your changes are still here: Save to try again.`),
+        throw Object.assign(new Error(t("the heights couldn't be saved ({why}). Nothing was changed; your changes are still here: Save to try again.", { why: why(err) })),
           { code: "heights_failed" });
       }
       for (const [k, z] of Object.entries(split.heights)) recZ[k] = { z, was: k in before ? before[k] : undefined };
@@ -5358,7 +5360,7 @@ function createSlot(slotKey){
     }
     catch (err) {
       if (!split.heights) throw err;
-      throw Object.assign(new Error(`Heights saved. The rest wasn't: ${why(err)}. Your other changes are still here: Save to try again.`),
+      throw Object.assign(new Error(t("Heights saved. The rest wasn't: {why}. Your other changes are still here: Save to try again.", { why: why(err) })),
         { code: err && err.code, partial: true, heights: split.heights });
     }
   }
@@ -5535,7 +5537,7 @@ function createSlot(slotKey){
     try { f = pickAt(x, y); } finally { seeDim = false; }
     const h = f && f.hit;
     if (!h || h.kind !== "device" || !MARKS.dimmed(lbe[h.eid], classF)) return;
-    toast(`Only ${classWord || "one kind of device"} takes taps now: the rest is dimmed.`, classCb ? () => classCb("all") : null, "Show all");
+    toast(t("Only {what} takes taps now: the rest is dimmed.", { what: classWord || t("one kind of device") }), classCb ? () => classCb("all") : null, t("Show all"));
   }
   const fadeHex = (hex) => "#" + new THREE.Color(hex).lerp(scene.background, 1 - MARKS.DIM_K).getHexString();
   /** A room tint's strength: faded while every sensor in it is another class. */
@@ -6093,8 +6095,8 @@ function createSlot(slotKey){
     for (const g of groups) for (const r of g.rows) {
       if (r.key === "scenes" && !ready.scenes) r.link = null;
       if (ready[r.key]) continue;
-      if ((r.key === "forest" || r.key === "floor_outlines") && on[r.key] && !on.theme) r.hint = "Comes back with Theme colours";
-      if (r.key === "trails" && on.trails && !on.people && !on.tags) r.hint = "Comes back with People or Beacons and tags";
+      if ((r.key === "forest" || r.key === "floor_outlines") && on[r.key] && !on.theme) r.hint = t("Comes back with Theme colours");
+      if (r.key === "trails" && on.trails && !on.people && !on.tags) r.hint = t("Comes back with People or Beacons and tags");
     }
     return groups;
   }
@@ -6165,7 +6167,7 @@ function createSlot(slotKey){
   }
   /** In the Views menu just opened, the people or tags switch stands out. */
   function markSwitch(which){
-    const words = which === "people" ? "Show people" : "Show tags & scanners";
+    const words = which === "people" ? t("Show people") : t("Show tags & scanners");
     const b = menuEl ? [...menuEl.querySelectorAll("button")].find(x => x.textContent.startsWith(words)) : null;
     if (!b) return;
     b.style.outline = "2px solid #fbbf24"; b.style.background = "rgba(251,191,36,.14)";

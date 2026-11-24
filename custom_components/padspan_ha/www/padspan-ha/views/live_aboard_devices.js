@@ -33,6 +33,11 @@
 // drawn. Imports no three.js: the view hands it in.
 
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 
 /** How often what a device does is drawn while it moves (ms), by profile. */
 export const DEVICE_MS = { high: 40, low: 100 };
@@ -184,7 +189,7 @@ export function createDeviceLayer(ctx){
     g.fillStyle = "#e2e8f0";
     g.font = "600 30px system-ui, sans-serif";
     g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("Unlinked", 92, 31);
+    g.fillText(t("Unlinked"), 92, 31);
     badgeTex = new THREE.CanvasTexture(c);
     badgeTex.colorSpace = THREE.SRGBColorSpace;
     badgeMat = new THREE.SpriteMaterial({ map: badgeTex, transparent: true, depthWrite: false });

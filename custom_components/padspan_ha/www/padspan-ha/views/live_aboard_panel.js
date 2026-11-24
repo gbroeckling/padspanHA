@@ -44,6 +44,11 @@
 const { errorText } = await import(`./ui_error.js${new URL(import.meta.url).search}`);
 
 /** The choices for going back to the home view (s; 0: never). */
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 export const IDLE_CHOICES = [0, 30, 60, 300];
 export const IDLE_DEFAULT_S = 60;
 const RECHECK_MS = 10000;                  // held off (a card open, Edit…): looked at again after this
@@ -219,15 +224,15 @@ export function createPanel(v){
     v.prefSet(PREF_HOME + v.slotKey, JSON.stringify({ theta: c.theta, phi: c.phi, radius: c.radius, target: c.target, floor: v.floorNow() }));
     atHome = true;
     disarm();
-    v.toast("This is now this screen's home view");
+    v.toast(t("This is now this screen's home view"));
   }
   /** What home is with none set, in words. */
-  const homeWords = () => { const f = v.homeFloor(); return f && f.all ? "every floor, pulled apart" : "the whole house on the floor with the most rooms"; };
+  const homeWords = () => { const f = v.homeFloor(); return f && f.all ? t("every floor, pulled apart") : t("the whole house on the floor with the most rooms"); };
   function forgetHome(){
     v.prefSet(PREF_HOME + v.slotKey, "null");
     atHome = false;
     arm();
-    v.toast(`Home view forgotten: ${homeWords()}`);
+    v.toast(t("Home view forgotten: {what}", { what: homeWords() }));
   }
   /** Where home is now: {floor, goal (null: the whole house once that floor
    *  shows), all (every floor)}. */
@@ -356,20 +361,20 @@ export function createPanel(v){
     const lbl = doc.createElement("span");
     lbl.style.marginRight = "2px";
     if (follow) {
-      lbl.textContent = `Following ${follow.name}`;
+      lbl.textContent = t("Following {name}", { name: follow.name });
       const b = doc.createElement("button");
-      b.type = "button"; b.className = "la3d-pstop"; b.textContent = "Stop";
-      b.title = `Stop following ${follow.name}`;
+      b.type = "button"; b.className = "la3d-pstop"; b.textContent = t("Stop");
+      b.title = t("Stop following {name}", { name: follow.name });
       b.addEventListener("click", v.guard((e) => { stop(e); stopFollow(); }));
       chip.append(lbl, b);
       return;
     }
-    lbl.textContent = "People:";
+    lbl.textContent = t("People:");
     const b = doc.createElement("button");
     b.type = "button";
     b.textContent = `${list.length} home`;
-    b.title = "Go to each person in turn";
-    b.setAttribute("aria-label", `${list.length} ${list.length === 1 ? "person" : "people"} home: go to each in turn`);
+    b.title = t("Go to each person in turn");
+    b.setAttribute("aria-label", tn(list.length, "{n} person home: go to each in turn", "{n} people home: go to each in turn"));
     b.addEventListener("click", v.guard((e) => { stop(e); nextPerson(); }));
     chip.append(lbl, b);
   }
@@ -388,18 +393,18 @@ export function createPanel(v){
   // ── the menu: home, and the two switches ─────────────────────────────────
   function menuItems(){
     const set = !!readHome(), out = [null,
-      { text: "Home view", title: set ? "Go to this screen's home view" : homeWords().replace(/^./, (c) => c.toUpperCase()), act: () => goHome(true),
+      { text: t("Home view"), title: set ? t("Go to this screen's home view") : homeWords().replace(/^./, (c) => c.toUpperCase()), act: () => goHome(true),
         del: set ? () => forgetHome() : undefined },
-      { text: "Set as home", title: "Keep this view and floor as this screen's home", act: () => setHome() }];
+      { text: t("Set as home"), title: t("Keep this view and floor as this screen's home"), act: () => setHome() }];
     const s = s3();
     if (!s) return out;
     const h = host(), may = h.admin === true && typeof h.saveSetting === "function";
     out.push(null);
-    for (const [key, words] of [["atlas_3d_people", "Show people"], ["atlas_3d_tags", "Show tags & scanners"]]) {
+    for (const [key, words] of [["atlas_3d_people", t("Show people")], ["atlas_3d_tags", t("Show tags & scanners")]]) {
       const on = s[key] === true;
-      out.push({ text: `${words}: ${on ? "On" : "Off"}`, on, disabled: !may,
-                 title: may ? `Turn ${words.toLowerCase()} ${on ? "off" : "on"} (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)` : "Only an administrator can change this",
-                 act: () => { if (may) Promise.resolve().then(() => h.saveSetting(key, !on)).catch(e => v.toast(`Could not save: ${errorText(e)}`)); } });
+      out.push({ text: `${words}: ${on ? t("On") : t("Off")}`, on, disabled: !may,
+                 title: may ? (key === "atlas_3d_people" ? (on ? t("Turn show people off (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)") : t("Turn show people on (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)")) : (on ? t("Turn show tags & scanners off (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)") : t("Turn show tags & scanners on (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)"))) : t("Only an administrator can change this"),
+                 act: () => { if (may) Promise.resolve().then(() => h.saveSetting(key, !on)).catch(e => v.toast(t("Could not save: {why}", { why: errorText(e) }))); } });
     }
     return out;
   }
@@ -439,7 +444,7 @@ export function createPanel(v){
     /** A person's card, with Follow (or Stop following). */
     cardOf(key, card){
       const on = !!(follow && follow.key === key);
-      return { ...card, buttons: [{ text: on ? "Stop following" : "Follow", title: on ? "Let the camera go" : "Keep the camera on them as they move",
+      return { ...card, buttons: [{ text: on ? t("Stop following") : t("Follow"), title: on ? t("Let the camera go") : t("Keep the camera on them as they move"),
                                     act: () => { if (on) stopFollow(); else startFollow(key); } }] };
     },
     follow: (key) => startFollow(key),

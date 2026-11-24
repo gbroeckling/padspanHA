@@ -47,6 +47,11 @@
 
 const _q = new URL(import.meta.url).search;
 const { middleOf, roomStagger, spotIn } = await import(`./room_spot.js${_q}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 const { homeZones, knownRooms, personIsHome } = await import(`./person_home.js${_q}`);
 export { roomStagger };
 
@@ -115,8 +120,8 @@ export function vacuumOf(snapshot){
   const x = fin(v && v.x_m), y = fin(v && v.y_m);
   if (x === null || y === null) return null;
   return { key: "vacuum", kind: "beacon", recipe: null, floor_id: v.floor_id || null, x, y, z: 0.05, centre: true,
-           name: "Robot vacuum", halo: haloOf(1),
-           card: { title: "Robot vacuum", lines: ["Where its own map says it is", seenText(fin(v.ts) !== null ? Date.now() / 1000 - v.ts : null) || "Seen just now"] } };
+           name: t("Robot vacuum"), halo: haloOf(1),
+           card: { title: t("Robot vacuum"), lines: ["Where its own map says it is", seenText(fin(v.ts) !== null ? Date.now() / 1000 - v.ts : null) || t("Seen just now")] } };
 }
 
 /** What each person carries (settings.atlas_3d_carries, picked in People &
@@ -220,10 +225,10 @@ export function haloOf(sure){
 export function seenText(age){
   const a = fin(age);
   if (a === null || a < 0) return "";
-  if (a < 10) return "Seen just now";
-  if (a < 90) return `Seen ${Math.round(a)} s ago`;
-  if (a < 5400) return `Seen ${Math.round(a / 60)} min ago`;
-  return `Seen ${Math.round(a / 3600)} h ago`;
+  if (a < 10) return t("Seen just now");
+  if (a < 90) return t("Seen {n} s ago", { n: Math.round(a) });
+  if (a < 5400) return t("Seen {n} min ago", { n: Math.round(a / 60) });
+  return t("Seen {n} h ago", { n: Math.round(a / 3600) });
 }
 /** A scanner's name: the one name the panel gives it everywhere (the live
  *  radio's display_name), else its room on the map and the end of its
@@ -233,26 +238,26 @@ export function scannerName(addr, model, radios){
   if (live && live.display_name) return live.display_name;
   const info = model && model.scanners && typeof model.scanners === "object" ? model.scanners[addr] : null;
   const end = String(addr || "").slice(-5);
-  return info && info.room ? `${info.room} scanner (${end})` : `Scanner ${addr}`;
+  return info && info.room ? t("{room} scanner ({end})", { room: info.room, end }) : t("Scanner {id}", { id: addr });
 }
 /** What a tapped tag says: {title, lines}. Its room, when last heard, and
  *  which scanners hear it, the strongest first; pinned, that it is, and how
  *  far from its pin PadSpan reads it now. */
 export function tagCard(o, model, pin, radios){
-  const lines = [o.room ? `In ${o.room}` : "Room not known"];
+  const lines = [o.room ? t("In {room}", { room: o.room }) : t("Room not known")];
   if (pin) {
-    lines.push("Pinned on the map: it stands at its pin");
-    if (!o.roomOnly && fin(o.x) !== null) lines.push(`PadSpan reads it ${(Math.round(Math.hypot(o.x - pin.x, o.y - pin.y) * 10) / 10).toFixed(1)} m from its pin`);
+    lines.push(t("Pinned on the map: it stands at its pin"));
+    if (!o.roomOnly && fin(o.x) !== null) lines.push(t("PadSpan reads it {m} m from its pin", { m: (Math.round(Math.hypot(o.x - pin.x, o.y - pin.y) * 10) / 10).toFixed(1) }));
   }
   const seen = seenText(o.age);
   if (seen) lines.push(seen);
   const heard = (o.heard || []).slice().sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
   if (heard.length) {
     const names = heard.slice(0, HEARD_MAX).map(s => scannerName(s.source, model, radios).replace(/ scanner \(/, " ("));
-    lines.push(`Heard by: ${names.join(", ")}${heard.length > HEARD_MAX ? ` and ${heard.length - HEARD_MAX} more` : ""}`);
-  } else lines.push("No scanner hears it right now");
+    lines.push(t("Heard by: {names}", { names: names.join(", ") + (heard.length > HEARD_MAX ? " " + t("and {n} more", { n: heard.length - HEARD_MAX }) : "") }));
+  } else lines.push(t("No scanner hears it right now"));
   // A guest's tag: the guest's name leads, the tag's own label right under it.
-  if (o.guest) { lines.unshift(`Guest tag: ${o.label || "Tag"}`); return { title: `${o.guest} (Guest)`, lines }; }
+  if (o.guest) { lines.unshift(t("Guest tag: {name}", { name: o.label || "Tag" })); return { title: t("{name} (Guest)", { name: o.guest }), lines }; }
   return { title: o.label || "Tag", lines };
 }
 const clockOf = (t) => {
@@ -260,18 +265,19 @@ const clockOf = (t) => {
   const hm = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString([], { weekday: "short" })} ${hm}`;
 };
-const STATE_WORD = { home: "Home", not_home: "Away" };
+
+const STATE_WORD = { home: () => t("Home"), not_home: () => t("Away") };
 /** What a tapped person says, in both views: who, where, and since when;
  *  known only by their room, that it is only the room. */
 export function personCard(P, st, roomSince){
   const lines = [];
   const room = P.at && P.at.room ? P.at.room : "";
-  lines.push(room ? `In ${room}${roomSince ? ` since ${clockOf(roomSince)}` : ""}` : "Room not known");
-  if (P.at && P.at.roomOnly) lines.push(ROOM_ONLY_WORDS);
+  lines.push(room ? (roomSince ? t("In {room} since {time}", { room, time: clockOf(roomSince) }) : t("In {room}", { room })) : t("Room not known"));
+  if (P.at && P.at.roomOnly) lines.push(t("Room only: PadSpan knows the room, not the spot"));
   if (st && st.state && st.last_changed) {
-    const w = STATE_WORD[st.state] || String(st.state).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-    const t = Date.parse(st.last_changed);
-    if (Number.isFinite(t)) lines.push(`${w} since ${clockOf(t)}`);
+    const w = STATE_WORD[st.state] ? STATE_WORD[st.state]() : String(st.state).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+    const when = Date.parse(st.last_changed);
+    if (Number.isFinite(when)) lines.push(t("{state} since {time}", { state: w, time: clockOf(when) }));
   }
   const seen = seenText(P.at && P.at.age);
   if (seen) lines.push(seen);
@@ -280,7 +286,7 @@ export function personCard(P, st, roomSince){
 /** What a tapped scanner says: where it is and how high. */
 export function scannerCard(addr, model, z, radios){
   const info = model && model.scanners && typeof model.scanners === "object" ? model.scanners[addr] : null;
-  return { title: scannerName(addr, model, radios), lines: [info && info.room ? `In ${info.room}` : "On the map", `${(Math.round(z * 100) / 100).toFixed(2)} m above the floor`] };
+  return { title: scannerName(addr, model, radios), lines: [info && info.room ? t("In {room}", { room: info.room }) : t("On the map"), t("{m} m above the floor", { m: (Math.round(z * 100) / 100).toFixed(2) })] };
 }
 
 /** What is drawn now, Live Aboard's and the flat Atlas's alike (the sidebar's
@@ -315,7 +321,7 @@ export function wantedOf(d){
       out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: pin ? pin.floor_id || o.floor_id : o.floor_id,
                  x: pin ? pin.x : o.x, y: pin ? pin.y : o.y, z: pin && pin.z !== null ? pin.z : CARRY_H, centre: true, pinned: !!pin,
                  name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios), room: o.room });
-      if (o.guest) Object.assign(out[out.length - 1], { name: `${o.guest} · Guest`, guest: true });
+      if (o.guest) Object.assign(out[out.length - 1], { name: `${o.guest} · ${t("Guest")}`, guest: true });
     }
     const v = vacuumOf(d.snapshot);
     if (v) out.push(v);
@@ -743,7 +749,7 @@ export function createTrackedLayer(ctx){
         const name = I.name ? new THREE.Vector3().setFromMatrixPosition(I.name.sp.matrixWorld) : null;
         out.push({ key: I.key, kind: I.kind === "beacon" ? "tag" : "scanner", at, name,
                    namePx: I.name ? [LABEL_PX * I.name.sp.userData.aspect, LABEL_PX] : null,
-                   label: I.kind === "beacon" ? `${I.card.title} · tag` : I.card.title, card: I.card });
+                   label: I.kind === "beacon" ? `${I.card.title} · ${t("tag")}` : I.card.title, card: I.card });
       }
       return out;
     },

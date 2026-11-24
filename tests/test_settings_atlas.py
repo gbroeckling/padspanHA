@@ -118,7 +118,7 @@ def test_show_people_and_tags_have_one_switch_at_a_time(drawn):
     assert "atlas_3d_people" in off["inputs"] and "atlas_3d_tags" in off["inputs"]
     assert off["states"] == []
     panel = (VIEWS / "live_aboard_panel.js").read_text(encoding="utf-8")
-    assert '[["atlas_3d_people", "Show people"], ["atlas_3d_tags", "Show tags & scanners"]]' in panel
+    assert '[["atlas_3d_people", t("Show people")], ["atlas_3d_tags", t("Show tags & scanners")]]' in panel
     assert "h.saveSetting(key, !on)" in panel
     # The setup wizard shows them and says where; it no longer saves them.
     assert "atlas_3d_people:" not in WIZARD_JS and "atlas_3d_tags:" not in WIZARD_JS
