@@ -1523,11 +1523,12 @@ export function openAggregateSheet(api, spec, o = {}){
         if (l.isLock && na) row.appendChild(unavailableBtn());
         else if (l.isLock) {
           const b = mk("button", _S.onoff(sw.locked), sw.locked ? t("Unlock") : t("Lock"));
+          let locked = sw.locked;   // the state, not the label: the label is in the panel's language
           b.addEventListener("click", async (e) => {
             e.stopPropagation();
-            const wasLocked = b.textContent === "Unlock";
+            const wasLocked = locked;
             // Unlock asks first (toggleEntity): the word changes once Home Assistant took it, never on the press.
-            if (await api.toggle(l.entity_id) === true) { b.style.cssText = _S.onoff(!wasLocked); b.textContent = wasLocked ? t("Lock") : t("Unlock"); }
+            if (await api.toggle(l.entity_id) === true) { locked = !wasLocked; b.style.cssText = _S.onoff(locked); b.textContent = locked ? t("Unlock") : t("Lock"); }
           });
           row.appendChild(b);
         } else if (l.isFlood && sw.latched && api.onFloodReset) {
@@ -1555,12 +1556,13 @@ export function openAggregateSheet(api, spec, o = {}){
         if (na) row.appendChild(unavailableBtn());
         else {
           const b = mk("button", _S.onoff(on), on ? t("On") : t("Off"));
+          let isOn = on;   // the state, not the label: the label is in the panel's language
           b.addEventListener("click", async (e) => {
             e.stopPropagation();
-            const nowOn = b.textContent === "On";
-            b.style.cssText = _S.onoff(!nowOn); b.textContent = nowOn ? t("Off") : t("On");
+            const nowOn = isOn;
+            isOn = !nowOn; b.style.cssText = _S.onoff(isOn); b.textContent = isOn ? t("On") : t("Off");
             // The new word stays only if Home Assistant took it (toggleEntity resolves true).
-            if (await api.toggle(l.entity_id) !== true) { b.style.cssText = _S.onoff(nowOn); b.textContent = nowOn ? t("On") : t("Off"); }
+            if (await api.toggle(l.entity_id) !== true) { isOn = nowOn; b.style.cssText = _S.onoff(nowOn); b.textContent = nowOn ? t("On") : t("Off"); }
           });
           row.appendChild(b);
         }
@@ -1994,8 +1996,8 @@ function _vacOptionsBox(host) {
   const save = async (patch) => {
     status.textContent = t("Saving…");
     const ok = host.onVacationOptions && await host.onVacationOptions(patch);
-    status.textContent = ok ? t("Saved ✓") : t("Not saved");
-    setTimeout(() => { if (status.textContent === "Saved ✓") status.textContent = ""; }, 2000);
+    const said = status.textContent = ok ? t("Saved ✓") : t("Not saved");
+    setTimeout(() => { if (ok && status.textContent === said) status.textContent = ""; }, 2000);
     return ok;
   };
   const row = (label, control, note) => el("div", { class: "lv-vac-opt" }, [
