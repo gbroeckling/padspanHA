@@ -25,6 +25,8 @@ const STAMP = ((b) => (b ? `?b=${b}` : ""))(new URL(import.meta.url).searchParam
 // stamp), so the language this page loads in set hass is the one they all speak.
 const I18N = await import(`./views/i18n.js${STAMP}`);
 const { t, tn } = I18N;
+// The groups this page and what it shows speak (scripts/i18n_coverage.py says which files each holds).
+const I18N_GROUPS = ["panel", "atlas1", "atlasmap", "atlasmap2", "server"];
 const { hasControlCard, hasFixedGlyph, isControllable } =
   await import(`./views/light_codes.js${STAMP}`);
 // THE shared lights view — data pipeline, map card and index table, also used
@@ -214,6 +216,17 @@ class PadSpanLightsApp extends HTMLElement {
   set hass(hass){
     const was = this._hass;
     this._hass = hass;
+    // The page's words in the profile's language: asked once per language, and the page is drawn again when a
+    // language other than the one shown has come in. English fetches nothing and draws nothing again.
+    const lang = hass ? I18N.langOf(hass) : null;
+    if(hass && lang !== this._langSeen){
+      this._langSeen = lang;
+      I18N.useLanguage(hass, I18N_GROUPS).then((got)=>{
+        if(got === (this._langShown || "en")) return;
+        this._langShown = got;
+        if(this._booted) this._render();
+      }).catch(err => console.warn("PadSpan: Atlas translation failed to load", err));
+    }
     if(this._haBtn && HA_SIDEBAR && hass && (!was || was.dockedSidebar !== hass.dockedSidebar)){
       this._haBtn.textContent = HA_SIDEBAR.haLabel(hass);
       this._haBtn.setAttribute("aria-pressed", String(HA_SIDEBAR.haHidden(hass)));
