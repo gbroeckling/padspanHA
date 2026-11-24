@@ -226,49 +226,27 @@ export function shortfall(drawnPx, bestPx) {
 }
 
 /**
- * Edgecut (a screen's ⋯ list, off unless ticked; Garry 2026-11-24): as much of the screen as can be is rooms. Boxes
- * {x0,y0,x1,y1} in screen pixels, measured at zoom z0: the box of the buttons that count (edgeButtons), the rooms'
- * box, the safe part of the stage (the stage less what lies over it) and the stage. The zoom: as far as the buttons
- * that count fit the safe part, never further than the rooms covering the whole stage (cutting more house fills
- * nothing more), never below 100% (the whole house), never past EDGE.max. No button counts: the rooms alone decide.
- * Floored to a hundredth, so the same screen gives the same zoom every drawing.
+ * Edgecut (a screen's ⋯ list, off unless ticked; Garry 2026-11-24: "Cut the edges left to right. Minimize empty
+ * space"; "In the multi floor view, it is assumed the floors at the top and bottom can be cut off"). The zoom at
+ * which the rooms cover the whole stage, edge to edge both ways: no empty ground shows beside the house, and the
+ * house runs off the screen the other way (a tall stack of floors on a wide wall loses its top and bottom floors'
+ * far parts). Boxes {x0,y0,x1,y1} in screen pixels, measured at zoom z0: the rooms' and the stage's. Never below 100%
+ * (the whole house), never past EDGE.max; floored to a hundredth, so the same screen gives the same zoom every drawing.
  */
-export const EDGE = { max: 4, gap: 4, trim: 0.15 };
-export function edgeZoom(z0, buttons, rooms, safe, stage) {
+export const EDGE = { max: 4 };
+export function edgeZoom(z0, rooms, stage) {
   const w = (b) => b.x1 - b.x0, h = (b) => b.y1 - b.y0;
-  if (!(z0 > 0) || !rooms || !safe || !stage || !(w(safe) > 0) || !(h(safe) > 0) || !(w(rooms) > 0) || !(h(rooms) > 0)) return 1;
-  const kButtons = buttons && w(buttons) > 0 && h(buttons) > 0 ? Math.min(w(safe) / w(buttons), h(safe) / h(buttons)) : Infinity;
+  if (!(z0 > 0) || !rooms || !stage || !(w(rooms) > 0) || !(h(rooms) > 0) || !(w(stage) > 0) || !(h(stage) > 0)) return 1;
   const kCover = Math.max(w(stage) / w(rooms), h(stage) / h(rooms));
-  return Math.max(1, Math.min(EDGE.max, Math.floor(z0 * Math.min(kButtons, kCover) * 100) / 100));
+  return Math.max(1, Math.min(EDGE.max, Math.floor(z0 * kCover * 100) / 100));
 }
 
-/**
- * The buttons Edgecut keeps on the screen (Garry, 2026-11-24: "absolutely maximize the screen space ... if something
- * is spanning on the far edges of a room or even outside the house footprint, the button does not count"): those
- * whose centre lies inside the rooms' box less EDGE.trim of its width and height on every side. One out in a far
- * corner, on the outer edge of an outer room, or outside the house may be cut with the edges. The box round the
- * ones that count (their whole marks, not only their centres), or null when none does.
- */
-export function edgeButtons(rects, rooms) {
-  if (!rooms || !Array.isArray(rects)) return null;
-  const tx = (rooms.x1 - rooms.x0) * EDGE.trim, ty = (rooms.y1 - rooms.y0) * EDGE.trim;
+/** The box round some rooms' outlines ([[x, y], ...] each, screen pixels), or null. */
+export function roomsBox(polys) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const r of rects) {
-    if (!r || !(r.x1 > r.x0) || !(r.y1 > r.y0)) continue;
-    const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
-    if (cx < rooms.x0 + tx || cx > rooms.x1 - tx || cy < rooms.y0 + ty || cy > rooms.y1 - ty) continue;
-    x0 = Math.min(x0, r.x0); y0 = Math.min(y0, r.y0); x1 = Math.max(x1, r.x1); y1 = Math.max(y1, r.y1);
+  for (const poly of polys || []) for (const [x, y] of poly || []) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
   }
-  return Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
-}
-
-/**
- * Edgecut along one axis: how far to move the view (positive: the drawing moves back, as scrollLeft/Top grow) so the
- * buttons [b0, b1] lie inside the safe part [s0, s1], and within that, as near as can be to centring the rooms
- * [r0, r1] on the stage [t0, t1]. Buttons wider than the safe part: centred on it.
- */
-export function edgeShift(b0, b1, s0, s1, r0, r1, t0, t1) {
-  const want = (r0 + r1) / 2 - (t0 + t1) / 2;
-  const lo = b1 - s1, hi = b0 - s0;
-  return lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, want));
+  return Number.isFinite(x0) && x1 > x0 && y1 > y0 ? { x0, y0, x1, y1 } : null;
 }
