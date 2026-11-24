@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.289 — The help and docs say what PadSpan does; The usage report fits a big house again (2026-11-24)
+
+### Changed
+- **The 3D house's descriptions say "turn, pan and zoom".** Settings, the help and the Atlas's tooltip said you could walk around the house; the 3D view turns, pans and zooms.
+- **The weather tip names Bright Pro too.** The moving rain and snow on the Atlas come with Bright Pro as well as PadSpan Pro, and Settings and the help now say so.
+- **The Live Aboard wizard's tip says PadSpan Pro.** It said the 3D house also came with Bright Pro, which it does not.
+- **The README, the manual and the website's guides were checked against the product.** A lock opens its card on a tap and asks before unlocking; alerts go through Home Assistant's notify services; the floor-plans guide lists the iPhone or iPad scan and the blank floor; the manual's Atlas chapter covers blind and garage openers, the scene row and the heatmap; the install steps match the release zip.
+
+### Fixed
+- **A big house's usage report goes again.** The opt-in report had a hard cap of 8 KB, and a house that uses a lot of PadSpan outgrew it: first screen and tool counts were dropped to make it fit, then the whole report was refused, every day. The cap is now 32 KB, in PadSpan and on the server that receives it. Most reports are about 7 KB.
+
+---
+
 ## 0.38.288 — Access points are placed in Mapping (2026-11-23)
 
 ### New
