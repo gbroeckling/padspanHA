@@ -26,7 +26,7 @@ const STAMP = ((b) => (b ? `?b=${b}` : ""))(new URL(import.meta.url).searchParam
 const I18N = await import(`./views/i18n.js${STAMP}`);
 const { t, tn } = I18N;
 // The groups this page and what it shows speak (scripts/i18n_coverage.py says which files each holds).
-const I18N_GROUPS = ["panel", "atlas1", "atlasmap", "atlasmap2", "server"];
+const I18N_GROUPS = ["panel", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "server"];
 const { hasControlCard, hasFixedGlyph, isControllable } =
   await import(`./views/light_codes.js${STAMP}`);
 // THE shared lights view — data pipeline, map card and index table, also used
