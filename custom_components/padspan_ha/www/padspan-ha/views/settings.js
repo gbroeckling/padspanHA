@@ -3890,7 +3890,7 @@ function _atlasWeatherSection(ctx, el, settings){
   const box = el("div",{"data-focus-part":"atlas_weather",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},t("🌧️ Outdoor weather")));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    t("Rain or snow drawn around the house on the Atlas, never over a room or between floors, only while it is actually raining or snowing. A rain sensor alone shows light rain, and none while the weather entity says the sky is clear (dew wets a rain sensor too); heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. PadSpan Pro animates it; the free map shows it still.")));
+    t("Rain or snow drawn around the house on the Atlas, never over a room or between floors, only while it is actually raining or snowing. A rain sensor alone shows light rain, and none while the weather entity says the sky is clear (dew wets a rain sensor too); heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. PadSpan Pro or PadSpan Bright Pro animates it; the free map shows it still.")));
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, t("Saves as soon as you change it. No restart needed."));
   const save = async (key, value, undo) => {
     try {

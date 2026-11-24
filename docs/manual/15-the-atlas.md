@@ -166,8 +166,8 @@ lights less at once). Turning it on or off needs an administrator.
 ## Outdoor weather
 
 When it rains or snows, faint rain or snow falls around the house on the Atlas, never over a room.
-Pro animates it; the free map shows it still. Set it up in **Settings → Atlas → Atlas — Mapped Light
-Control → Outdoor weather** (Advanced mode): the switch (on by default), a rain sensor (optional), the
+PadSpan Pro or PadSpan Bright Pro animates it; the free map shows it still. Set it up in
+**Settings → Atlas → Atlas — Mapped Light Control → Outdoor weather** (Advanced mode): the switch (on by default), a rain sensor (optional), the
 weather entity, the warnings sensor (found by itself) and **Strength** (0.5× to 1.5×).
 
 - **Light rain** when it's wet: a rain sensor decides if you chose one, otherwise the weather entity.

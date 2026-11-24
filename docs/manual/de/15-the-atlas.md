@@ -184,7 +184,8 @@ auszuschalten braucht einen Administrator.
 ## Wetter draußen
 
 Wenn es regnet oder schneit, fällt auf dem Atlas zarter Regen oder Schnee rund um das Haus, nie über
-einem Raum. Pro animiert das Wetter; die kostenlose Karte zeigt es unbewegt. Richte es ein unter
+einem Raum. PadSpan Pro oder PadSpan Bright Pro animiert das Wetter; die kostenlose Karte zeigt es
+unbewegt. Richte es ein unter
 **Einstellungen → Atlas → Atlas — Mapped Light Control → Outdoor weather** (Modus Erweitert): der
 Schalter (ab Werk an), ein Regensensor (freiwillig), die Wetter-Entität, der Warnungssensor (wird
 von selbst gefunden) und **Strength** (0,5× bis 1,5×).
