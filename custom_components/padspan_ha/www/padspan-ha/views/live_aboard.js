@@ -115,6 +115,10 @@ const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).sea
 // draws, item by item (optional: missing, everything shows as it was).
 const SHOW = await import(`./live_aboard_show.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_show failed to load", err); return null; });
+// Edgecut (live_aboard_edgecut.js): the ⋯ list's line, the rooms filling the
+// screen edge to edge (optional: missing, the house is framed as ever).
+const EDGE = await import(`./live_aboard_edgecut.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_edgecut failed to load", err); return null; });
 // The scene row (scene_row.js): the host's scenes and one-floor presets as
 // small maps along the top of the bottom bar (optional: missing, no row).
 const SCENES = await import(`./scene_row.js${new URL(import.meta.url).search}`)
@@ -888,7 +892,7 @@ function createSlot(slotKey){
       rb.querySelector("button").setAttribute("data-la3d-roof", "");
       walls.appendChild(rb.querySelector("button"));
     }
-    const views = seg(null, ANGLES.map(([t, title, n]) => [t, title, () => preset(n, true)]));
+    const views = seg(null, ANGLES.map(([t, title, n]) => [t, title, () => { edgeLeave(); preset(n, true); }]));
     views.setAttribute("data-la3d-views", "");
     views.classList.add("la3d-w");
     // The floor stepper: ▲ the floor above, its name (a tap: the floor's
@@ -916,7 +920,7 @@ function createSlot(slotKey){
       ...(STOREY ? [null, ...ROOF.map(([t, title, v]) => ({ text: t, title, on: roofPick() === v, act: () => setRoof(v) }))] : [])])]]);
     wbtn.classList.add("la3d-n");
     const abtn = seg(null, [[t("View ▾"), t("Angles, the floors, the whole house and your views"), () => openMenu(abtn, [
-      ...ANGLES.map(([t, , n]) => ({ text: t, act: () => preset(n, true) })),
+      ...ANGLES.map(([t, , n]) => ({ text: t, act: () => { edgeLeave(); preset(n, true); } })),
       ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems()])]]);
     abtn.classList.add("la3d-n");
     abtn.setAttribute("data-la3d-view", "");
@@ -1275,7 +1279,7 @@ function createSlot(slotKey){
     // Not yet framed (the floor the host picked as the view opened): there
     // is no view of that floor to keep, only the camera's starting values.
     if (!cam.needsFit) floorCams.set(was, { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() });
-    const c = keepCam ? null : floorCams.get(key);
+    const c = keepCam || edgecutOn() ? null : floorCams.get(key);   // Edgecut frames the new floor itself (edgeSync)
     refitFloor = !c && !keepCam;
     closeRoom();                                           // a room open on the floor left closes
     if (c) {
@@ -1392,8 +1396,8 @@ function createSlot(slotKey){
   function writeViews(v){ prefSet(PREF_VIEWS + slotKey, JSON.stringify(v.slice(-VIEWS_MAX))); }
   function viewItems(){
     const saved = readViews();
-    return [{ text: t("Whole house"), act: () => wholeHouse() }, { text: t("How it works"), act: () => showHint(true) },
-            ...saved.map((v, i) => ({ text: v.name, act: () => goView(v), del: () => { saved.splice(i, 1); writeViews(saved); } })),
+    return [{ text: t("Whole house"), act: () => { edgeLeave(); wholeHouse(); } }, ...edgeItems(), { text: t("How it works"), act: () => showHint(true) },
+            ...saved.map((v, i) => ({ text: v.name, act: () => { edgeLeave(); goView(v); }, del: () => { saved.splice(i, 1); writeViews(saved); } })),
             { text: t("Save this view"), act: () => saveView() },
             ...(trailsOffered() ? [{ text: prefGet(PREF_TRAILS) === "1" ? t("Trails, last 30 min: On") : t("Trails, last 30 min: Off"), on: prefGet(PREF_TRAILS) === "1",
                                      title: t("Where each person and tag went in the last half hour (this screen only)"), act: () => toggleTrails() }] : []),
@@ -4465,6 +4469,7 @@ function createSlot(slotKey){
   function openView(){
     if (panel && panel.open()) return;                      // the sidebar opens on its home view
     preset("iso");
+    if (edgecutOn()) { edgeFrame(false); return; }          // Edgecut, at the Atlas's angle: a phone too
     if (camera.aspect >= 0.8 || onWallPage(root)) return;   // a portrait wall is not a phone: the whole house
     if (explodeGap()) return;                               // every floor pulled apart: the whole house, on a phone too
     const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
@@ -4481,6 +4486,98 @@ function createSlot(slotKey){
     const from = { target: cam.target.clone(), radius: cam.radius * A.radius, theta: cam.theta - A.turn, phi: Math.max(MIN_PHI, cam.phi - A.rise) };
     cam.fly = { t0: performance.now(), from, to, dTh: A.turn, inward: false, ms: A.ms };
     requestRender();
+  }
+  // ── Edgecut: the rooms fill the screen (live_aboard_edgecut.js) ──────────
+  // Garry, 2026-11-24: "zoom in so almost all the screen shows rooms", then
+  // "Cut the edges left to right. Minimize empty space": on, the camera comes
+  // in until the rooms fill the view edge to edge (no background at any
+  // side), the house's outer edges cut off where it overflows, never farther
+  // than the whole house and never nearer than ZOOM_MAX times it; the angle
+  // stays the person's. A light or a button out at an edge does not hold it
+  // back. The ⋯ list's line, this screen's (off unless ticked), and its line
+  // in Views ▾. It frames again as the screen changes size, as a floor is
+  // chosen and as the house is drawn again, while the camera is where it put
+  // it. Moved by hand (or flown to a room, a person, a door that went off),
+  // it is left alone until the view goes back home by itself
+  // (live_aboard_panel.js), which is Edgecut then. A display screen's (the
+  // Atlas tab, the sidebar, a wall), never the builder's, which edits the
+  // whole house; not while Edit, Furnish or the Plans tool has the view. Off,
+  // nothing here runs and nothing is framed.
+  let edgeWas = false, edgeAt = null, edgeFly = null, edgeFloor = null, edgeKey = "";
+  const edgecutOn = () => !!EDGE && mapOnly && !!showOn && showOn.edgecut === true && !showSuspended();
+  /** Views ▾'s Edgecut line: the ⋯ list's own words, ticked while it is on. */
+  function edgeItems(){
+    const it = EDGE && SHOW && mapOnly && !showSuspended() ? SHOW.SHOW_ITEMS.find(x => x.key === "edgecut") : null;
+    return it ? [{ text: it.words, title: it.hint, check: true, on: edgecutOn(), data: "la3d-edgecut", act: () => setEdgecut(!edgecutOn()) }] : [];
+  }
+  /** The line on or off for this screen, as the ⋯ list writes it (it shows the tick too). frame false: another view
+   *  was picked and moves the camera itself, so turning it off leaves the camera to that. */
+  function setEdgecut(on, frame = true){
+    if (!SHOW || edgecutOn() === on) return;
+    if (!frame) edgeAt = null;
+    prefSet(SHOW.prefKey(slotKey), JSON.stringify(SHOW.withTick(showOver(), "edgecut", on, SHOW.houseOn(showHouse, "edgecut"))));
+    showSend(`house3d_show:${on ? "show" : "hide"}:edgecut`);
+    applyShow();                                             // edgeSync, on the way: framed, or not
+  }
+  /** Another view picked in Views ▾ (the whole house, a saved view) or an angle: Edgecut goes off first. */
+  const edgeLeave = () => setEdgecut(false, false);
+  /** The indoor floors showing, for Edgecut: [{y (its floor), h (its walls' tops above it), polys (its rooms)}]. */
+  function edgeFloors(){
+    const by = new Map();
+    for (const r of (house && house.rooms) || []) {
+      if (r.floor.outdoor || !HOUSE.floorShown(r.floor, topElev)) continue;
+      const y = r.floor.elev - HOUSE.SLAB_T;                 // the floor's level and its walls' tops, as visiblePoints has them
+      if (!by.has(y)) by.set(y, { y, h: 0, polys: [] });
+      const f = by.get(y);
+      f.h = Math.max(f.h, r.h ?? r.floor.h);
+      f.polys.push(r.pts);
+    }
+    return [...by.values()];
+  }
+  /** Edgecut's camera from (theta, phi) on the floors showing: {target, radius, theta, phi}; nothing to frame yet,
+   *  the whole house as Fit frames it. */
+  function edgeGoal(theta = cam.theta, phi = cam.phi){
+    const pts = visiblePoints(), whole = frameFor(theta, phi, pts);
+    const tv = Math.tan(FOV / 2 * D2R);
+    const f = EDGE ? EDGE.edgecutFit({ floors: edgeFloors(), pts: pts.map(v => v.toArray()), theta, phi: whole.phi,
+                                       tanH: tv * camera.aspect, tanV: tv, rMin: MIN_R, rMax: whole.radius }) : null;
+    return f ? { target: new THREE.Vector3().fromArray(f.target), radius: f.r, theta, phi: whole.phi } : whole;
+  }
+  /** Framed so now: flown (smooth) or at once. g: the frame, if worked out already. */
+  function edgeFrame(smooth, g = null){
+    const goal = g || edgeGoal();
+    goTo({ theta: goal.theta, phi: goal.phi, radius: goal.radius, target: goal.target.toArray() }, smooth);
+    edgeFly = smooth ? cam.fly : null;
+    edgeAt = { target: goal.target.clone(), radius: goal.radius, theta: goal.theta, phi: goal.phi };
+    edgeFloor = floorKey; edgeKey = `${drawnW}x${drawnH}|${shellSig}`;
+  }
+  const turnOf = (a) => ((a % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+  /** Is the camera where Edgecut put it, or on its way there? Anything else moved it (a hand, a room, a saved view). */
+  function edgeHolds(){
+    const g = edgeAt;
+    if (!g) return false;
+    if (cam.fly) return cam.fly === edgeFly;
+    const tol = 1e-4 * Math.max(1, g.radius);
+    return Math.abs(cam.radius - g.radius) <= tol && cam.target.distanceTo(g.target) <= tol
+      && Math.abs(turnOf(cam.theta - g.theta)) <= 1e-6 && Math.abs(cam.phi - g.phi) <= 1e-6;
+  }
+  /** Followed on every card and resize. Ticked: framed. Unticked: a camera it holds goes back to the floors showing,
+   *  whole (as Fit). On: a floor chosen frames it again, moved by hand or not (not one a flight to a person or home
+   *  chose: keepCam); held, a new size or the house drawn again frames it at once. */
+  function edgeSync(){
+    if (!camera || !canvas || failed) return;
+    const on = edgecutOn();
+    if (on !== edgeWas) {
+      const held = edgeHolds();
+      edgeWas = on; edgeAt = null;
+      if (cam.needsFit) return;                              // not framed yet: the view opens on it (openView, the panel's home)
+      if (on) edgeFrame(true);
+      else if (held) flyTo(frameFor(cam.theta, cam.phi, visiblePoints()), false);
+      return;
+    }
+    if (!on || cam.needsFit) return;
+    if (floorKey !== edgeFloor) { edgeFloor = floorKey; if (!keepCam) { edgeFrame(true); return; } }
+    if (edgeHolds() && `${drawnW}x${drawnH}|${shellSig}` !== edgeKey) edgeFrame(false);
   }
   // ── flying the camera (a double-tap on a room, a saved view) ──────────────
   function flyTo(goal, inward){
@@ -5207,6 +5304,7 @@ function createSlot(slotKey){
     paintPlan();
     requestRender();
     if (raisedL) raisedL.touch();
+    edgeSync();                                              // Edgecut: framed again for the new size
   }
   function wireObservers(){
     if (typeof ResizeObserver !== "undefined") {
@@ -5713,7 +5811,8 @@ function createSlot(slotKey){
       setFloor: (fid) => setFloor(fid),
       homeFloor: () => (house ? PANEL.homeStartOf(house.rooms, explodeOn()) : null),
       wholeGoal: () => homeGoal(),
-      go: (g, smooth) => goTo(g, smooth),
+      // With Edgecut on, home is Edgecut: home's floor (chosen first) and its angle, Edgecut's distance and middle.
+      go: (g, smooth) => (edgecutOn() ? edgeFrame(smooth, edgeGoal(g.theta, g.phi)) : goTo(g, smooth)),
       flying: () => !!cam.fly,
       // bars: true the bars back; "aside" the map alone, as the sidebar opens (going back by itself:
       // nobody is there, so less on the screen); false as they are.
@@ -6090,6 +6189,8 @@ function createSlot(slotKey){
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_buttons" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_switch" || mapOnly);
+    // Edgecut on a display screen only (the Atlas tab and its walls), as on the flat Map: the builder edits the whole house.
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "edgecut" || mapOnly);
     // The room chips' row only where it can show: a wide screen, not a wall (there it is always Rooms ▾).
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_row" || (!narrow && !wallScreen()));
     for (const g of groups) for (const r of g.rows) {
@@ -6355,6 +6456,7 @@ function createSlot(slotKey){
     if (roomChips) roomChips.sync();
     syncRoomPanel();
     landRoom();
+    edgeSync();                                              // Edgecut: once the floor showing is drawn
     applyWeather(p);
   }
   function place(s){
@@ -6593,6 +6695,9 @@ function createSlot(slotKey){
                               walls: floorsUi.flatMap(F => F.pieces.filter(P => P.els.some(e => e.leaf || !e.cuttable)).map(P => ({ kind: P.pc.kind, cover: !!(P.open && P.open.cover),
                                 drawn: P.els.filter(e => e.leaf || !e.cuttable).some(e => { e.mesh.getMatrixAt(e.i, _m); return _m.elements.slice(0, 11).some(v => v !== 0); }) }))),
                               plates: floorsUi.filter(F => F.plate).map(F => F.plate.visible), edges: floorsUi.filter(F => F.edges).map(F => F.edges.visible) } : null,
+               // Edgecut: on, the camera where it put it (holds), its frame, and the floors it fills the view with.
+               edgecut: { on: edgecutOn(), holds: edgeHolds(), at: edgeAt ? { target: edgeAt.target.toArray(), radius: edgeAt.radius, theta: edgeAt.theta, phi: edgeAt.phi } : null,
+                          floors: house ? edgeFloors() : [] },
                // The scene row: shown or not, its tiles ([key, state, kind]), its ✎s, + New scene, its note.
                scenes: sceneRow ? sceneRow.state() : null,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
