@@ -333,11 +333,11 @@ def test_every_t_call_names_its_english() -> None:
     assert not bad, "\n".join(bad[:20])
 
 
-_PANEL_GROUPS = ("panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "server")
+_PANEL_GROUPS = ("panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "server")
 # German first (2026-11-23): these groups are complete in German only. Their nl/fr files exist (an empty map, so the
 # panel's one request per group still answers and the screen stays English there) and hold no key the code does not
 # ask for; they need not be complete until French and Dutch are translated. Take a group out of this list then.
-_GERMAN_FIRST = ("rooms",)
+_GERMAN_FIRST = ("rooms", "traceback")
 
 
 def _check_group(cov, group: str, keys: dict) -> None:

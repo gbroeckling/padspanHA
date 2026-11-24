@@ -78,6 +78,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     # German first (2026-11-23): Rooms, Traceback, the Atlas and the 3D house. Their nl/fr files are still empty,
     # so those screens stay English there (tests/test_panel_i18n.py _GERMAN_FIRST).
     "rooms": ("views/rooms.js",),
+    "traceback": ("views/traceback.js", "views/insights.js", "views/busy_times.js", "views/house_activity.js"),
 }
 SERVER = "server"
 
