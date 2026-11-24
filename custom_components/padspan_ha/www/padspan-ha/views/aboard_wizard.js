@@ -256,7 +256,7 @@ export async function openLiveAboardWizard(ctx, step) {
     on(s, c) {
       const out = [p("Live Aboard is the Atlas in 3D: your floors, rooms, walls, doors, windows, lights and sensors as a little house you can turn, zoom and tap, the way you'd look into a house in The Sims. It's built from the map you already drew.")];
       if (!s.pro) {
-        out.push(tip("It comes with PadSpan Pro (and Bright Pro). Settings → PadSpan licence."));
+        out.push(tip("It comes with PadSpan Pro. Settings → PadSpan licence."));
         return out;
       }
       out.push(toggle("Show Live Aboard on the Atlas", s.on, (v, n) => save({ atlas_3d_enabled: v }, n),
