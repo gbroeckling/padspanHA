@@ -892,7 +892,7 @@ function createSlot(slotKey){
       rb.querySelector("button").setAttribute("data-la3d-roof", "");
       walls.appendChild(rb.querySelector("button"));
     }
-    const views = seg(null, ANGLES.map(([t, title, n]) => [t, title, () => { edgeLeave(); preset(n, true); }]));
+    const views = seg(null, ANGLES.map(([t, title, n]) => [t, title, () => angle(n)]));
     views.setAttribute("data-la3d-views", "");
     views.classList.add("la3d-w");
     // The floor stepper: ▲ the floor above, its name (a tap: the floor's
@@ -920,7 +920,7 @@ function createSlot(slotKey){
       ...(STOREY ? [null, ...ROOF.map(([t, title, v]) => ({ text: t, title, on: roofPick() === v, act: () => setRoof(v) }))] : [])])]]);
     wbtn.classList.add("la3d-n");
     const abtn = seg(null, [[t("View ▾"), t("Angles, the floors, the whole house and your views"), () => openMenu(abtn, [
-      ...ANGLES.map(([t, , n]) => ({ text: t, act: () => { edgeLeave(); preset(n, true); } })),
+      ...ANGLES.map(([t, , n]) => ({ text: t, act: () => angle(n) })),
       ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems()])]]);
     abtn.classList.add("la3d-n");
     abtn.setAttribute("data-la3d-view", "");
@@ -4519,8 +4519,14 @@ function createSlot(slotKey){
     showSend(`house3d_show:${on ? "show" : "hide"}:edgecut`);
     applyShow();                                             // edgeSync, on the way: framed, or not
   }
-  /** Another view picked in Views ▾ (the whole house, a saved view) or an angle: Edgecut goes off first. */
+  /** Another view picked in Views ▾ (the whole house, a saved view): Edgecut goes off first. */
   const edgeLeave = () => setEdgecut(false, false);
+  /** An angle (Iso, Top, ⟳ 90°) or Fit. With Edgecut on it stays on (the owner, 2026-11-24: moved by hand, then Fit,
+   *  "it seems to completely forget it's in edgecut mode"): Fit is Edgecut's own frame, an angle frames it from there. */
+  function angle(n){
+    preset(n, true);
+    if (edgecutOn()) edgeFrame(true);
+  }
   /** The indoor floors showing, for Edgecut: [{y (its floor), h (its walls' tops above it), polys (its rooms)}]. */
   function edgeFloors(){
     const by = new Map();
@@ -5756,7 +5762,7 @@ function createSlot(slotKey){
   function zoomStep(how){
     if (!renderer || failed || !camera) return false;
     cam.fly = null;
-    if (how === "fit") { preset("fit", true); return true; }
+    if (how === "fit") { angle("fit"); return true; }
     if (how !== "in" && how !== "out") return false;
     // The bars stay as they are: these buttons are on them.
     moved();
