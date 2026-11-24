@@ -22,7 +22,7 @@ def test_a_tap_on_a_dimmed_device_says_so() -> None:
 def test_the_atlas_hands_over_the_chips_setter_and_word() -> None:
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
     assert 'onClassFilter: typeof host.onClassFilter === "function" ? host.onClassFilter : null,' in lm
-    assert "classLabel: (LIGHT_CLASSES.find(([c]) => c === host.classFilter) || [])[1] || null," in lm
+    assert "classLabel: (lightClasses().find(([c]) => c === host.classFilter) || [])[1] || null," in lm
     tools = _ROOT / "tools" / "live_aboard_harness"
     if tools.is_dir():                 # the Bright derivation carries no tools/
         assert (tools / "pw_dimmed.py").is_file()

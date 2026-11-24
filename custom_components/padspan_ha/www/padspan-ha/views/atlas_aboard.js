@@ -40,6 +40,8 @@ const PIECES = await import(`./live_aboard_pieces.js${new URL(import.meta.url).s
 const MAP_TEXT = await import(`./map_text.js${new URL(import.meta.url).search}`).catch(() => null);
 // Escape closes a card as ✕ does, and the focus goes back where it was (dialog_keys.js). Optional.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 const NS = "http://www.w3.org/2000/svg";
 const TAG = "#5eead4";                      // the flat Atlas's beacon teal (Live Aboard's tag)
@@ -187,7 +189,7 @@ export function showCard(c, at, home, key){
   head.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin-bottom:3px";
   name.style.cssText = "flex:1;font-size:14px;color:#5eead4";
   name.textContent = c.title;
-  x.type = "button"; x.textContent = "✕"; x.title = "Close";
+  x.type = "button"; x.textContent = "✕"; x.title = t("Close");
   x.style.cssText = "all:unset;cursor:pointer;padding:0 4px;font-size:16px;line-height:1;color:rgba(226,240,232,.7)";
   x.addEventListener("click", (e) => { e.stopPropagation(); closeCard(); });
   head.append(name, x);
@@ -247,7 +249,7 @@ function createLiveLayer(slot){
     if (!MAP_TEXT || !d || typeof d.home !== "function" || !snap) return;
     const home = d.home();
     if (!home) return;
-    if (!text) text = MAP_TEXT.createMapText(textId, "Who is in which room");
+    if (!text) text = MAP_TEXT.createMapText(textId, t("Who is in which room"));
     if (text.el.parentNode !== home) home.appendChild(text.el);
     if (d.stage && d.stage.setAttribute) d.stage.setAttribute("aria-describedby", textId);
     text.update(MAP_TEXT.roomLines(MAP_TEXT.wantedEntries(wants, !!d.hideNames), MAP_TEXT.mapRooms(d.model)));

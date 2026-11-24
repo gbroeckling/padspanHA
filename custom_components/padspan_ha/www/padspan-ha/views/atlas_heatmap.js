@@ -18,6 +18,11 @@
 // and clipped to its walls. Cheap: a few thousand cells and a few sources,
 // rebuilt with the rest of the drawing every 5 s.
 
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 export const HEATMAP_KINDS = ["temp", "humidity", "co2"];
 export const HEATMAP_LABELS = { temp: "Temperature", humidity: "Humidity", co2: "CO₂" };
 const FRESH_MS = 60 * 60 * 1000;
@@ -168,7 +173,7 @@ export function heatFloorSvg(kind, srcsByRoom, rooms, box, iso, z, clipOf, opaci
 // stops, the two ends. Returns {svg, end} — end is where the next thing goes.
 export function heatLegendSvg(kind, x, y, fs) {
   const sc = HEAT_SCALES[kind], st = sc.stops;
-  const name = HEATMAP_LABELS[kind];
+  const name = kind === "temp" ? t("Temperature") : kind === "humidity" ? t("Humidity") : HEATMAP_LABELS[kind];
   let s = `<text x="${x}" y="${y + 3}" fill="#9fb0a8" font-size="${fs}" font-weight="500">${name}</text>`;
   let lx = x + name.length * fs * 0.6 + 6;
   const lo = `${st[0][0]}${sc.unit}`, hi = `${st[st.length - 1][0]}${sc.unit}+`;

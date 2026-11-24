@@ -30,6 +30,8 @@ const q = new URL(import.meta.url).search;
 const HOUSE = await import(`./live_aboard_house.js${q}`);
 const DRAFT = await import(`./live_aboard_draft.js${q}`);
 const MARKS = await import(`./live_aboard_marks.js${q}`);
+// Its words in the panel's language (views/i18n.js; English is the key).
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const { deviceClassOf } = await import(`./light_codes.js${q}`);
 const { heightNow, withoutGone } = await import(`./lights_map.js${q}`);
 
@@ -37,20 +39,20 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** A height as shown: "2.40 m". */
 export const metres = (z) => `${(Math.round(z * 100) / 100).toFixed(2)} m`;
 /** The hover box's words for a height: "2.40 m up". */
-export const upWords = (z) => `${metres(z)} up`;
+export const upWords = (z) => t("{m} up", { m: metres(z) });
 
 // Where devices usually go, in metres above the floor. Ceiling is the
 // floor's own ceiling (a sensor sits just under it, as Live Aboard draws it).
 export const SPOTS = {
-  ceiling: { label: "Ceiling", z: null },
-  corner:  { label: "Corner", z: 2.2 },
-  high:    { label: "High on the wall", z: 2.1 },
-  counter: { label: "Over a counter", z: 1.7 },
-  wall:    { label: "Wall", z: 1.5 },
-  switch:  { label: "Switch height", z: 1.2 },
-  door:    { label: "Door height", z: 1.0 },
-  table:   { label: "Table", z: 0.75 },
-  floor:   { label: "Floor", z: 0.02 },
+  ceiling: { get label() { return t("Ceiling"); }, z: null },
+  corner:  { get label() { return t("Corner"); }, z: 2.2 },
+  high:    { get label() { return t("High on the wall"); }, z: 2.1 },
+  counter: { get label() { return t("Over a counter"); }, z: 1.7 },
+  wall:    { get label() { return t("Wall"); }, z: 1.5 },
+  switch:  { get label() { return t("Switch height"); }, z: 1.2 },
+  door:    { get label() { return t("Door height"); }, z: 1.0 },
+  table:   { get label() { return t("Table"); }, z: 0.75 },
+  floor:   { get label() { return t("Floor"); }, z: 0.02 },
 };
 // The spots each kind of device is offered, the likeliest first.
 const HANGING = new Set(["pendant", "chandelier"]);
@@ -80,14 +82,14 @@ export function spotsOf(l, kind, top){
 }
 // What one of a kind is called, in words.
 const KIND_NAME = {
-  glow: "light", fixture: "ceiling light", pot: "pot light", pot_ring: "pot light", perimeter: "light round a room",
-  pendant: "pendant", chandelier: "chandelier", fan: "ceiling fan", track: "track light", tube: "tube light",
-  spot: "spotlight", sconce: "wall light", vanity: "vanity light", strip: "LED strip", valance: "valance",
-  cove: "cove light", undercab: "under-cabinet light", kick: "toe-kick light", tv: "TV backlight",
-  string: "string of lights", lamp: "lamp", panel: "panel", accent: "accent light", led: "status light",
+  glow: () => t("light"), fixture: () => t("ceiling light"), pot: () => t("pot light"), pot_ring: () => t("pot light"), perimeter: () => t("light round a room"),
+  pendant: () => t("pendant"), chandelier: () => t("chandelier"), fan: () => t("ceiling fan"), track: () => t("track light"), tube: () => t("tube light"),
+  spot: () => t("spotlight"), sconce: () => t("wall light"), vanity: () => t("vanity light"), strip: () => t("LED strip"), valance: () => t("valance"),
+  cove: () => t("cove light"), undercab: () => t("under-cabinet light"), kick: () => t("toe-kick light"), tv: () => t("TV backlight"),
+  string: () => t("string of lights"), lamp: () => t("lamp"), panel: () => t("panel"), accent: () => t("accent light"), led: () => t("status light"),
 };
-const CLASS_NAME = { motion: "motion sensor", temp: "temperature sensor", humidity: "humidity sensor",
-                     air: "air sensor", flood: "leak sensor", lock: "lock", fan: "ceiling fan" };
+const CLASS_NAME = { motion: () => t("motion sensor"), temp: () => t("temperature sensor"), humidity: () => t("humidity sensor"),
+                     air: () => t("air sensor"), flood: () => t("leak sensor"), lock: () => t("lock"), fan: () => t("ceiling fan") };
 
 /** What a placed device is, for its height: {cls, kind, what, section, ceil,
  *  top, dflt, spots: [[key, label, z]]}, or null for a device Live Aboard
@@ -121,7 +123,7 @@ export function infoOf(l, lp, ceil, stored, shape, at){
     dflt = mk ? MARKS.markZ(mk, ceil, null, l) : HOUSE.deviceZ(sk || cls, ceil, null);
   }
   dflt = DRAFT.mm(Math.max(0, Math.min(top, dflt)));
-  const what = fixture ? KIND_NAME[kind] || "light" : CLASS_NAME[cls] || "device";
+  const what = fixture ? (KIND_NAME[kind] || KIND_NAME.glow)() : (CLASS_NAME[cls] || (() => t("device")))();
   const spots = spotsOf(l, kind, top);
   return { cls, kind, what, section, ceil, top, dflt, spots };
 }
@@ -193,7 +195,7 @@ function cmBox(r, onSet){
   inp.type = "number"; inp.className = "lv-num"; inp.min = "0"; inp.max = String(Math.round(r.top * 100)); inp.step = "1";
   inp.placeholder = String(Math.round(r.dflt * 100));
   inp.value = r.z === null ? "" : String(Math.round(r.z * 100));
-  inp.setAttribute("aria-label", "Height in centimetres");
+  inp.setAttribute("aria-label", t("Height in centimetres"));
   inp.addEventListener("change", () => {
     const v = parseFloat(inp.value);
     if (inp.value.trim() === "" || !Number.isFinite(v)) { onSet(null); return; }
@@ -204,16 +206,16 @@ function cmBox(r, onSet){
 /** The inspector's Height row for row `r` (rowsOf's); set(z_m or null). */
 export function heightRow(el, r, set){
   const row = el("div", { class: "lv-heightrow", style: "flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
-  row.appendChild(el("span", { class: "lv-field", title: "How high it is above its floor, for Live Aboard" }, "Height"));
+  row.appendChild(el("span", { class: "lv-field", title: t("How high it is above its floor, for Live Aboard") }, t("Height")));
   for (const [, label, z] of r.spots) {
     row.appendChild(chip(el, label, metres(z), r.z !== null && Math.abs(r.z - z) < 0.005, () => set(z)));
   }
   const box = el("label", { class: "lv-field" }, [cmBox(r, set), "cm"]);
   row.appendChild(box);
-  row.appendChild(chip(el, "Default", metres(r.dflt), r.z === null, () => set(null), `What Live Aboard uses for a ${r.what}`));
+  row.appendChild(chip(el, t("Default"), metres(r.dflt), r.z === null, () => set(null), t("What Live Aboard uses for a {what}", { what: r.what })));
   row.appendChild(el("span", { class: "lv-hint" }, r.z === null
-    ? `Live Aboard uses the default for a ${r.what}`
-    : `${upWords(Math.min(r.z, r.top))} in Live Aboard`));
+    ? t("Live Aboard uses the default for a {what}", { what: r.what })
+    : t("{height} in Live Aboard", { height: upWords(Math.min(r.z, r.top)) })));
   return row;
 }
 
@@ -229,10 +231,10 @@ export function heightsCard(el, st, rows, act){
   // In the wide layouts it sits over the light index, in the index's column.
   const card = el("div", { class: "card lv-tablecard lv-atlascol-table lv-heightscard", style: "padding:10px 12px;margin-bottom:12px" });
   const head = el("div", { style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap" }, [
-    el("div", { class: "lv-tbl-title" }, "Heights for Live Aboard"),
-    el("span", { class: "lv-hint" }, `${rows.length} placed · ${nDefault} using a default`),
+    el("div", { class: "lv-tbl-title" }, t("Heights for Live Aboard")),
+    el("span", { class: "lv-hint" }, t("{n} placed · {d} using a default", { n: rows.length, d: nDefault })),
     el("span", { style: "flex:1" }),
-    el("button", { class: "lv-act", onclick: () => { st.open = !st.open; act.change(); } }, st.open ? "Hide" : "Show"),
+    el("button", { class: "lv-act", onclick: () => { st.open = !st.open; act.change(); } }, st.open ? t("Hide") : t("Show")),
   ]);
   card.appendChild(head);
   if (!st.open) return card;
@@ -245,8 +247,8 @@ export function heightsCard(el, st, rows, act){
   const bar = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px" });
   const pickFloor = document.createElement("select");
   pickFloor.className = "lv-select";
-  pickFloor.setAttribute("aria-label", "Floor");
-  for (const [id, name] of [["all", "All floors"], ...floors]) {
+  pickFloor.setAttribute("aria-label", t("Floor"));
+  for (const [id, name] of [["all", t("All floors")], ...floors]) {
     const o = document.createElement("option");
     o.value = id; o.textContent = name;
     if (id === (st.floor || "all")) o.selected = true;
@@ -254,22 +256,22 @@ export function heightsCard(el, st, rows, act){
   }
   pickFloor.addEventListener("change", () => { st.floor = pickFloor.value; act.change(); });
   bar.appendChild(pickFloor);
-  bar.appendChild(chip(el, "Using a default", String(nDefault), !!st.onlyDefault, () => { st.onlyDefault = !st.onlyDefault; act.change(); },
-    "Only the devices with no height of their own yet"));
+  bar.appendChild(chip(el, t("Using a default"), String(nDefault), !!st.onlyDefault, () => { st.onlyDefault = !st.onlyDefault; act.change(); },
+    t("Only the devices with no height of their own yet")));
   bar.appendChild(el("span", { style: "flex:1" }));
-  bar.appendChild(el("button", { class: "lv-act", onclick: () => { for (const r of shown) sel.add(r.eid); keep(); } }, "Tick all shown"));
+  bar.appendChild(el("button", { class: "lv-act", onclick: () => { for (const r of shown) sel.add(r.eid); keep(); } }, t("Tick all shown")));
   if (act.mapSel && act.mapSel.length) {
-    bar.appendChild(el("button", { class: "lv-act", title: "Tick the devices picked on the map",
-      onclick: () => { for (const e of act.mapSel) if (rows.some((r) => r.eid === e)) sel.add(e); keep(); } }, `Tick the ${act.mapSel.length} picked on the map`));
+    bar.appendChild(el("button", { class: "lv-act", title: t("Tick the devices picked on the map"),
+      onclick: () => { for (const e of act.mapSel) if (rows.some((r) => r.eid === e)) sel.add(e); keep(); } }, t("Tick the {n} picked on the map", { n: act.mapSel.length })));
   }
-  bar.appendChild(el("button", { class: "lv-act", onclick: () => { sel.clear(); keep(); } }, "Untick all"));
+  bar.appendChild(el("button", { class: "lv-act", onclick: () => { sel.clear(); keep(); } }, t("Untick all")));
   card.appendChild(bar);
 
   // Set every ticked one to a spot (each by its own ceiling and limit), a number, or its default.
   const picked = rows.filter((r) => sel.has(r.eid));
   if (picked.length) {
     const setBar = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px" });
-    setBar.appendChild(el("span", { class: "lv-field" }, `Set ${picked.length} ticked to`));
+    setBar.appendChild(el("span", { class: "lv-field" }, t("Set {n} ticked to", { n: picked.length })));
     const offered = [...new Set(picked.flatMap((r) => r.spots.map(([k]) => k)))];
     for (const k of Object.keys(SPOTS).filter((s) => offered.includes(s))) {
       const s = SPOTS[k];
@@ -278,44 +280,44 @@ export function heightsCard(el, st, rows, act){
     }
     const box = document.createElement("input");
     box.type = "number"; box.className = "lv-num"; box.min = "0"; box.step = "1"; box.placeholder = "cm";
-    box.setAttribute("aria-label", "Height in centimetres for every ticked device");
+    box.setAttribute("aria-label", t("Height in centimetres for every ticked device"));
     box.addEventListener("change", () => {
       const v = parseFloat(box.value);
       if (!Number.isFinite(v)) return;
       act.set(picked.map((r) => r.eid), (r) => DRAFT.mm(Math.max(0, Math.min(r.top, v / 100))));
     });
     setBar.appendChild(el("label", { class: "lv-field" }, [box, "cm"]));
-    setBar.appendChild(chip(el, "Default", null, false, () => act.set(picked.map((r) => r.eid), () => null),
-      "Back to what Live Aboard uses for each one's kind"));
+    setBar.appendChild(chip(el, t("Default"), null, false, () => act.set(picked.map((r) => r.eid), () => null),
+      t("Back to what Live Aboard uses for each one's kind")));
     card.appendChild(setBar);
   }
 
   // The list, sorted by a column's heading (again: the other way).
   const sortBy = (by) => { if (st.sort === by) st.dir = -(st.dir || 1); else { st.sort = by; st.dir = 1; } act.change(); };
   const th = (by, text) => el("th", { class: "lv-sortable", style: "cursor:pointer", onclick: () => sortBy(by),
-    title: "Sort by this" }, st.sort === by ? `${text} ${st.dir < 0 ? "▼" : "▲"}` : text);
+    title: t("Sort by this") }, st.sort === by ? `${text} ${st.dir < 0 ? "▼" : "▲"}` : text);
   // The light index's own table: a row's name picks it on the map.
   const table = el("table", { class: "table lv-table lv-heightstable", style: "width:100%;margin-top:8px" });
-  table.appendChild(el("thead", {}, [el("tr", {}, [el("th", {}, ""), th("name", "Device"), th("room", "Room"),
-    th("floor", "Floor"), th("height", "Height")])]));
+  table.appendChild(el("thead", {}, [el("tr", {}, [el("th", {}, ""), th("name", t("Device")), th("room", t("Room")),
+    th("floor", t("Floor")), th("height", t("Height"))])]));
   const body = el("tbody");
   for (const r of shown) {
     const tick = document.createElement("input");
     tick.type = "checkbox"; tick.checked = sel.has(r.eid);
-    tick.setAttribute("aria-label", `Tick ${r.label}`);
+    tick.setAttribute("aria-label", t("Tick {name}", { name: r.label }));
     tick.addEventListener("change", () => { if (tick.checked) sel.add(r.eid); else sel.delete(r.eid); keep(); });
     body.appendChild(el("tr", { "data-eid": r.eid }, [
       el("td", {}, [tick]),
-      el("td", { class: "lv-name", style: "cursor:pointer", title: "Pick it on the map", onclick: () => act.pick(r.eid) }, r.label),
+      el("td", { class: "lv-name", style: "cursor:pointer", title: t("Pick it on the map"), onclick: () => act.pick(r.eid) }, r.label),
       el("td", { class: "muted lv-room" }, r.room),
       el("td", { class: "muted" }, r.floorName),
       el("td", { style: "font-variant-numeric:tabular-nums" }, r.z === null
-        ? [el("span", { class: "lv-hint" }, `default (${metres(r.dflt)})`)] : metres(Math.min(r.z, r.top))),
+        ? [el("span", { class: "lv-hint" }, t("default ({m})", { m: metres(r.dflt) }))] : metres(Math.min(r.z, r.top))),
     ]));
   }
   table.appendChild(body);
   card.appendChild(table);
   if (!shown.length) card.appendChild(el("div", { class: "lv-hint", style: "margin-top:6px" },
-    st.onlyDefault ? "Every device here has a height of its own." : "No placed devices here."));
+    st.onlyDefault ? t("Every device here has a height of its own.") : t("No placed devices here.")));
   return card;
 }

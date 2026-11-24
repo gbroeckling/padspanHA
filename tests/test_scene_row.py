@@ -122,7 +122,9 @@ def test_mapping_atlas_hands_in_scenes_too() -> None:
 
 def test_the_row_asks_nothing_of_home_assistant_itself() -> None:
     code = _code(_VIEWS / "scene_row.js")
-    assert "import(" not in code and not re.search(r"^\s*import\s", code, re.M)
+    # Its one import is the panel's translator (views/i18n.js: its words, nothing of Home Assistant).
+    assert code.count("import(") == 1 and "await import(`./i18n.js${new URL(import.meta.url).search}`)" in code
+    assert not re.search(r"^\s*import\s", code, re.M)
     for word in ("callWS", "callService", "hass", "localStorage", "fetch(", "settings_set"):
         assert word not in code, word
 

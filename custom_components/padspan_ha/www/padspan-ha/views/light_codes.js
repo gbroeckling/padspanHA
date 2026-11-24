@@ -126,11 +126,17 @@ export function isFloodSensor(l) {
 }
 /** What an Emergency device warns of: "water" (a leak), "smoke", "gas" or "co". */
 export function emergencyKind(l){ return (l && EMERGENCY_CLASSES[l.device_class]) || "water"; }
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill }));
 const EMERGENCY_ON = { water: "WET", smoke: "SMOKE", gas: "GAS", co: "CO" };
+const EMERGENCY_ON_WORD = { water: () => t("WET"), smoke: () => t("SMOKE"), gas: () => t("GAS"), co: () => t("CO") };
 /** Its word: alarming now (WET, SMOKE, GAS, CO), latched (ALARM), or quiet (DRY for a leak, else CLEAR). */
 export function emergencyWord(l, on, latched){
   const k = emergencyKind(l);
-  return on ? EMERGENCY_ON[k] : latched ? "ALARM" : k === "water" ? "DRY" : "CLEAR";
+  return on ? (EMERGENCY_ON_WORD[k] ? EMERGENCY_ON_WORD[k]() : EMERGENCY_ON[k]) : latched ? t("ALARM") : k === "water" ? t("DRY") : t("CLEAR");
 }
 
 // A sensor.* entity reporting device_class "temperature" — "same as WLED or
@@ -249,12 +255,12 @@ export function airQualityBadness(l) {
 // The word for a badness, for the index and room sheet.
 export function airQualityWord(badness) {
   if (!Number.isFinite(badness)) return "—";
-  if (badness <= 0) return "Good";
-  if (badness < .2) return "Moderate";
-  if (badness < .4) return "Poor";
-  if (badness < .6) return "Bad";
-  if (badness < .8) return "Very bad";
-  return "Hazardous";
+  if (badness <= 0) return t("Good");
+  if (badness < .2) return t("Moderate");
+  if (badness < .4) return t("Poor");
+  if (badness < .6) return t("Bad");
+  if (badness < .8) return t("Very bad");
+  return t("Hazardous");
 }
 
 // A lock.* entity riding the lights pipeline (gap #8, best-in-class
@@ -308,7 +314,7 @@ const TEMP_FRESH_MS = 60 * 60 * 1000;
 // Atlas use (round 7).
 export function healthOf(l, nowMs, inverted = false) {
   if (l.state === "unavailable" || l.state === "unknown") {
-    return { healthy: false, reason: `Entity is ${l.state}` };
+    return { healthy: false, reason: t("Entity is {state}", { state: l.state }) };
   }
   const now = Number(nowMs) || Date.now();
   const OK = { healthy: true, reason: "" };
@@ -325,18 +331,18 @@ export function healthOf(l, nowMs, inverted = false) {
     if (held && Number.isFinite(changed) && (now - changed) > MOTION_STUCK_MS) {
       const hrs = Math.round((now - changed) / 3600000);
       return { healthy: false, reason: kind === "left_open"
-        ? `Open for ~${hrs}h`
-        : `Stuck "on" for ~${hrs}h — likely a hardware fault, not continuous motion` };
+        ? t("Open for ~{hrs}h", { hrs })
+        : t("Stuck \"on\" for ~{hrs}h — likely a hardware fault, not continuous motion", { hrs }) };
     }
     return OK;
   }
   // A temperature, air-quality or humidity sensor is healthy while it keeps reporting.
   if (kind === "fresh") {
     const updated = l.last_changed ? Date.parse(l.last_changed) : NaN;
-    if (!Number.isFinite(updated)) return { healthy: false, reason: "No reading timestamp" };
+    if (!Number.isFinite(updated)) return { healthy: false, reason: t("No reading timestamp") };
     if ((now - updated) > TEMP_FRESH_MS) {
       const hrs = Math.round((now - updated) / 3600000);
-      return { healthy: false, reason: `No reading in over ${hrs}h` };
+      return { healthy: false, reason: t("No reading in over {hrs}h", { hrs }) };
     }
     return OK;
   }
@@ -346,12 +352,12 @@ export function healthOf(l, nowMs, inverted = false) {
   // not get silently marked "probably a hardware fault" and dismissed.
   if (kind === "effects") {
     if (!Array.isArray(l.effect_list) || !l.effect_list.length) {
-      return { healthy: false, reason: "No effects reported — this WLED strip may have lost its effect list" };
+      return { healthy: false, reason: t("No effects reported — this WLED strip may have lost its effect list") };
     }
     return OK;
   }
   if (kind === "jammed") {
-    return l.state === "jammed" ? { healthy: false, reason: "Lock is jammed" } : OK;
+    return l.state === "jammed" ? { healthy: false, reason: t("Lock is jammed") } : OK;
   }
   return OK;
 }
@@ -366,6 +372,10 @@ export const LIGHT_TYPE_OVERRIDES = [
   ["plain",     "Plain light"],
   ["fan",       "Fan (switch only)"],
 ];
+const TYPE_OVERRIDE_WORDS = { auto: () => t("Auto (detected)"), wled: () => t("WLED / effect strip"), partition: () => t("ESPHome partition"),
+  plain: () => t("Plain light"), fan: () => t("Fan (switch only)") };
+/** LIGHT_TYPE_OVERRIDES in the panel's language: [[kind, label], ...]. */
+export const lightTypeOverrides = () => LIGHT_TYPE_OVERRIDES.map(([k, label]) => [k, TYPE_OVERRIDE_WORDS[k] ? TYPE_OVERRIDE_WORDS[k]() : label]);
 
 // Distinct marker border/stroke per class, in both views.
 export const WLED_BORDER = "#c084fc";
@@ -533,6 +543,17 @@ export const LIGHT_SHAPES = [
   ["smokealarm", "Smoke / gas / CO alarm"],
   ["wifiap",    "Wi-Fi access point"],
 ];
+const SHAPE_WORDS = {
+  auto: () => t("Auto (derived)"), hex: () => t("Fixture (default)"), circle: () => t("Pot / downlight"), bar: () => t("Strip / valance"),
+  line: () => t("Run / track"), square: () => t("Fluorescent / tube"), fan: () => t("Ceiling fan"), pendant: () => t("Pendant / drop"),
+  sconce: () => t("Wall sconce"), chandelier: () => t("Chandelier / decorative"), triangle: () => t("Spot / directional"),
+  diamond: () => t("Indicator LED"), perimeter: () => t("Room perimeter / cove"), motion: () => t("Motion sensor"),
+  tempreadout: () => t("Temperature readout"), humidityreadout: () => t("Humidity readout"), airquality: () => t("Air quality sensor"),
+  lock: () => t("Door lock"), door: () => t("Door/window sensor"), flood: () => t("Leak sensor"), smokealarm: () => t("Smoke / gas / CO alarm"),
+  wifiap: () => t("Wi-Fi access point"),
+};
+/** LIGHT_SHAPES in the panel's language: [[kind, label], ...]. */
+export const lightShapes = () => LIGHT_SHAPES.map(([k, label]) => [k, SHAPE_WORDS[k] ? SHAPE_WORDS[k]() : label]);
 
 // "perimeter" is drawn once, structurally differently from every shape
 // above: those are all a small icon inscribed at a point (see shapeSvg);

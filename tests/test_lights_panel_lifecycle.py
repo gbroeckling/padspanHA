@@ -246,7 +246,7 @@ def test_emergency_toasts_stay_long_enough_to_read() -> None:
     # Re-review: the armed Force-off message is tied to its 3 s window, so it
     # passes that as its own duration instead of outlasting the window.
     assert "durationMs ||" in toast
-    assert "Tap again to turn off every emergency light`, true, 3000);" in src
+    assert 'Tap again to turn off every emergency light", { names: ran.join(", ") }), true, 3000);' in src
 
 
 def test_a_new_toast_replaces_the_last(result) -> None:

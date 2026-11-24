@@ -15,13 +15,18 @@ const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, floorNameAtLevel, sa
         lightClassOf, SHOWCASE_THEMES, AUTOMORPH_STYLE_LABELS, floodLatchActive, barrierNoReading,
         isOutdoorFloorId } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
+const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES, lightShapes, lightTypeOverrides,
         TEMP_BORDER, healthOf,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
+// alone), the English with its {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 // Atlas outdoor weather (atlas_weather.js). Optional: a module that fails to
 // load must not take the house map with it — the map just has no weather.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
@@ -304,9 +309,9 @@ export function exactProblems(r){
     if (x.ok) continue;
     // Waiting: offline in HA (sent when it reconnects), or it didn't answer
     // while HA still has it (PadSpan tries again itself).
-    if (x.waiting) out.push({ text: x.retry_in ? `${x.name} didn't answer — PadSpan tries again in ${x.retry_in} s`
-      : `${x.name} is offline — it gets its look when it reconnects`, error: false });
-    else out.push({ text: `${x.name}: ${x.message || (x.diffs || []).join("; ") || "didn't take"}`, error: true });
+    if (x.waiting) out.push({ text: x.retry_in ? t("{name} didn't answer — PadSpan tries again in {s} s", { name: x.name, s: x.retry_in })
+      : t("{name} is offline — it gets its look when it reconnects", { name: x.name }), error: false });
+    else out.push({ text: `${x.name}: ${x.message || (x.diffs || []).join("; ") || t("didn't take")}`, error: true });
   }
   return out;
 }
@@ -335,7 +340,7 @@ export async function setLightBrightness(hass, eid, bri){
 /** What a sensor reads now, in words: "Hall temperature: 21.4 °C"; a motion sensor adds how to see its activity. */
 export function readoutOf(hass, eid){
   const st = hass.states && hass.states[eid], a = (st && st.attributes) || {};
-  if (!st) return `${eid}: no reading`;
+  if (!st) return t("{eid}: no reading", { eid });
   const val = typeof hass.formatEntityState === "function" ? hass.formatEntityState(st) : `${st.state}${a.unit_of_measurement ? " " + a.unit_of_measurement : ""}`;
   const motion = String(eid).startsWith("binary_sensor.") && ["motion", "occupancy"].includes(a.device_class);
   return `${a.friendly_name || eid}: ${val}${motion ? " · hold for its activity" : ""}`;
@@ -367,23 +372,23 @@ export function confirmUnlock(name){
       resolve(ok);
     };
     overlay.addEventListener("click", e => { if (e.target === overlay) finish(false); });
-    const box = el("div", { role: "alertdialog", "aria-label": `Unlock ${name}?`, style:
+    const box = el("div", { role: "alertdialog", "aria-label": t("Unlock {name}?", { name }), style:
       "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
       + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
       + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
       + "box-shadow:0 20px 60px rgba(0,0,0,.65)" });
-    box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:14px" }, `Unlock ${name}?`));
+    box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:14px" }, t("Unlock {name}?", { name })));
     const no = el("button", {
       style: "padding:9px 14px;font-size:13px;border-radius:10px;cursor:pointer;"
         + "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);color:#94a3b8",
       onclick: (e) => { e.stopPropagation(); finish(false); },
-    }, "Cancel");
+    }, t("Cancel"));
     box.appendChild(el("div", { style: "display:flex;gap:8px" }, [
       el("button", {
         style: "flex:1;padding:9px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
           + "background:#2d6a4f;color:#e2e8f0;border:1px solid #52b788",
         onclick: (e) => { e.stopPropagation(); finish(true); },
-      }, "Unlock"),
+      }, t("Unlock")),
       no,
     ]));
     overlay.appendChild(box);
@@ -424,7 +429,7 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
       for (const m of members) clearOptimistic(m);
       if (render) render();
       if (shake) shake(eid);
-      if (toast) toast("Could not switch " + (hass.states[team]?.attributes?.friendly_name || team), true);
+      if (toast) toast(t("Could not switch {name}", { name: hass.states[team]?.attributes?.friendly_name || team }), true);
       return false;
     }
     return true;
@@ -461,7 +466,7 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
       for (const e2 of ex.group) clearOptimistic(e2);
       if (render) render();
       if (shake) shake(eid);
-      if (toast) toast("Could not toggle " + eid, true);
+      if (toast) toast(t("Could not toggle {name}", { name: eid }), true);
       return false;
     }
     return true;
@@ -486,7 +491,7 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
     clearOptimistic(eid);
     if (render) render();
     if (shake) shake(eid);
-    if (toast) toast("Could not toggle " + eid, true);
+    if (toast) toast(t("Could not toggle {name}", { name: eid }), true);
     return false;
   }
   return true;
@@ -496,6 +501,12 @@ export async function toggleEntity(hass, eid, { render, toast, shake } = {}){
 // The layer chips: the map keeps every class in view and DIMS the others,
 // because a fan's place on the ceiling is context for the light beside it.
 export const LIGHT_CLASSES = [["all","All"],["light","Lights"],["strip","Strips"],["fan","Fans"],["motion","Motion"],["temp","Temps"],["humidity","Humidity"],["air","Air"],["lock","Locks"],["door","Doors/Windows"],["flood","Emergency"],["wifi","Wi-Fi"]];
+// The same list in the panel's language (LIGHT_CLASSES stays the English one), and each class's word inside a sentence.
+const LIGHT_CLASS_WORDS = { all: () => t("All"), light: () => t("Lights"), strip: () => t("Strips"), fan: () => t("Fans"), motion: () => t("Motion"), temp: () => t("Temps"),
+  humidity: () => t("Humidity"), air: () => t("Air"), lock: () => t("Locks"), door: () => t("Doors/Windows"), flood: () => t("Emergency"), wifi: () => t("Wi-Fi") };
+const LIGHT_CLASS_LOWER = { all: () => t("all"), light: () => t("lights"), strip: () => t("strips"), fan: () => t("fans"), motion: () => t("motion"), temp: () => t("temps"),
+  humidity: () => t("humidity"), air: () => t("air"), lock: () => t("locks"), door: () => t("doors/windows"), flood: () => t("emergency"), wifi: () => t("wi-fi") };
+const lightClasses = () => LIGHT_CLASSES.map(([cls]) => [cls, LIGHT_CLASS_WORDS[cls]()]);
 
 // Automorph's style dropdown vocabulary — derived from AUTOMORPH_STYLE_LABELS
 // itself (iso_lights.js) rather than a hand-copied list. A style added there
@@ -700,8 +711,8 @@ export async function applyWholeHouse(hass, preset){
 // What the preset bar says after applyWholeHouse.
 export function wholeHouseText(r){
   const failed = r.failed || 0, probs = (r.problems || []).map(p => p.text);
-  if (!r.skipped && !failed && !probs.length) return `Applied to ${r.applied} ✓`;
-  return `Applied ${r.applied} of ${r.applied + r.skipped + failed}` + (r.skipped ? ` — ${r.skipped} unavailable` : "")
+  if (!r.skipped && !failed && !probs.length) return t("Applied to {n} ✓", { n: r.applied });
+  return t("Applied {n} of {of}", { n: r.applied, of: r.applied + r.skipped + failed }) + (r.skipped ? " — " + t("{n} unavailable", { n: r.skipped }) : "")
     + (probs.length ? ` — ${probs.join(" · ")}` : "");
 }
 
@@ -740,9 +751,10 @@ export function floodIsAlarming(l, floodLatches){
 // left open over 6 hours (the health check's "left open", healthOf). Each {eid, kind, what, where}: the
 // banner's words ("Leak · Laundry") and, for an opening, its amber ring.
 export const ALERT_KINDS = ["smoke", "gas", "co", "water", "rain_open", "left_open"];
-const ALERT_WHAT = { smoke: "Smoke", gas: "Gas", co: "CO", water: "Leak" };
-const OPENING_NOUN = { door: "Door", window: "Window", garage_door: "Garage door", garage: "Garage door", opening: "Opening",
-                       gate: "Gate", blind: "Blind", shade: "Shade", shutter: "Shutter", curtain: "Curtain", awning: "Awning" };
+const ALERT_WHAT = { smoke: () => t("Smoke"), gas: () => t("Gas"), co: () => t("CO"), water: () => t("Leak") };
+const ALERT_EARLIER = { smoke: () => t("Smoke earlier"), gas: () => t("Gas earlier"), co: () => t("CO earlier"), water: () => t("Leak earlier") };
+const OPENING_NOUN = { door: () => t("Door"), window: () => t("Window"), garage_door: () => t("Garage door"), garage: () => t("Garage door"), opening: () => t("Opening"),
+                       gate: () => t("Gate"), blind: () => t("Blind"), shade: () => t("Shade"), shutter: () => t("Shutter"), curtain: () => t("Curtain"), awning: () => t("Awning") };
 export function safetyAlerts(lights, { wet = null, floodLatches = {}, doorInvert = {}, nowMs = Date.now() } = {}){
   const out = [];
   for (const l of lights || []) {
@@ -751,17 +763,17 @@ export function safetyAlerts(lights, { wet = null, floodLatches = {}, doorInvert
     if (l.isFlood) {
       if (!floodIsAlarming(l, floodLatches)) continue;
       const k = emergencyKind(l);
-      out.push({ eid: l.entity_id, kind: k, what: ALERT_WHAT[k] + (l.state === "on" ? "" : " earlier"), where });
+      out.push({ eid: l.entity_id, kind: k, what: ((l.state === "on" ? ALERT_WHAT : ALERT_EARLIER)[k] || (() => String(k)))(), where });
     } else if (l.isDoor && !l.isLock) {
       if (l.state === "unavailable" || l.state === "unknown") continue;
       const inv = !!(doorInvert && doorInvert[l.entity_id]);
       if (!openingOpen(l, inv)) continue;
       const cover = String(l.entity_id).startsWith("cover.");
-      const noun = OPENING_NOUN[l.device_class] || (cover ? "Cover" : "Door");
+      const noun = (OPENING_NOUN[l.device_class] || (cover ? () => t("Cover") : () => t("Door")))();
       if (wet && (cover || l.device_class === "window")) {
-        out.push({ eid: l.entity_id, kind: "rain_open", what: `${noun} open in the ${wet}`, where });
+        out.push({ eid: l.entity_id, kind: "rain_open", what: wet === "snow" ? t("{noun} open in the snow", { noun }) : t("{noun} open in the rain", { noun }), where });
       } else if (!healthOf(l, nowMs, inv).healthy) {
-        out.push({ eid: l.entity_id, kind: "left_open", what: `${noun} left open`, where });
+        out.push({ eid: l.entity_id, kind: "left_open", what: t("{noun} left open", { noun }), where });
       }
     }
   }
@@ -770,8 +782,8 @@ export function safetyAlerts(lights, { wet = null, floodLatches = {}, doorInvert
 /** The banner's line: the worst alert, "and N more" after it. */
 export function alertBannerText(alerts){
   if (!alerts || !alerts.length) return "";
-  const t = `${alerts[0].what} · ${alerts[0].where}`;
-  return alerts.length > 1 ? `${t} (and ${alerts.length - 1} more)` : t;
+  const first = `${alerts[0].what} · ${alerts[0].where}`;
+  return alerts.length > 1 ? t("{first} (and {n} more)", { first, n: alerts.length - 1 }) : first;
 }
 
 // One class-driven answer to "what does this entity's state read as, and is
@@ -801,15 +813,15 @@ export const doorInvertOf = (model) => Object.fromEntries((model?.rf_barriers_m 
 export function stateWordOf(l, floodLatches, doorInvert){
   if (l.isMotion) {
     const on = l.state === "on";
-    return { text: on ? "MOTION" : "clear", lit: on, sortValue: on ? 1 : 0 };
+    return { text: on ? t("MOTION") : t("clear"), lit: on, sortValue: on ? 1 : 0 };
   }
   if ((l.isLock || l.isDoor) && barrierNoReading(l)) {
-    return { text: "NO READING", lit: false, sortValue: -1 };
+    return { text: t("NO READING"), lit: false, sortValue: -1 };
   }
   if (l.isLock) {
     const jammed = l.state === "jammed";
     const locked = l.state === "locked";
-    return { text: jammed ? "JAMMED" : (locked ? "LOCKED" : "UNLOCKED"), lit: !jammed && locked, sortValue: locked ? 1 : 0, locked };
+    return { text: jammed ? t("JAMMED") : (locked ? t("LOCKED") : t("UNLOCKED")), lit: !jammed && locked, sortValue: locked ? 1 : 0, locked };
   }
   if (l.isTemp) {
     const v = Number.isFinite(l.temperature) ? l.temperature : null;
@@ -827,7 +839,7 @@ export function stateWordOf(l, floodLatches, doorInvert){
     const on = openingOpen(l, doorInvert && doorInvert[l.entity_id]);
     // A cover part-way open says how far ("OPEN 40%").
     const pct = coverPercent(l);
-    return { text: on ? (pct !== null && pct > 0 && pct < 100 ? `OPEN ${pct}%` : "OPEN") : "CLOSED", lit: on, sortValue: on ? 1 : 0 };
+    return { text: on ? (pct !== null && pct > 0 && pct < 100 ? t("OPEN {pct}%", { pct }) : t("OPEN")) : t("CLOSED"), lit: on, sortValue: on ? 1 : 0 };
   }
   if (l.isFlood) {
     // Latched (flood_latch.py) beats live state — a sensor that's dried
@@ -1156,18 +1168,18 @@ export function wireHoverHud(isoDiv, opts){
     hud.innerHTML = "";
     hud.hidden = false;
     if (stack.length) {
-      hud.appendChild(mk("div", "lv-hoverhud-hit", [mk("span", "lv-hoverhud-k", "Click"), label(stack[0])]));
+      hud.appendChild(mk("div", "lv-hoverhud-hit", [mk("span", "lv-hoverhud-k", t("Click")), label(stack[0])]));
       for (const eid of stack.slice(1)) {
-        const b = mk("button", "lv-hoverhud-under", [mk("span", "lv-hoverhud-k", "Under"), label(eid)]);
-        b.title = opts.underTitle || "This one is under the marker on top";
+        const b = mk("button", "lv-hoverhud-under", [mk("span", "lv-hoverhud-k", t("Under")), label(eid)]);
+        b.title = opts.underTitle || t("This one is under the marker on top");
         b.addEventListener("click", () => { if (opts.onPickUnder) opts.onPickUnder(eid); });
         hud.appendChild(b);
       }
       if (stack.length > 1 && opts.stackHint) hud.appendChild(mk("div", "lv-hoverhud-hint", opts.stackHint));
     } else {
       const n = Object.values(lightsByEid).filter(l => l.area_name === room).length;
-      const line = opts.roomLine ? opts.roomLine(room, n) : `${room} — ${n} device${n === 1 ? "" : "s"}`;
-      hud.appendChild(mk("div", "lv-hoverhud-hit", [mk("span", "lv-hoverhud-k", "Click"), line]));
+      const line = opts.roomLine ? opts.roomLine(room, n) : tn(n, "{room} — {n} device", "{room} — {n} devices", { room });
+      hud.appendChild(mk("div", "lv-hoverhud-hit", [mk("span", "lv-hoverhud-k", t("Click")), line]));
     }
   };
   const onMove = (ev) => {
@@ -1375,7 +1387,7 @@ export function wireUseSurface(isoDiv, api){
       if (r === "open") { if (holdable) api.openControls(eid); else if (switches(eid, l0)) api.toggle(eid); return; }
       if (r === "drag-end") {
         const b = g._dragTarget;
-        if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(p => _tellProblems(api.toast, p)).catch(() => api.toast("Could not set brightness", true));
+        if (typeof b === "number" && api.hass) setLightBrightness(api.hass, eid, b).then(p => _tellProblems(api.toast, p)).catch(() => api.toast(t("Could not set brightness"), true));
         setTimeout(() => api.rerender(), 500);
       }
     };
@@ -1504,29 +1516,29 @@ export function openAggregateSheet(api, spec, o = {}){
       const na = l.state === "unavailable";
       row.appendChild(mk("span", _S.code + `;color:${col}`, l.code));
       row.appendChild(mk("span", _S.name + (na ? ";opacity:.55" : ""), l.friendly_name));
-      const unavailableBtn = () => { const b = mk("button", _S.onoff(false) + greyed, "Unavailable"); b.disabled = true; return b; };
+      const unavailableBtn = () => { const b = mk("button", _S.onoff(false) + greyed, t("Unavailable")); b.disabled = true; return b; };
       const sw = stateWordOf(l, api.floodLatches, api.doorInvertByEid);
       if (sw) {
         row.appendChild(mk("span", _S.state(sw.lit), sw.text));
         if (l.isLock && na) row.appendChild(unavailableBtn());
         else if (l.isLock) {
-          const b = mk("button", _S.onoff(sw.locked), sw.locked ? "Unlock" : "Lock");
+          const b = mk("button", _S.onoff(sw.locked), sw.locked ? t("Unlock") : t("Lock"));
           b.addEventListener("click", async (e) => {
             e.stopPropagation();
             const wasLocked = b.textContent === "Unlock";
             // Unlock asks first (toggleEntity): the word changes once Home Assistant took it, never on the press.
-            if (await api.toggle(l.entity_id) === true) { b.style.cssText = _S.onoff(!wasLocked); b.textContent = wasLocked ? "Lock" : "Unlock"; }
+            if (await api.toggle(l.entity_id) === true) { b.style.cssText = _S.onoff(!wasLocked); b.textContent = wasLocked ? t("Lock") : t("Unlock"); }
           });
           row.appendChild(b);
         } else if (l.isFlood && sw.latched && api.onFloodReset) {
           const wrap = mk("span");
           const makeResetBtn = () => {
-            const b = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", "Reset");
+            const b = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", t("Reset"));
             b.addEventListener("click", (e) => {
               e.stopPropagation();
               wrap.innerHTML = "";
-              const yes = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px;background:#7f1d1d;border-color:#dc2626;color:#fecaca", "Yes, clear it");
-              const no = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", "No");
+              const yes = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px;background:#7f1d1d;border-color:#dc2626;color:#fecaca", t("Yes, clear it"));
+              const no = mk("button", _S.act + ";padding:3px 10px;min-height:26px;font-size:10px", t("No"));
               yes.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; api.onFloodReset(l.entity_id); });
               no.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; wrap.appendChild(makeResetBtn()); });
               wrap.appendChild(yes); wrap.appendChild(no);
@@ -1542,19 +1554,19 @@ export function openAggregateSheet(api, spec, o = {}){
         const on = l.state === "on";
         if (na) row.appendChild(unavailableBtn());
         else {
-          const b = mk("button", _S.onoff(on), on ? "On" : "Off");
+          const b = mk("button", _S.onoff(on), on ? t("On") : t("Off"));
           b.addEventListener("click", async (e) => {
             e.stopPropagation();
             const nowOn = b.textContent === "On";
-            b.style.cssText = _S.onoff(!nowOn); b.textContent = nowOn ? "Off" : "On";
+            b.style.cssText = _S.onoff(!nowOn); b.textContent = nowOn ? t("Off") : t("On");
             // The new word stays only if Home Assistant took it (toggleEntity resolves true).
-            if (await api.toggle(l.entity_id) !== true) { b.style.cssText = _S.onoff(nowOn); b.textContent = nowOn ? "On" : "Off"; }
+            if (await api.toggle(l.entity_id) !== true) { b.style.cssText = _S.onoff(nowOn); b.textContent = nowOn ? t("On") : t("Off"); }
           });
           row.appendChild(b);
         }
         if (api.controlsFor(l)) {
           const more = mk("button", _S.act + ";min-height:30px;padding:3px 10px", "⋯");
-          more.title = "Controls";
+          more.title = t("Controls");
           more.addEventListener("click", () => { if (!stay) close(); api.openControls(l.entity_id); });
           row.appendChild(more);
         }
@@ -1600,13 +1612,13 @@ export function whoInRoom(est, room){
   let phones = 0, someone = 0;
   for (const p of (est && Array.isArray(est.people)) ? est.people : []) {
     if (!p || String(p.room || "").trim().toLowerCase() !== want) continue;
-    if (p.kind === "known") names.push(String(p.name || "Someone"));
+    if (p.kind === "known") names.push(String(p.name || t("Someone")));
     else if (p.name === "Someone") someone++;
     else phones++;
   }
   if (phones) names.push(`+${phones} unknown phone${phones === 1 ? "" : "s"}`);
   if (someone) names.push(`+${someone} someone`);
-  return names.length ? `Here: ${names.join(", ")}` : null;
+  return names.length ? t("Here: {names}", { names: names.join(", ") }) : null;
 }
 // How often an open room sheet asks again who is in it: the occupancy
 // sensor's own interval (sensor.py PadSpanOccupancyCoordinator).
@@ -1635,14 +1647,14 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
   const parts = [];
   if (agg.lightsTotal) parts.push(`Lights ${agg.lightsOn}/${agg.lightsTotal}`);
   if (agg.fansTotal) parts.push(`Fans ${agg.fansOn}/${agg.fansTotal}`);
-  if (agg.motionTotal) parts.push(agg.motionActive ? `Motion ×${agg.motionActive}` : "Motion clear");
-  if (agg.airTotal) parts.push(`Air ${airQualityWord(agg.airWorst)}`);
+  if (agg.motionTotal) parts.push(agg.motionActive ? t("Motion ×{n}", { n: agg.motionActive }) : t("Motion clear"));
+  if (agg.airTotal) parts.push(t("Air {word}", { word: airQualityWord(agg.airWorst) }));
   if (agg.floodActive) parts.push(`⚠ Emergency ×${agg.floodActive}`);
   const actions = [];
-  if (lightSw.on.length) actions.push({ label: "All lights off", run: () => api.setMany(lightSw.on, false) });
-  if (lightSw.off.length) actions.push({ label: "All lights on", primary: true, run: () => api.setMany(lightSw.off, true) });
-  if (fanSw.on.length) actions.push({ label: "Fans off", run: () => api.setMany(fanSw.on, false) });
-  if (fanSw.off.length) actions.push({ label: "Fans on", run: () => api.setMany(fanSw.off, true) });
+  if (lightSw.on.length) actions.push({ label: t("All lights off"), run: () => api.setMany(lightSw.on, false) });
+  if (lightSw.off.length) actions.push({ label: t("All lights on"), primary: true, run: () => api.setMany(lightSw.off, true) });
+  if (fanSw.on.length) actions.push({ label: t("Fans off"), run: () => api.setMany(fanSw.on, false) });
+  if (fanSw.off.length) actions.push({ label: t("Fans on"), run: () => api.setMany(fanSw.off, true) });
   // The room's own scenes and scripts, one tap each (never on the unplaced chip's sheet).
   if (!only && api.hass && typeof api.hass.callService === "function") {
     for (const sc of roomScenes(api.hass, room)) {
@@ -1650,11 +1662,11 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
         const [domain] = sc.eid.split(".");
         Promise.resolve(api.hass.callService(domain, "turn_on", { entity_id: sc.eid }))
           .then(() => api.toast && api.toast(sc.name))
-          .catch((e) => api.toast && api.toast(`Could not run ${sc.name}: ${errorText(e)}`, true));
+          .catch((e) => api.toast && api.toast(t("Could not run {name}: {why}", { name: sc.name, why: errorText(e) }), true));
       } });
     }
   }
-  return { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), who: only || api.peopleShown !== true ? null : who, items, actions };
+  return { title: only ? t("Unplaced in {room}", { room }) : room, sub: parts.join(" · "), who: only || api.peopleShown !== true ? null : who, items, actions };
 }
 /** The room sheet. Returns its handle: the host hands every newer api and
  *  lights to update(api, lights) while it is open (false once closed), so
@@ -1691,8 +1703,8 @@ export function openRoomSheet(api, lights, room, onlyEids, o = {}){
 export function openLightsSheet(api, lights, eids){
   const only = new Set(eids), items = lights.filter(l => only.has(l.entity_id)), ids = items.map(l => l.entity_id);
   const on = items.filter(l => l.state === "on").length;
-  openAggregateSheet(api, { title: `${items.length} lights here`, sub: `${on} on`, items,
-    actions: [{ label: "All off", run: () => api.setMany(ids, false) }, { label: "All on", primary: true, run: () => api.setMany(ids, true) }] });
+  openAggregateSheet(api, { title: t("{n} lights here", { n: items.length }), sub: t("{n} on", { n: on }), items,
+    actions: [{ label: t("All off"), run: () => api.setMany(ids, false) }, { label: t("All on"), primary: true, run: () => api.setMany(ids, true) }] });
 }
 // Read-only info classes the floor sheet always lists — not already counted
 // via lightEids/fanEids, and not conditional the way motion/air/flood are
@@ -1711,7 +1723,7 @@ export function openFloorSheet(api, lights, model, z){
   const frame = fabricFrame(model || {}, floors, 150, 0);
   const fid = floorIdAtLevel(frame, model, floors, z);
   const f = fid ? floors.find(x => String(x.id) === fid) : null;
-  if (!fid) { api.toast("No floor record for this storey"); return; }
+  if (!fid) { api.toast(t("No floor record for this storey")); return; }
   const onSlab = floorIdsOnSlab(frame, model, floors, z);
   const agg = floorAggregate(lights, model, onSlab, api.floodLatches);
   // The room sheet shows every class via agg.all; this hand-typed inclusion
@@ -1729,15 +1741,15 @@ export function openFloorSheet(api, lights, model, z){
   if (agg.fansTotal) parts.push(`Fans ${agg.fansOn}/${agg.fansTotal}`);
   if (agg.motionActive) parts.push(`Motion ×${agg.motionActive}`);
   // Like motion: only worth a word on the floor line when something is up.
-  if (agg.airTotal && agg.airWorst > 0) parts.push(`Air ${airQualityWord(agg.airWorst)}`);
+  if (agg.airTotal && agg.airWorst > 0) parts.push(t("Air {word}", { word: airQualityWord(agg.airWorst) }));
   if (agg.floodActive) parts.push(`⚠ Emergency ×${agg.floodActive}`);
   const actions = [];
   if (agg.lightEids.length) {
-    actions.push({ label: "All lights off", run: () => api.setMany(agg.lightEids, false) });
-    actions.push({ label: "All lights on", primary: true, run: () => api.setMany(agg.lightEids, true) });
+    actions.push({ label: t("All lights off"), run: () => api.setMany(agg.lightEids, false) });
+    actions.push({ label: t("All lights on"), primary: true, run: () => api.setMany(agg.lightEids, true) });
   }
-  if (agg.fanEids.length) actions.push({ label: "Fans off", run: () => api.setMany(agg.fanEids, false) });
-  openAggregateSheet(api, { title: floorNameAtLevel(frame, model, floors, z) || (f && f.name) || `Floor ${z}`, sub: parts.join(" · "), items, actions });
+  if (agg.fanEids.length) actions.push({ label: t("Fans off"), run: () => api.setMany(agg.fanEids, false) });
+  openAggregateSheet(api, { title: floorNameAtLevel(frame, model, floors, z) || (f && f.name) || t("Floor {n}", { n: z }), sub: parts.join(" · "), items, actions });
 }
 
 // ── Weekly activity calendar (motion sensors) ────────────────────────────────
@@ -1826,11 +1838,11 @@ export async function openActivityCalendar(hass, eid) {
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const head = mk("div", _S.head);
-  const hl = mk("div"); hl.appendChild(mk("div", _S.title, name)); hl.appendChild(mk("div", _S.sub, "Activity — last 7 days"));
+  const hl = mk("div"); hl.appendChild(mk("div", _S.title, name)); hl.appendChild(mk("div", _S.sub, t("Activity — last 7 days")));
   head.appendChild(hl);
   const x = mk("button", _S.act, "✕"); x.addEventListener("click", close); head.appendChild(x);
   sheet.appendChild(head);
-  const body = mk("div", "font-size:12px;color:#94a3b8", "Loading…");
+  const body = mk("div", "font-size:12px;color:#94a3b8", t("Loading…"));
   sheet.appendChild(body);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
@@ -1849,7 +1861,7 @@ export async function openActivityCalendar(hass, eid) {
     body.textContent = "";
     const totalOnHours = grid.reduce((a, row) => a + row.filter(Boolean).length, 0);
     body.appendChild(mk("div", "font-size:12px;color:#94a3b8;margin-bottom:6px",
-      totalOnHours ? `Tripped in ${totalOnHours} hour${totalOnHours === 1 ? "" : "s"} this week.` : "No activity in the last 7 days."));
+      totalOnHours ? tn(totalOnHours, "Tripped in {n} hour this week.", "Tripped in {n} hours this week.") : t("No activity in the last 7 days.")));
 
     const gridEl = mk("div", _CAL_S.wrap);
     gridEl.appendChild(mk("div"));
@@ -1865,7 +1877,7 @@ export async function openActivityCalendar(hass, eid) {
     }
     body.appendChild(gridEl);
   } catch (_err) {
-    body.textContent = "Could not load history.";
+    body.textContent = t("Could not load history.");
   }
 }
 
@@ -1911,11 +1923,11 @@ function _vacBanner(host) {
         const ok = host.onVacationModeDisable && await host.onVacationModeDisable();
         if (!ok) swap();
       },
-    }, "Turn off");
+    }, t("Turn off"));
     node = el("div", { class: "lv-vacation", role: "alertdialog" }, [
-      el("span", { class: "lv-vacation-label", style: "flex-basis:100%" }, "Turn off Vacation Mode? The lights stop acting like someone is home."),
+      el("span", { class: "lv-vacation-label", style: "flex-basis:100%" }, t("Turn off Vacation Mode? The lights stop acting like someone is home.")),
       turnOff,
-      el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = 0; swap(); } }, "Keep it on"),
+      el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = 0; swap(); } }, t("Keep it on")),
     ]);
     clearTimeout(_vacAskTimer);
     _vacAskTimer = setTimeout(() => { if (Date.now() >= _vacAskUntil) swap(); }, _vacAskUntil - Date.now() + 50);
@@ -1930,19 +1942,19 @@ function _vacBanner(host) {
   slider.addEventListener("change", () => host.onVacationModeIntensity && host.onVacationModeIntensity(parseInt(slider.value, 10)));
   node = el("div", { class: "lv-vacation" }, [
     el("span", {}, "🌴"),
-    el("span", { class: "lv-vacation-label" }, "Vacation mode on"),
+    el("span", { class: "lv-vacation-label" }, t("Vacation mode on")),
     // Turned back on within 3 weeks of a trip, it carries on with that
     // trip's routine (vacation_mode.resumable), and says so.
-    host.vacationModeResumed ? el("span", { class: "muted", style: "font-size:11px" }, "same routine as the last trip") : null,
+    host.vacationModeResumed ? el("span", { class: "muted", style: "font-size:11px" }, t("same routine as the last trip")) : null,
     host.vacationModeEnds ? el("span", { class: "muted", style: "font-size:11px" }, `ends ${host.vacationModeEnds}`) : null,
     el("span", { class: "lv-vacation-slider-wrap" }, [
-      el("span", { class: "muted", style: "font-size:11px" }, "Energy saving"),
+      el("span", { class: "muted", style: "font-size:11px" }, t("Energy saving")),
       slider,
       pctLbl,
     ]),
-    host.onVacationOptions ? el("button", { class: "btn inline", onclick: () => _vacOptsToggle(host, true, node.parentNode) }, "Options") : null,
+    host.onVacationOptions ? el("button", { class: "btn inline", onclick: () => _vacOptsToggle(host, true, node.parentNode) }, t("Options")) : null,
     // Pinned right, where "Keep it on" comes up, even when the row wraps.
-    el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = Date.now() + 10000; swap(); } }, "Disable"),
+    el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = Date.now() + 10000; swap(); } }, t("Disable")),
   ]);
   return node;
 }
@@ -1980,9 +1992,9 @@ function _vacOptionsBox(host) {
   const o = host.vacationOptions || {};
   const status = el("span", { class: "lv-status" }, "");
   const save = async (patch) => {
-    status.textContent = "Saving…";
+    status.textContent = t("Saving…");
     const ok = host.onVacationOptions && await host.onVacationOptions(patch);
-    status.textContent = ok ? "Saved ✓" : "Not saved";
+    status.textContent = ok ? t("Saved ✓") : t("Not saved");
     setTimeout(() => { if (status.textContent === "Saved ✓") status.textContent = ""; }, 2000);
     return ok;
   };
@@ -2007,13 +2019,12 @@ function _vacOptionsBox(host) {
   };
   // Where each weekday's routine comes from (2026-10-31): last week
   // or the monthly average. Fixed for a trip when it is turned on.
-  const SRC = { last_week: "Last week", month: "Monthly average" };
+  const SRC = { last_week: t("Last week"), month: t("Monthly average") };
   const srcNote = el("div", { class: "muted lv-vac-opt-note" }, "");
   const paintSrcNote = () => {
-    srcNote.textContent = "Last week: each day plays like the same day last week. "
-      + "Monthly average: each weekday from the last month's average."
-      + (o.running ? ` This trip plays from ${o.trip_source === "last_week" ? "last week" : "the monthly average"}; `
-        + "a change applies the next time Vacation Mode is turned on." : "");
+    srcNote.textContent = t("Last week: each day plays like the same day last week. Monthly average: each weekday from the last month's average.")
+      + (o.running ? " " + (o.trip_source === "last_week" ? t("This trip plays from last week; a change applies the next time Vacation Mode is turned on.")
+        : t("This trip plays from the monthly average; a change applies the next time Vacation Mode is turned on.")) : "");
   };
   const srcBtns = Object.entries(SRC).map(([v, t]) => {
     const b = el("button", { type: "button", "aria-pressed": String((o.source || "last_week") === v) }, t);
@@ -2025,14 +2036,14 @@ function _vacOptionsBox(host) {
     });
     return b;
   });
-  const srcSeg = el("span", { class: "lv-vac-seg", role: "group", "aria-label": "Routine from" }, srcBtns);
+  const srcSeg = el("span", { class: "lv-vac-seg", role: "group", "aria-label": t("Routine from") }, srcBtns);
   paintSrcNote();
   // After dark, with how long after sunset.
   const dark = el("span", { class: "lv-vac-inline" }, [
     check("vacation_mode_dark_only", o.dark_only),
     select("vacation_mode_dark_offset_min", o.dark_offset_min || 0, [
-      [-30, "from 30 min before sunset"], [0, "from sunset"], [15, "from 15 min after"], [30, "from 30 min after"],
-      [60, "from an hour after"], [90, "from 90 min after"], [120, "from 2 hours after"]]),
+      [-30, t("from 30 min before sunset")], [0, t("from sunset")], [15, t("from 15 min after")], [30, t("from 30 min after")],
+      [60, t("from an hour after")], [90, t("from 90 min after")], [120, t("from 2 hours after")]]),
   ]);
   // The trip's end: a local date and time.
   const pad = (n) => String(n).padStart(2, "0");
@@ -2046,24 +2057,24 @@ function _vacOptionsBox(host) {
     if (!await save({ vacation_mode_end_at: ts })) end.value = o.end_at ? toLocal(o.end_at) : "";
     else o.end_at = ts;
   });
-  const endClear = el("button", { class: "btn inline", onclick: async () => { end.value = ""; if (await save({ vacation_mode_end_at: 0 })) o.end_at = 0; } }, "No end");
+  const endClear = el("button", { class: "btn inline", onclick: async () => { end.value = ""; if (await save({ vacation_mode_end_at: 0 })) o.end_at = 0; } }, t("No end"));
   // Bedtime.
   const bed = document.createElement("input");
   bed.type = "time";
   bed.className = "lv-preset-name";
   bed.value = o.bedtime || "";
   bed.addEventListener("change", async () => { if (!await save({ vacation_mode_bedtime: bed.value })) bed.value = o.bedtime || ""; else o.bedtime = bed.value; });
-  const bedClear = el("button", { class: "btn inline", onclick: async () => { bed.value = ""; if (await save({ vacation_mode_bedtime: "" })) o.bedtime = ""; } }, "None");
+  const bedClear = el("button", { class: "btn inline", onclick: async () => { bed.value = ""; if (await save({ vacation_mode_bedtime: "" })) o.bedtime = ""; } }, t("None"));
   // Evening lights (anchors): a tick per light Vacation Mode switches (the
   // server's list: no group helpers, no team followers), up to 10. A saved
   // one that is gone is listed too, so it can be unticked.
   const anchors = new Set(o.anchors || []);
-  const anchorList = el("div", { class: "lv-vac-anchors", role: "group", "aria-label": "Evening lights" }, "Loading…");
+  const anchorList = el("div", { class: "lv-vac-anchors", role: "group", "aria-label": t("Evening lights") }, t("Loading…"));
   const anchorTick = ([eid, name]) => {
     const c = document.createElement("input");
     c.type = "checkbox"; c.checked = anchors.has(eid);
     c.addEventListener("change", async () => {
-      if (c.checked && anchors.size >= 10) { c.checked = false; status.textContent = "Up to 10 evening lights"; return; }
+      if (c.checked && anchors.size >= 10) { c.checked = false; status.textContent = t("Up to 10 evening lights"); return; }
       c.checked ? anchors.add(eid) : anchors.delete(eid);
       if (!await save({ vacation_mode_anchors: [...anchors] })) { c.checked ? anchors.delete(eid) : anchors.add(eid); c.checked = !c.checked; }
       else o.anchors = [...anchors];
@@ -2074,10 +2085,10 @@ function _vacOptionsBox(host) {
     Promise.resolve().then(() => host.onVacationLights()).catch(() => null).then((lights) => {
       anchorList.textContent = "";
       const known = new Set((lights || []).map((l) => l[0]));
-      const gone = [...anchors].filter((eid) => !known.has(eid)).map((eid) => [eid, eid + " (not found)"]);
+      const gone = [...anchors].filter((eid) => !known.has(eid)).map((eid) => [eid, t("{eid} (not found)", { eid })]);
       // A Zigbee device's duplicate copy is left out, unless it is ticked (zigbee_twins.js).
       const all = [...(lights || []).filter(([eid]) => anchors.has(eid) || !(TW && TW.duplicateOf(eid, o))), ...gone];
-      if (!all.length) anchorList.textContent = lights ? "No lights to choose from." : "Could not load the lights.";
+      if (!all.length) anchorList.textContent = lights ? t("No lights to choose from.") : t("Could not load the lights.");
       for (const l of all) anchorList.appendChild(anchorTick(l));
     });
   }
@@ -2088,15 +2099,15 @@ function _vacOptionsBox(host) {
     previewOut.textContent = "";
     const lights = (r && r.lights) || [];
     if (r && r.source) previewOut.appendChild(el("div", { class: "lv-vac-opt-lbl" },
-      r.source === "month" ? "From the monthly average" : "From last week"));
+      r.source === "month" ? t("From the monthly average") : t("From last week")));
     if (!lights.length) {
       previewOut.appendChild(el("div", { class: "muted" },
-        r && r.routine === "none" ? "Nothing yet: there is no light history to learn a routine from." : "Nothing would be switched in the next 24 hours."));
+        r && r.routine === "none" ? t("Nothing yet: there is no light history to learn a routine from.") : t("Nothing would be switched in the next 24 hours.")));
       return;
     }
     for (const l of lights) {
       previewOut.appendChild(el("div", { class: "lv-vac-preview-row" }, [
-        el("span", { class: "lv-vac-opt-lbl" }, l.name + (l.anchor ? " (evening light)" : "")),
+        el("span", { class: "lv-vac-opt-lbl" }, l.anchor ? t("{name} (evening light)", { name: l.name }) : l.name),
         el("span", { class: "muted" }, l.on.map(([a, b]) => `${hm(a)}–${hm(b)}`).join(", ")),
       ]));
     }
@@ -2104,44 +2115,43 @@ function _vacOptionsBox(host) {
   const previewBtn = el("button", { class: "btn inline", onclick: async () => {
     if (previewBtn.disabled) return;
     previewBtn.disabled = true;
-    previewOut.textContent = "Working it out…";
+    previewOut.textContent = t("Working it out…");
     let r = null;
     try { r = host.onVacationPreview ? await host.onVacationPreview() : null; } catch (e) { r = null; }
     finally { previewBtn.disabled = false; }
-    if (r) showPreview(r); else previewOut.textContent = "Could not make the preview.";
-  } }, "Show the next 24 hours");
-  _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": "Vacation Mode options" }, [
+    if (r) showPreview(r); else previewOut.textContent = t("Could not make the preview.");
+  } }, t("Show the next 24 hours"));
+  _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": t("Vacation Mode options") }, [
     el("div", { class: "lv-vac-opt-head" }, [
-      el("span", { class: "lv-vacation-label" }, "🌴 Vacation Mode options"),
+      el("span", { class: "lv-vacation-label" }, t("🌴 Vacation Mode options")),
       host.helpBtn ? host.helpBtn("vacation_mode") : null,
       status,
-      el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => _vacOptsToggle(host, false) }, "Close"),
+      el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => _vacOptsToggle(host, false) }, t("Close")),
     ]),
     el("div", { class: "lv-vac-opt" }, [
-      el("div", { class: "lv-vac-opt-main" }, [el("span", { class: "lv-vac-opt-lbl" }, "Routine from"), srcSeg]),
+      el("div", { class: "lv-vac-opt-main" }, [el("span", { class: "lv-vac-opt-lbl" }, t("Routine from")), srcSeg]),
       srcNote,
     ]),
-    row("Only after dark", dark, "Lights it would turn on during the day stay off."),
-    row("Ends", el("span", { class: "lv-vac-inline" }, [end, endClear]),
-      "It turns itself off then, and you get the same notice as when it's turned off."),
-    row("Pause while someone is home", check("vacation_mode_pause_home", o.pause_home),
-      "Anyone in Home Assistant's People at home: nothing is switched until they leave. Nothing is forced off."),
-    row("Bedtime", el("span", { class: "lv-vac-inline" }, [bed, bedClear]),
-      "Every light it runs goes off from about then until 5 am. The time moves up to 20 minutes either way each night."),
-    row("Longest on", select("vacation_mode_max_on_min", o.max_on_min || 0, [
-      [0, "no limit"], [60, "1 hour"], [120, "2 hours"], [180, "3 hours"], [240, "4 hours"], [360, "6 hours"]]),
-      "A light it turned on goes off after this, and stays off as long."),
-    row("Most lights on at once", select("vacation_mode_max_lights", o.max_lights || 0, [
-      [0, "no limit"], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"], [8, "8"], [12, "12"]]),
-      "Lights it already has on keep their place; the rest wait. Evening lights and lights turned on by hand don't count."),
-    host.onVacationLights ? row("Evening lights", anchorList,
-      "On when they were on in the evening last week (or on average), like a porch or hall light, and off at bedtime; "
-      + "turned off in the evening, one comes back on within 5 minutes. Up to 10.") : null,
-    host.onVacationPreview ? row("Preview", previewBtn,
-      "What it would switch over the next 24 hours, with these options. Nothing is switched.") : null,
+    row(t("Only after dark"), dark, t("Lights it would turn on during the day stay off.")),
+    row(t("Ends"), el("span", { class: "lv-vac-inline" }, [end, endClear]),
+      t("It turns itself off then, and you get the same notice as when it's turned off.")),
+    row(t("Pause while someone is home"), check("vacation_mode_pause_home", o.pause_home),
+      t("Anyone in Home Assistant's People at home: nothing is switched until they leave. Nothing is forced off.")),
+    row(t("Bedtime"), el("span", { class: "lv-vac-inline" }, [bed, bedClear]),
+      t("Every light it runs goes off from about then until 5 am. The time moves up to 20 minutes either way each night.")),
+    row(t("Longest on"), select("vacation_mode_max_on_min", o.max_on_min || 0, [
+      [0, t("no limit")], [60, t("1 hour")], [120, t("2 hours")], [180, t("3 hours")], [240, t("4 hours")], [360, t("6 hours")]]),
+      t("A light it turned on goes off after this, and stays off as long.")),
+    row(t("Most lights on at once"), select("vacation_mode_max_lights", o.max_lights || 0, [
+      [0, t("no limit")], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"], [8, "8"], [12, "12"]]),
+      t("Lights it already has on keep their place; the rest wait. Evening lights and lights turned on by hand don't count.")),
+    host.onVacationLights ? row(t("Evening lights"), anchorList,
+      t("On when they were on in the evening last week (or on average), like a porch or hall light, and off at bedtime; turned off in the evening, one comes back on within 5 minutes. Up to 10.")) : null,
+    host.onVacationPreview ? row(t("Preview"), previewBtn,
+      t("What it would switch over the next 24 hours, with these options. Nothing is switched.")) : null,
     previewOut,
     el("div", { class: "muted lv-vac-opt-note" },
-      "binary_sensor.padspan_vacation_mode shows it in Home Assistant, and the padspan_ha_vacation_mode event fires on every change, for your own automations."),
+      t("binary_sensor.padspan_vacation_mode shows it in Home Assistant, and the padspan_ha_vacation_mode event fires on every change, for your own automations.")),
   ]);
   return _vacOptsNode;
 }
@@ -2196,7 +2206,7 @@ export function openControlCard(hass, eid, api){
     el("div", { style: "font-weight:700;font-size:15px;letter-spacing:-.01em" }, attrs.friendly_name || eid),
     // Admin only: the pencil jumps to Mapping → Lights with THIS light
     // selected — the build ↔ use loop closed from the use side.
-    ...(api && api.onEdit ? [el("button", { title: "Edit this light in Mapping → Lights", style: smallBtn + ";margin-left:auto",
+    ...(api && api.onEdit ? [el("button", { title: t("Edit this light in Mapping → Lights"), style: smallBtn + ";margin-left:auto",
       onclick: () => { close(); api.onEdit(placed); } }, "✎")] : []),
     el("button", { style: smallBtn + (api && api.onEdit ? "" : ";margin-left:auto"), onclick: close }, "✕"),
   ]));
@@ -2229,7 +2239,7 @@ export function openControlCard(hass, eid, api){
         for (const e of ex.group) setOptimistic(e, on ? "off" : "on");
         close();
         try { _tellProblems(toast, await exactPower(hass, eid, !on, { source: "atlas" })); }
-        catch (e) { for (const e2 of ex.group) clearOptimistic(e2); toast(on ? "Could not turn it off" : "Could not turn it on", true); }
+        catch (e) { for (const e2 of ex.group) clearOptimistic(e2); toast(on ? t("Could not turn it off") : t("Could not turn it on"), true); }
         setTimeout(rerender, 400);
         return;
       }
@@ -2244,7 +2254,7 @@ export function openControlCard(hass, eid, api){
       close();
       setTimeout(rerender, 400);
     },
-  }, na ? "Unavailable" : isLockDomain ? (on ? "Unlock" : "Lock") : (on ? "Turn Off" : "Turn On"));
+  }, na ? t("Unavailable") : isLockDomain ? (on ? t("Unlock") : t("Lock")) : (on ? t("Turn Off") : t("Turn On")));
   onBtn.disabled = na;
   box.appendChild(onBtn);
   // Home Assistant's own dialog for this entity (history, settings, anything
@@ -2255,9 +2265,9 @@ export function openControlCard(hass, eid, api){
     style: "display:block;margin:12px auto 0;padding:4px 8px;background:none;border:none;cursor:pointer;"
       + "font-size:12px;color:#8ee5b4;text-decoration:underline;font-family:inherit",
     onclick: () => { close(); openMoreInfo(eid); },
-  }, "Details"));
+  }, t("Details")));
   if (isLockDomain && st.state === "jammed") {
-    box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin:-8px 0 12px" }, "⚠ Lock is jammed"));
+    box.appendChild(el("div", { style: "font-size:12px;color:#f87171;margin:-8px 0 12px" }, t("⚠ Lock is jammed")));
   }
 
   // ── Fan card ─────────────────────────────────────────────────────────
@@ -2269,18 +2279,18 @@ export function openControlCard(hass, eid, api){
                 : "background:rgba(255,255,255,.04);color:#94a3b8;border:1px solid rgba(120,190,155,.18);");
     const call = async (svc, data) => {
       try { await hass.callService("fan", svc, { entity_id: eid, ...data }); }
-      catch (e) { toast("Could not set fan " + svc, true); }
+      catch (e) { toast(t("Could not set fan {what}", { what: svc }), true); }
       setTimeout(rerender, 400);
     };
     if (typeof attrs.percentage === "number" || Number.isFinite(Number(attrs.percentage))) {
       const cur = Math.max(0, Math.min(100, Number(attrs.percentage) || 0));
       const step = Math.max(1, Math.round(Number(attrs.percentage_step) || 1));
-      const pctLbl = el("div", { style: lblStyle }, `Speed: ${cur}%`);
+      const pctLbl = el("div", { style: lblStyle }, t("Speed: {pct}%", { pct: cur }));
       const pct = document.createElement("input");
       pct.type = "range"; pct.min = "0"; pct.max = "100"; pct.step = String(step); pct.value = String(cur);
       pct.style.cssText = "width:100%;accent-color:#34d399";
       pct.disabled = na;
-      pct.addEventListener("input", () => { pctLbl.textContent = `Speed: ${pct.value}%`; });
+      pct.addEventListener("input", () => { pctLbl.textContent = t("Speed: {pct}%", { pct: pct.value }); });
       pct.addEventListener("change", () => call("set_percentage", { percentage: parseInt(pct.value, 10) }));
       box.appendChild(el("div", { style: "margin-bottom:12px" }, [pctLbl, pct]));
     }
@@ -2294,17 +2304,17 @@ export function openControlCard(hass, eid, api){
         sel.appendChild(o);
       }
       sel.addEventListener("change", () => call("set_preset_mode", { preset_mode: sel.value }));
-      box.appendChild(el("div", { style: "margin-bottom:12px" }, [el("div", { style: lblStyle }, "Preset"), sel]));
+      box.appendChild(el("div", { style: "margin-bottom:12px" }, [el("div", { style: lblStyle }, t("Preset")), sel]));
     }
     const row = el("div", { style: "display:flex;gap:8px" });
     if (typeof attrs.oscillating === "boolean") {
       row.appendChild(el("button", { style: pillStyle(attrs.oscillating),
-        onclick: () => call("oscillate", { oscillating: !attrs.oscillating }) }, attrs.oscillating ? "Oscillating ✓" : "Oscillate"));
+        onclick: () => call("oscillate", { oscillating: !attrs.oscillating }) }, attrs.oscillating ? t("Oscillating ✓") : t("Oscillate")));
     }
     if (attrs.direction === "forward" || attrs.direction === "reverse") {
       const nxt = attrs.direction === "forward" ? "reverse" : "forward";
-      row.appendChild(el("button", { style: pillStyle(false), title: `Currently ${attrs.direction}`,
-        onclick: () => call("set_direction", { direction: nxt }) }, attrs.direction === "forward" ? "⟳ Forward" : "⟲ Reverse"));
+      row.appendChild(el("button", { style: pillStyle(false), title: attrs.direction === "forward" ? t("Currently forward") : t("Currently reverse"),
+        onclick: () => call("set_direction", { direction: nxt }) }, attrs.direction === "forward" ? t("⟳ Forward") : t("⟲ Reverse")));
     }
     for (const b of row.childNodes) b.disabled = na;
     if (row.childNodes.length) box.appendChild(row);
@@ -2335,7 +2345,7 @@ export function openControlCard(hass, eid, api){
     const pct = (v) => Math.round((v / 255) * 100);
     const cur = ex ? (_exactBrightness(hass.states, ex) ?? ex.lookBri ?? 255)
       : typeof attrs.brightness === "number" ? attrs.brightness : 255;
-    const briText = (v) => `Brightness: ${pct(v)}%` + (on ? "" : " · turns the light on");
+    const briText = (v) => t("Brightness: {pct}%", { pct: pct(v) }) + (on ? "" : " · " + t("turns the light on"));
     const briLbl = el("div", { style: capLbl }, briText(cur));
     const bri = document.createElement("input");
     bri.type = "range"; bri.min = "1"; bri.max = "255"; bri.value = String(cur);
@@ -2344,7 +2354,7 @@ export function openControlCard(hass, eid, api){
     bri.addEventListener("input", () => { briLbl.textContent = briText(bri.value); });
     bri.addEventListener("change", async () => {
       try { _tellProblems(toast, await setLightBrightness(hass, eid, parseInt(bri.value, 10))); }
-      catch (e) { toast("Could not set brightness", true); }
+      catch (e) { toast(t("Could not set brightness"), true); }
       setTimeout(rerender, 400);
     });
     box.appendChild(el("div", { style: "margin-bottom:12px" }, [briLbl, bri]));
@@ -2363,7 +2373,7 @@ export function openControlCard(hass, eid, api){
     const kMax = Math.max(kMin, Math.round(Number(attrs.max_color_temp_kelvin)) || 6500);
     const clampK = (k) => Math.max(kMin, Math.min(kMax, Math.round(k)));
     const curK = Number(attrs.color_temp_kelvin);
-    const ctText = (k) => (k ? `Color temperature: ${k} K` : "Color temperature") + (on ? "" : " · turns the light on");
+    const ctText = (k) => (k ? t("Color temperature: {k} K", { k }) : t("Color temperature")) + (on ? "" : " · " + t("turns the light on"));
     const ctLbl = el("div", { style: capLbl }, ctText(curK > 0 ? clampK(curK) : null));
     const ct = document.createElement("input");
     ct.type = "range"; ct.min = String(kMin); ct.max = String(kMax); ct.step = "1";
@@ -2373,7 +2383,7 @@ export function openControlCard(hass, eid, api){
     ct.disabled = na;
     const sendK = async (k) => {
       try { await hass.callService("light", "turn_on", { entity_id: eid, color_temp_kelvin: k }); }
-      catch (e) { toast("Could not set color temperature", true); }
+      catch (e) { toast(t("Could not set color temperature"), true); }
       setTimeout(rerender, 400);
     };
     ct.addEventListener("input", () => { ctLbl.textContent = ctText(parseInt(ct.value, 10)); });
@@ -2389,7 +2399,7 @@ export function openControlCard(hass, eid, api){
         b.disabled = na;
         return b;
       };
-      ctBox.appendChild(el("div", { style: "display:flex;gap:8px;margin-top:8px" }, [chip("Warm", clampK(2700)), chip("Cool", clampK(6500))]));
+      ctBox.appendChild(el("div", { style: "display:flex;gap:8px;margin-top:8px" }, [chip(t("Warm"), clampK(2700)), chip(t("Cool"), clampK(6500))]));
     }
     box.appendChild(ctBox);
   }
@@ -2405,11 +2415,11 @@ export function openControlCard(hass, eid, api){
     colorInput.disabled = na;
     colorInput.addEventListener("change", async () => {
       try { await hass.callService("light", "turn_on", { entity_id: eid, rgb_color: fromHex(colorInput.value) }); }
-      catch (e) { toast("Could not set colour", true); }
+      catch (e) { toast(t("Could not set colour"), true); }
       setTimeout(rerender, 400);
     });
     box.appendChild(el("div", { style: "margin-bottom:12px;display:flex;align-items:center;gap:10px" }, [
-      el("span", { style: capLbl.replace("margin-bottom:5px;", "") }, "Color"), colorInput,
+      el("span", { style: capLbl.replace("margin-bottom:5px;", "") }, t("Color")), colorInput,
     ]));
   }
 
@@ -2427,7 +2437,7 @@ export function openControlCard(hass, eid, api){
     effSel.addEventListener("change", async () => {
       try { await hass.callService("light", "turn_on", { entity_id: eid, effect: effSel.value }); } catch (e) {}
     });
-    box.appendChild(el("div", {}, [el("div", { style: capLbl }, "Effect"), effSel]));
+    box.appendChild(el("div", {}, [el("div", { style: capLbl }, t("Effect")), effSel]));
     // The device registry's own configuration_url — WLED (and most ESPHome
     // devices) set this to the unit's local web UI, so it's already known
     // from the same registry fetch gatherLights uses for Brand, no extra
@@ -2458,8 +2468,8 @@ export function openControlCard(hass, eid, api){
     const tabBtn = (active) => "flex:1;padding:6px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;"
       + (active ? "background:rgba(192,132,252,.16);color:#c084fc;border:1px solid #c084fc"
                 : "background:rgba(255,255,255,.04);color:#94a3b8;border:1px solid rgba(120,190,155,.18)");
-    const tControls = el("button", { style: tabBtn(true) }, "Controls");
-    const tAdvanced = el("button", { style: tabBtn(false) }, "Advanced");
+    const tControls = el("button", { style: tabBtn(true) }, t("Controls"));
+    const tAdvanced = el("button", { style: tabBtn(false) }, t("Advanced"));
     let mounted = false;
     const show = async (adv) => {
       tControls.setAttribute("style", tabBtn(!adv)); tAdvanced.setAttribute("style", tabBtn(adv));
@@ -2477,7 +2487,7 @@ export function openControlCard(hass, eid, api){
           await mod.mountWledAdvanced(advanced, { hass, eid,
             api: { ...api, onExactChanged: () => ensureExactDevices(hass, rerender, { force: true }) } });
         } catch (e) {
-          advanced.textContent = "Couldn't open the WLED workbench: " + errorText(e);
+          advanced.textContent = t("Couldn't open the WLED workbench: {why}", { why: errorText(e) });
         }
       }
     };
@@ -2503,35 +2513,35 @@ export function openControlCard(hass, eid, api){
         // Advanced tab, so without this there was no way back. Switching a
         // team back to WLED sync never needs the licence (wled_team_mode).
         slot.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-top:10px" },
-          "PadSpan runs this light's team, with WLED's own sync switched off on every member. The licence for that has lapsed."));
+          t("PadSpan runs this light's team, with WLED's own sync switched off on every member. The licence for that has lapsed.")));
         slot.appendChild(el("button", {
           style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
             + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.45)",
           onclick: async () => {
             try {
               await hass.callWS({ type: "padspan_ha/wled_team_mode", team_id: x.team_id, mode: "mirror" });
-              toast("The team is back on WLED sync — each member's sync settings from before the team are back");
+              toast(t("The team is back on WLED sync — each member's sync settings from before the team are back"));
               ensureExactDevices(hass, rerender, { force: true });
               close();
-            } catch (e) { toast("Couldn't switch: " + errorText(e), true); }
+            } catch (e) { toast(t("Couldn't switch: {why}", { why: errorText(e) }), true); }
           },
-        }, "Give the whole team back to WLED sync"));
+        }, t("Give the whole team back to WLED sync")));
         return;
       }
       slot.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-top:10px" },
-        "PadSpan gives this light its instructions, with WLED's own sync switched off. The licence for that has lapsed."));
+        t("PadSpan gives this light its instructions, with WLED's own sync switched off. The licence for that has lapsed.")));
       slot.appendChild(el("button", {
         style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
           + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.45)",
         onclick: async () => {
           try {
             await hass.callWS({ type: "padspan_ha/wled_exact_set", entity_id: eid, exact: false });
-            toast("WLED sync gives this light its instructions again — its sync settings are back");
+            toast(t("WLED sync gives this light its instructions again — its sync settings are back"));
             ensureExactDevices(hass, rerender, { force: true });
             close();
-          } catch (e) { toast("Couldn't switch: " + errorText(e), true); }
+          } catch (e) { toast(t("Couldn't switch: {why}", { why: errorText(e) }), true); }
         },
-      }, "Give this light back to WLED sync"));
+      }, t("Give this light back to WLED sync")));
     })();
   }
 
@@ -2565,13 +2575,13 @@ function _lockControlBlock(el, hass, lockEid, lockSt, { toast, rerender, close }
       if (on && !await confirmUnlock(lockSt.attributes?.friendly_name || lockEid)) return;
       const svc = on ? "unlock" : "lock";
       setOptimistic(lockEid, on ? "unlocked" : "locked");
-      try { await hass.callService("lock", svc, { entity_id: lockEid }); } catch (e) { clearOptimistic(lockEid); toast("Could not " + svc, true); }
+      try { await hass.callService("lock", svc, { entity_id: lockEid }); } catch (e) { clearOptimistic(lockEid); toast(on ? t("Could not unlock") : t("Could not lock"), true); }
       close();
       setTimeout(rerender, 400);
     },
-  }, on ? "Unlock" : "Lock"));
+  }, on ? t("Unlock") : t("Lock")));
   if (lockSt.state === "jammed") {
-    nodes.push(el("div", { style: "font-size:12px;color:#f87171;margin-bottom:6px" }, "⚠ Lock is jammed"));
+    nodes.push(el("div", { style: "font-size:12px;color:#f87171;margin-bottom:6px" }, t("⚠ Lock is jammed")));
   }
   return nodes;
 }
@@ -2596,12 +2606,12 @@ function _pickEntityOverlay(title, candidates, onPick){
   box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:12px" }, title));
   if (!candidates.length) {
     box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:12px" },
-      "Nothing available to link yet."));
+      t("Nothing available to link yet.")));
   }
   const sel = document.createElement("select");
   sel.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;"
     + "border-radius:8px;padding:7px;font-size:13px;margin-bottom:12px";
-  const none = document.createElement("option"); none.value = ""; none.textContent = "— choose —";
+  const none = document.createElement("option"); none.value = ""; none.textContent = t("— choose —");
   sel.appendChild(none);
   for (const c of candidates) {
     const o = document.createElement("option");
@@ -2614,12 +2624,12 @@ function _pickEntityOverlay(title, candidates, onPick){
       style: "flex:1;padding:9px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
         + "background:#2d6a4f;color:#e2e8f0;border:1px solid #52b788",
       onclick: () => { if (!sel.value) return; onPick(sel.value); close(); },
-    }, "Link"),
+    }, t("Link")),
     el("button", {
       style: "padding:9px 14px;font-size:13px;border-radius:10px;cursor:pointer;"
         + "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);color:#94a3b8",
       onclick: close,
-    }, "Cancel"),
+    }, t("Cancel")),
   ]));
   overlay.appendChild(box);
   document.body.appendChild(overlay);
@@ -2720,14 +2730,14 @@ export function openBarrierCard(hass, bar, api){
     stateLabel = "Open"; isAlert = true;
   } else if (isOpen === false) {
     if (lockRead) {
-      stateLabel = lockRead.state === "locked" ? "Closed & Locked" : lockRead.state === "jammed" ? "Closed — Lock Jammed" : "Closed, Unlocked";
+      stateLabel = lockRead.state === "locked" ? t("Closed & Locked") : lockRead.state === "jammed" ? t("Closed — Lock Jammed") : t("Closed, Unlocked");
       isAlert = lockRead.state !== "locked";
-    } else { stateLabel = "Closed"; isAlert = false; }
+    } else { stateLabel = t("Closed"); isAlert = false; }
   } else if (lockRead) {
-    stateLabel = lockRead.state === "locked" ? "Locked" : lockRead.state === "jammed" ? "Jammed" : "Unlocked";
+    stateLabel = lockRead.state === "locked" ? t("Locked") : lockRead.state === "jammed" ? t("Jammed") : t("Unlocked");
     isAlert = lockRead.state !== "locked";
   } else {
-    stateLabel = "No reading"; isAlert = false;
+    stateLabel = t("No reading"); isAlert = false;
   }
   box.appendChild(el("div", {
     style: "display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;"
@@ -2752,11 +2762,11 @@ export function openBarrierCard(hass, bar, api){
       onclick: async () => {
         if (busy) return;
         const svc = openerIsOpen ? "close_cover" : "open_cover";
-        try { await hass.callService("cover", svc, { entity_id: openerEid }); } catch (e) { toast("Could not " + (openerIsOpen ? "close" : "open"), true); }
+        try { await hass.callService("cover", svc, { entity_id: openerEid }); } catch (e) { toast(openerIsOpen ? t("Could not close") : t("Could not open"), true); }
         close();
         setTimeout(rerender, 400);
       },
-    }, busy ? (state === "opening" ? "Opening…" : "Closing…") : (openerIsOpen ? "Close" : "Open")));
+    }, busy ? (state === "opening" ? t("Opening…") : t("Closing…")) : (openerIsOpen ? t("Close") : t("Open"))));
   } else if (openerSt && (openerDomain === "switch" || openerDomain === "button" || openerDomain === "script")) {
     // 2026-09-22, finding a real gap: "there is a garage door
     // controller in HA... nothing in the device list" — script.
@@ -2778,24 +2788,24 @@ export function openBarrierCard(hass, bar, api){
       onclick: async () => {
         if (running) return;
         try { await hass.callService(openerDomain, svc, { entity_id: openerEid }); }
-        catch (e) { toast("Could not trigger the opener", true); }
+        catch (e) { toast(t("Could not trigger the opener"), true); }
         close();
         setTimeout(rerender, 400);
       },
-    }, running ? "Running…" : "Trigger"));
-    const openWord = isOpen === true ? "open" : isOpen === false ? "closed" : "unknown";
-    const doneBy = openerDomain === "script" ? "runs the same script this install's own automations use"
-      : "presses the same relay as the wall button";
+    }, running ? t("Running…") : t("Trigger")));
+    const openWord = isOpen === true ? t("open") : isOpen === false ? t("closed") : t("unknown");
+    const doneBy = openerDomain === "script" ? t("runs the same script this install's own automations use")
+      : t("presses the same relay as the wall button");
     box.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.4;margin-bottom:10px" },
-      `Currently ${openWord} — this ${doneBy}, so it may open OR close depending on the door's current position.`));
+      t("Currently {state} — this {how}, so it may open OR close depending on the door's current position.", { state: openWord, how: doneBy })));
   } else if (sensorSt && sensorDomain !== "lock" && !openerEid) {
     box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom: 4px" },
-      "This is a plain contact sensor — it reports state only, there's no way to open or close it remotely."));
+      t("This is a plain contact sensor — it reports state only, there's no way to open or close it remotely.")));
   }
 
   // ── Lock ────────────────────────────────────────────────────────────────
   if (lockSt) {
-    box.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px" }, "Lock"));
+    box.appendChild(el("div", { style: "font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px" }, t("Lock")));
     for (const n of _lockControlBlock(el, hass, lockEid, lockSt, lockCtx)) box.appendChild(n);
   }
 
@@ -2841,7 +2851,7 @@ export async function setManyStates(hass, eids, turnOn, { toast, rerender } = {}
     catch (e) { fail += ids.length; for (const eid of ids) clearOptimistic(eid); }
   }
   await Promise.all(jobs);
-  if (fail && toast) toast(`${fail} did not respond`, true);
+  if (fail && toast) toast(t("{n} did not respond", { n: fail }), true);
   _tellProblems(toast, problems);
   if (rerender) setTimeout(rerender, 700);
 }
@@ -2874,6 +2884,7 @@ export function sunElevationDeg(latDeg, lonDeg, tMs){
   return Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(ha)) / r;
 }
 
+// i18n part: atlasmap2
 // ── The Atlas look ───────────────────────────────────────────────────────────
 // 2026-09-23: "in traceback, full house activity should match the
 // atlas tab settings and look". The look is set in Mapping → Atlas and
@@ -3467,7 +3478,7 @@ function buildShapeLegend(el, lights){
   // its own small case of "doesn't make sense" (2026-09-08).
   const present = new Set(lights.map(l => l.shape).filter(k => k !== "door"));
   const row = el("div", { class: "lv-legend" });
-  for (const [kind, label] of LIGHT_SHAPES) {
+  for (const [kind, label] of lightShapes()) {
     if (kind === "auto" || !present.has(kind)) continue;
     const cell = el("span", { class: "lv-legend-chip" });
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -3602,10 +3613,10 @@ function _laLoad(slot, mount, telemetry){
     });
 }
 const _LA_WHY = {
-  no_webgl: "This screen can't draw Live Aboard (no WebGL). Tap to try again",
-  slow_gpu: "This screen is too slow for Live Aboard. Tap to try again",
-  context_lost: "Live Aboard stopped (the graphics were reset). Reload to try again",
-  error: "Live Aboard stopped with an error. Reload to try again",
+  no_webgl: () => t("This screen can't draw Live Aboard (no WebGL). Tap to try again"),
+  slow_gpu: () => t("This screen is too slow for Live Aboard. Tap to try again"),
+  context_lost: () => t("Live Aboard stopped (the graphics were reset). Reload to try again"),
+  error: () => t("Live Aboard stopped with an error. Reload to try again"),
 };
 // A hold then a drag in 3D dims exactly as wirePress does, with its two helpers.
 export { _exactBrightness, _tellProblems };
@@ -3928,7 +3939,7 @@ export function buildLightsMapCard(hostIn){
   const getFocusZ = (idx) => isoPos[Math.max(0, Math.min(idx, isoPos.length - 1))];
   const getFocusLbl = (idx) => {
     const pos = getFocusZ(idx);
-    if (pos === null) return "All floors";
+    if (pos === null) return t("All floors");
     const zArr = Array.isArray(pos) ? pos : [pos];
     // The drawing's own level -> floor mapping (floorIdAtLevel): HA floors
     // usually have level null, and matching x.level named them "L0 / L1"
@@ -3956,7 +3967,7 @@ export function buildLightsMapCard(hostIn){
   // For screen readers: the map is a figure (with people or tags shown,
   // atlas_aboard.js names who is in which room as its description).
   isoDiv.setAttribute("role", "figure");
-  isoDiv.setAttribute("aria-label", "House map");
+  isoDiv.setAttribute("aria-label", t("House map"));
   // Pan position, mirrored into view (the same persistent object zoom
   // already lives on) so it survives a full rebuild of this card, not just
   // an in-place rebuildISO() — the whole card (this isoDiv included) is
@@ -4084,20 +4095,20 @@ export function buildLightsMapCard(hostIn){
   const sceneHa = (path) => { const sc = host.scenes; return sc && typeof sc.openHa === "function" ? sc.openHa(path) : SCENES.openHaPage(path); };
   const sceneToast = (m, err) => { const sc = host.scenes; if (sc && typeof sc.toast === "function") sc.toast(m, err); };
   // "Toggles, on if mixed, then off" (2026-11-05).
-  const sceneAct = (t) => {
+  const sceneAct = (tile) => {
     const sc = host.scenes;
-    if (!sc || !t) return;
-    const off = SCENES.tapOf(t.state) === "off", kind = t.kind === "preset" ? "preset" : "scene";
+    if (!sc || !tile) return;
+    const off = SCENES.tapOf(tile.state) === "off", kind = tile.kind === "preset" ? "preset" : "scene";
     sceneCount(`house3d_show:scene_${off ? "off" : "run"}:${kind}`);
     const later = () => { if (typeof sc.rerender === "function") setTimeout(() => sc.rerender(), 900); };
-    if (off) { Promise.resolve(sc.setMany(t.offEids, false)).catch(() => sceneToast(`Couldn't turn ${t.name} off`, true)); return; }
-    if (t.kind === "preset") {
-      Promise.resolve(typeof host.onWholeHouseApply === "function" ? host.onWholeHouseApply(t.applyPreset || t.preset) : null)
-        .then((r) => { if (r && ((r.problems || []).length || r.skipped || r.failed)) sceneToast(`${t.name}: ${wholeHouseText(r)}`); later(); })
-        .catch(() => sceneToast(`Couldn't run ${t.name}`, true));
+    if (off) { Promise.resolve(sc.setMany(tile.offEids, false)).catch(() => sceneToast(t("Couldn't turn {name} off", { name: tile.name }), true)); return; }
+    if (tile.kind === "preset") {
+      Promise.resolve(typeof host.onWholeHouseApply === "function" ? host.onWholeHouseApply(tile.applyPreset || tile.preset) : null)
+        .then((r) => { if (r && ((r.problems || []).length || r.skipped || r.failed)) sceneToast(`${tile.name}: ${wholeHouseText(r)}`); later(); })
+        .catch(() => sceneToast(t("Couldn't run {name}", { name: tile.name }), true));
       return;
     }
-    Promise.resolve(sc.callService("scene", "turn_on", { entity_id: t.eid })).then(later).catch(() => sceneToast(`Couldn't run ${t.name}`, true));
+    Promise.resolve(sc.callService("scene", "turn_on", { entity_id: tile.eid })).then(later).catch(() => sceneToast(t("Couldn't run {name}", { name: tile.name }), true));
   };
   const sceneNew = (from) => {
     const sc = host.scenes;
@@ -4107,20 +4118,20 @@ export function buildLightsMapCard(hostIn){
   };
   // ✎: a scene in Home Assistant's editor (an administrator's, never on a
   // wall), one not made there says so first; a preset on this page's bar.
-  const sceneEdit = (t, row) => {
+  const sceneEdit = (tile, row) => {
     const sc = host.scenes;
-    if (!sc || !t) return;
-    if (t.kind === "preset") {
+    if (!sc || !tile) return;
+    if (tile.kind === "preset") {
       sceneCount("house3d_show:scene_edit:preset");
       if (openDrawer) openDrawer("presets");
-      if (whFocus) whFocus(t.name);
+      if (whFocus) whFocus(tile.name);
       return;
     }
     if (sc.admin !== true || sc.kiosk === true) return;
-    if (t.id) { sceneCount("house3d_show:scene_edit:scene"); sceneHa(SCENES.sceneEditPath(t.id)); return; }
-    const say = `${t.name} wasn't made in Home Assistant's scene editor (it comes from YAML or another integration), so it is changed where it was made.`;
+    if (tile.id) { sceneCount("house3d_show:scene_edit:scene"); sceneHa(SCENES.sceneEditPath(tile.id)); return; }
+    const say = t("{name} wasn't made in Home Assistant's scene editor (it comes from YAML or another integration), so it is changed where it was made.", { name: tile.name });
     const go = () => { sceneCount("house3d_show:scene_edit:yaml"); sceneHa(SCENES.SCENE_LIST_PATH); };
-    if (row && typeof row.note === "function") row.note(say, "Scene list ›", go); else go();
+    if (row && typeof row.note === "function") row.note(say, t("Scene list ›"), go); else go();
   };
   // Under the flat map; hidden there too where this screen's ⋯ list hid it
   // in Live Aboard (its pref, show_<screen>).
@@ -4151,7 +4162,7 @@ export function buildLightsMapCard(hostIn){
     return (_laLoadFailed ? "error" : _laCannotHere() || failed) || null;
   };
   // The same, said plainly ("" when it can).
-  const la3dWhyNot = () => { const why = la3dWhy(); return why ? (_LA_WHY[why] || _LA_WHY.error) : ""; };
+  const la3dWhyNot = () => { const why = la3dWhy(); return why ? (_LA_WHY[why] || _LA_WHY.error)() : ""; };
   // Mapping → Furnish (P2) is the 3D view, whatever this screen last picked.
   const la3dWant = () => !!h3 && (h3.furnish === true || _la3dPicked(h3.slot));
   const la3dOn = () => la3dWant() && !la3dWhyNot();
@@ -4267,7 +4278,7 @@ export function buildLightsMapCard(hostIn){
           classFilter: host.classFilter || null, floodLatches: host.floodLatches || {},
           // A tap on what those chips dim says so, and can show everything again (live_aboard.js dimmedNote).
           onClassFilter: typeof host.onClassFilter === "function" ? host.onClassFilter : null,
-          classLabel: (LIGHT_CLASSES.find(([c]) => c === host.classFilter) || [])[1] || null,
+          classLabel: (lightClasses().find(([c]) => c === host.classFilter) || [])[1] || null,
           codes: host.hideDeviceCodes ? null : { showcase: !!host.showcase },
           // The wall panel and its people (live_aboard_panel.js): the settings
           // read there (who carries what, the return to the home view), and
@@ -4697,18 +4708,18 @@ export function buildLightsMapCard(hostIn){
   // Only the Mapping tab offers it (the sidebar host passes no handler), and it
   // is a VIEW: every fixture stays exactly where it was put and stays editable.
   if (host.onShowcase) {
-    ctrlRow.appendChild(groupLbl("Presentation"));
+    ctrlRow.appendChild(groupLbl(t("Presentation")));
     ctrlRow.appendChild(el("button", {
       class: "lv-tgl tone-violet" + (host.showcase ? " on" : ""),
-      title: "Presentation rendering — real fixture colour, light pools, contact shadows",
+      title: t("Presentation rendering — real fixture colour, light pools, contact shadows"),
       onclick: () => host.onShowcase(!host.showcase),
-    }, host.showcase ? "✦ Showcase ✓" : "✦ Showcase"));
+    }, host.showcase ? t("✦ Showcase ✓") : t("✦ Showcase")));
 
     // v2: Theme / Fit room / Isolux / Scene / Ripple only exist while
     // Showcase is on — five more controls the moment it is. Folded.
     let presTarget = ctrlRow;
     if (V2 && host.showcase) {
-      const pf = fold("showcase", "Showcase options");
+      const pf = fold("showcase", t("Showcase options"));
       ctrlRow.appendChild(pf.d);
       presTarget = pf.body;
     }
@@ -4722,14 +4733,14 @@ export function buildLightsMapCard(hostIn){
     if (host.showcase && host.onShowcaseTheme) {
       const themeSel = document.createElement("select");
       themeSel.className = "lv-select";
-      themeSel.title = "Showcase's colour palette and material treatment";
+      themeSel.title = t("Showcase's colour palette and material treatment");
       for (const [kind, label] of SHOWCASE_THEME_OPTIONS) {
         const o = el("option", { value: kind }, label);
         if (kind === (host.showcaseTheme || "classic")) o.selected = true;
         themeSel.appendChild(o);
       }
       themeSel.addEventListener("change", () => host.onShowcaseTheme(themeSel.value));
-      presTarget.appendChild(el("span", { class: "lv-lbl" }, "Theme"));
+      presTarget.appendChild(el("span", { class: "lv-lbl" }, t("Theme")));
       presTarget.appendChild(themeSel);
     }
 
@@ -4739,10 +4750,9 @@ export function buildLightsMapCard(hostIn){
     if (host.showcase && host.onFitRooms) {
       presTarget.appendChild(el("button", {
         class: "lv-tgl tone-ember" + (host.fitRooms ? " on" : ""),
-        title: "No fixture is drawn larger than the room it is in, with a small "
-          + "gap to the walls. Stored measurements are not changed.",
+        title: t("No fixture is drawn larger than the room it is in, with a small gap to the walls. Stored measurements are not changed."),
         onclick: () => host.onFitRooms(!host.fitRooms),
-      }, host.fitRooms ? "⊞ Fit room ✓" : "⊞ Fit room"));
+      }, host.fitRooms ? t("⊞ Fit room ✓") : t("⊞ Fit room")));
     }
 
     // Isolux — the engineer's overlay: relative-illuminance contours computed
@@ -4750,10 +4760,9 @@ export function buildLightsMapCard(hostIn){
     if (host.showcase && host.onIsolux) {
       presTarget.appendChild(el("button", {
         class: "lv-tgl tone-green" + (host.isolux ? " on" : ""),
-        title: "Relative illuminance (isolux) contours on a real-metre grid — three bands "
-          + "at fractions of this floor's own peak.",
+        title: t("Relative illuminance (isolux) contours on a real-metre grid — three bands at fractions of this floor's own peak."),
         onclick: () => host.onIsolux(!host.isolux),
-      }, host.isolux ? "☼ Light spread ✓" : "☼ Light spread"));
+      }, host.isolux ? t("☼ Light spread ✓") : t("☼ Light spread")));
     }
 
     // Spatial scene — a colour field across the floor; each fixture PREVIEWS
@@ -4763,26 +4772,25 @@ export function buildLightsMapCard(hostIn){
       const cur = host.sceneName || null;
       presTarget.appendChild(el("button", {
         class: "lv-tgl tone-pink" + (cur ? " on" : ""),
-        title: "Cycle spatial scene previews — the field's colour at each fixture's "
-          + "own position. Nothing is applied until you press Apply.",
+        title: t("Cycle spatial scene previews — the field's colour at each fixture's own position. Nothing is applied until you press Apply."),
         onclick: () => {
           const i = SCENE_NAMES.indexOf(cur);
           host.onScene(i >= SCENE_NAMES.length - 1 ? null : SCENE_NAMES[i + 1]);
         },
-      }, cur ? `✨ ${cur}` : "✨ Scene"));
+      }, cur ? `✨ ${cur}` : t("✨ Scene")));
       if (cur && host.onSceneAngle) {
         presTarget.appendChild(el("button", {
           class: "lv-act",
-          title: "Rotate the scene's axis 45°",
+          title: t("Rotate the scene's axis 45°"),
           onclick: () => host.onSceneAngle(((Number(host.sceneAngle)||0) + 45) % 360),
         }, "↻"));
       }
       if (cur && host.onSceneApply) {
         presTarget.appendChild(el("button", {
           class: "lv-act primary",
-          title: "Send every lit fixture the colour it is previewing",
+          title: t("Send every lit fixture the colour it is previewing"),
           onclick: () => host.onSceneApply(sceneFieldFor(cur, host.sceneAngle)),
-        }, "Apply"));
+        }, t("Apply")));
       }
     }
 
@@ -4792,17 +4800,16 @@ export function buildLightsMapCard(hostIn){
     if (host.showcase && host.onRipple) {
       presTarget.appendChild(el("button", {
         class: "lv-tgl tone-blue" + (host.rippleArmed ? " on" : ""),
-        title: "Arm, then tap the map — lights pulse outward from the tap in "
-          + "real-distance order. Only lights already on take part.",
+        title: t("Arm, then tap the map — lights pulse outward from the tap in real-distance order. Only lights already on take part."),
         onclick: () => host.onRipple(!host.rippleArmed),
-      }, host.rippleArmed ? "◉ Tap the map…" : "◉ Ripple"));
+      }, host.rippleArmed ? t("◉ Tap the map…") : t("◉ Ripple")));
     }
   }
 
   // A rendering mode (Showcase and its family) reads as one thing; "Hide
   // untouched" is an independent filter, not part of that family — split so
   // the row groups by what a button actually DOES, not just where it sits.
-  if (host.onHideUntouched || host.onHideDeviceCodes || host.onShowBeacons) ctrlRow.appendChild(groupLbl("Filters"));
+  if (host.onHideUntouched || host.onHideDeviceCodes || host.onShowBeacons) ctrlRow.appendChild(groupLbl(t("Filters")));
 
   // Hide untouched — show only the fixtures that have actually been worked on.
   // MOVING a light is not work on the light: dropping it where it really is is
@@ -4812,10 +4819,9 @@ export function buildLightsMapCard(hostIn){
     const n = host.untouchedCount || 0;
     ctrlRow.appendChild(el("button", {
       class: "lv-tgl tone-teal" + (host.hideUntouched ? " on" : ""),
-      title: "Show only lights that have been resized, rotated, recoloured or "
-        + "given a shape. Moving a light does not count as touching it.",
+      title: t("Show only lights that have been resized, rotated, recoloured or given a shape. Moving a light does not count as touching it."),
       onclick: () => host.onHideUntouched(!host.hideUntouched),
-    }, host.hideUntouched ? `◫ Untouched (${n})` : "◫ Hide untouched"));
+    }, host.hideUntouched ? t("◫ Untouched ({n})", { n }) : t("◫ Hide untouched")));
   }
   // Hide device codes (2026-09-08: "turn off the device identifier
   // text") — a persisted preference, independent of the existing zoom-driven
@@ -4825,10 +4831,9 @@ export function buildLightsMapCard(hostIn){
   if (host.onHideDeviceCodes) {
     ctrlRow.appendChild(el("button", {
       class: "lv-tgl tone-teal" + (host.hideDeviceCodes ? " on" : ""),
-      title: "Hide the A01/M08-style code label on every marker, everywhere "
-        + "this map renders — a decluttered view when you just want the shapes.",
+      title: t("Hide the A01/M08-style code label on every marker, everywhere this map renders — a decluttered view when you just want the shapes."),
       onclick: () => host.onHideDeviceCodes(!host.hideDeviceCodes),
-    }, host.hideDeviceCodes ? "▤ Codes hidden" : "▤ Hide codes"));
+    }, host.hideDeviceCodes ? t("▤ Codes hidden") : t("▤ Hide codes")));
   }
   // Working, proven beacons (2026-09-09) — read-only overlay, off by
   // default: "Show beacons on lighting page should be selectable, and off
@@ -4837,23 +4842,21 @@ export function buildLightsMapCard(hostIn){
   if (host.onShowBeacons) {
     ctrlRow.appendChild(el("button", {
       class: "lv-tgl tone-teal" + (host.showBeacons ? " on" : ""),
-      title: "Show working, identified beacons on the map — a read-only dot "
-        + "at each one's last known position, same as Overview. Nothing to place.",
+      title: t("Show working, identified beacons on the map — a read-only dot at each one's last known position, same as Overview. Nothing to place."),
       onclick: () => host.onShowBeacons(!host.showBeacons),
-    }, host.showBeacons ? "◉ Beacons shown" : "◉ Show beacons"));
+    }, host.showBeacons ? t("◉ Beacons shown") : t("◉ Show beacons")));
   }
   // Automorph (2026-09-07) — its own family, independent of Showcase:
   // it works the same in either rendering mode, so it is not nested under
   // the Showcase gate above. An aesthetic-only aura for now (see
   // automorphAuraSvg in iso_lights.js): the icon itself is untouched.
   if (host.onAutomorph) {
-    ctrlRow.appendChild(groupLbl("Automorph"));
+    ctrlRow.appendChild(groupLbl(t("Automorph")));
     ctrlRow.appendChild(el("button", {
       class: "lv-tgl tone-pink" + (host.automorph ? " on" : ""),
-      title: "Grows a soft aura behind each placed fixture toward its own room's "
-        + "shape — an aesthetic overlay, the fixture's own icon is unchanged.",
+      title: t("Grows a soft aura behind each placed fixture toward its own room's shape — an aesthetic overlay, the fixture's own icon is unchanged."),
       onclick: () => host.onAutomorph(!host.automorph),
-    }, host.automorph ? "◈ Automorph ✓" : "◈ Automorph"));
+    }, host.automorph ? t("◈ Automorph ✓") : t("◈ Automorph")));
     // The four Automorph tuning controls read as one cluster — a faint
     // shaded pill (lv-ctrlgroup, styles.css) sets them apart from the mode
     // toggles beside them, the same way lv-zoomseg already set the zoom
@@ -4876,7 +4879,7 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       pctSlider.addEventListener("change", () => host.onAutomorphRoomPct(parseInt(pctSlider.value, 10)));
-      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Room %"));
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, t("Room %")));
       automorphGroup.appendChild(pctSlider);
       automorphGroup.appendChild(pctLbl);
     }
@@ -4890,7 +4893,7 @@ export function buildLightsMapCard(hostIn){
       hardSlider.type = "range"; hardSlider.min = "-100"; hardSlider.max = "100";
       hardSlider.className = "lv-range";
       hardSlider.style.width = "90px";
-      hardSlider.title = "Edge hardness — left sharpens, right softens, centre is unchanged";
+      hardSlider.title = t("Edge hardness — left sharpens, right softens, centre is unchanged");
       hardSlider.value = String(host.automorphHardness || 0);
       hardSlider.addEventListener("input", () => {
         view.automorphLiveHardness = parseInt(hardSlider.value, 10);
@@ -4898,7 +4901,7 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       hardSlider.addEventListener("change", () => host.onAutomorphHardness(parseInt(hardSlider.value, 10)));
-      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Hardness"));
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, t("Hardness")));
       automorphGroup.appendChild(hardSlider);
       automorphGroup.appendChild(hardLbl);
     }
@@ -4908,14 +4911,14 @@ export function buildLightsMapCard(hostIn){
     if (host.automorph && host.onAutomorphStyle) {
       const styleSel = document.createElement("select");
       styleSel.className = "lv-select";
-      styleSel.title = "Automorph's visual treatment";
+      styleSel.title = t("Automorph's visual treatment");
       for (const [kind, label] of AUTOMORPH_STYLES) {
         const o = el("option", { value: kind }, label);
         if (kind === (host.automorphStyle || "glow")) o.selected = true;
         styleSel.appendChild(o);
       }
       styleSel.addEventListener("change", () => host.onAutomorphStyle(styleSel.value));
-      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Style"));
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, t("Style")));
       automorphGroup.appendChild(styleSel);
     }
     // Subtlety, 0-100 (2026-09-07: "a slider for subtlety, so you
@@ -4928,7 +4931,7 @@ export function buildLightsMapCard(hostIn){
       subSlider.type = "range"; subSlider.min = "0"; subSlider.max = "100";
       subSlider.className = "lv-range";
       subSlider.style.width = "90px";
-      subSlider.title = "Subtlety — how much the aura fades toward the background";
+      subSlider.title = t("Subtlety — how much the aura fades toward the background");
       subSlider.value = String(host.automorphSubtlety || 0);
       subSlider.addEventListener("input", () => {
         view.automorphLiveSubtlety = parseInt(subSlider.value, 10);
@@ -4936,19 +4939,19 @@ export function buildLightsMapCard(hostIn){
         rebuildISO();
       });
       subSlider.addEventListener("change", () => host.onAutomorphSubtlety(parseInt(subSlider.value, 10)));
-      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, "Subtlety"));
+      automorphGroup.appendChild(el("span", { class: "lv-lbl" }, t("Subtlety")));
       automorphGroup.appendChild(subSlider);
       automorphGroup.appendChild(subLbl);
     }
     if (automorphGroup && automorphGroup.children.length) {
       if (V2) {
-        const af = fold("automorph", "Automorph tuning");
+        const af = fold("automorph", t("Automorph tuning"));
         af.body.appendChild(automorphGroup);
         ctrlRow.appendChild(af.d);
       } else ctrlRow.appendChild(automorphGroup);
     }
   }
-  if (!V2) ctrlRow.appendChild(groupLbl("Layout & view"));
+  if (!V2) ctrlRow.appendChild(groupLbl(t("Layout & view")));
 
   // Reset needs to put the focus control back too — see resetFocusCtl below.
   let resetFocusCtl = () => {};
@@ -4974,7 +4977,7 @@ export function buildLightsMapCard(hostIn){
       // The floor chips below mirror the slider.
       for (const b of mapCard.querySelectorAll("button")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === view.focusIdx);
     });
-    layoutGroup.appendChild(el("span", { class: "lv-lbl" }, "Floor"));
+    layoutGroup.appendChild(el("span", { class: "lv-lbl" }, t("Floor")));
     layoutGroup.appendChild(focusSlider);
     layoutGroup.appendChild(focusLbl);
     resetFocusCtl = (idx = 0) => { focusSlider.value = String(idx); focusLbl.textContent = getFocusLbl(idx); };
@@ -4995,7 +4998,7 @@ export function buildLightsMapCard(hostIn){
     gapLbl.textContent = String(view.floorGap);
     rebuildISO();
   });
-  const gapName = el("span", { class: "lv-lbl" }, "Spacing");
+  const gapName = el("span", { class: "lv-lbl" }, t("Spacing"));
   layoutGroup.appendChild(gapName);
   layoutGroup.appendChild(gapSlider);
   layoutGroup.appendChild(gapLbl);
@@ -5020,7 +5023,7 @@ export function buildLightsMapCard(hostIn){
   // v2: set once when the floors are first stacked, so folded — and not on
   // the display panel at all: Save view writes EVERYONE's default, which
   // makes these setup controls, and setup lives in Mapping -> Atlas.
-  const layoutFold = V2 && !DISPLAY ? fold("layout", "Layout & view") : null;
+  const layoutFold = V2 && !DISPLAY ? fold("layout", t("Layout & view")) : null;
   const layoutTarget = layoutFold ? layoutFold.body : ctrlRow;
   if (!V2) { ctrlRow.appendChild(SEP()); ctrlRow.appendChild(layoutGroup); }
   else if (layoutFold) layoutFold.body.appendChild(layoutGroup);
@@ -5034,12 +5037,12 @@ export function buildLightsMapCard(hostIn){
       saveBtn.disabled = true;
       try {
         await host.saveView();
-        saveLbl.textContent = "Saved ✓";
+        saveLbl.textContent = t("Saved ✓");
         setTimeout(() => { saveLbl.textContent = ""; }, 2000);
-      } catch (e) { saveLbl.textContent = "Error"; }
+      } catch (e) { saveLbl.textContent = t("Error"); }
       saveBtn.disabled = false;
     },
-  }, "Save view");
+  }, t("Save view"));
   const resetBtn = el("button", { class: "lv-act",
     onclick: async () => {
       // Live Aboard showing: the whole house.
@@ -5053,11 +5056,11 @@ export function buildLightsMapCard(hostIn){
       resetBtn.disabled = true;
       try {
         await host.saveView();
-        saveLbl.textContent = "Reset ✓";
+        saveLbl.textContent = t("Reset ✓");
         setTimeout(() => { saveLbl.textContent = ""; resetBtn.disabled = false; }, 2000);
-      } catch (e) { saveLbl.textContent = "Error"; resetBtn.disabled = false; }
+      } catch (e) { saveLbl.textContent = t("Error"); resetBtn.disabled = false; }
     },
-  }, "Reset view");
+  }, t("Reset view"));
   if (!DISPLAY) {
     layoutTarget.appendChild(saveBtn);
     layoutTarget.appendChild(resetBtn);
@@ -5073,28 +5076,28 @@ export function buildLightsMapCard(hostIn){
       if (on === la) return;
       la = on;
       for (const n of [gapName, gapSlider, gapLbl, horizName, horizSlider, horizLbl]) n.style.display = on ? "none" : "";
-      saveBtn.title = on ? "Keep this view in Live Aboard's Views" : "";
-      resetBtn.title = on ? "Back to the whole house" : "";
+      saveBtn.title = on ? t("Keep this view in Live Aboard's Views") : "";
+      resetBtn.title = on ? t("Back to the whole house") : "";
     });
   }
 
   // Zoom controls — one segmented cluster rather than three loose buttons
   ctrlRow.appendChild(SEP());
-  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, "Zoom"));
+  ctrlRow.appendChild(el("span", { class: "lv-lbl" }, t("Zoom")));
   // While Live Aboard shows they drive its camera: 100% is its whole-house
   // fit, and the middle says its zoom against that fit.
-  const zoomMid = el("button", { title: "Reset zoom", onclick: () => {
+  const zoomMid = el("button", { title: t("Reset zoom"), onclick: () => {
     if (la3dDo(s => s.zoom("fit"))) return;
     view.zoom = 1.0; applyZoom(true);
   } }, "100%");
   ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [
-    el("button", { title: "Zoom out", onclick: () => {
+    el("button", { title: t("Zoom out"), onclick: () => {
       if (la3dDo(s => s.zoom("out"))) return;
       view.zoom = Math.max(0.4, Math.round((view.zoom - 0.1) * 10) / 10);
       applyZoom(true);
     } }, "−"),
     zoomMid,
-    el("button", { title: "Zoom in", onclick: () => {
+    el("button", { title: t("Zoom in"), onclick: () => {
       if (la3dDo(s => s.zoom("in"))) return;
       view.zoom = Math.min(2.5, Math.round((view.zoom + 0.1) * 10) / 10);
       applyZoom(true);
@@ -5108,7 +5111,7 @@ export function buildLightsMapCard(hostIn){
       if (!s && !la) return;
       la = !!s;
       zoomMid.textContent = s ? `${s.zoomPct()}%` : "100%";
-      zoomMid.title = s ? "The whole house" : "Reset zoom";
+      zoomMid.title = s ? t("The whole house") : t("Reset zoom");
     });
   }
   // The Map / 3D switch, right beside the zoom (only while the 3D house is on).
@@ -5119,17 +5122,17 @@ export function buildLightsMapCard(hostIn){
     const whyId = `la3d-why-${h3.slot}`;
     const whyEl = el("span", { id: whyId, "data-la3d-why": "", role: "note", onclick: () => la3dRetry(),
       style: "display:none;align-self:center;padding:0 8px;font-size:11px;line-height:1.25;opacity:.85;max-width:240px;white-space:normal;cursor:pointer" });
-    const mapB = el("button", { onclick: () => pick3d(false) }, "Map");
-    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "Live Aboard");
+    const mapB = el("button", { onclick: () => pick3d(false) }, t("Map"));
+    const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, t("Live Aboard"));
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
     // Its own help (Mapping only: the sidebar never sets host.helpBtn).
-    if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("aboard_3d", "Help: Live Aboard"));
+    if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("aboard_3d", t("Help: Live Aboard")));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e2e8f0";
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
-      mapB.setAttribute("title", "The flat map");
+      mapB.setAttribute("title", t("The flat map"));
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
-      d3B.setAttribute("title", why || "Live Aboard (experimental): your house in 3D, to turn, pan and zoom");
+      d3B.setAttribute("title", why || t("Live Aboard (experimental): your house in 3D, to turn, pan and zoom"));
       if (why) { d3B.setAttribute("aria-disabled", "true"); d3B.setAttribute("aria-describedby", whyId); d3B.style.opacity = "0.45"; }
       else { d3B.removeAttribute("aria-disabled"); d3B.removeAttribute("aria-describedby"); }
       whyEl.textContent = why;
@@ -5140,8 +5143,8 @@ export function buildLightsMapCard(hostIn){
   // Show furniture (Live Aboard on, the sidebar): each piece placed in Live
   // Aboard, faint on its floor, with its doors and windows; per browser.
   if (abFile) {
-    const fb = el("button", { "data-lv-furniture": "", title: "Show the furniture, doors and windows placed in Live Aboard on this map",
-      onclick: () => { try { localStorage.setItem(abFurnKey, abFurn() ? "0" : "1"); } catch (_) { /* kept for this card only */ } paintFb(); rebuildISO(); } }, "Show furniture");
+    const fb = el("button", { "data-lv-furniture": "", title: t("Show the furniture, doors and windows placed in Live Aboard on this map"),
+      onclick: () => { try { localStorage.setItem(abFurnKey, abFurn() ? "0" : "1"); } catch (_) { /* kept for this card only */ } paintFb(); rebuildISO(); } }, t("Show furniture"));
     const paintFb = () => { const on = abFurn(); fb.setAttribute("aria-pressed", String(on)); fb.style.cssText = on ? "background:rgba(82,183,136,.24);color:#e2e8f0" : ""; };
     paintFb();
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [fb]));
@@ -5152,15 +5155,15 @@ export function buildLightsMapCard(hostIn){
   // (Overview's matching row does, via overview_3d_controls). Builder
   // only: the sidebar never sets host.helpBtn, since it never sets the
   // Automorph/Gap/Floor/L-R controls this card explains either.
-  if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls", "Help: build controls"));
+  if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls", t("Help: build controls")));
   // Layout v2 is a trial ("let's try it, make it reversable") — one
   // click back to the classic layout, and one click forward again.
   if (host.onLayoutV2) {
     ctrlRow.appendChild(el("button", {
       class: "lv-act",
-      title: V2 ? "Go back to the classic Atlas layout" : "Try the new Atlas layout — packed toolbar, the map fitted to the screen, the table beside it on a wide monitor",
+      title: V2 ? t("Go back to the classic Atlas layout") : t("Try the new Atlas layout — packed toolbar, the map fitted to the screen, the table beside it on a wide monitor"),
       onclick: () => host.onLayoutV2(!V2),
-    }, V2 ? "▦ Classic layout" : "▦ New layout"));
+    }, V2 ? t("▦ Classic layout") : t("▦ New layout")));
   }
 
   mount(ctrlRow, "view");
@@ -5181,17 +5184,17 @@ export function buildLightsMapCard(hostIn){
   if (host.showcase && (host.onSavePreset || host.onApplyPreset)) {
     const presets = host.showcasePresets || [];
     const presetBar = el("div", { class: "lv-presetbar" });
-    presetBar.appendChild(el("span", { class: "lv-lbl" }, "Presets"));
+    presetBar.appendChild(el("span", { class: "lv-lbl" }, t("Presets")));
 
     const presetSel = document.createElement("select");
     presetSel.className = "lv-select";
-    presetSel.title = "A saved combination of Theme, Automorph, the other Showcase controls, and the Floor / Spacing / L-R layout";
+    presetSel.title = t("A saved combination of Theme, Automorph, the other Showcase controls, and the Floor / Spacing / L-R layout");
     // "▾" in the option text, because this select and the name box beside it
     // are styled as the same dark pill (lv-select / lv-preset-name) and read
     // as two typing fields — 2026-09-16: "you are asking for typing in
     // two places, one works, other not". The one that "didn't" was this
     // dropdown eating keystrokes. The chevron says which is which.
-    presetSel.appendChild(el("option", { value: "" }, presets.length ? "▾ Choose a saved look" : "▾ No saved looks yet"));
+    presetSel.appendChild(el("option", { value: "" }, presets.length ? t("▾ Choose a saved look") : t("▾ No saved looks yet")));
     for (const p of presets) presetSel.appendChild(el("option", { value: p.name }, p.name));
     presetBar.appendChild(presetSel);
 
@@ -5200,51 +5203,51 @@ export function buildLightsMapCard(hostIn){
 
     presetBar.appendChild(el("button", {
       class: "lv-act primary",
-      title: "Apply this preset's Theme, Automorph, other Showcase settings and layout (Floor / Spacing / L-R)",
+      title: t("Apply this preset's Theme, Automorph, other Showcase settings and layout (Floor / Spacing / L-R)"),
       onclick: async () => {
         const p = presets.find((x) => x.name === presetSel.value);
-        if (!p) { flashPreset("Pick a preset first"); return; }
+        if (!p) { flashPreset(t("Pick a preset first")); return; }
         await host.onApplyPreset(p.values);
-        flashPreset("Applied ✓");
+        flashPreset(t("Applied ✓"));
       },
-    }, "Apply"));
+    }, t("Apply")));
 
     if (host.onSavePreset) {
       const nameInput = document.createElement("input");
       nameInput.type = "text";
       nameInput.className = "lv-preset-name";
-      nameInput.placeholder = "Type a name to save as…";
+      nameInput.placeholder = t("Type a name to save as…");
       nameInput.maxLength = 60;
       presetBar.appendChild(nameInput);
 
       presetBar.appendChild(el("button", {
         class: "lv-act",
-        title: "Save the current Theme, Automorph, other Showcase settings and layout (Floor / Spacing / L-R) under this name — overwrites a saved look with the same name",
+        title: t("Save the current Theme, Automorph, other Showcase settings and layout (Floor / Spacing / L-R) under this name — overwrites a saved look with the same name"),
         onclick: async () => {
           const name = nameInput.value.trim();
-          if (!name) { flashPreset("Type a name first"); return; }
+          if (!name) { flashPreset(t("Type a name first")); return; }
           await host.onSavePreset(name);
           nameInput.value = "";
-          flashPreset("Saved ✓");
+          flashPreset(t("Saved ✓"));
         },
-      }, "Save current"));
+      }, t("Save current")));
     }
 
     if (host.onDeletePreset) {
-      const delBtn = el("button", { class: "lv-act", title: "Delete the selected preset" }, "Delete");
+      const delBtn = el("button", { class: "lv-act", title: t("Delete the selected preset") }, t("Delete"));
       delBtn.disabled = !presetSel.value;
       delBtn.addEventListener("click", async () => {
         if (!presetSel.value) return;
         const name = presetSel.value;
         await host.onDeletePreset(name);
-        flashPreset("Deleted");
+        flashPreset(t("Deleted"));
       });
       presetSel.addEventListener("change", () => { delBtn.disabled = !presetSel.value; });
       presetBar.appendChild(delBtn);
     }
     presetBar.appendChild(presetStatus);
 
-    presetBars.push({ key: "look", label: "Look", node: presetBar });
+    presetBars.push({ key: "look", label: t("Look"), node: presetBar });
   }
 
   // Whole House Presets — its own box, like the Showcase Presets bar above,
@@ -5254,10 +5257,10 @@ export function buildLightsMapCard(hostIn){
   if (host.onWholeHouseApply && tierAtLeast(host.tier, "pro")) {
     const whp = host.wholeHousePresets || [];
     const whBar = el("div", { class: "lv-presetbar" });
-    whBar.appendChild(el("span", { class: "lv-lbl" }, "Whole house"));
+    whBar.appendChild(el("span", { class: "lv-lbl" }, t("Whole house")));
     const whSel = document.createElement("select");
     whSel.className = "lv-select";
-    whSel.title = "A saved state of every light and fan in the house — on/off, brightness, colour, effect, speed";
+    whSel.title = t("A saved state of every light and fan in the house — on/off, brightness, colour, effect, speed");
     // Vacation Mode (2026-09-21: "a permanent option, vacation") — a
     // fixed entry, always first, never deleted: it isn't a saved snapshot
     // like everything else in this list, it turns on the ongoing
@@ -5266,20 +5269,20 @@ export function buildLightsMapCard(hostIn){
     // a real preset name (60-char cap, plain text — can't collide).
     const VACATION_VALUE = "__vacation__";
     if (host.onVacationModeEnable) {
-      whSel.appendChild(el("option", { value: VACATION_VALUE }, "🌴 Vacation Mode"));
+      whSel.appendChild(el("option", { value: VACATION_VALUE }, t("🌴 Vacation Mode")));
     }
-    whSel.appendChild(el("option", { value: "" }, whp.length ? "▾ Choose a whole house preset" : "▾ No whole house presets yet"));
+    whSel.appendChild(el("option", { value: "" }, whp.length ? t("▾ Choose a whole house preset") : t("▾ No whole house presets yet")));
     for (const p of whp) whSel.appendChild(el("option", { value: p.name }, `${p.name} (${Object.keys(p.entities || {}).length})`));
     whBar.appendChild(whSel);
     const whStatus = el("span", { class: "lv-status" }, "");
     const whFlash = (msg, ms = 2600) => { whStatus.textContent = msg; setTimeout(() => { whStatus.textContent = ""; }, ms); };
 
-    const whApply = el("button", { class: "lv-act primary", title: "Put every light and fan back the way this preset remembers it — including turning OFF what was off" }, "Apply");
+    const whApply = el("button", { class: "lv-act primary", title: t("Put every light and fan back the way this preset remembers it — including turning OFF what was off") }, t("Apply"));
     // The "Yes, …" goes back to Apply after WH_ARM_MS untouched: the sidebar
     // keeps this card between polls (host.keepCard), and a confirm left armed
     // on a wall screen must not wait hours for one stray tap.
     let whArmed = null, whArmT = null;
-    const whDisarm = () => { whArmed = null; whApply.textContent = "Apply"; if (whArmT) { clearTimeout(whArmT); whArmT = null; } };
+    const whDisarm = () => { whArmed = null; whApply.textContent = t("Apply"); if (whArmT) { clearTimeout(whArmT); whArmT = null; } };
     const whArm = (what, text) => {
       whArmed = what; whApply.textContent = text;
       if (whArmT) clearTimeout(whArmT);
@@ -5287,7 +5290,7 @@ export function buildLightsMapCard(hostIn){
     };
     whApply.addEventListener("click", async () => {
       if (whSel.value === VACATION_VALUE) {
-        if (whArmed !== VACATION_VALUE) { whArm(VACATION_VALUE, "Yes, turn on Vacation Mode"); return; }
+        if (whArmed !== VACATION_VALUE) { whArm(VACATION_VALUE, t("Yes, turn on Vacation Mode")); return; }
         whDisarm();
         const ok = await host.onVacationModeEnable();
         if (ok) whFlash("Vacation Mode on ✓", 4000);
@@ -5295,7 +5298,7 @@ export function buildLightsMapCard(hostIn){
       }
       const p = whp.find((x) => x.name === whSel.value);
       if (!p) { whFlash("Pick a preset first"); return; }
-      if (whArmed !== p.name) { whArm(p.name, "Yes, change the whole house"); return; }
+      if (whArmed !== p.name) { whArm(p.name, t("Yes, change the whole house")); return; }
       whDisarm();
       const r = await host.onWholeHouseApply(p);
       if (r) whFlash(wholeHouseText(r), (r.problems || []).length ? 8000 : 4000);
@@ -5303,7 +5306,7 @@ export function buildLightsMapCard(hostIn){
     whSel.addEventListener("change", whDisarm);
     whBar.appendChild(whApply);
     if (host.onVacationOptions) {
-      const whVacOpts = el("button", { class: "lv-act", title: "Vacation Mode's options: after dark, end date, pause while someone is home, bedtime, longest on, most at once, evening lights, preview" }, "Options");
+      const whVacOpts = el("button", { class: "lv-act", title: t("Vacation Mode's options: after dark, end date, pause while someone is home, bedtime, longest on, most at once, evening lights, preview") }, t("Options"));
       const showOpts = () => { whVacOpts.style.display = whSel.value === VACATION_VALUE ? "" : "none"; };
       whVacOpts.addEventListener("click", () => _vacOptsToggle(host, true, mapCard));
       whSel.addEventListener("change", showOpts);
@@ -5315,29 +5318,29 @@ export function buildLightsMapCard(hostIn){
       const whName = document.createElement("input");
       whName.type = "text";
       whName.className = "lv-preset-name";
-      whName.placeholder = "Type a name to set…";
+      whName.placeholder = t("Type a name to set…");
       whName.maxLength = 60;
       whBar.appendChild(whName);
       whBar.appendChild(el("button", {
         class: "lv-act",
-        title: "Remember how every light and fan is set right now, under this name — overwrites a preset with the same name",
+        title: t("Remember how every light and fan is set right now, under this name — overwrites a preset with the same name"),
         onclick: async () => {
           const name = whName.value.trim();
           if (!name) { whFlash("Type a name first"); return; }
           const r = await host.onWholeHouseSet(name);
-          if (r) { whName.value = ""; whFlash(`Set ✓ — ${r.count} devices` + (r.skipped ? `, ${r.skipped} unavailable` : ""), 4000); }
+          if (r) { whName.value = ""; whFlash(t("Set ✓ — {n} devices", { n: r.count }) + (r.skipped ? ", " + t("{n} unavailable", { n: r.skipped }) : ""), 4000); }
         },
-      }, "Set"));
+      }, t("Set")));
     }
     if (host.onWholeHouseDelete) {
-      const whDel = el("button", { class: "lv-act", title: "Delete the selected whole house preset" }, "Delete");
+      const whDel = el("button", { class: "lv-act", title: t("Delete the selected whole house preset") }, t("Delete"));
       whDel.disabled = true;
       whDel.addEventListener("click", async () => { if (whSel.value && whSel.value !== VACATION_VALUE) { await host.onWholeHouseDelete(whSel.value); whFlash("Deleted"); } });
       whSel.addEventListener("change", () => { whDel.disabled = !whSel.value || whSel.value === VACATION_VALUE; });
       whBar.appendChild(whDel);
     }
     whBar.appendChild(whStatus);
-    presetBars.push({ key: "house", label: "Whole house", node: whBar });
+    presetBars.push({ key: "house", label: t("Whole house"), node: whBar });
     // A preset's ✎ on the scene row: this bar, that preset chosen and its
     // name typed in, so Set keeps the house as it is now under it.
     // Kept on the view (view.whPick) for the card the open drawer builds next.
@@ -5399,24 +5402,23 @@ export function buildLightsMapCard(hostIn){
     const bar = el("div", { class: "lv-layerbar" });
     if (heatKinds.length) {
       const cur = heatKinds.includes(host.heatmap) ? host.heatmap : null;
-      const LBL = { temp: "Temperature", humidity: "Humidity", co2: "CO₂" };
+      const LBL = { temp: t("Temperature"), humidity: t("Humidity"), co2: t("CO₂") };
       bar.appendChild(el("button", {
         class: "lv-chipbtn" + (cur ? " on" : ""),
-        title: "Heatmap — temperature, humidity or CO₂ across each room, between the placed sensors "
-          + "(a room's own sensors at its centre where none is placed). Tap to cycle.",
+        title: t("Heatmap — temperature, humidity or CO₂ across each room, between the placed sensors (a room's own sensors at its centre where none is placed). Tap to cycle."),
         onclick: () => host.onHeatmap(heatKinds[heatKinds.indexOf(cur) + 1] || null),
-      }, [cur ? `♨ ${LBL[cur]}` : "♨ Heatmap"]));
+      }, [cur ? "♨ " + LBL[cur] : t("♨ Heatmap")]));
       if (host.onClassFilter || sortedLevels.length > 1) bar.appendChild(SEP());
     }
     if (host.onClassFilter) {
       const present = new Set(allLights.map(l => lightClassOf(l)));
       const cur = host.classFilter || "all";
-      for (const [cls, label] of LIGHT_CLASSES) {
+      for (const [cls, label] of lightClasses()) {
         if (cls !== "all" && !present.has(cls)) continue;
         const n = cls === "all" ? allLights.length : allLights.filter(l => lightClassOf(l) === cls).length;
         bar.appendChild(el("button", {
           class: "lv-chipbtn" + (cur === cls ? " on" : ""),
-          title: cls === "all" ? "Every device class" : `Show ${label.toLowerCase()} — the rest dim and stop taking taps`,
+          title: cls === "all" ? t("Every device class") : t("Show {what} — the rest dim and stop taking taps", { what: LIGHT_CLASS_LOWER[cls]() }),
           onclick: () => host.onClassFilter(cls === cur && cls !== "all" ? "all" : cls),
         }, [label, el("span", { class: "lv-chipn" }, String(n))]));
       }
@@ -5440,7 +5442,7 @@ export function buildLightsMapCard(hostIn){
       const mk = (label, idx, act) => {
         const b = el("button", {
           class: "lv-chipbtn floor" + (view.focusIdx === idx ? " on" : ""),
-          title: idx === 0 ? "Every floor" : `Only this floor · ${act.on} on${act.motion ? ` · ${act.motion} motion` : ""}`,
+          title: idx === 0 ? t("Every floor") : t("Only this floor") + " · " + t("{n} on", { n: act.on }) + (act.motion ? " · " + t("{n} motion", { n: act.motion }) : ""),
           onclick: () => switchTo(idx),
         }, [label]);
         b._floorIdx = idx;
@@ -5461,20 +5463,20 @@ export function buildLightsMapCard(hostIn){
       }
       // Find active — scroll the drawing to the first device that is doing
       // something (a tripped sensor first, then a lit light).
-      bar.appendChild(el("button", { class: "lv-act", title: "Scroll to the first tripped sensor or lit light",
+      bar.appendChild(el("button", { class: "lv-act", title: t("Scroll to the first tripped sensor or lit light"),
         onclick: () => {
           const pick = allLights.find(l => l.isMotion && l.state === "on") || allLights.find(l => l.state === "on");
-          if (!pick) { if (host.toast) host.toast("Nothing is on"); return; }
+          if (!pick) { if (host.toast) host.toast(t("Nothing is on")); return; }
           if (la3dDo(s => s.findDevice(pick.entity_id))) return;
           const g = isoDiv.querySelector(`.lhex[data-eid="${CSS.escape(String(pick.entity_id))}"]`);
           const svg = isoDiv.querySelector("svg");
           // A floor drawn alone: what is on may be on a floor that isn't drawn.
-          if (!g && svg && view.focusIdx && host.toast) host.toast("It is on another floor: choose All to see it");
+          if (!g && svg && view.focusIdx && host.toast) host.toast(t("It is on another floor: choose All to see it"));
           if (!g || !svg || !g.getBoundingClientRect) return;
           const gr = g.getBoundingClientRect(), sr = isoDiv.getBoundingClientRect();
           isoDiv.scrollLeft += (gr.left + gr.width / 2) - (sr.left + sr.width / 2);
           isoDiv.scrollTop += (gr.top + gr.height / 2) - (sr.top + sr.height / 2);
-        } }, "◎ Find active"));
+        } }, t("◎ Find active")));
     }
     return { node: bar, key: JSON.stringify(notes) };
   };
@@ -5530,9 +5532,9 @@ export function buildLightsMapCard(hostIn){
     };
     openDrawer = (name) => { if (drawers[name] && view.drawer !== name) setDrawer(name); return !!drawers[name]; };
     const railBtn = (icon, title, onclick) => el("button", { class: "lv-railbtn", title, onclick }, icon);
-    for (const [name, icon, title] of [["layers", "☰", "Floors and device types"],
-                                        ["presets", "★", "Presets — looks and whole house"],
-                                        ["view", "⚙", "Zoom and view options"]]) {
+    for (const [name, icon, title] of [["layers", "☰", t("Floors and device types")],
+                                        ["presets", "★", t("Presets — looks and whole house")],
+                                        ["view", "⚙", t("Zoom and view options")]]) {
       if (!drawers[name]) continue;
       const b = railBtn(icon, title, () => setDrawer(name));
       b._drawer = name;
@@ -5557,7 +5559,7 @@ export function buildLightsMapCard(hostIn){
         const on = la3dOn(), why = la3dWhyNot();
         b3.classList.toggle("on", on); b3.style.opacity = why ? "0.45" : "";
         if (why) b3.setAttribute("aria-disabled", "true"); else b3.removeAttribute("aria-disabled");
-        b3.setAttribute("title", why || (on ? "Back to the flat map" : "Live Aboard (experimental)"));
+        b3.setAttribute("title", why || (on ? t("Back to the flat map") : t("Live Aboard (experimental)")));
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };
     }
@@ -5566,8 +5568,8 @@ export function buildLightsMapCard(hostIn){
     // flat Map honours, drawn after ‹ (order) so nothing in the rail moves.
     const flatSlot = host.screen && host.screen.slot;
     if (flatSlot) {
-      const more = el("button", { class: "lv-railbtn la3d-flatmore", type: "button", title: "Show on this screen: pick what the map shows",
-        "aria-label": "Show on this screen: pick what the map shows", "aria-haspopup": "true", "aria-expanded": "false",
+      const more = el("button", { class: "lv-railbtn la3d-flatmore", type: "button", title: t("Show on this screen: pick what the map shows"),
+        "aria-label": t("Show on this screen: pick what the map shows"), "aria-haspopup": "true", "aria-expanded": "false",
         style: "order:99;position:relative;font-weight:800;letter-spacing:1px" }, "⋯");
       rail.appendChild(more);
       la3dPaints.push(() => { more.style.display = la3dOn() ? "none" : ""; });   // one ⋯ per look: the 3D look has its own
@@ -5586,14 +5588,14 @@ export function buildLightsMapCard(hostIn){
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
               if (!tapLights()) out.light_taps = M.setupLine("light_taps", hp.admin === true, typeof hp.goTo === "function", null, hp.kiosk === true);
-              if (sortedLevels.length < 2) out.other_floors = M.setupLine("other_floors", hp.admin === true, false, "This house has one floor: there is nothing to fade.");
+              if (sortedLevels.length < 2) out.other_floors = M.setupLine("other_floors", hp.admin === true, false, t("This house has one floor: there is nothing to fade."));
               return out;
             },
             canGo,
             go: (where) => { if (canGo(where)) M.goShow(where, hp.goTo, sc()); },
             count: (name) => {
-              const t = h3 && typeof h3.telemetry === "function" ? h3.telemetry : host.scenes && host.scenes.telemetry;
-              try { if (typeof t === "function") t(name); } catch (_) { /* the report is never the error */ }
+              const tell = h3 && typeof h3.telemetry === "function" ? h3.telemetry : host.scenes && host.scenes.telemetry;
+              try { if (typeof tell === "function") tell(name); } catch (_) { /* the report is never the error */ }
             },
             // A tap reads its line when it lands; the floors and the scene row are drawn again.
             changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; }
@@ -5610,12 +5612,12 @@ export function buildLightsMapCard(hostIn){
         if (_laPrefs.get(`show_${flatSlot}`)) _loadShowList().then(M => { if (M && !flatMenu) wired(M); });
       }
     }
-    const railToggle = railBtn(view.railHidden ? "›" : "‹", view.railHidden ? "Show the controls" : "Hide the controls", () => {
+    const railToggle = railBtn(view.railHidden ? "›" : "‹", view.railHidden ? t("Show the controls") : t("Hide the controls"), () => {
       view.railHidden = !view.railHidden;
       if (view.railHidden && view.drawer) setDrawer(view.drawer);
       rail.classList.toggle("hidden", !!view.railHidden);
       railToggle.textContent = view.railHidden ? "›" : "‹";
-      railToggle.title = view.railHidden ? "Show the controls" : "Hide the controls";
+      railToggle.title = view.railHidden ? t("Show the controls") : t("Hide the controls");
     });
     rail.appendChild(railToggle);
     mapCard.appendChild(rail);
@@ -5806,10 +5808,10 @@ export function buildLightsTable(hostIn, lights){
 
   const unassigned = lights.filter(l => !l.area_name && !hidden.has(l.entity_id));
   if (host.lightsLoading) {
-    top.push(el("div", { class: "lv-note" }, "Loading room assignments…"));
+    top.push(el("div", { class: "lv-note" }, t("Loading room assignments…")));
   } else if (unassigned.length) {
     top.push(el("div", { class: "lv-note" },
-      `${unassigned.length} light(s) not assigned to a room — shown in index only.`));
+      t("{n} light(s) not assigned to a room — shown in index only.", { n: unassigned.length })));
   }
 
   const hiddenCount = lights.filter(l => hidden.has(l.entity_id)).length;
@@ -5831,18 +5833,18 @@ export function buildLightsTable(hostIn, lights){
   const filtered = healthFilter ? byClass.filter(l => !l.healthy) : byClass;
   const unhealthyCount = lights.filter(l => !l.healthy).length;
   top.push(el("div", { class: "lv-tbl-head" }, [
-    el("span", { class: "lv-tbl-title" }, "Light Index"),
+    el("span", { class: "lv-tbl-title" }, t("Light Index")),
     el("span", { class: "lv-count" }, (tableFilter === "all" && !healthFilter) ? String(lights.length) : `${filtered.length} / ${lights.length}`),
-    hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
+    hiddenCount ? el("span", { class: "lv-hint" }, t("{n} hidden from map", { n: hiddenCount })) : null,
     host.zigbeeTwins && host.zigbeeTwins.hidden ? el("span", { class: "lv-hint", "data-zigbee-hidden": String(host.zigbeeTwins.hidden) }, host.zigbeeTwins.note) : null,
     ...(host.onTableHealthFilter ? [(() => {
       const btn = el("button", {
         class: "lv-act" + (healthFilter ? " primary" : ""),
         title: unhealthyCount
-          ? `${unhealthyCount} device(s) test unhealthy right now`
-          : "Every device is healthy right now",
+          ? t("{n} device(s) test unhealthy right now", { n: unhealthyCount })
+          : t("Every device is healthy right now"),
         onclick: () => host.onTableHealthFilter(!healthFilter),
-      }, healthFilter ? "Showing unhealthy only ✕" : `Show unhealthy only${unhealthyCount ? ` (${unhealthyCount})` : ""}`);
+      }, healthFilter ? t("Showing unhealthy only ✕") : t("Show unhealthy only") + (unhealthyCount ? ` (${unhealthyCount})` : ""));
       return btn;
     })()] : []),
     ...(host.onTableClassFilter ? [(() => {
@@ -5853,10 +5855,10 @@ export function buildLightsTable(hostIn, lights){
       // sits right next to the title instead, so it is always on-screen.
       const sel = document.createElement("select");
       sel.className = "lv-select";
-      sel.title = "Filter the list by device type";
-      for (const [cls, label] of LIGHT_CLASSES) {
+      sel.title = t("Filter the list by device type");
+      for (const [cls, label] of lightClasses()) {
         if (cls !== "all" && !present.has(cls)) continue;
-        const o = el("option", { value: cls }, cls === "all" ? "All types" : label);
+        const o = el("option", { value: cls }, cls === "all" ? t("All types") : label);
         if (cls === tableFilter) o.selected = true;
         sel.appendChild(o);
       }
@@ -5888,7 +5890,7 @@ export function buildLightsTable(hostIn, lights){
   if (host.onBuildFromRelays && !reuse) {
     root.appendChild(el("div", { style: "padding:0 12px 10px;border-bottom:1px solid #1b3526" },
       el("button", { class: "lv-act", onclick: host.onBuildFromRelays },
-        "+ Build an opener, lock, or light from relays")));
+        t("+ Build an opener, lock, or light from relays"))));
   }
 
   // Sortable headers, the standard three-state cycle: click an unsorted
@@ -5897,11 +5899,11 @@ export function buildLightsTable(hostIn, lights){
   // lives here, once, so both hosts' onTableSort is a plain setter.
   const sortState = host.tableSort || null;
   const COLUMNS = [
-    ["code", "Code", (l) => l.code || ""],
+    ["code", t("Code"), (l) => l.code || ""],
     ["name", "Light", (l) => (l.friendly_name || "").toLowerCase()],
-    ["room", "Room", (l) => (l.area_name || "").toLowerCase()],
+    ["room", t("Room"), (l) => (l.area_name || "").toLowerCase()],
     ["health", "Health", (l) => (l.healthy ? 1 : 0)],
-    ["brand", "Brand", (l) => (l.brand || "").toLowerCase()],
+    ["brand", t("Brand"), (l) => (l.brand || "").toLowerCase()],
     // Sorted on exactly what the State column DISPLAYS — a temperature
     // reading numerically (so 105° sorts above 68°, not alphabetically),
     // everything else by its actual on/off. stateWordOf's sortValue IS that
@@ -5910,7 +5912,7 @@ export function buildLightsTable(hostIn, lights){
     // openAggregateSheet and this table's own render chain below; one of
     // those three had already drifted (the flood latch was invisible to
     // this exact sort key until fixed by hand, separately, the same day).
-    ["state", "State", (l) => { const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid); return sw ? sw.sortValue : (l.state === "on" ? 1 : 0); }],
+    ["state", t("State"), (l) => { const sw = stateWordOf(l, host.floodLatches, host.doorInvertByEid); return sw ? sw.sortValue : (l.state === "on" ? 1 : 0); }],
   ];
   // cls: lv-narrow / lv-slim / lv-phone, a column that steps aside when the index is
   // narrower than 480px (lv-narrow) / 360px (lv-slim, lv-phone) (styles.css .lv-index).
@@ -5921,7 +5923,7 @@ export function buildLightsTable(hostIn, lights){
     return el("th", {
       class: cls || "",
       style: `cursor:pointer;user-select:none;${extraStyle || ""}`,
-      title: "Sort by " + label,
+      title: t("Sort by {column}", { column: label }),
       onclick: () => {
         const next = !active ? { column: key, dir: "asc" }
           : sortState.dir === "asc" ? { column: key, dir: "desc" }
@@ -5936,14 +5938,14 @@ export function buildLightsTable(hostIn, lights){
   const typeNarrow = host.onTypeOverride ? "lv-phone" : "lv-narrow";
   const tbl = reuse ? null : el("table", { class: "table lv-table", style: "width:100%" });
   if (tbl) tbl.appendChild(el("thead", {}, el("tr", {}, [
-    th("code", "Code"),
+    th("code", t("Code")),
     th("name", "Light"),
-    th("room", "Room"),
+    th("room", t("Room")),
     th("health", "Health", "text-align:center", "lv-slim"),
-    th("brand", "Brand", "", "lv-narrow"),
-    th("state", "State"),
-    th(null, "Type", "text-align:center", typeNarrow),
-    th(null, "Map", "width:60px;text-align:center"),
+    th("brand", t("Brand"), "", "lv-narrow"),
+    th("state", t("State")),
+    th(null, t("Type"), "text-align:center", typeNarrow),
+    th(null, t("Map"), "width:60px;text-align:center"),
   ])));
   const tbody = reuse ? keep.tbody : el("tbody");
   const placements = (host.model && host.model.light_positions_m) || {};
@@ -5999,7 +6001,7 @@ export function buildLightsTable(hostIn, lights){
         // so this column's "arm for placement" click is switched off for it
         // rather than arming a placement that can never mean anything.
         style: "white-space:nowrap" + (host.onSelectForPlacement && !l.isDoor ? ";cursor:pointer" : ""),
-        title: host.onSelectForPlacement && !l.isDoor ? "Select for map placement" : undefined,
+        title: host.onSelectForPlacement && !l.isDoor ? t("Select for map placement") : undefined,
         onclick: host.onSelectForPlacement && !l.isDoor ? (e) => { e.stopPropagation(); host.onSelectForPlacement(l); } : undefined,
       }, (() => {
         const swatch = classBorder(l, "#52b788");
@@ -6029,7 +6031,7 @@ export function buildLightsTable(hostIn, lights){
             if (!areas.length) return "—";
             const sel = document.createElement("select");
             sel.className = "lv-select";
-            sel.appendChild(el("option", { value: "" }, "Assign room…"));
+            sel.appendChild(el("option", { value: "" }, t("Assign room…")));
             for (const a of [...areas].sort((x, y) => x.name.localeCompare(y.name))) {
               sel.appendChild(el("option", { value: a.id }, a.name));
             }
@@ -6039,10 +6041,10 @@ export function buildLightsTable(hostIn, lights){
               sel.disabled = true;
               try {
                 await host.callWS({ type: "config/entity_registry/update", entity_id: l.entity_id, area_id: sel.value });
-                host.toast(`Assigned ${l.friendly_name} to room`);
+                host.toast(t("Assigned {name} to room", { name: l.friendly_name }));
                 host.afterAssign();
               } catch (e) {
-                host.toast("Couldn't put it in that room: " + errorText(e), true);
+                host.toast(t("Couldn't put it in that room: {why}", { why: errorText(e) }), true);
                 sel.disabled = false;
               }
             });
@@ -6050,7 +6052,7 @@ export function buildLightsTable(hostIn, lights){
           })()
       ),
       el("td", { class: "lv-slim", style: "text-align:center" }, el("span", {
-        title: l.healthy ? "Healthy" : (l.healthReason || "Unhealthy"),
+        title: l.healthy ? t("Healthy") : (l.healthReason || t("Unhealthy")),
         style: `display:inline-block;width:9px;height:9px;border-radius:50%;` +
                `background:${l.healthy ? "#52b788" : "#f87171"};` +
                (l.healthy ? "" : "box-shadow:0 0 4px #f87171bb"),
@@ -6068,12 +6070,12 @@ export function buildLightsTable(hostIn, lights){
         if (l.isFlood && sw.latched && host.onFloodReset) {
           const wrap = el("span", { style: "margin-left:6px;display:inline-block" });
           const makeResetBtn = () => {
-            const b = el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 8px" }, "Reset");
+            const b = el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 8px" }, t("Reset"));
             b.addEventListener("click", (e) => {
               e.stopPropagation();
               wrap.innerHTML = "";
-              const yes = el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 8px;background:#7f1d1d;border-color:#dc2626;color:#fecaca" }, "Yes, clear it");
-              const no = el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 8px" }, "No");
+              const yes = el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 8px;background:#7f1d1d;border-color:#dc2626;color:#fecaca" }, t("Yes, clear it"));
+              const no = el("button", { class: "btn tiny", style: "font-size:10px;padding:2px 8px" }, t("No"));
               yes.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; host.onFloodReset(l.entity_id); });
               no.addEventListener("click", (e2) => { e2.stopPropagation(); wrap.innerHTML = ""; wrap.appendChild(makeResetBtn()); });
               wrap.appendChild(yes); wrap.appendChild(no);
@@ -6101,9 +6103,9 @@ export function buildLightsTable(hostIn, lights){
         (host.onTypeOverride && l.entity_id.startsWith("light.")) ? (() => {
           const sel = document.createElement("select");
           sel.className = "lv-select";
-          sel.title = "Override how PadSpan classes this light (Pro)";
+          sel.title = t("Override how PadSpan classes this light (Pro)");
           const cur = (host.typeOverrides || {})[l.entity_id] || "auto";
-          for (const [kind, label] of LIGHT_TYPE_OVERRIDES) {
+          for (const [kind, label] of lightTypeOverrides()) {
             const o = el("option", { value: kind }, label);
             if (kind === cur) o.selected = true;
             sel.appendChild(o);
@@ -6117,7 +6119,7 @@ export function buildLightsTable(hostIn, lights){
         // The visible way to the controls (sidebar): a "⋯" that opens the
         // card — the same card the hold opens, offered in plain sight.
         ...(host.onRowMore && isControllable(l) ? [el("button", {
-          class: "lv-act", title: "Controls", style: "margin-right:6px",
+          class: "lv-act", title: t("Controls"), style: "margin-right:6px",
           onclick: (e) => { e.stopPropagation(); host.onRowMore(l); },
         }, "⋯")] : []),
         // A door/window is never dragged to a point — it is a section of an
@@ -6139,14 +6141,14 @@ export function buildLightsTable(hostIn, lights){
           if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
             const isSteel = (host.doorMaterialByEid || {})[l.entity_id] === "metal";
             return [
-              el("span", { class: "lv-hint", title: "Shows open/closed on the map at the wall section it's linked to" }, "🔗 Linked"),
+              el("span", { class: "lv-hint", title: t("Shows open/closed on the map at the wall section it's linked to") }, t("🔗 Linked")),
               ...(host.onToggleDoorSteel ? [el("button", {
                 class: "lv-act" + (isSteel ? " primary" : ""), style: "margin-left:6px",
                 title: isSteel
-                  ? "Steel (12 dB) — click to change to a lighter material (6 dB)"
-                  : "Set this door/window itself to steel (12 dB), independent of the wall it's cut from",
+                  ? t("Steel (12 dB) — click to change to a lighter material (6 dB)")
+                  : t("Set this door/window itself to steel (12 dB), independent of the wall it's cut from"),
                 onclick: (e) => { e.stopPropagation(); host.onToggleDoorSteel(l); },
-              }, isSteel ? "Steel ✓" : "Steel")] : []),
+              }, isSteel ? t("Steel ✓") : t("Steel"))] : []),
               // 2026-09-22: "you need an invert option for the door
               // sensors, since it shows the exact opposite of what's
               // actually going on" — same standing-toggle shape as Steel,
@@ -6155,15 +6157,15 @@ export function buildLightsTable(hostIn, lights){
               ...(host.onToggleDoorInvert ? [el("button", {
                 class: "lv-act" + ((host.doorInvertByEid || {})[l.entity_id] ? " primary" : ""), style: "margin-left:6px",
                 title: (host.doorInvertByEid || {})[l.entity_id]
-                  ? "Reading inverted — click to read it normally again"
-                  : "This sensor reports backwards (e.g. \"on\" actually means closed) — click to flip the reading",
+                  ? t("Reading inverted — click to read it normally again")
+                  : t("This sensor reports backwards (e.g. \"on\" actually means closed) — click to flip the reading"),
                 onclick: (e) => { e.stopPropagation(); host.onToggleDoorInvert(l); },
-              }, (host.doorInvertByEid || {})[l.entity_id] ? "Inverted ✓" : "Invert")] : []),
+              }, (host.doorInvertByEid || {})[l.entity_id] ? t("Inverted ✓") : t("Invert"))] : []),
               ...(host.onUnlinkDoor ? [el("button", {
                 class: "lv-act", style: "margin-left:6px",
-                title: "Unlink from that wall section — the wall itself is left in place; Place then reappears here",
+                title: t("Unlink from that wall section — the wall itself is left in place; Place then reappears here"),
                 onclick: (e) => { e.stopPropagation(); host.onUnlinkDoor(l); },
-              }, "Unlink")] : []),
+              }, t("Unlink"))] : []),
               // The SAME wall opening's other two roles (2026-09-22:
               // "all of these sit on the opening... that wall opening") —
               // attached here rather than by dropping the circle tool a
@@ -6173,10 +6175,10 @@ export function buildLightsTable(hostIn, lights){
                 if (openerEid) {
                   const name = (host.doorOpenerCandidates || []).find(c => c.entity_id === openerEid)?.friendly_name || openerEid;
                   return [
-                    el("span", { class: "lv-hint", style: "margin-left:8px", title: openerEid }, `Opener: ${name}`),
+                    el("span", { class: "lv-hint", style: "margin-left:8px", title: openerEid }, t("Opener: {name}", { name })),
                     ...(host.onLinkDoorOpener ? [el("button", {
                       class: "lv-act", style: "margin-left:4px",
-                      title: "Unlink the opener — the sensor link is untouched",
+                      title: t("Unlink the opener — the sensor link is untouched"),
                       onclick: (e) => { e.stopPropagation(); host.onLinkDoorOpener(l, null); },
                     }, "✕")] : []),
                   ];
@@ -6184,23 +6186,23 @@ export function buildLightsTable(hostIn, lights){
                 if (!host.onLinkDoorOpener) return [];
                 return [el("button", {
                   class: "lv-act", style: "margin-left:6px",
-                  title: "Link the opener (a cover, switch, button, or script marked in Devices → Door Openers) that moves this same opening",
+                  title: t("Link the opener (a cover, switch, button, or script marked in Devices → Door Openers) that moves this same opening"),
                   onclick: (e) => {
                     e.stopPropagation();
-                    _pickEntityOverlay(`Opener for ${l.friendly_name || l.entity_id}`, host.doorOpenerCandidates || [],
+                    _pickEntityOverlay(t("Opener for {name}", { name: l.friendly_name || l.entity_id }), host.doorOpenerCandidates || [],
                       (eid) => host.onLinkDoorOpener(l, eid));
                   },
-                }, "+ Opener")];
+                }, t("+ Opener"))];
               })(),
               ...(() => {
                 const lockEid = (host.doorLockByEid || {})[l.entity_id];
                 if (lockEid) {
                   const name = (host.lockCandidates || []).find(c => c.entity_id === lockEid)?.friendly_name || lockEid;
                   return [
-                    el("span", { class: "lv-hint", style: "margin-left:8px", title: lockEid }, `Lock: ${name}`),
+                    el("span", { class: "lv-hint", style: "margin-left:8px", title: lockEid }, t("Lock: {name}", { name })),
                     ...(host.onLinkDoorLock ? [el("button", {
                       class: "lv-act", style: "margin-left:4px",
-                      title: "Unlink the lock — the sensor link is untouched",
+                      title: t("Unlink the lock — the sensor link is untouched"),
                       onclick: (e) => { e.stopPropagation(); host.onLinkDoorLock(l, null); },
                     }, "✕")] : []),
                   ];
@@ -6208,31 +6210,31 @@ export function buildLightsTable(hostIn, lights){
                 if (!host.onLinkDoorLock) return [];
                 return [el("button", {
                   class: "lv-act", style: "margin-left:6px",
-                  title: "Link a lock to this same opening",
+                  title: t("Link a lock to this same opening"),
                   onclick: (e) => {
                     e.stopPropagation();
-                    _pickEntityOverlay(`Lock for ${l.friendly_name || l.entity_id}`, host.lockCandidates || [],
+                    _pickEntityOverlay(t("Lock for {name}", { name: l.friendly_name || l.entity_id }), host.lockCandidates || [],
                       (eid) => host.onLinkDoorLock(l, eid));
                   },
-                }, "+ Lock")];
+                }, t("+ Lock"))];
               })(),
             ];
           }
-          if (!host.onConfigureDoor) return [el("span", { class: "lv-hint" }, "Not linked")];
+          if (!host.onConfigureDoor) return [el("span", { class: "lv-hint" }, t("Not linked"))];
           if (host.doorCircleArmedEid !== l.entity_id) {
             return [el("button", {
               class: "lv-act", style: "margin-right:6px",
-              title: "Click, then click the map to place a circle over the wall section",
+              title: t("Click, then click the map to place a circle over the wall section"),
               onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
-            }, "Place")];
+            }, t("Place"))];
           }
           return [el("button", {
             class: "lv-act", style: "margin-right:6px",
             title: host.doorCircleM
-              ? "Discard the circle — Esc does this too"
-              : "Click the map to place a circle, then drag it to fit — Esc cancels",
+              ? t("Discard the circle — Esc does this too")
+              : t("Click the map to place a circle, then drag it to fit — Esc cancels"),
             onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
-          }, "Cancel")];
+          }, t("Cancel"))];
         })() : [
           ...(host.onPlaceRow && !placements[l.entity_id] ? [(() => {
             // The placement queue (builder): arm this light, then tap the map
@@ -6246,9 +6248,9 @@ export function buildLightsTable(hostIn, lights){
             const q = !!(queued && queued.has(l.entity_id));
             return el("button", {
               class: "lv-act" + (q ? " primary" : ""), style: "margin-right:6px",
-              title: q ? "Queued — tap the map to place it" : "Place on the map — then tap where it is",
+              title: q ? t("Queued — tap the map to place it") : t("Place on the map — then tap where it is"),
               onclick: (e) => { e.stopPropagation(); host.onPlaceRow(l.entity_id); },
-            }, q ? "◎ Queued" : "+ Place");
+            }, q ? t("◎ Queued") : t("+ Place"));
           })()] : []),
           // A lock keeps its ordinary point marker above (it still has a
           // real physical spot, unlike a door/window sensor) — this is
@@ -6263,35 +6265,35 @@ export function buildLightsTable(hostIn, lights){
             if (host.doorLinkedIds && host.doorLinkedIds.has(l.entity_id)) {
               const isSteel = (host.doorMaterialByEid || {})[l.entity_id] === "metal";
               return [
-                el("span", { class: "lv-hint", title: "Flashes red on the map, on the wall section it's linked to, whenever unlocked" }, "🔗 Linked"),
+                el("span", { class: "lv-hint", title: t("Flashes red on the map, on the wall section it's linked to, whenever unlocked") }, t("🔗 Linked")),
                 ...(host.onToggleDoorSteel ? [el("button", {
                   class: "lv-act" + (isSteel ? " primary" : ""), style: "margin-left:6px",
                   title: isSteel
-                    ? "Steel (12 dB) — click to change to a lighter material (6 dB)"
-                    : "Set this door/window itself to steel (12 dB), independent of the wall it's cut from",
+                    ? t("Steel (12 dB) — click to change to a lighter material (6 dB)")
+                    : t("Set this door/window itself to steel (12 dB), independent of the wall it's cut from"),
                   onclick: (e) => { e.stopPropagation(); host.onToggleDoorSteel(l); },
-                }, isSteel ? "Steel ✓" : "Steel")] : []),
+                }, isSteel ? t("Steel ✓") : t("Steel"))] : []),
                 ...(host.onUnlinkDoor ? [el("button", {
                   class: "lv-act", style: "margin-left:6px",
-                  title: "Unlink from that wall section — the wall itself is left in place; Link wall then reappears here",
+                  title: t("Unlink from that wall section — the wall itself is left in place; Link wall then reappears here"),
                   onclick: (e) => { e.stopPropagation(); host.onUnlinkDoor(l); },
-                }, "Unlink")] : []),
+                }, t("Unlink"))] : []),
               ];
             }
             if (host.doorCircleArmedEid !== l.entity_id) {
               return [el("button", {
                 class: "lv-act", style: "margin-right:6px",
-                title: "Click, then click the map to place a circle over the wall section it's mounted in",
+                title: t("Click, then click the map to place a circle over the wall section it's mounted in"),
                 onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(l); },
-              }, "Link wall")];
+              }, t("Link wall"))];
             }
             return [el("button", {
               class: "lv-act", style: "margin-right:6px",
               title: host.doorCircleM
-                ? "Discard the circle — Esc does this too"
-                : "Click the map to place a circle, then drag it to fit — Esc cancels",
+                ? t("Discard the circle — Esc does this too")
+                : t("Click the map to place a circle, then drag it to fit — Esc cancels"),
               onclick: (e) => { e.stopPropagation(); host.onConfigureDoor(null); },
-            }, "Cancel")];
+            }, t("Cancel"))];
           })() : []),
         ]),
         // Undoes exactly what "touched" means above: a fixture with no size,
@@ -6299,16 +6301,16 @@ export function buildLightsTable(hostIn, lights){
         // so the button only appears once there is something to step out of.
         ...(host.onRevertUntouched && lightIsTouched(l, host.typeOverrides, placements) ? [el("button", {
           class: "lv-act", style: "margin-right:6px",
-          title: "Clear this fixture's size, rotation, colour and class override — its position is kept",
+          title: t("Clear this fixture's size, rotation, colour and class override — its position is kept"),
           onclick: (e) => { e.stopPropagation(); host.onRevertUntouched(l.entity_id); },
-        }, "Revert")] : []),
+        }, t("Revert"))] : []),
         el("button", {
           class: "lv-act",
           onclick: (e) => {
             e.stopPropagation();
             host.onToggleHidden(l.entity_id);
           },
-        }, isHidden ? "Show" : "Hide"),
+        }, isHidden ? t("Show") : t("Hide")),
       ]),
     ]);
     row.addEventListener("click", () => {
