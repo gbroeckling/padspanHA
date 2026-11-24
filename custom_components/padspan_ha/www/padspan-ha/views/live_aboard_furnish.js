@@ -935,7 +935,8 @@ export function createFurnish(ctx){
         const base = recipeFor("stairs");
         const recipe = { ...base, params: { ...(base.params || {}), ...g.params }, width_m: g.width_m, depth_m: g.depth_m, height_m: reach.rise };
         const piece = PIECES.makePiece(recipe, F.fl.parent || F.fl.id, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
-        piece.label = t("Stairs ({room})", { room: r.name });
+        // Saved on the piece in English: setup_checks.py counts a stair room's guess by "Stairs (" (as PIECE_LABEL in live_aboard_plans.js).
+        piece.label = `Stairs (${r.name})`;
         out.push({ room: r.name, piece });
       }
     }
@@ -997,7 +998,8 @@ export function createFurnish(ctx){
         const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "none" },
                          width_m: st.width_m, depth_m: st.depth_m };
         const piece = PIECES.makePiece(recipe, fid, { x: st.x_m, y: st.y_m, rotation: st.rotation }, "build");
-        piece.label = st.sure_up ? t("Stairs (AI first guess)") : t("Stairs (AI first guess, check which way is up)");
+        // Saved in English: plan_ai.py (AI_LABELS) and setup_checks.py tell the AI's stairs from hand-placed ones by this label.
+        piece.label = st.sure_up ? "Stairs (AI first guess)" : "Stairs (AI first guess, check which way is up)";
         return { piece, square: true };
       }), null, tn(placed.length, "The AI found {n} staircase on your plans: a first guess, so check where they stand, their shape and which way is up", "The AI found {n} staircases on your plans: a first guess, so check where they stand, their shape and which way is up") +
         // Tested on real plans (0.38.189): a small local model finds most, but their shape and way up often wrong.

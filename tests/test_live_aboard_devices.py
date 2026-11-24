@@ -80,7 +80,7 @@ def test_every_live_kind_the_builders_offer_is_handled() -> None:
     """Each builder's `live` (live_aboard_furniture.js) is one the devices
     module draws, and each part it draws is one the builders hand over."""
     fur = _js(_VIEWS / "live_aboard_furniture.js")
-    lives = set(re.findall(r'kind\(\(\) => t\("[^"]+"\), "(?:furniture|device|tag|scanner)", "[a-z]+", "([a-z]+)"', fur))
+    lives = set(re.findall(r'kind\((?:\(\) => t\("[^"]+"\)|"[^"]+"), "(?:furniture|device|tag|scanner)", "[a-z]+", "([a-z]+)"', fur))
     dv = _js(_VIEWS / "live_aboard_devices.js")
     line = dv[dv.index("export const LIVE_KINDS"):].split("\n", 1)[0]
     kinds = set(re.findall(r'"([a-z]+)"', line))
