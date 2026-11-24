@@ -55,15 +55,18 @@ wizard ends on **Finish**, which has the one button not to miss: **Put it on the
 
 ## Step 1. Upload a floor plan
 
-A picture of one floor. It doesn't need to be perfect: a photo of a paper plan or of your own sketch
-works.
+A picture of one floor, or a PDF of it. It doesn't need to be perfect: a photo of a paper plan or of
+your own sketch works.
 
 1. **Floor (from HA)**: the Home Assistant floor this plan belongs to. **Outside (Experimental)** is
    for a garden or yard; a house can have one Outside plan.
 2. **Map name**: optional. Left blank, it takes the file's name.
 3. **Max size**: the longest side in pixels after conversion, 1600 unless you change it.
-4. Choose the picture: PNG, JPG, GIF, BMP, WebP or SVG. Drag on the preview to crop it if you like;
-   **Reset Crop** starts again.
+4. Choose the picture: PNG, JPG, GIF, BMP, WebP or SVG, or a PDF such as an architect's drawing. A
+   PDF with several pages asks which page is the plan; that page is drawn as a picture in your
+   browser and goes on like any other. A password-protected PDF can't be read: save it without a
+   password, or as a picture, first. Drag on the preview to crop it if you like; **Reset Crop**
+   starts again.
 5. If the picture is your own drawing, tick **This is my own sketch, not to scale**. PadSpan then
    asks for a length each way.
 6. Choose **Upload & Convert**. PadSpan keeps the plan in Home Assistant, where only people signed
@@ -250,8 +253,8 @@ On the upload step, **No floor plan? Ways to get one** lists five ways, best fir
 the list, the rougher the plan.
 
 1. **Look for a drawing you already have.** The builder's or architect's drawings, the listing, the
-   council file, an insurance report, the fire-escape plan on a wall. A photo held straight over the
-   page is enough.
+   council file, an insurance report, the fire-escape plan on a wall. A PDF goes up as it is; for
+   paper, a photo held straight over the page is enough.
 2. **Scan the floor with an iPhone or iPad.** It needs a Pro model with LiDAR (iPhone 12 Pro or a
    newer Pro, iPad Pro 2020 or newer). Any room-scanning app that uses Apple's RoomPlan can share the
    scan as a USDZ file (some also offer RoomPlan JSON). Scan the whole floor in one go, doors open and
