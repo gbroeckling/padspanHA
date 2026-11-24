@@ -142,7 +142,9 @@ def test_the_furnish_modules_load_only_with_the_3d_view() -> None:
         want = ["atlas_aboard.js", "live_aboard.js"] if name == "live_aboard_pieces.js" else ["live_aboard.js"]
         assert importers == want, (name, importers)
     fur = _code(_VIEWS / "live_aboard_furnish.js")
-    assert fur.count("import(") == 1 and "await import(`./${file}${base}`).catch(() => null);" in fur
+    # Two imports: the flows, loaded when wanted, and the panel's translator (views/i18n.js: its words).
+    assert "await import(`./i18n.js${new URL(import.meta.url).search}`)" in fur
+    assert fur.count("import(") == 2 and "await import(`./${file}${base}`).catch(() => null);" in fur
     for flow in ('"live_aboard_photo.js", "photoFlow"', '"live_aboard_library.js", "libraryFlow"', '"live_aboard_import.js", "importFlow"',
                  '"live_aboard_people.js", "peopleFlow"'):
         assert flow in fur, flow

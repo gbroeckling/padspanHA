@@ -306,7 +306,7 @@ const NUMBER_WORDS = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
 /** A suggested library title, from the builder's own settings. */
 export function suggestTitle(recipe, details, tools){
   const spec = tools && tools.FURNITURE && own(tools.FURNITURE, recipe.kind) ? tools.FURNITURE[recipe.kind] : null;
-  const what = lowerAscii((spec && spec.name) || String(recipe.kind || "piece").replace(/_/g, " "));
+  const what = lowerAscii((spec && (spec.nameEn || spec.name)) || String(recipe.kind || "piece").replace(/_/g, " "));
   const colour = LABELS.color_family[details.color_family] ? lowerAscii(LABELS.color_family[details.color_family]) : "";
   const seats = details.category === "seating" && details.seats > 1 && details.seats <= 8 ? `${NUMBER_WORDS[details.seats]}-seat ` : "";
   const t = `${seats}${colour} ${what}`.trim().replace(/\s+/g, " ");

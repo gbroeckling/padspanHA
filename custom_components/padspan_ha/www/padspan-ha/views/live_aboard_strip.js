@@ -49,12 +49,19 @@ const ON_RUN = { mouse: 10, touch: 18 };            // px from the run for a tap
 const TAP2_MS = 380;                                // two taps this close: done
 const PULSE_MS = 2400;                              // the picked light pulses this long, then stays outlined
 const COL = { run: "#fbbf24", draw: "#60a5fa", corner: "#38bdf8", dash: "#e2e8f0" };
+// Its words in the panel's language (views/i18n.js; English is the key); loaded on its own, the English with its
+// {placeholders} filled.
+const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ t: _fill, tn: (n, one, other, v) => _fill(n === 1 ? one : other, { n, ...v }) }));
 const KIND_NAMES = [["strip", "LED strip on a wall"], ["valance", "Valance"], ["cove", "Cove round the room"],
                     ["undercab", "Under the cabinets"], ["kick", "Toe-kick or stairs"], ["tv", "Behind the TV"],
                     ["string", "String lights (bulbs on a wire)"]];
-const AREA_HINT = { room: "Tap the room to go round.", under: "Tap the piece to go under.", behind: "Tap the piece to go behind.",
-                    top: "Tap the piece to go along the top of.", rail: "Tap the deck to go along its rail." };
-const DRAW_HINT = "Press on a wall and drag along it, or tap points one at a time; double-tap or Done ends it.";
+// The same kinds in the panel's language (live_aboard_house.js lightKinds: one word for each kind everywhere).
+const kindNames = (HOUSE) => KIND_NAMES.map(([k, label]) => [k, (HOUSE.lightKinds().find(([v]) => v === k) || [k, label])[1]]);
+const AREA_HINT = { get room() { return t("Tap the room to go round."); }, get under() { return t("Tap the piece to go under."); }, get behind() { return t("Tap the piece to go behind."); },
+                    get top() { return t("Tap the piece to go along the top of."); }, get rail() { return t("Tap the deck to go along its rail."); } };
+const DRAW_HINT = () => t("Press on a wall and drag along it, or tap points one at a time; double-tap or Done ends it.");
 
 const CSS = `
 .la3d-sheet.strip{max-height:calc(100% - 120px);overflow-y:auto}
@@ -136,7 +143,7 @@ export function createStrip(ctx){
   const hMid = d("div", "la3d-hnd", "↕"), hEnds = [d("div", "la3d-hnd", "↕"), d("div", "la3d-hnd", "↕")];
   const ring = d("div", "la3d-sring"), lenPill = d("div", "la3d-spill"), cornerPill = d("div", "la3d-spill corner"), hPill = d("div", "la3d-spill");
   root.append(hMid, hEnds[0], hEnds[1], ring, lenPill, cornerPill, hPill);
-  for (const h of [hMid, ...hEnds]) h.title = "Drag up or down";
+  for (const h of [hMid, ...hEnds]) h.title = t("Drag up or down");
 
   // ── 3D marks: the run picked or being drawn, the corner, the height ───────
   const box = new THREE.BoxGeometry(1, 1, 1);
@@ -291,7 +298,7 @@ export function createStrip(ctx){
       const s = sizeOf(p), q = RUNS.onPieceFrame(p, [x, y, 0]);
       if (Math.abs(q[0]) > s.w / 2 + 0.4 || Math.abs(q[1]) > s.d / 2 + 0.4) continue;
       const z = typeof p.z_m === "number" ? p.z_m : 0;
-      out.push({ h: z, label: "the piece's underside" }, { h: z + s.h, label: "the piece's top" });
+      out.push({ h: z, label: t("the piece's underside") }, { h: z + s.h, label: t("the piece's top") });
     }
     return out;
   }
@@ -350,11 +357,11 @@ export function createStrip(ctx){
   function finish(anchors){
     const F = drawing && drawing.F;
     drawing = null; ptSel = null;
-    if (!F || anchors.length < 2) { ctx.hint(anchors.length ? "A run needs two points or more." : "Nothing drawn.", !!anchors.length); paint(); return; }
+    if (!F || anchors.length < 2) { ctx.hint(anchors.length ? t("A run needs two points or more.") : t("Nothing drawn."), !!anchors.length); paint(); return; }
     const r = runFrom(anchors, faceFor());
     if (r.error) { ctx.hint(r.error, true); paint(); return; }
     setRun(withString(r.run));
-    ctx.hint(`Laid out${r.run.loop ? " all the way round" : ""}: ${RUNS.lengthWords(r.run.pts, r.run.loop, r.run.gaps)}. Drag a point or a handle to change it.`);
+    ctx.hint(r.run.loop ? t("Laid out all the way round: {len}. Drag a point or a handle to change it.", { len: RUNS.lengthWords(r.run.pts, r.run.loop, r.run.gaps) }) : t("Laid out: {len}. Drag a point or a handle to change it.", { len: RUNS.lengthWords(r.run.pts, r.run.loop, r.run.gaps) }));
     sheet(); paint();
   }
 
@@ -385,7 +392,7 @@ export function createStrip(ctx){
     if (!I) return;
     area = null; ptSel = null;
     drawing = { F: I.F, anchors: seed ? [seed] : [], h: defaultH(I.F) };
-    ctx.hint(seed ? "Now press on a wall and drag, or tap the next points; double-tap or Done ends it." : DRAW_HINT);
+    ctx.hint(seed ? t("Now press on a wall and drag, or tap the next points; double-tap or Done ends it.") : DRAW_HINT());
     sheet(); paint();
   }
   function pickArea(kind){
@@ -400,7 +407,7 @@ export function createStrip(ctx){
       if (room) {
         roundRoom(I.F, room);
         const said = ctx.hintText ? ctx.hintText() : "";
-        if (lastRound && said) ctx.hint(`${said} Tap another room to go round it instead.`);
+        if (lastRound && said) ctx.hint(said + " " + t("Tap another room to go round it instead."));
       }
     }
     sheet(); paint();
@@ -416,7 +423,7 @@ export function createStrip(ctx){
     if (r.error) { lastRound = null; ctx.hint(r.error, true); return; }
     setRun(withString(r.run));
     const gaps = (r.run.gaps || []).length;
-    ctx.hint(`Round the ${room.name}: ${RUNS.lengthWords(r.run.pts, true, r.run.gaps)}${gaps ? `, ${gaps} gap${gaps === 1 ? "" : "s"} at the doors${opts.windows ? " and windows" : ""}` : ""}.`);
+    ctx.hint(t("Round the {room}: {len}", { room: room.name, len: RUNS.lengthWords(r.run.pts, true, r.run.gaps) }) + (gaps ? ", " + (opts.windows ? tn(gaps, "{n} gap at the doors and windows", "{n} gaps at the doors and windows") : tn(gaps, "{n} gap at the doors", "{n} gaps at the doors")) : "") + ".");
   }
   function roundPiece(id, mode){
     const p = pieceOf(id);
@@ -424,14 +431,14 @@ export function createStrip(ctx){
     const r = RUNS.roundPiece(p, sizeOf(p), mode);
     if (r.error) { ctx.hint(r.error, true); return; }
     setRun(withString(r.run));
-    ctx.hint({ under: "Under it.", behind: "Round its back: a halo on the wall.", top: "Along its top edge." }[mode] + " It moves with the piece.");
+    ctx.hint({ under: t("Under it."), behind: t("Round its back: a halo on the wall."), top: t("Along its top edge.") }[mode] + " " + t("It moves with the piece."));
   }
   function alongRail(F, room){
     const rails = F.pieces.map(P => P.pc).filter(isRail).map(pc => ({ a: [pc.x0, pc.y0], b: [pc.x1, pc.y1] }));
     const r = RUNS.alongRail(RUNS.insetLoop(room.pts, 0.03), rails, { face: faceFor() });
     if (r.error) { ctx.hint(r.error, true); return; }
     setRun(withString(r.run));
-    ctx.hint(rails.length ? "Along the rail's top." : "Along the deck's edge.");
+    ctx.hint(rails.length ? t("Along the rail's top.") : t("Along the deck's edge."));
   }
   /** "Continue from…": start where another light's run ends. */
   function continueFrom(eid){
@@ -444,7 +451,7 @@ export function createStrip(ctx){
     if (!runOf(sel)) return;
     setRun(null);
     ptSel = null;
-    ctx.hint("Run removed: drawn where PadSpan guesses again. Undo brings it back.");
+    ctx.hint(t("Run removed: drawn where PadSpan guesses again. Undo brings it back."));
     sheet();
   }
   function deletePoint(){
@@ -456,7 +463,7 @@ export function createStrip(ctx){
     if (r.error) { ctx.hint(r.error, true); return; }
     setRun(r.run);
     ptSel = null;
-    ctx.hint("Point deleted.");
+    ctx.hint(t("Point deleted."));
     sheet();
   }
   /** Raise or lower the run (or the picked point) by dh, kept under the ceiling. */
@@ -487,24 +494,24 @@ export function createStrip(ctx){
     S.innerHTML = "";
     S.classList.add("strip");
     const h4 = d("h4");
-    h4.appendChild(d("span", null, sel ? (info() || {}).label || sel : "Strip"));
-    const fold = btn(folded ? "▴" : "▾", folded ? "Show the panel" : "Fold the panel away", () => { folded = !folded; sheet(); }, "la3d-x");
+    h4.appendChild(d("span", null, sel ? (info() || {}).label || sel : t("Strip")));
+    const fold = btn(folded ? "▴" : "▾", folded ? t("Show the panel") : t("Fold the panel away"), () => { folded = !folded; sheet(); }, "la3d-x");
     fold.setAttribute("aria-expanded", String(!folded));
     h4.appendChild(fold);
-    if (sel) h4.appendChild(btn("✕", "Back to the list", () => select(null), "la3d-x"));
+    if (sel) h4.appendChild(btn("✕", t("Back to the list"), () => select(null), "la3d-x"));
     S.appendChild(h4);
     if (folded) { S.classList.add("on"); return true; }
     if (!sel || !info()) { listOf(S); S.classList.add("on"); return true; }
     const run = runOf(sel), pl = placedOf(sel), F = info().F, ceil = ceilOf(F);
-    S.appendChild(d("p", "la3d-sub", run && !pl ? "Its piece is gone: lay it out again."
-      : run ? `Laid out: ${RUNS.lengthWords(pl.pts, pl.loop, pl.gaps)}, ${pl.pts.length} points${pl.loop ? ", round" : ""}${run.piece ? ", on a piece" : ""}.`
-      : "Not laid out yet: drawn where PadSpan guesses."));
+    S.appendChild(d("p", "la3d-sub", run && !pl ? t("Its piece is gone: lay it out again.")
+      : run ? t("Laid out: {len}, {n} points", { len: RUNS.lengthWords(pl.pts, pl.loop, pl.gaps), n: pl.pts.length }) + (pl.loop ? ", " + t("round") : "") + (run.piece ? ", " + t("on a piece") : "") + "."
+      : t("Not laid out yet: drawn where PadSpan guesses.")));
     // What it is (the strip kinds; Heights has every kind).
     const krow = d("label", "la3d-row la3d-kind"), pick = d("select");
-    pick.setAttribute("aria-label", "What is this?");
+    pick.setAttribute("aria-label", t("What is this?"));
     const now = kindOf(sel);
-    if (!KIND_NAMES.some(([k]) => k === now)) { const o = d("option", null, `Now: ${(HOUSE.LIGHT_KINDS.find(([k]) => k === now) || [0, now])[1]}`); o.value = ""; pick.appendChild(o); }
-    for (const [k, t] of KIND_NAMES) { const o = d("option", null, t); o.value = k; pick.appendChild(o); }
+    if (!KIND_NAMES.some(([k]) => k === now)) { const o = d("option", null, t("Now: {kind}", { kind: (HOUSE.lightKinds().find(([k]) => k === now) || [0, now])[1] })); o.value = ""; pick.appendChild(o); }
+    for (const [k, label] of kindNames(HOUSE)) { const o = d("option", null, label); o.value = k; pick.appendChild(o); }
     pick.value = KIND_NAMES.some(([k]) => k === now) ? now : "";
     pick.addEventListener("change", guard(() => {
       const v = pick.value;
@@ -516,30 +523,30 @@ export function createStrip(ctx){
       });
       sheet();
     }));
-    krow.append(d("span", null, "What is this?"), pick);
+    krow.append(d("span", null, t("What is this?")), pick);
     S.appendChild(krow);
     // Draw it, or one tap.
-    S.appendChild(d("div", "la3d-sec", "Lay it out"));
+    S.appendChild(d("div", "la3d-sec", t("Lay it out")));
     const acts = d("div", "la3d-acts");
     if (drawing) {
-      acts.appendChild(seg(btn("Done", "End the run here", () => finish(drawing.anchors), "la3d-save"),
-        btn("Cancel", "Stop drawing", () => { drawing = null; ctx.hint(""); sheet(); paint(); })));
+      acts.appendChild(seg(btn(t("Done"), t("End the run here"), () => finish(drawing.anchors), "la3d-save"),
+        btn(t("Cancel"), t("Stop drawing"), () => { drawing = null; ctx.hint(""); sheet(); paint(); })));
       // A point tapped off any wall (a post) goes at this height.
       const row = d("label", "la3d-cm"), inp = d("input");
       inp.type = "number"; inp.min = "0"; inp.max = String(Math.round(ceil * 100)); inp.step = "1"; inp.value = String(Math.round(drawing.h * 100));
-      inp.setAttribute("aria-label", "New points at, cm");
+      inp.setAttribute("aria-label", t("New points at, cm"));
       const take = () => { const v = Number(inp.value); if (Number.isFinite(v) && drawing) drawing.h = RUNS.mm(Math.max(0, Math.min(ceil, v / 100))); };
       inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") take(); });
       inp.addEventListener("change", guard(take));
-      row.append(d("span", null, "New points at"), inp, d("span", null, "cm"));
+      row.append(d("span", null, t("New points at")), inp, d("span", null, "cm"));
       S.appendChild(acts);
       S.appendChild(row);
-    } else acts.appendChild(seg(btn(run ? "Draw again" : "Draw", "Press on a wall and drag, or tap points", () => startDraw())));
+    } else acts.appendChild(seg(btn(run ? t("Draw again") : t("Draw"), t("Press on a wall and drag, or tap points"), () => startDraw())));
     const areaBtn = (k, text, title) => { const b = btn(text, title, () => pickArea(k)); b.setAttribute("aria-pressed", String(area === k)); return b; };
-    acts.appendChild(seg(areaBtn("room", "Round this room", "Tap a room: the run goes along every wall")));
-    acts.appendChild(seg(areaBtn("under", "Under", "Under a piece: wall cabinets, a bed"), areaBtn("behind", "Behind", "Behind a piece: a TV, a headboard"),
-      areaBtn("top", "Top edge", "Along the top of a piece: a shelf, a cabinet")));
-    if (F.fl.outdoor || F.rooms.some(r => r.outdoor) || F.pieces.some(P => P.pc.loftRail)) acts.appendChild(seg(areaBtn("rail", "Along a rail", "Tap a deck or a mezzanine: along its rail or edge")));
+    acts.appendChild(seg(areaBtn("room", t("Round this room"), t("Tap a room: the run goes along every wall"))));
+    acts.appendChild(seg(areaBtn("under", t("Under"), t("Under a piece: wall cabinets, a bed")), areaBtn("behind", t("Behind"), t("Behind a piece: a TV, a headboard")),
+      areaBtn("top", t("Top edge"), t("Along the top of a piece: a shelf, a cabinet"))));
+    if (F.fl.outdoor || F.rooms.some(r => r.outdoor) || F.pieces.some(P => P.pc.loftRail)) acts.appendChild(seg(areaBtn("rail", t("Along a rail"), t("Tap a deck or a mezzanine: along its rail or edge"))));
     if (!acts.parentNode) S.appendChild(acts);
     const tick = (label, key, title) => {
       const l = d("label", "la3d-tick"), c = d("input");
@@ -551,24 +558,24 @@ export function createStrip(ctx){
       l.append(c, d("span", null, label));
       return l;
     };
-    if (area === "room") { S.appendChild(tick("Leave gaps at doors", "doors", "Only wire past a door")); S.appendChild(tick("and windows", "windows", "Only wire past a window")); }
+    if (area === "room") { S.appendChild(tick(t("Leave gaps at doors"), "doors", t("Only wire past a door"))); S.appendChild(tick(t("and windows"), "windows", t("Only wire past a window"))); }
     const others = ctx.lights().filter(L => L.eid !== sel && L.F.fl.id === F.fl.id && placedOf(L.eid));
     if (others.length) {
       const row = d("label", "la3d-row la3d-kind"), cs = d("select");
-      cs.setAttribute("aria-label", "Continue from");
-      const o0 = d("option", null, "Pick a light…"); o0.value = ""; cs.appendChild(o0);
+      cs.setAttribute("aria-label", t("Continue from"));
+      const o0 = d("option", null, t("Pick a light…")); o0.value = ""; cs.appendChild(o0);
       for (const L of others) { const o = d("option", null, L.label); o.value = L.eid; cs.appendChild(o); }
       cs.addEventListener("change", guard(() => { if (cs.value) continueFrom(cs.value); }));
-      row.append(d("span", null, "Continue from"), cs);
+      row.append(d("span", null, t("Continue from")), cs);
       S.appendChild(row);
     }
     if (run && pl) {
       // How high.
-      S.appendChild(d("div", "la3d-sec", ptSel === null ? "Height, all of it" : `Height, point ${ptSel + 1}`));
+      S.appendChild(d("div", "la3d-sec", ptSel === null ? t("Height, all of it") : t("Height, point {n}", { n: ptSel + 1 })));
       const at = ptSel !== null ? pl.pts[ptSel][2] : pl.pts.reduce((s, q) => s + q[2], 0) / pl.pts.length;
       const chipRow = d("div", "la3d-chips"), mid = pl.pts[Math.floor((pl.pts.length - 1) / 2)], cab = cabinetOver(F, mid);
       for (const [key, label0, h0] of RUNS.chips(ceil)) {
-        const h = key === "undercab" && cab !== null ? cab : h0, label = key === "undercab" && cab !== null ? `Under cabinets ${RUNS.cm(h)}` : label0;
+        const h = key === "undercab" && cab !== null ? cab : h0, label = key === "undercab" && cab !== null ? t("Under cabinets {h}", { h: RUNS.cm(h) }) : label0;
         const b = btn(label, `${label}: ${RUNS.cm(h)}`, () => setHeight(h));
         b.dataset.chip = key;
         b.setAttribute("aria-pressed", String(Math.abs(h - at) < 0.005));
@@ -577,47 +584,47 @@ export function createStrip(ctx){
       S.appendChild(chipRow);
       const cmRow = d("label", "la3d-cm"), inp = d("input");
       inp.type = "number"; inp.min = "0"; inp.max = String(Math.round(ceil * 100)); inp.step = "1"; inp.value = String(Math.round(at * 100));
-      inp.setAttribute("aria-label", "Height in cm");
+      inp.setAttribute("aria-label", t("Height in cm"));
       const take = () => { const v = Number(inp.value); if (Number.isFinite(v)) setHeight(Math.max(0, Math.min(ceil, v / 100))); };
       inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") take(); });
       inp.addEventListener("change", guard(take));
-      cmRow.append(inp, d("span", null, "cm above the floor"));
+      cmRow.append(inp, d("span", null, t("cm above the floor")));
       S.appendChild(cmRow);
       // Which way it shines.
-      S.appendChild(d("div", "la3d-sec", "Which way it shines"));
+      S.appendChild(d("div", "la3d-sec", t("Which way it shines")));
       const faceRow = d("div", "la3d-chips");
-      for (const [k, label] of RUNS.FACE_NAMES) {
+      for (const [k, label] of RUNS.faceNames()) {
         const b = btn(label, label, () => { setRun({ ...run, face: k }); sheet(); });
         b.setAttribute("aria-pressed", String(run.face === k));
         faceRow.appendChild(b);
       }
       S.appendChild(faceRow);
       if (stringy()) {
-        S.appendChild(d("div", "la3d-sec", "String lights"));
+        S.appendChild(d("div", "la3d-sec", t("String lights")));
         const sag = d("label", "la3d-row"), r = d("input"), val = d("b", null, RUNS.cm(run.sag_m ?? RUNS.SAG_M));
         r.type = "range"; r.min = "0"; r.max = String(RUNS.SAG_MAX_M); r.step = "0.01"; r.value = String(run.sag_m ?? RUNS.SAG_M);
-        r.setAttribute("aria-label", "Swag");
+        r.setAttribute("aria-label", t("Swag"));
         let g = null;
         r.addEventListener("pointerdown", () => { g = `sag:${++dragGen}`; });
         r.addEventListener("input", guard(() => { val.textContent = RUNS.cm(Number(r.value)); const now0 = runOf(sel); if (now0) setRun({ ...now0, sag_m: RUNS.mm(Number(r.value)) }, g || `sag:${++dragGen}`); }));
-        sag.append(d("span", null, "Swag"), r, val);
+        sag.append(d("span", null, t("Swag")), r, val);
         S.appendChild(sag);
         const sp = d("label", "la3d-cm"), si = d("input");
         si.type = "number"; si.min = "15"; si.max = "200"; si.step = "1"; si.value = String(Math.round((run.spacing_m ?? RUNS.SPACING_M) * 100));
-        si.setAttribute("aria-label", "Bulbs every, cm");
+        si.setAttribute("aria-label", t("Bulbs every, cm"));
         const takeS = () => { const v = Number(si.value); if (!Number.isFinite(v)) return; const now0 = runOf(sel); if (now0) setRun({ ...now0, spacing_m: RUNS.mm(Math.max(15, Math.min(200, v)) / 100) }); sheet(); };
         si.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") takeS(); });
         si.addEventListener("change", guard(takeS));
-        sp.append(d("span", null, "A bulb every"), si, d("span", null, "cm"));
+        sp.append(d("span", null, t("A bulb every")), si, d("span", null, "cm"));
         S.appendChild(sp);
       }
       const ends = d("div", "la3d-acts");
-      ends.appendChild(seg(ptSel !== null && run.pts.length > 2 ? btn("Delete point", `Delete point ${ptSel + 1}`, () => deletePoint(), "la3d-del") : null,
-        btn("Remove run", "Back to where PadSpan guesses (Undo brings it back)", () => removeRun(), "la3d-del")));
+      ends.appendChild(seg(ptSel !== null && run.pts.length > 2 ? btn(t("Delete point"), t("Delete point {n}", { n: ptSel + 1 }), () => deletePoint(), "la3d-del") : null,
+        btn(t("Remove run"), t("Back to where PadSpan guesses (Undo brings it back)"), () => removeRun(), "la3d-del")));
       S.appendChild(ends);
     } else if (run) {
       const ends = d("div", "la3d-acts");
-      ends.appendChild(seg(btn("Remove run", "Back to where PadSpan guesses", () => removeRun(), "la3d-del")));
+      ends.appendChild(seg(btn(t("Remove run"), t("Back to where PadSpan guesses"), () => removeRun(), "la3d-del")));
       S.appendChild(ends);
     }
     S.classList.add("on");
@@ -638,7 +645,7 @@ export function createStrip(ctx){
   }
   /** "Lights to lay out": strips and string lights with no run first. */
   function listOf(S){
-    S.appendChild(d("p", "la3d-sub", "Tap a light in Live Aboard, or pick one here."));
+    S.appendChild(d("p", "la3d-sub", t("Tap a light in Live Aboard, or pick one here.")));
     const all = ctx.lights().filter(L => L.F.group.visible);
     const want = (L) => RUNS.STRIP_KINDS.has(kindOf(L.eid)) && !runOf(L.eid);
     const gone = (L) => !!runOf(L.eid) && !placedOf(L.eid);
@@ -648,17 +655,17 @@ export function createStrip(ctx){
       if (!list.length) return;
       box2.appendChild(d("h5", null, title));
       for (const L of list) {
-        const b = btn("", `Lay out ${L.label}`, () => select(L.eid));
+        const b = btn("", t("Lay out {name}", { name: L.label }), () => select(L.eid));
         b.dataset.eid = L.eid;
         b.appendChild(document.createTextNode(L.label));
-        const kn = (HOUSE.LIGHT_KINDS.find(([k]) => k === kindOf(L.eid)) || [0, "Just its light"])[1];
+        const kn = (HOUSE.lightKinds().find(([k]) => k === kindOf(L.eid)) || [0, t("Just its light")])[1];
         b.appendChild(d("small", null, `${kn} · ${gone(L) ? "its piece is gone: lay it out again" : runOf(L.eid) ? "laid out" : "not laid out yet"} · ${L.F.fl.name || L.F.fl.id}`));
         box2.appendChild(b);
       }
     };
-    group("Lights to lay out", first);
-    group("All the others", rest);
-    if (!all.length) box2.appendChild(d("p", "la3d-sub", "No lights on the floors showing."));
+    group(t("Lights to lay out"), first);
+    group(t("All the others"), rest);
+    if (!all.length) box2.appendChild(d("p", "la3d-sub", t("No lights on the floors showing.")));
     S.appendChild(box2);
   }
 
@@ -730,7 +737,7 @@ export function createStrip(ctx){
     const g = gesture;
     if (g && g.kind === "draw" && g.cornerAt && g.cornerLen > 0.005) {
       const [a, b] = g.cornerAt, F = drawing.F;
-      cornerPill.textContent = `${RUNS.metres(g.cornerLen)} to the corner`;
+      cornerPill.textContent = t("{len} to the corner", { len: RUNS.metres(g.cornerLen) });
       put(cornerPill, screenAt(F, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, a[2] + 0.1));
     } else put(cornerPill, null);
     if (g && g.kind === "height" && g.at) {
@@ -905,26 +912,26 @@ export function createStrip(ctx){
       finish([...drawing.anchors, ...g.path()]);
       return;
     }
-    if (g.kind === "height") { ctx.redraw(); if (g.moved) ctx.hint(`${g.idx === null ? "All of it" : `Point ${g.idx + 1}`} at ${RUNS.cm(g.at[2])}${g.snap ? ` (${g.snap})` : ""}.`); sheet(); }
-    else if (g.kind === "point") { if (!g.moved) { ptSel = ptSel === g.i ? null : g.i; ctx.hint(ptSel === null ? "" : `Point ${g.i + 1}: drag it, set its height, or delete it.`); } ctx.redraw(); sheet(); }
+    if (g.kind === "height") { ctx.redraw(); if (g.moved) ctx.hint((g.idx === null ? t("All of it at {h}", { h: RUNS.cm(g.at[2]) }) : t("Point {n} at {h}", { n: g.idx + 1, h: RUNS.cm(g.at[2]) })) + (g.snap ? ` (${g.snap})` : "") + "."); sheet(); }
+    else if (g.kind === "point") { if (!g.moved) { ptSel = ptSel === g.i ? null : g.i; ctx.hint(ptSel === null ? "" : t("Point {n}: drag it, set its height, or delete it.", { n: g.i + 1 })); } ctx.redraw(); sheet(); }
     paint();
     void e;
   }
   function addAnchor(a){
     if (!drawing) return;
-    const t = performance.now();
+    const nowMs = performance.now();
     drawing.anchors.push(a);
     // Two taps quick and in one place: the second is the end, not a point of its own.
     const prev = drawing.anchors[drawing.anchors.length - 2];
-    const two = lastTap && t - lastTap.t <= TAP2_MS && prev && Math.hypot(prev.x - a.x, prev.y - a.y) < 0.3;
-    lastTap = { t };
+    const two = lastTap && nowMs - lastTap.t <= TAP2_MS && prev && Math.hypot(prev.x - a.x, prev.y - a.y) < 0.3;
+    lastTap = { t: nowMs };
     if (two) {
       drawing.anchors.pop();
       finish(drawing.anchors);
       return;
     }
     const n = drawing.anchors.length;
-    ctx.hint(n === 1 ? "Now the next point. Double-tap or Done ends it." : `${n} points. Double-tap or Done ends it.`);
+    ctx.hint(n === 1 ? t("Now the next point. Double-tap or Done ends it.") : t("{n} points. Double-tap or Done ends it.", { n }));
     sheet();
   }
   function tap(e){
@@ -935,18 +942,18 @@ export function createStrip(ctx){
       const F = I.F, r = rayAt(x, y);
       if (area === "under" || area === "behind" || area === "top") {
         const ph = pieceHit(F, x, y);
-        if (!ph) { ctx.hint("Tap a piece of furniture on this floor.", true); return; }
+        if (!ph) { ctx.hint(t("Tap a piece of furniture on this floor."), true); return; }
         roundPiece(ph.id, area);
       } else {
         const p = r ? onLevel(F, r, 0) : null, room = p ? F.rooms.find(q => HOUSE.inPoly(p[0], p[1], q.pts)) : null;
-        if (!room) { ctx.hint(area === "rail" ? "Tap the deck or the mezzanine." : "Tap inside a room on this floor.", true); return; }
+        if (!room) { ctx.hint(area === "rail" ? t("Tap the deck or the mezzanine.") : t("Tap inside a room on this floor."), true); return; }
         if (area === "rail") alongRail(F, room); else roundRoom(F, room);
       }
       area = null;
       sheet(); paint();
       return;
     }
-    if (g && g.kind === "tapLight") { select(g.eid); ctx.hint(runOf(g.eid) ? "Drag a point or a handle, or pick from the panel." : "Draw its run, or pick an area in the panel."); return; }
+    if (g && g.kind === "tapLight") { select(g.eid); ctx.hint(runOf(g.eid) ? t("Drag a point or a handle, or pick from the panel.") : t("Draw its run, or pick an area in the panel.")); return; }
     if (g && g.kind === "tapPiece" && drawing) {
       const s = sizeOf(g.ph.p);
       addAnchor({ kind: "piece", id: g.ph.id, q: RUNS.nearestBoxEdge(g.ph.q, s), x: g.ph.p.x_m, y: g.ph.p.y_m });
@@ -996,7 +1003,7 @@ export function createStrip(ctx){
     if (r.error) { ctx.hint(r.error, true); return; }
     setRun(r.run);
     ptSel = i + 1;
-    ctx.hint(`Point ${i + 2} added: drag it.`);
+    ctx.hint(t("Point {n} added: drag it.", { n: i + 2 }));
     sheet(); paint();
   }
   function cancel(){ gesture = null; paint(); }

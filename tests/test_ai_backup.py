@@ -452,9 +452,9 @@ def test_the_settings_picker_renders_and_saves(picker):
 def test_the_reads_say_when_the_backup_answered():
     ph = (WWW / "views" / "live_aboard_photo.js").read_text(encoding="utf-8")
     assert 'export const BACKUP_NOTE = "Read by the backup AI task.";' in ph
-    assert 'a.by_backup ? el("p", { class: "muted" }, BACKUP_NOTE) : null' in ph
+    assert 'a.by_backup ? el("p", { class: "muted" }, backupNote()) : null' in ph
     pe = (WWW / "views" / "live_aboard_people.js").read_text(encoding="utf-8")
-    assert pe.count("byBackup: !!out.by_backup") == 2 and "PH.BACKUP_NOTE" in pe
+    assert pe.count("byBackup: !!out.by_backup") == 2 and "PH.backupNote()" in pe
     fu = (WWW / "views" / "live_aboard_furnish.js").read_text(encoding="utf-8")
     assert "r.by_backup" in fu and "Read by the backup AI task" in fu
 

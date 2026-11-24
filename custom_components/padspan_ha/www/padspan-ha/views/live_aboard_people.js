@@ -636,7 +636,7 @@ export async function peopleFlow(ctx){
       for (const s of (def && def.params) || []) grid.append(...control(s, r.params[s.key], (v) => { m.setLook(`params.${s.key}`, v); show(); }));
       (r.colors || []).forEach((c, i) => grid.append(...colourControl(String(i), (def && def.colorNames && def.colorNames[i]) || t("Colour {n}", { n: i + 1 }), c,
         (v) => { m.setLook(`colors.${i}`, v); show(); })));
-      for (const [d, label] of PH.DIMS) {
+      for (const [d, label] of PH.dimWords()) {
         const range = def && def.size && def.size[d];
         grid.append(...control({ key: d, label, type: "num", min: range ? range[0] : 0.005, max: range ? range[1] : 1, step: 0.005 },
           r[d], (v) => { m.setLook(d, v); show(); }));
@@ -644,7 +644,7 @@ export async function peopleFlow(ctx){
       show();
       return [
         el("h3", {}, t("How {name} looks", { name: e.name })),
-        e.byBackup ? el("p", { class: "muted" }, PH.BACKUP_NOTE) : null,
+        e.byBackup ? el("p", { class: "muted" }, PH.backupNote()) : null,
         el("div", { class: "edit" }, grid, preview.el),
         el("div", { class: "row" },
           el("button", { class: "go", onclick: () => { m.keepLook(); closePreview(); draw(); } }, t("Keep")),
