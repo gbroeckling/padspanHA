@@ -1616,8 +1616,8 @@ export function whoInRoom(est, room){
     else if (p.name === "Someone") someone++;
     else phones++;
   }
-  if (phones) names.push(`+${phones} unknown phone${phones === 1 ? "" : "s"}`);
-  if (someone) names.push(`+${someone} someone`);
+  if (phones) names.push(tn(phones, "+{n} unknown phone", "+{n} unknown phones"));
+  if (someone) names.push(t("+{n} someone", { n: someone }));
   return names.length ? t("Here: {names}", { names: names.join(", ") }) : null;
 }
 // How often an open room sheet asks again who is in it: the occupancy
@@ -1645,11 +1645,11 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
   };
   const lightSw = split(agg.lightEids), fanSw = split(agg.fanEids);
   const parts = [];
-  if (agg.lightsTotal) parts.push(`Lights ${agg.lightsOn}/${agg.lightsTotal}`);
-  if (agg.fansTotal) parts.push(`Fans ${agg.fansOn}/${agg.fansTotal}`);
+  if (agg.lightsTotal) parts.push(t("Lights {on}/{n}", { on: agg.lightsOn, n: agg.lightsTotal }));
+  if (agg.fansTotal) parts.push(t("Fans {on}/{n}", { on: agg.fansOn, n: agg.fansTotal }));
   if (agg.motionTotal) parts.push(agg.motionActive ? t("Motion ×{n}", { n: agg.motionActive }) : t("Motion clear"));
   if (agg.airTotal) parts.push(t("Air {word}", { word: airQualityWord(agg.airWorst) }));
-  if (agg.floodActive) parts.push(`⚠ Emergency ×${agg.floodActive}`);
+  if (agg.floodActive) parts.push(t("⚠ Emergency ×{n}", { n: agg.floodActive }));
   const actions = [];
   if (lightSw.on.length) actions.push({ label: t("All lights off"), run: () => api.setMany(lightSw.on, false) });
   if (lightSw.off.length) actions.push({ label: t("All lights on"), primary: true, run: () => api.setMany(lightSw.off, true) });
@@ -1738,11 +1738,11 @@ export function openFloorSheet(api, lights, model, z){
     || (l.isAir && onSlab.has(lightFloorId(l, model))) || (l.isFlood && floodIsAlarming(l, api.floodLatches) && onSlab.has(lightFloorId(l, model)))
     || (_FLOOR_SHEET_ALWAYS.has(lightClassOf(l)) && onSlab.has(lightFloorId(l, model))));
   const parts = [`Lights ${agg.lightsOn}/${agg.lightsTotal}`];
-  if (agg.fansTotal) parts.push(`Fans ${agg.fansOn}/${agg.fansTotal}`);
-  if (agg.motionActive) parts.push(`Motion ×${agg.motionActive}`);
+  if (agg.fansTotal) parts.push(t("Fans {on}/{n}", { on: agg.fansOn, n: agg.fansTotal }));
+  if (agg.motionActive) parts.push(t("Motion ×{n}", { n: agg.motionActive }));
   // Like motion: only worth a word on the floor line when something is up.
   if (agg.airTotal && agg.airWorst > 0) parts.push(t("Air {word}", { word: airQualityWord(agg.airWorst) }));
-  if (agg.floodActive) parts.push(`⚠ Emergency ×${agg.floodActive}`);
+  if (agg.floodActive) parts.push(t("⚠ Emergency ×{n}", { n: agg.floodActive }));
   const actions = [];
   if (agg.lightEids.length) {
     actions.push({ label: t("All lights off"), run: () => api.setMany(agg.lightEids, false) });
@@ -5293,11 +5293,11 @@ export function buildLightsMapCard(hostIn){
         if (whArmed !== VACATION_VALUE) { whArm(VACATION_VALUE, t("Yes, turn on Vacation Mode")); return; }
         whDisarm();
         const ok = await host.onVacationModeEnable();
-        if (ok) whFlash("Vacation Mode on ✓", 4000);
+        if (ok) whFlash(t("Vacation Mode on ✓"), 4000);
         return;
       }
       const p = whp.find((x) => x.name === whSel.value);
-      if (!p) { whFlash("Pick a preset first"); return; }
+      if (!p) { whFlash(t("Pick a preset first")); return; }
       if (whArmed !== p.name) { whArm(p.name, t("Yes, change the whole house")); return; }
       whDisarm();
       const r = await host.onWholeHouseApply(p);
@@ -5326,7 +5326,7 @@ export function buildLightsMapCard(hostIn){
         title: t("Remember how every light and fan is set right now, under this name — overwrites a preset with the same name"),
         onclick: async () => {
           const name = whName.value.trim();
-          if (!name) { whFlash("Type a name first"); return; }
+          if (!name) { whFlash(t("Type a name first")); return; }
           const r = await host.onWholeHouseSet(name);
           if (r) { whName.value = ""; whFlash(t("Set ✓ — {n} devices", { n: r.count }) + (r.skipped ? ", " + t("{n} unavailable", { n: r.skipped }) : ""), 4000); }
         },
@@ -5335,7 +5335,7 @@ export function buildLightsMapCard(hostIn){
     if (host.onWholeHouseDelete) {
       const whDel = el("button", { class: "lv-act", title: t("Delete the selected whole house preset") }, t("Delete"));
       whDel.disabled = true;
-      whDel.addEventListener("click", async () => { if (whSel.value && whSel.value !== VACATION_VALUE) { await host.onWholeHouseDelete(whSel.value); whFlash("Deleted"); } });
+      whDel.addEventListener("click", async () => { if (whSel.value && whSel.value !== VACATION_VALUE) { await host.onWholeHouseDelete(whSel.value); whFlash(t("Deleted")); } });
       whSel.addEventListener("change", () => { whDel.disabled = !whSel.value || whSel.value === VACATION_VALUE; });
       whBar.appendChild(whDel);
     }
@@ -5351,7 +5351,7 @@ export function buildLightsMapCard(hostIn){
       view.whPick = name;
       const nameIn = whBar.querySelector("input.lv-preset-name");
       if (nameIn) nameIn.value = name;
-      if (said) whFlash("Set the lights as you want them, then Set to keep them under this name", 9000);
+      if (said) whFlash(t("Set the lights as you want them, then Set to keep them under this name"), 9000);
       return true;
     };
     whSel.addEventListener("change", () => { if (whSel.value !== view.whPick) view.whPick = null; });

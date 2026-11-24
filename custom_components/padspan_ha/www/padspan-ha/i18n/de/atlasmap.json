@@ -78,10 +78,14 @@
 "Off": "Aus",
 "Controls": "Bedienung",
 "Someone": "Jemand",
+"+{n} someone": "+{n} unbekannt",
 "Here: {names}": "Hier: {names}",
+"Lights {on}/{n}": "Lichter {on}/{n}",
+"Fans {on}/{n}": "Ventilatoren {on}/{n}",
 "Motion ×{n}": "Bewegung ×{n}",
 "Motion clear": "Keine Bewegung",
 "Air {word}": "Luft {word}",
+"⚠ Emergency ×{n}": "⚠ Notfall ×{n}",
 "All lights off": "Alle Lichter aus",
 "All lights on": "Alle Lichter an",
 "Fans off": "Ventilatoren aus",
@@ -229,6 +233,10 @@
 "{room} — {n} devices": {
 "one": "{room} — 1 Gerät",
 "other": "{room} — {n} Geräte"
+},
+"+{n} unknown phones": {
+"one": "+1 unbekanntes Handy",
+"other": "+{n} unbekannte Handys"
 },
 "Tripped in {n} hours this week.": {
 "one": "Diese Woche in 1 Stunde ausgelöst.",
