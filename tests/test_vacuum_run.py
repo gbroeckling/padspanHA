@@ -716,6 +716,26 @@ def test_each_spot_keeps_the_robots_wifi_for_other_integrations(monkeypatch, fas
     assert "HomeNet" not in repr(r)                                         # the SSID is not kept
 
 
+def test_other_integrations_read_the_wifi_without_the_websocket(monkeypatch, fast):
+    """robot_wifi_snapshot(hass): UniFi Utopia's Wi-Fi survey reads it in the same Home Assistant.
+    The command's own answer, from the loaded store; None before the store is loaded; copies only."""
+    assert vr.robot_wifi_snapshot(SimpleNamespace(data={})) is None                   # PadSpan not set up
+    assert vr.robot_wifi_snapshot(SimpleNamespace(data={DOMAIN: {}})) is None         # the store not loaded yet
+    rob = _Valetudo(wifi=_wifi_status)
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    empty = vr.robot_wifi_snapshot(h)
+    assert empty == {"version": 1, "robot_ip": None, "readings": []}                  # robot never run: nothing, no error
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    snap = vr.robot_wifi_snapshot(h)
+    assert snap == asyncio.run(_ws(wsv.ws_robot_wifi_readings, h)).result               # one shape, one path
+    assert snap["version"] == vr.WIFI_VERSION == 1 and snap["robot_ip"] == "192.168.1.50" and snap["readings"]
+    snap["readings"][0]["signal"] = 0
+    snap["readings"].clear()
+    assert vs.data["wifi"]["readings"] and vs.data["wifi"]["readings"][0]["signal"] != 0  # the store is never touched
+    doc = vr.robot_wifi_snapshot.__doc__
+    assert "UniFi Utopia" in doc and "padspan_ha/robot_wifi_readings" in doc
+
+
 def test_a_wifi_read_that_fails_never_stops_a_run(monkeypatch, fast):
     rob = _Valetudo(wifi=None)                                              # no Wi-Fi capability: 404
     h, vs, cal, _ = _house_with(monkeypatch, rob)

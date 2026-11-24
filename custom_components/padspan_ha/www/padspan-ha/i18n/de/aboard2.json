@@ -417,5 +417,11 @@
 "one": "{when} UTC, {rooms}: 1 Punkt",
 "other": "{when} UTC, {rooms}: {n} Punkte"
 },
-"Not enough readings around it to judge: {names}": "Zu wenige Messwerte rund um ihn für ein Urteil: {names}"
+"Not enough readings around it to judge: {names}": "Zu wenige Messwerte rund um ihn für ein Urteil: {names}",
+"Robot (floor level, {band} GHz)": "Roboter (Bodenhöhe, {band} GHz)",
+"Robot at floor level: {dbm} dBm (what a device at this spot hears)": "Roboter in Bodenhöhe: {dbm} dBm (was ein Gerät an dieser Stelle empfängt)",
+"Access point: {ap}": "Access-Point: {ap}",
+"{ap} hears the robot at {dbm} dBm": "{ap} empfängt den Roboter mit {dbm} dBm",
+"None on this floor at {band} GHz: the robot's readings are at {bands} GHz.": "Keine auf dieser Etage bei {band} GHz: die Messungen des Roboters liegen bei {bands} GHz.",
+"Diamonds: the robot vacuum's own Wi-Fi where it stood on its room location runs. Taken at floor height, they read weaker than at hand height, so they are kept apart from the coverage colours. Point at one for what the access point heard from it.": "Rauten: das eigene WLAN des Saugroboters dort, wo er bei seinen Raumortungsfahrten stand. In Bodenhöhe gemessen, sind sie schwächer als in Handhöhe, darum bleiben sie getrennt von den Abdeckungsfarben. Zeige auf eine, um zu sehen, was der Access-Point von ihm empfangen hat."
 }
