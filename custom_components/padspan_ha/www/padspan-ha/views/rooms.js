@@ -44,7 +44,18 @@ const WB = await import(`./wizard_build.js${new URL(import.meta.url).search}`).c
 const { isOutdoorFloorId } = await import(`./iso_lights.js${new URL(import.meta.url).search}`)
   .catch(() => ({ isOutdoorFloorId: () => false }));
 const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`).catch(() => null);
-const SPACE_WORDS = { indoor: "Indoors", open: "Open deck or patio", covered: "Covered patio or porch" };
+// Its words in the panel's language (views/i18n.js; English is the key). Each kind of space says its own whole sentence.
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+const SPACE_IS = {
+  indoor: (room) => t("\"{room}\" is indoors", { room }),
+  open: (room) => t("\"{room}\" is open deck or patio", { room }),
+  covered: (room) => t("\"{room}\" is covered patio or porch", { room }),
+};
+const SPACE_WORKED = {
+  indoor: () => t("Worked out: indoors"),
+  open: () => t("Worked out: open deck or patio"),
+  covered: () => t("Worked out: covered patio or porch"),
+};
 
 
 let _LM = null;            // lights_map.js once loaded; false if it failed
@@ -170,7 +181,7 @@ export function roomGroups(ctx) {
       // Drawn: on the map of the house (the layout's outline), or traced on a plan that has a scale (setup_status.roomDrawn).
       outline: !!drawn,
       // Drawn on a plan only, not on the house yet: {id, name, floorId} of that plan.
-      onPlan: drawn && drawn.map ? { id: drawn.map.id, name: String(drawn.map.name || "a floor plan"), floorId: String(drawn.map.floor_id || "main") } : null,
+      onPlan: drawn && drawn.map ? { id: drawn.map.id, name: String(drawn.map.name || t("a floor plan")), floorId: String(drawn.map.floor_id || "main") } : null,
       // The floor plan Edit opens on: one on the room's floor, else the first.
       mapId: ((maps.find(mp => mp && String(mp.floor_id || "main") === r.floorId) || maps[0] || {}).id) || null,
       areaM2: a == null ? null : Math.round(a * 10) / 10,
@@ -195,7 +206,7 @@ export function roomGroups(ctx) {
     const fl = floorOf(id);
     return {
       floorId: id,
-      floorName: fl ? String(fl.name || fl.id) : id === "main" ? "No floor set in Home Assistant" : id,
+      floorName: fl ? String(fl.name || fl.id) : id === "main" ? t("No floor set in Home Assistant") : id,
       rooms: rows.filter(r => r.floorId === id).sort((a, b) => a.name.localeCompare(b.name)),
     };
   }).filter(g => g.rooms.length);
@@ -221,7 +232,7 @@ function _editOutline(ctx, row) {
   // plan's unsaved drafts.
   ms._openMode = "rooms";
   ms._openRoom = row.name;
-  FOCUS.openFocus(ctx, FOCUS.part("roomOutline", { item: row.name, title: "Outline: " + row.name }));
+  FOCUS.openFocus(ctx, FOCUS.part("roomOutline", { item: row.name, title: t("Outline: {room}", { room: row.name }) }));
 }
 
 /** The receivers: the Receivers page (panel.js openReceivers, which loads
@@ -262,8 +273,8 @@ async function _setColor(ctx, row, hex) {
     // Settings → Appearance's own save, for this one room: model_update
     // merges per room and keeps a height it is not sent.
     await ctx.actions.modelUpdate({ room_meta: { [row.name]: { floor_id: row.metaFloorId, color: hex } } });
-    await _saved(ctx, `"${row.name}" colour saved`);
-  } catch (err) { ctx.toast("Colour not saved: " + ctx.helpers.errorText(err), true); }
+    await _saved(ctx, t("\"{room}\" colour saved", { room: row.name }));
+  } catch (err) { ctx.toast(t("Colour not saved: {why}", { why: ctx.helpers.errorText(err) }), true); }
 }
 
 /** A room drawn on a plan only, onto the map of the house: the Setup Wizard's "Put it on the map" for this one room
@@ -271,7 +282,7 @@ async function _setColor(ctx, row, hex) {
 function _putOnMap(ctx, row) {
   if (_isSample(ctx.state) || !WB) return;
   return WB.putOnMap(ctx, { mapId: row.onPlan.id, floorId: row.onPlan.floorId, rooms: [row.name], scanners: [], readable: true },
-    { refresh: () => ctx.actions.modelRefresh(), where: ctx.state.complexity === "basic" ? "Edit outline opens it on its plan" : "Mapping → Layout shows them" });
+    { refresh: () => ctx.actions.modelRefresh(), where: ctx.state.complexity === "basic" ? t("Edit outline opens it on its plan") : t("Mapping → Layout shows them") });
 }
 
 async function _setRoom(ctx, row, msg, ok) {
@@ -280,7 +291,7 @@ async function _setRoom(ctx, row, msg, ok) {
     await ctx.actions.wsCall("padspan_ha/room_height_set", { room: row.name, ...msg });
     await _saved(ctx, ok);
     await ctx.actions.modelRefresh();
-  } catch (err) { ctx.toast("Not saved: " + ctx.helpers.errorText(err), true); }
+  } catch (err) { ctx.toast(t("Not saved: {why}", { why: ctx.helpers.errorText(err) }), true); }
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
@@ -304,7 +315,7 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
   const card = el("div", { style: "border-top:1px solid #1b3526;padding:12px 0", "data-room": row.name });
 
   // Name, colour, and where to rename it.
-  const col = el("input", { type: "color", title: "Room colour, on every map", style: "width:34px;height:26px;padding:0;border:1px solid #2d4a38;border-radius:6px;background:#071008;cursor:pointer" });
+  const col = el("input", { type: "color", title: t("Room colour, on every map"), style: "width:34px;height:26px;padding:0;border:1px solid #2d4a38;border-radius:6px;background:#071008;cursor:pointer" });
   col.value = row.color;
   col.setAttribute("data-edit", "color");
   col.addEventListener("change", () => { if (col.value && col.value.toLowerCase() !== row.color) _setColor(ctx, row, col.value.toLowerCase()); });
@@ -312,125 +323,125 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
     col,
     el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, row.name),
     row.haId
-      ? _haLink(el, `/config/areas/area/${encodeURIComponent(row.haId)}`, "Rename in Home Assistant")
-      : el("span", { class: "muted", style: "font-size:11px", title: ctx.state.complexity === "basic" ? "A room PadSpan has that isn't an area in Home Assistant" : "Drawn in PadSpan's layout (Mapping → Layout) but not an area in Home Assistant" }, "PadSpan only, not a Home Assistant area"),
+      ? _haLink(el, `/config/areas/area/${encodeURIComponent(row.haId)}`, t("Rename in Home Assistant"))
+      : el("span", { class: "muted", style: "font-size:11px", title: ctx.state.complexity === "basic" ? t("A room PadSpan has that isn't an area in Home Assistant") : t("Drawn in PadSpan's layout (Mapping → Layout) but not an area in Home Assistant") }, t("PadSpan only, not a Home Assistant area")),
   ]));
 
   const fields = el("div", { style: "display:flex;flex-wrap:wrap;gap:12px 16px" });
 
   // Outline.
-  const outlineKids = [el("span", {}, row.onPlan ? `Drawn on ${row.onPlan.name}, not on the house map yet`
-    : row.outline ? (row.areaM2 != null ? `Drawn, ${row.areaM2} m²` : "Drawn") : "Not drawn")];
+  const outlineKids = [el("span", {}, row.onPlan ? t("Drawn on {plan}, not on the house map yet", { plan: row.onPlan.name })
+    : row.outline ? (row.areaM2 != null ? t("Drawn, {area} m²", { area: row.areaM2 }) : t("Drawn")) : t("Not drawn"))];
   if (row.onPlan && !readOnly && WB) {
     // Busy while it writes (the page is drawn again when it is done; a press that did nothing gets its button back).
     const put = el("button", { class: "btn inline", style: "font-size:12px;padding:3px 10px", "data-put": "map", onclick: async () => {
-      put.disabled = true; put.textContent = "Putting it on the map…";
-      try { await _putOnMap(ctx, row); } finally { put.disabled = false; put.textContent = "Put it on the map"; }
-    } }, "Put it on the map");
+      put.disabled = true; put.textContent = t("Putting it on the map…");
+      try { await _putOnMap(ctx, row); } finally { put.disabled = false; put.textContent = t("Put it on the map"); }
+    } }, t("Put it on the map"));
     outlineKids.push(put);
   }
   if (row.mapId) {
-    outlineKids.push(el("button", { style: LINKBTN, "data-link": "outline", onclick: () => _editOutline(ctx, row) }, row.outline ? "Edit outline" : "Draw outline"));
+    outlineKids.push(el("button", { style: LINKBTN, "data-link": "outline", onclick: () => _editOutline(ctx, row) }, row.outline ? t("Edit outline") : t("Draw outline")));
   } else {
-    outlineKids.push(el("button", { style: LINKBTN, "data-link": "mapping", onclick: () => { ctx.state.mapsTab = "library"; _go(ctx, "maps"); } }, "Add a floor plan"));
+    outlineKids.push(el("button", { style: LINKBTN, "data-link": "mapping", onclick: () => { ctx.state.mapsTab = "library"; _go(ctx, "maps"); } }, t("Add a floor plan")));
   }
-  fields.appendChild(_field(el, "Outline", outlineKids));
+  fields.appendChild(_field(el, t("Outline"), outlineKids));
 
   // Ceiling height (Live Aboard's "Rises to").
-  const hIn = el("input", { type: "number", min: "1.5", max: "30", step: "0.1", placeholder: `floor's, ${row.floorHeightM}`, style: INPUT,
-    title: "For a room taller than its floor (a double-height living room): floor to ceiling for this room only. Blank = its floor's height. Used for the 3D view, never for positioning." });
+  const hIn = el("input", { type: "number", min: "1.5", max: "30", step: "0.1", placeholder: t("floor's, {m}", { m: row.floorHeightM }), style: INPUT,
+    title: t("For a room taller than its floor (a double-height living room): floor to ceiling for this room only. Blank = its floor's height. Used for the 3D view, never for positioning.") });
   hIn.value = row.heightM != null ? String(row.heightM) : "";
   hIn.setAttribute("data-edit", "height");
   const hBtn = el("button", { class: "btn inline", style: "font-size:12px;padding:3px 10px", onclick: () => {
     const raw = String(hIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
-    if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 30)) { ctx.toast("Enter a height in metres (1.5 to 30), or leave it blank for the floor's", true); return; }
-    _setRoom(ctx, row, { height_m: v }, v === null ? `"${row.name}" is as high as its floor` : `"${row.name}" rises to ${v} m`);
-  } }, "Save height");
+    if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 30)) { ctx.toast(t("Enter a height in metres (1.5 to 30), or leave it blank for the floor's"), true); return; }
+    _setRoom(ctx, row, { height_m: v }, v === null ? t("\"{room}\" is as high as its floor", { room: row.name }) : t("\"{room}\" rises to {m} m", { room: row.name, m: v }));
+  } }, t("Save height"));
   hBtn.setAttribute("data-save", "height");
-  if (!row.heightEditable) { hIn.disabled = true; hBtn.disabled = true; hIn.title = "Draw this room's outline first"; }
-  fields.appendChild(_field(el, "Ceiling height (m)", [hIn, hBtn], 190));
+  if (!row.heightEditable) { hIn.disabled = true; hBtn.disabled = true; hIn.title = t("Draw this room's outline first"); }
+  fields.appendChild(_field(el, t("Ceiling height (m)"), [hIn, hBtn], 190));
 
   // Split level: behind a quiet link until used, as in Mapping → Rooms.
   const rIn = el("input", { type: "number", min: "-1.5", max: "3", step: "0.05", placeholder: "0", style: INPUT,
-    title: "For a split level: how far this room's floor sits above the rest of its floor, or below it with a minus (a step-down living room). Blank or 0: level with its floor." });
+    title: t("For a split level: how far this room's floor sits above the rest of its floor, or below it with a minus (a step-down living room). Blank or 0: level with its floor.") });
   rIn.value = row.raiseM != null ? String(row.raiseM) : "";
   rIn.setAttribute("data-edit", "raise");
   const rBtn = el("button", { class: "btn inline", style: "font-size:12px;padding:3px 10px", onclick: () => {
     const raw = String(rIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
-    if (v !== null && !(isFinite(v) && v >= -1.5 && v <= 3)) { ctx.toast("Enter how far up in metres (up to 3, or down to -1.5), or leave it blank", true); return; }
+    if (v !== null && !(isFinite(v) && v >= -1.5 && v <= 3)) { ctx.toast(t("Enter how far up in metres (up to 3, or down to -1.5), or leave it blank"), true); return; }
     const off = v !== null && Math.abs(v) >= 0.05;
     _setRoom(ctx, row, { floor_raise_m: off ? v : null },
-      off ? `"${row.name}" sits ${Math.abs(v)} m ${v > 0 ? "above" : "below"} the rest of its floor` : `"${row.name}" is level with its floor`);
-  } }, "Save");
+      off ? (v > 0 ? t("\"{room}\" sits {m} m above the rest of its floor", { room: row.name, m: Math.abs(v) }) : t("\"{room}\" sits {m} m below the rest of its floor", { room: row.name, m: Math.abs(v) })) : t("\"{room}\" is level with its floor", { room: row.name }));
+  } }, t("Save"));
   rBtn.setAttribute("data-save", "raise");
   if (!row.heightEditable) { rIn.disabled = true; rBtn.disabled = true; }
   if (readOnly) { col.disabled = true; hIn.disabled = true; hBtn.disabled = true; rIn.disabled = true; rBtn.disabled = true; }
   const rEdit = el("span", { style: `display:${row.raiseM ? "inline-flex" : "none"};align-items:center;gap:6px` }, [rIn, rBtn]);
-  const rText = el("span", { style: `display:${row.raiseM ? "none" : "inline"}` }, "Level with its floor");
+  const rText = el("span", { style: `display:${row.raiseM ? "none" : "inline"}` }, t("Level with its floor"));
   const rLink = el("button", { style: LINKBTN + `;display:${row.raiseM || !row.heightEditable || readOnly ? "none" : ""}`, "data-link": "split",
-    onclick: () => { rEdit.style.display = "inline-flex"; rText.style.display = "none"; rLink.style.display = "none"; } }, "Change");
-  fields.appendChild(_field(el, "Split level (m up or down)", [rText, rLink, rEdit]));
+    onclick: () => { rEdit.style.display = "inline-flex"; rText.style.display = "none"; rLink.style.display = "none"; } }, t("Change"));
+  fields.appendChild(_field(el, t("Split level (m up or down)"), [rText, rLink, rEdit]));
 
   // What kind of space: a room on a house floor (a room on an Outside floor is outside ground).
   if (row.spaceNow !== "ground") {
     const kSel = el("select", { style: INPUT + ";width:auto", "data-edit": "space",
-      title: "Indoors, open to the sky, or covered (a roof, deck or floor over it, open sides). Used for the 3D view: walls, rain, where ceiling lights hang. Never for positioning." }, [
-      el("option", { value: "" }, "Work it out"),
-      el("option", { value: "indoor" }, SPACE_WORDS.indoor),
-      el("option", { value: "open" }, SPACE_WORDS.open + " (open to the sky)"),
-      el("option", { value: "covered" }, SPACE_WORDS.covered + " (a roof, deck or floor over it)"),
+      title: t("Indoors, open to the sky, or covered (a roof, deck or floor over it, open sides). Used for the 3D view: walls, rain, where ceiling lights hang. Never for positioning.") }, [
+      el("option", { value: "" }, t("Work it out")),
+      el("option", { value: "indoor" }, t("Indoors")),
+      el("option", { value: "open" }, t("Open deck or patio (open to the sky)")),
+      el("option", { value: "covered" }, t("Covered patio or porch (a roof, deck or floor over it)")),
     ]);
     kSel.value = row.space || "";
     kSel.addEventListener("change", () => {
       const v = kSel.value || null;
-      _setRoom(ctx, row, { space: v }, v ? `"${row.name}" is ${SPACE_WORDS[v].toLowerCase()}` : `"${row.name}" is worked out again`);
+      _setRoom(ctx, row, { space: v }, v ? SPACE_IS[v](row.name) : t("\"{room}\" is worked out again", { room: row.name }));
     });
     if (!row.heightEditable || readOnly) kSel.disabled = true;
-    fields.appendChild(_field(el, "Kind of space", [kSel,
+    fields.appendChild(_field(el, t("Kind of space"), [kSel,
       el("span", { class: "muted", style: "font-size:11px", "data-space-worked": row.spaceWorked },
-        "Worked out: " + SPACE_WORDS[row.spaceWorked].toLowerCase())], 220));
+        SPACE_WORKED[row.spaceWorked]())], 220));
   } else if (SURF && SURF.FLOOR_SPACE_NAME.test(row.name)) {
-    fields.appendChild(_field(el, "Kind of space", [el("span", { class: "muted", style: "font-size:11px", "data-space-note": "1" },
-      "A deck or patio usually belongs to the floor it is level with")], 220));
+    fields.appendChild(_field(el, t("Kind of space"), [el("span", { class: "muted", style: "font-size:11px", "data-space-note": "1" },
+      t("A deck or patio usually belongs to the floor it is level with"))], 220));
   }
 
   // Surface: outdoor rooms only (a deck, a patio, or a room on an outdoor floor).
   if (row.outdoor) {
     const sSel = el("select", { style: INPUT + ";width:auto", "data-edit": "surface",
       // The flat map draws no room of an Outside floor: there, the 3D view only.
-      title: (row.spaceNow === "ground" ? "What the 3D view draws on this outdoor space's floor (the flat map does not show rooms on the Outside floor)."
-        : "What the 3D view and the map draw on this outdoor space's floor.") + " Drawing only, never positioning." }, [
-      el("option", { value: "" }, "Standard"),
-      el("option", { value: "pavers_2ft" }, "Grey paving tiles (2 ft × 2 ft)"),
+      title: (row.spaceNow === "ground" ? t("What the 3D view draws on this outdoor space's floor (the flat map does not show rooms on the Outside floor).")
+        : t("What the 3D view and the map draw on this outdoor space's floor.")) + " " + t("Drawing only, never positioning.") }, [
+      el("option", { value: "" }, t("Standard")),
+      el("option", { value: "pavers_2ft" }, t("Grey paving tiles (2 ft × 2 ft)")),
     ]);
     sSel.value = row.surface || "";
     sSel.addEventListener("change", () => {
       const v = sSel.value || null;
-      _setRoom(ctx, row, { surface: v }, v ? `"${row.name}" is paved with grey tiles` : `"${row.name}" has the standard surface`);
+      _setRoom(ctx, row, { surface: v }, v ? t("\"{room}\" is paved with grey tiles", { room: row.name }) : t("\"{room}\" has the standard surface", { room: row.name }));
     });
     if (!row.heightEditable || readOnly) sSel.disabled = true;
-    fields.appendChild(_field(el, "Surface", [sSel]));
+    fields.appendChild(_field(el, t("Surface"), [sSel]));
   }
 
   // Lights (Bright): how many the Atlas has in the room, and how many are on.
   if ("lights" in row) {
     const L = row.lights;
-    fields.appendChild(_field(el, "Lights", [el("span", { "data-lights": "1" },
-      L === null ? "Loading…" : L === false ? "Not available"
-        : L.total ? `${L.total} light${L.total === 1 ? "" : "s"}, ${L.on ? `${L.on} on` : "all off"}` : "None")]));
+    fields.appendChild(_field(el, t("Lights"), [el("span", { "data-lights": "1" },
+      L === null ? t("Loading…") : L === false ? t("Not available")
+        : L.total ? tn(L.total, "{n} light", "{n} lights") + ", " + (L.on ? t("{n} on", { n: L.on }) : t("all off")) : t("None"))]));
   }
 
   // Receivers.
-  if (presence) fields.appendChild(_field(el, "Receivers", [
-    el("span", {}, row.receivers ? `${row.receivers} receiver${row.receivers === 1 ? "" : "s"}` : "None"),
-    el("button", { style: LINKBTN, "data-link": "receivers", onclick: () => _receivers(ctx) }, "See receivers"),
+  if (presence) fields.appendChild(_field(el, t("Receivers"), [
+    el("span", {}, row.receivers ? tn(row.receivers, "{n} receiver", "{n} receivers") : t("None")),
+    el("button", { style: LINKBTN, "data-link": "receivers", onclick: () => _receivers(ctx) }, t("See receivers")),
   ]));
 
   // In it now.
   const nowText = row.people.length
-    ? row.people.join(", ") + (row.others ? `, and ${row.others} other device${row.others === 1 ? "" : "s"}` : "")
-    : row.others ? `${row.others} unnamed device${row.others === 1 ? "" : "s"}` : "Nobody";
-  if (presence) fields.appendChild(_field(el, "In it now", [el("span", { "data-now": "1" }, nowText)]));
+    ? row.people.join(", ") + (row.others ? tn(row.others, ", and {n} other device", ", and {n} other devices") : "")
+    : row.others ? tn(row.others, "{n} unnamed device", "{n} unnamed devices") : t("Nobody");
+  if (presence) fields.appendChild(_field(el, t("In it now"), [el("span", { "data-now": "1" }, nowText)]));
 
   card.appendChild(fields);
   return card;
@@ -444,18 +455,18 @@ export function render(ctx) {
   const head = el("div", { class: "card" });
   head.appendChild(el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-      el("div", { style: "font-weight:700;font-size:16px" }, "Rooms"),
+      el("div", { style: "font-weight:700;font-size:16px" }, t("Rooms")),
       ctx.helpers.helpBtn("rooms"),
     ]),
     el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [
-      _haLink(el, "/config/areas/dashboard", "Add a room in Home Assistant"),
-      el("button", { class: "btn inline", style: "white-space:nowrap", onclick: async () => { await ctx.actions.modelRefresh(); } }, "Refresh"),
+      _haLink(el, "/config/areas/dashboard", t("Add a room in Home Assistant")),
+      el("button", { class: "btn inline", style: "white-space:nowrap", onclick: async () => { await ctx.actions.modelRefresh(); } }, t("Refresh")),
     ]),
   ]));
   head.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:6px;line-height:1.5" },
-    "Each room's settings in one place. Rooms and floors are your Home Assistant Areas: add or rename them there, then press Refresh. " +
-    "Colour, ceiling height and split level save here at once; the outline is drawn on your floor plan in Mapping."
-    + (isBasic ? "" : " The layout in metres is in Mapping → Layout.")));
+    t("Each room's settings in one place. Rooms and floors are your Home Assistant Areas: add or rename them there, then press Refresh.") + " " +
+    t("Colour, ceiling height and split level save here at once; the outline is drawn on your floor plan in Mapping.")
+    + (isBasic ? "" : " " + t("The layout in metres is in Mapping → Layout."))));
   root.appendChild(head);
   const readOnly = _isSample(ctx.state);
   // Receivers and people only where the build shows the Receivers screen (not Bright).
@@ -463,17 +474,17 @@ export function render(ctx) {
   if (readOnly) {
     root.appendChild(el("div", { class: "card", style: "margin-top:12px;font-size:12px", "data-rooms-note": "sample" },
       ctx.state.live && ctx.state.live.fromSample
-        ? "Sample mode: these are the sample house's rooms, shown read-only. Switch to Live mode to see and change yours."
+        ? t("Sample mode: these are the sample house's rooms, shown read-only. Switch to Live mode to see and change yours.")
         // The sample house could not load: your own rooms (panel.js reads them then), and nobody in them.
-        : "Sample mode is on but the sample house could not be shown, so these are your own rooms"
-          + (presence ? ", without who is in them" : "") + ". Nothing can be changed here until you switch back to Live."));
+        : (presence ? t("Sample mode is on but the sample house could not be shown, so these are your own rooms, without who is in them. Nothing can be changed here until you switch back to Live.")
+          : t("Sample mode is on but the sample house could not be shown, so these are your own rooms. Nothing can be changed here until you switch back to Live."))));
   }
 
   const groups = roomGroups(ctx);
   if (!groups.length) {
     root.appendChild(el("div", { class: "card", style: "margin-top:12px" }, [
-      el("div", { style: "font-weight:600;margin-bottom:6px" }, "No rooms yet"),
-      el("div", { class: "muted", style: "font-size:12px" }, "Add areas in Home Assistant (Settings → Areas, labels & zones) and they show up here."),
+      el("div", { style: "font-weight:600;margin-bottom:6px" }, t("No rooms yet")),
+      el("div", { class: "muted", style: "font-size:12px" }, t("Add areas in Home Assistant (Settings → Areas, labels & zones) and they show up here.")),
     ]));
     return root;
   }
@@ -481,7 +492,7 @@ export function render(ctx) {
     const card = el("div", { class: "card", style: "margin-top:12px", "data-floor": g.floorId });
     card.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:8px;margin-bottom:2px" }, [
       el("div", { style: "font-weight:700;font-size:13px;color:#a7f3d0" }, g.floorName),
-      el("span", { class: "muted", style: "font-size:12px" }, `${g.rooms.length} room${g.rooms.length === 1 ? "" : "s"}`),
+      el("span", { class: "muted", style: "font-size:12px" }, tn(g.rooms.length, "{n} room", "{n} rooms")),
     ]));
     for (const row of g.rooms) card.appendChild(_row(ctx, el, row, readOnly, presence));
     root.appendChild(card);
