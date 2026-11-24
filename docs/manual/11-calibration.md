@@ -12,6 +12,12 @@ that hears it best, or, with a map, a position worked out from the receivers' pl
 first answer. Calibration makes it better, most of all in doorways and next to the walls between
 rooms, where two rooms are hardest to tell apart.
 
+On a house with a map, the position worked out from the receivers' places still decides the room
+whenever it lands inside a drawn room. Calibration makes that position better (each receiver gets
+its own signal fit from your points), and the match to your calibration points decides the room
+when no such position can be worked out. **Pick the better method for this house** (below, off by
+default) lets the matched points decide instead, when they did better in your house.
+
 Calibration is free, and it is in the main menu in every mode, with the same tabs in Basic and
 Advanced.
 
@@ -261,5 +267,6 @@ can't be told from the next room, so calibrate each room first.
 
 **For experts:** **Settings → Tracking → Positioning and calibration** has the **Positioning
 Algorithm** ("Matched to calibration points", the default, or "Learned model (experimental)"),
-**Adaptive Learning**, which learns from rooms PadSpan is already sure of, and **Calibration
+**Pick the better method for this house** (off by default: it uses whichever of the map position
+and the calibration match did better on calibration spots it had not seen), **Adaptive Learning**, which learns from rooms PadSpan is already sure of, and **Calibration
 Accuracy Reminders**. Every setting there is in [chapter 20](20-settings-reference.md).

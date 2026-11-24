@@ -97,7 +97,9 @@ startet es wie neu. Dein Lizenzschlüssel bleibt.
 seine Adresse, alle 15 Minuten in der Nähe seines Besitzers und einmal am Tag fern von ihm.
 
 **Fingerabdruck.** Was jeder Empfänger an einem Kalibrierpunkt gehört hat. PadSpan ordnet die
-Live-Messwerte eines Geräts den nächstliegenden Fingerabdrücken zu.
+Live-Messwerte eines Geräts den nächstliegenden Fingerabdrücken zu. In einem Haus mit Karte
+entscheidet zuerst die aus den Empfängern berechnete Position über den Raum
+([Kapitel 11](11-calibration.md)).
 
 **Folgen.** Einem Gerät zu folgen (auf dem Bildschirm Folgen) heißt, es genauer zu beobachten: Alarme,
 wenn es den Raum wechselt, ankommt oder geht, und, wenn Tag-Ereignisse bei Raumwechsel an ist, das

@@ -75,6 +75,11 @@ room.</p>
 that hears it best, or, with a map, a position worked out from the receivers' places. That is a good
 first answer. Calibration makes it better, most of all in doorways and next to the walls between
 rooms, where two rooms are hardest to tell apart.</p>
+<p>On a house with a map, the position worked out from the receivers' places still decides the room
+whenever it lands inside a drawn room. Calibration makes that position better (each receiver gets
+its own signal fit from your points), and the match to your calibration points decides the room
+when no such position can be worked out. <b>Pick the better method for this house</b> (below, off by
+default) lets the matched points decide instead, when they did better in your house.</p>
 <p>Calibration is free, and it is in the main menu in every mode, with the same tabs in Basic and
 Advanced.</p>
 <h2 id="before-you-start">Before you start</h2>
@@ -301,7 +306,8 @@ different.</li>
 </ul>
 <p><b>For experts:</b> <b>Settings → Tracking → Positioning and calibration</b> has the <b>Positioning
 Algorithm</b> ("Matched to calibration points", the default, or "Learned model (experimental)"),
-<b>Adaptive Learning</b>, which learns from rooms PadSpan is already sure of, and <b>Calibration
+<b>Pick the better method for this house</b> (off by default: it uses whichever of the map position
+and the calibration match did better on calibration spots it had not seen), <b>Adaptive Learning</b>, which learns from rooms PadSpan is already sure of, and <b>Calibration
 Accuracy Reminders</b>. Every setting there is in <a href="/manual/settings-reference/">chapter 20</a>.</p>
 <div class="pager"><span><a href="/manual/walls-and-signal-loss/">← 10. Walls and signal loss</a></span><span><a href="/manual/">Contents</a></span><span><a href="/manual/the-screens/">12. The screens →</a></span></div>
 <p style="font-size:13px;color:var(--mut)">This page is made from the manual in the repository, <a href="https://github.com/gbroeckling/padspanHA/tree/main/docs/manual">docs/manual</a>. Something out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a>.</p>
