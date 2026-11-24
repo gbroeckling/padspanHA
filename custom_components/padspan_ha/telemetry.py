@@ -564,6 +564,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
     "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_show",                             # Live Aboard's ⋯ list: what this screen shows
+    "live_aboard_edgecut",                          # Live Aboard's Edgecut: the rooms fill the screen, every button on it
     "live_aboard_looks",                            # Live Aboard's Views ▾ → Look: this screen's look, and one after sunset
     "live_aboard_rooms",                            # Live Aboard's room chips and a room's panel beside the house
     "scene_row",                                    # the scene row under the Atlas and in Live Aboard

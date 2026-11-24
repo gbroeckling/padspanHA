@@ -143,7 +143,8 @@ def test_the_floors_work_as_the_atlas_floor_chips_do() -> None:
     la = _js(_VIEWS / "live_aboard.js")
     assert ("topCb = typeof p.setTopFloor === \"function\" ? (fid) => { keepCam = true; try { p.setTopFloor(fid); } "
             "finally { keepCam = false; } } : null;") in la
-    assert "const c = keepCam ? null : floorCams.get(key);" in la
+    # Edgecut on (2026-11-24): it frames the new floor itself, so no kept camera comes back first.
+    assert "const c = keepCam || edgecutOn() ? null : floorCams.get(key);" in la
     assert "const floorCams = new Map();" in la and "floorCams" not in la[:la.index("export function liveAboardSlot(")]
     assert "PgUp and PgDn change the floor and Home shows them all" in la
     ed = _js(_VIEWS / "live_aboard_edit.js")
