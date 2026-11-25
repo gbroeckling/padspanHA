@@ -1330,6 +1330,35 @@ def test_robot_points_carry_their_tag_height_into_the_path_loss_fit():
     assert store.fit_path_loss("sc1") == on_floor                           # one weight for all: the same fit
 
 
+def test_only_robot_points_weigh_in_the_path_loss_fit_the_owners_weights_never_did():
+    """The owner's own points carry k-NN weights (1.5 to 5 on a real house) that never fed the path-loss fit; the
+    robot's choice (vacuum_use.py) must not start feeding them: a weight changes the fit only on a [robot] point."""
+    from unittest.mock import MagicMock
+    from custom_components.padspan_ha.calibration_store import CalibrationStore
+    store = CalibrationStore.__new__(CalibrationStore)
+    store.hass = MagicMock()
+    store.hass.data = {}
+    model = MagicMock()
+    model.scanner_positions_m.return_value = {"sc1": {"x_m": 0.0, "y_m": 0.0}}
+    model.scanner_absolute_z_m.return_value = {"sc1": 2.4}
+    model.floor_base_elevations_m.return_value = {"main": 0.0}
+    store._model = model
+    rows = [(3.0, -62.0, 1.0), (6.0, -70.0, 5.0), (9.0, -79.0, 1.0), (12.0, -80.0, 2.5)]
+
+    def pts(label, heavy):
+        return [{"id": f"p{i}", "x_m": d, "y_m": 0.0, "floor_id": "main", "label": label, "weight": w if heavy else 1.0,
+                 "scanner_readings": [{"source": "sc1", "mean_rssi": r}]} for i, (d, r, w) in enumerate(rows)]
+    store.data = {"points": pts("Kitchen", True)}
+    owner_heavy = store.fit_path_loss("sc1")
+    store.data = {"points": pts("Kitchen", False)}
+    owner_plain = store.fit_path_loss("sc1")
+    assert owner_heavy == owner_plain                                       # the owner's weights: no effect, as before
+    store.data = {"points": pts("[robot] rr_1 Kitchen (tag 0.1 m above the floor)", True)}
+    robot_heavy = store.fit_path_loss("sc1")
+    store.data = {"points": pts("[robot] rr_1 Kitchen (tag 0.1 m above the floor)", False)}
+    assert robot_heavy != store.fit_path_loss("sc1")                         # a robot point's weight does
+
+
 def test_the_choice_and_the_fixes_are_counted_in_closed_words():
     from custom_components.padspan_ha import telemetry as T
     for w in ("taken_over", "rx_samples_0_2", "rx_samples_30_plus", "sampled_every", "sampled_poll",

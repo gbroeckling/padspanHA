@@ -892,13 +892,16 @@ class CalibrationStore:
                     d = math.sqrt(d_sq)
                     if d < 0.3:   # too close — likely at scanner position itself
                         continue
-                    data.append((math.log10(d), reading["mean_rssi"], float(pt.get("weight") or 1.0)))
+                    # Only a robot's point weighs what it says (the owner's choice, vacuum_use.py); every other point
+                    # counts 1, as the fit always did: owner points carry k-NN weights of 1.5-5 that never fed it.
+                    data.append((math.log10(d), reading["mean_rssi"],
+                                 float(pt.get("weight") or 1.0) if is_robot_point(pt.get("label")) else 1.0))
         if len(data) < 3:
             return None
 
-        # Weighted OLS: RSSI = a + b*log10(d)  where b = -10*n, a = RSSI_1m. Each row
-        # weighs what its point does (1 for every point but a robot's the owner chose
-        # to count less, vacuum_use.py): with every weight 1, plain least squares.
+        # Weighted OLS: RSSI = a + b*log10(d)  where b = -10*n, a = RSSI_1m. A robot's row
+        # weighs what its point does (the owner may count them less, vacuum_use.py); every
+        # other row weighs 1, so without robot points it is the plain least squares it was.
         n_pts = len(data)
         sw = sum(d[2] for d in data)
         sum_x = sum(d[2] * d[0] for d in data)

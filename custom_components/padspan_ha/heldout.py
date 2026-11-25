@@ -47,6 +47,7 @@ import operator
 import random
 from typing import Any, Callable
 
+from .calibration_store import is_robot_point
 from .room_walk import is_walk_point
 from .quiet_errors import note as _quiet_error
 
@@ -164,9 +165,10 @@ class SpatialSite:
                 continue
             fl = str(p.get("floor_id") or "")
             px, py = float(p["x_m"]), float(p["y_m"])
-            # The point's own tag height and weight, as CalibrationStore.fit_path_loss reads them.
+            # The point's own tag height and weight, as CalibrationStore.fit_path_loss reads them (a weight only
+            # for a robot's point; every other point counts 1, as before).
             h = float(p["device_height_m"]) if isinstance(p.get("device_height_m"), (int, float)) else self.dev_h
-            w = float(p.get("weight") or 1.0)
+            w = float(p.get("weight") or 1.0) if is_robot_point(p.get("label")) else 1.0
             for r in p.get("scanner_readings", []):
                 src = r.get("source")
                 if src not in use:
