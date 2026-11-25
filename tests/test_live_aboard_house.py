@@ -107,7 +107,9 @@ def test_the_report_words_are_the_frontends(house) -> None:
                                      *(f"house3d_look:{k}" for k in ("classic", "studio", "theme", "sun")),
                                      "house3d_rooms:list", "house3d_rooms:chip", "house3d_room_set",
                                      # 2026-11-24: Furnish's floors and walls (a floor by its material, walls, a house drawn with them)
-                                     *T.HOUSE3D_FINISH_EVENTS}
+                                     *T.HOUSE3D_FINISH_EVENTS,
+                                     # 2026-11-24: a walk-through started, and how it moved (keys, stick, drag, stairs)
+                                     *(f"house3d_walk:{w}" for w in ("start", "keys", "stick", "drag", "stairs"))}
 
 
 def _hass(on: bool = True):

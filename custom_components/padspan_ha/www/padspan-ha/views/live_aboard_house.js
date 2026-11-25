@@ -90,10 +90,14 @@ export const SHOW_EVENTS = SHOW.SHOW_EVENTS;
 // one wall, a floor's outside walls, and a house drawn with any of it (once per page load). Never which or where.
 export const LOOK_KINDS = ["classic", "studio", "theme", "sun"];
 export const ROOM_WAYS = ["list", "chip"];
+// Walk-through (live_aboard_walk.js, 2026-11-24): a walk started (each time), and once per page load each way
+// of moving in one: the keys, the stick, a drag to look, and stairs taken to another floor. Never where.
+export const WALK_WAYS = ["start", "keys", "stick", "drag", "stairs"];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
   "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", "house3d_scan_size", "house3d_scan_fill", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
   ...STAIR_USE_EVENTS, ...SHOW_EVENTS, ...LOOK_KINDS.map(k => `house3d_look:${k}`), ...ROOM_WAYS.map(w => `house3d_rooms:${w}`), "house3d_room_set",
-  ...FIN.FINISH_EVENTS];
+  ...FIN.FINISH_EVENTS,
+  ...WALK_WAYS.map(w => `house3d_walk:${w}`)];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */

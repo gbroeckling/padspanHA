@@ -589,6 +589,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_show",                             # Live Aboard's ⋯ list: what this screen shows
     "live_aboard_edgecut",                          # Live Aboard's Edgecut: the rooms fill the screen, every button on it
+    "live_aboard_walk",                             # Live Aboard's walk-through: eye height, the keys, the stick, stairs
     "live_aboard_looks",                            # Live Aboard's Views ▾ → Look: this screen's look, and one after sunset
     "live_aboard_rooms",                            # Live Aboard's room chips and a room's panel beside the house
     "scene_row",                                    # the scene row under the Atlas and in Live Aboard
@@ -780,6 +781,10 @@ HOUSE3D_FINISH_EVENTS: frozenset[str] = frozenset(
     {f"house3d_finish:{w}" for w in ("drawn", "wall", "one_wall", "outside")}
     | {f"house3d_finish:floor:{m}" for m in HOUSE3D_FLOOR_MATERIALS}
 )
+# Walk-through (2026-11-24, views/live_aboard_house.js WALK_WAYS, the same words): a walk at eye height started
+# (house3d_walk:start, each time), and once per page load each way of moving in one: the keys, the on-screen stick,
+# a drag to look, and stairs taken to another floor. Never where, which room or how far.
+HOUSE3D_WALK_WAYS: tuple[str, ...] = ("start", "keys", "stick", "drag", "stairs")
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped",
      # Furnish, from a phone's room scan (2026-11-16): a piece sized to the scan's, and a room filled with the scan's guess.
@@ -793,6 +798,7 @@ HOUSE3D_EVENTS: frozenset[str] = frozenset(
     | {f"house3d_rooms:{w}" for w in HOUSE3D_ROOM_WAYS}
     | {"house3d_room_set"}
     | HOUSE3D_FINISH_EVENTS
+    | {f"house3d_walk:{w}" for w in HOUSE3D_WALK_WAYS}
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or

@@ -95,6 +95,7 @@ the Playwright scripts for those (`pip install playwright`; they use the install
 | `pw_buttons.py` | The ⋯ list's "Lights as buttons": no button until it is ticked, then one on every light of the floors showing (an optional path saves the picture) |
 | `pw_finish.py [outprefix]` | Floors and walls (`finish=1`) in Classic and Studio, on High and Low: drawn, two-coloured walls, no shader error; a Showcase theme draws none |
 | `pw_tool.py [light]` | The setup wizard's way in (`?edit=1&tool=<t>&teid=<light>`): Edit opens at Heights, Door, Window, Strip (with the light picked) |
+| `pw_walk.py [outprefix]` | Walk (`stairs=` in the Living Room): real keys walk, no frame standing still, up the stairs to the Bedroom, a drag looks, a touch shows the stick and it walks, Stop walking puts the orbit view back |
 
 Run them with `python -X utf8 <script> ...` (the page uses characters a Windows console can't
 print otherwise).

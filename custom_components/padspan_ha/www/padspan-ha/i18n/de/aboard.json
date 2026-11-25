@@ -153,5 +153,9 @@
 "{n} lights: tap for on": {
 "one": "1 Licht: tippen für an",
 "other": "{n} Lichter: tippen für an"
-}
+},
+"Walk": "Gehen",
+"Walk through the house at eye height": "In Augenhöhe durchs Haus gehen",
+"Close the editor first to walk through the house": "Schließ zuerst den Editor, um durchs Haus zu gehen",
+"Nothing to stand on yet: draw a room on the map first": "Noch kein Boden zum Stehen: Zeichne zuerst einen Raum auf der Karte"
 }

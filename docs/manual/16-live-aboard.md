@@ -66,6 +66,29 @@ with the room's devices and buttons (each switch with **Undo**), its scenes, and
 **More devices of the area**: what Home Assistant has in that area that the map doesn't show. On a
 wide screen, **Room chips along the top** in **⋯** puts the room names in a row instead.
 
+## Walking through the house
+
+**Walk** (bottom right; on a narrow screen, in **View ▾**) puts you in the house at eye height, just
+inside the front door, or in the room you have open. Every floor shows and every wall stands while
+you walk.
+
+| To... | Do this |
+|---|---|
+| Walk | **W A S D** or **↑ ↓** on a keyboard; on a touch screen, push the stick (bottom left) |
+| Turn | **← →**, or drag |
+| Look round, up and down | Drag with a finger or the mouse |
+| Hurry | Hold **Shift** |
+| Go back to the 3D view | **✕ Stop walking** (top right), or **Esc** |
+
+Walls, railings, window sills and closed doors stop you. A door with a sensor opens when the sensor
+says it is open; a door with no sensor stands as its sheet says (ajar inside, shut on an outside
+wall). Stairs take you up to the floor they reach and back down. Out through an open outside door,
+you are on the ground round the house. Furniture does not stop you. The stick shows on a touch
+screen, or as soon as you touch the view.
+
+**Stop walking** puts the camera, the floors (pulled apart or not) and the walls back as they were.
+Standing still, Live Aboard draws nothing, as it does when you are not walking.
+
 ## Reading the house
 
 What you see depends on how close you are:
