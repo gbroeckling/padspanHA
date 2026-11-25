@@ -53,6 +53,7 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `gym=1` | A hall 7.5 m to the roof with a mezzanine at 3.2 m (gallery, walkway, toilets); its open edges over the hall get railings |
 | `rails=glass\|none` | With `gym=1`: the two edges over the hall with that railing chosen on the barrier (`rail`); without it, railed by the rule as an edge from before |
 | `stairs=<rail>:<style>[:<shape>:<stair style>]` | A staircase in the Living Room with that rail (`auto\|none\|both\|inner\|outer`; `balustrade\|topless\|single_bar`), e.g. `stairs=both:topless:l:open` |
+| `finish=1` | Floors and walls chosen in Furnish: the Kitchen tiled with green walls, the Living Room wood with blue walls and one red wall, the Hall light wood, the main floor's outside walls beige (shown with `look=own` or `studio`) |
 | `loft=1` | Open (Loft) edges that stay gaps: upstairs over the Laundry (an ordinary storey below, so no railing), between two upstairs rooms and on the main floor's street side |
 | `w=380` | Card width in px (a phone; desktop browsers won't go narrower than ~500 px) |
 | `click=A,B` | Press buttons by their text after load |
@@ -92,6 +93,7 @@ the Playwright scripts for those (`pip install playwright`; they use the install
 | `pw_raised.py [outprefix]` | What stands on a line against the words: overlaps before and after at several orbits, rest afterwards |
 | `pw_dimmed.py` | With a device-type chip picked (`cls=motion`), a tap on a dimmed light says why nothing happened and "Show all" asks the host for every class; with every class, no note |
 | `pw_buttons.py` | The ⋯ list's "Lights as buttons": no button until it is ticked, then one on every light of the floors showing (an optional path saves the picture) |
+| `pw_finish.py [outprefix]` | Floors and walls (`finish=1`) in Classic and Studio, on High and Low: drawn, two-coloured walls, no shader error; a Showcase theme draws none |
 | `pw_tool.py [light]` | The setup wizard's way in (`?edit=1&tool=<t>&teid=<light>`): Edit opens at Heights, Door, Window, Strip (with the light picked) |
 
 Run them with `python -X utf8 <script> ...` (the page uses characters a Windows console can't

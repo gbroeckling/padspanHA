@@ -105,7 +105,9 @@ def test_the_report_words_are_the_frontends(house) -> None:
                                      *T.HOUSE3D_SHOW_EVENTS,   # 2026-11-07: the ⋯ list (tests/test_live_aboard_show.py)
                                      # 2026-11-19: a Look's kind picked, a room gone to by Rooms ▾ or a chip, a Furnish room set
                                      *(f"house3d_look:{k}" for k in ("classic", "studio", "theme", "sun")),
-                                     "house3d_rooms:list", "house3d_rooms:chip", "house3d_room_set"}
+                                     "house3d_rooms:list", "house3d_rooms:chip", "house3d_room_set",
+                                     # 2026-11-24: Furnish's floors and walls (a floor by its material, walls, a house drawn with them)
+                                     *T.HOUSE3D_FINISH_EVENTS}
 
 
 def _hass(on: bool = True):

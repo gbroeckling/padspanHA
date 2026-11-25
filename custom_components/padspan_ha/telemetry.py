@@ -592,6 +592,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
+    "live_aboard_finish",                           # Live Aboard: Furnish's floors and walls (a room's floor material, wall colours)
     "vacuum_import",                                # the Mapping tab's "Import from a robot vacuum"
     "robovac_card",                                 # the robot vacuum's card: a hold on it, on the Atlas or in 3D
     "robovac_findings",                             # its Find mistakes card: receivers the runs say are misplaced
@@ -766,6 +767,15 @@ HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
 # (:chip); a room set placed in Furnish (house3d_room_set). Never which theme, room or set.
 HOUSE3D_LOOK_KINDS: tuple[str, ...] = ("classic", "studio", "theme", "sun")
 HOUSE3D_ROOM_WAYS: tuple[str, ...] = ("list", "chip")
+# Floors and walls (Furnish, 2026-11-24; views/live_aboard_finish.js FINISH_EVENTS, the same words), counted each
+# time one is chosen: a room's floor by its material (house3d_finish:floor:wood ...), a room's wall colour
+# (:wall), one wall's own colour (:one_wall), a floor's outside walls (:outside); and once per page load, a house
+# drawn with any of them showing (:drawn). Never which room, floor or colour.
+HOUSE3D_FLOOR_MATERIALS: tuple[str, ...] = ("wood", "light_wood", "tile", "stone", "carpet", "concrete")
+HOUSE3D_FINISH_EVENTS: frozenset[str] = frozenset(
+    {f"house3d_finish:{w}" for w in ("drawn", "wall", "one_wall", "outside")}
+    | {f"house3d_finish:floor:{m}" for m in HOUSE3D_FLOOR_MATERIALS}
+)
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped",
      # Furnish, from a phone's room scan (2026-11-16): a piece sized to the scan's, and a room filled with the scan's guess.
@@ -778,6 +788,7 @@ HOUSE3D_EVENTS: frozenset[str] = frozenset(
     | {f"house3d_look:{k}" for k in HOUSE3D_LOOK_KINDS}
     | {f"house3d_rooms:{w}" for w in HOUSE3D_ROOM_WAYS}
     | {"house3d_room_set"}
+    | HOUSE3D_FINISH_EVENTS
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or

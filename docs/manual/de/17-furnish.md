@@ -63,6 +63,30 @@ Die anderen Wege:
 - Ein Stück, für das kein Platz ist, wird weggelassen, und die Meldung sagt, wie viele.
 - Es ist ein erster Wurf zum Anpassen. Ein **Undo** nimmt das ganze Set wieder weg.
 
+## Böden und Wände
+
+Tippe auf den Boden eines Raums (ohne dass ein Stück gewählt ist), und sein Bereich öffnet sich (für die Küche
+**Küche: Boden und Wände**). Tippe auf einen anderen Raum, um zu ihm zu wechseln; tippe außerhalb des
+Hauses, um ihn zu schließen.
+
+- **Boden**: **Wie gezeichnet** (die Farbe des Raums, wie bisher) oder ein Material: **Holz**,
+  **Helles Holz**, **Fliesen**, **Stein**, **Teppich** oder **Beton**. Jedes wird in seiner eigenen
+  Farbe mit seinen Dielen oder Fugen gezeichnet, rechtwinklig zur längsten Wand des Raums verlegt.
+- **Wände**: die Farbe der Wände des Raums innen. Die andere Seite einer gemeinsamen Wand behält die
+  Farbe des Nachbarraums.
+- **Eine Wand in eigener Farbe**: listet die Wände des Raums mit Nummer und Länge auf; zeigst du auf
+  eine Zeile, wird diese Wand umrandet. Gib einer Wand eine Akzentfarbe.
+- **Außenwände**: die Farbe der Außenwände der ganzen Etage.
+- **Wie gezeichnet** neben jeder Farbe setzt sie zurück, wie sie war.
+
+Jede Änderung ist ein **Undo**, und nichts wird behalten bis **Save**. Böden und Wände stehen in Live
+Aboards eigener Datei, also nimmt ein PadSpan-Backup sie mit, und eine Wiederherstellung bringt sie
+zurück.
+
+Sie erscheinen in Live Aboards eigenen Looks, **Classic** und **Studio** (**Views ▾ → Look**). Ein
+Showcase-Theme und der Look des Atlas behalten ihre eigenen Farben: Dort sieht das Haus aus wie
+vorher. Solange du nichts wählst, ändert sich nirgends etwas.
+
 ## Ein Stück bewegen und einstellen
 
 - **Zieh** ein Stück über den Boden. Sein Rücken rastet an den Wänden ein, und zwei kurze Linien

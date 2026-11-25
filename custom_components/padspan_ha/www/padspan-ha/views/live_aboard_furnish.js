@@ -35,6 +35,12 @@
 //                     its width and run, straight, L or U, which way it
 //                     turns and the floor it goes up to; its rise is always
 //                     the gap up to that floor (live_aboard_storey.js).
+//                     Floors and walls (2026-11-24): a tap on a room's floor
+//                     (nothing picked) opens its panel: its floor material,
+//                     its walls' colour, one wall a colour of its own (the
+//                     wall marked while its row is pointed at), and its
+//                     floor's outside walls (live_aboard_finish.js). Each is
+//                     one Undo, kept at Save like the rest.
 //
 // Imports nothing: three.js, the rules (live_aboard_pieces.js) and the
 // builders (live_aboard_furniture.js — or null, and every piece is a box)
@@ -298,6 +304,9 @@ export function createFurnish(ctx){
   let burst = null;                                  // arrow keys or [ ] held: one Undo for the run ({id, g, t})
   let measure = false;                               // the lines to the walls show (while it moves, after a nudge)
   let hangAt = null;                                 // Hang on wall's height for the picked piece ({id, v})
+  let roomSel = null;                                // the room whose floor and walls the panel shows ({fid, name})
+  let wallMark = null;                               // the wall of it marked ({fid, name, i}), and whether each wall is listed
+  let eachWall = false;
   const FURN = () => (ctx.FURN ? ctx.FURN() : null);
   const cur = () => { const d = ctx.draft(); return d ? d.cur : null; };
   /** The changes the draft holds now (one Save takes at most so many). */
@@ -627,6 +636,7 @@ export function createFurnish(ctx){
   function select(id){
     if (fitHint && id !== sel) { fitHint = null; ctx.hint(""); }   // that warning was another piece's
     sel = id && pieceOf(id) ? id : null;
+    if (sel) { roomSel = null; wallMark = null; }
     picker = null;
     if (id !== (hangAt && hangAt.id)) hangAt = null;
     measure = false; burst = null;
@@ -658,6 +668,7 @@ export function createFurnish(ctx){
     const el = ctx.sheet;
     if (!ctx.active()) return false;                    // the editor's other tools own the panel then
     const p = sel ? pieceOf(sel) : null;
+    if (!p && roomSel) { sel = null; return roomSheet(el); }
     if (!p) { sel = null; el.innerHTML = ""; el.classList.remove("on", "fur"); return false; }
     el.innerHTML = "";
     el.classList.add("fur");
@@ -807,6 +818,136 @@ export function createFurnish(ctx){
     el.classList.add("on");
     return true;
   }
+  // ── floors and walls (live_aboard_finish.js) ─────────────────────────────
+  const MATERIAL_WORDS = { wood: () => t("Wood"), light_wood: () => t("Light wood"), tile: () => t("Tile"), stone: () => t("Stone"),
+                           carpet: () => t("Carpet"), concrete: () => t("Concrete") };
+  /** The room a selection names, as drawn now, with its floor; null once it is gone. */
+  function roomOf(s){
+    const F = s && floorById(s.fid), r = F ? F.rooms.find(q => q.name === s.name) : null;
+    return r ? { F, r } : null;
+  }
+  /** The room whose floor is under (x, y) on screen, when nothing is in front of it: {F, room}, or null. */
+  function roomAt(x, y){
+    const r = rayAt(x, y);
+    if (!r) return null;
+    const occ = [];
+    for (const F of ctx.floors()) if (F.group.visible) { if (F.tiles) occ.push(F.tiles); if (F.solid) occ.push(F.solid); }
+    const hit = occ.length ? r.intersectObjects(occ, false)[0] : null;
+    const F = hit && ctx.floors().find(G => G.tiles === hit.object);
+    const room = F ? ctx.HOUSE.roomAt(F.rooms, hit.point.x, hit.point.z) : null;
+    return room ? { F, room } : null;
+  }
+  function openRoom(F, room){
+    roomSel = { fid: F.fl.id, name: room.name };
+    if (wallMark && (wallMark.fid !== roomSel.fid || wallMark.name !== roomSel.name)) wallMark = null;
+    sheet(); paint3d(); ctx.paintEditor();
+  }
+  function closeRoom(){ roomSel = null; wallMark = null; eachWall = false; sheet(); paint3d(); ctx.paintEditor(); }
+  /** One change to the floors and walls, one Undo: fn(rooms, floors) on the draft, then empty entries tidied away. */
+  function finishEdit(fn, word){
+    const ok = ctx.change((c) => {
+      c.rooms = c.rooms || {}; c.floors = c.floors || {};
+      fn(c.rooms, c.floors);
+      for (const [k, e] of Object.entries(c.rooms)) {
+        if (e && e.walls && !Object.keys(e.walls).length) delete e.walls;
+        if (!e || !Object.keys(e).length) delete c.rooms[k];
+      }
+    });
+    if (ok) { if (word) tele(word); ctx.redraw(); ctx.hint(t("Changed. Nothing is kept until Save.")); }
+    sheet();
+    return ok;
+  }
+  /** A colour box and its "As drawn" button: `now` the colour chosen (null: none, `shown` drawn), set(colour | null). */
+  function colourRow(label, now, shown, set, name){
+    const inp = d("input");
+    inp.type = "color"; inp.value = now || shown;
+    inp.setAttribute("aria-label", name || label);
+    inp.addEventListener("change", guard(() => set(inp.value.toLowerCase())));
+    const back = btn(t("As drawn"), t("Back to the colour it had"), () => set(null));
+    back.disabled = !now;
+    const r = d("div", "la3d-cols");
+    const l = d("label");
+    l.append(inp, d("span", null, label));
+    r.append(l, seg(back));
+    return r;
+  }
+  function roomSheet(el){
+    const got = roomOf(roomSel);
+    if (!got) { roomSel = null; wallMark = null; el.innerHTML = ""; el.classList.remove("on", "fur"); return false; }
+    const { F, r } = got, FIN = ctx.FIN, c = cur() || {}, name = r.name;
+    const e = (c.rooms && c.rooms[name]) || {}, fid = ctx.HOUSE.wholeFloorId(F.fl.id), out = (c.floors && c.floors[fid]) || {};
+    const WALL = ctx.HOUSE.WALL_COLOURS || { ext: "#d6cfc2", int: "#ebe6dd" };
+    el.innerHTML = "";
+    el.classList.add("fur");
+    const h = d("h4");
+    h.append(d("span", null, t("{room}: floor and walls", { room: name })), btn("✕", t("Close"), () => closeRoom(), "la3d-x"));
+    el.appendChild(h);
+    el.appendChild(d("p", "la3d-sub", t("They show in the Classic and Studio looks. A Showcase theme keeps its own look.")));
+    // The floor: as drawn (the room's colour), or a material.
+    el.appendChild(d("div", "la3d-sec", t("Floor")));
+    const pick = d("select", "la3d-fin");
+    pick.setAttribute("aria-label", t("Floor"));
+    const opt = (v, text) => { const o = d("option", null, text); o.value = v; pick.appendChild(o); };
+    opt("", t("As drawn (the room's colour)"));
+    for (const m of FIN.FLOOR_MATERIALS) opt(m, MATERIAL_WORDS[m]());
+    pick.value = typeof e.floor === "string" && FIN.FLOOR_MATERIALS.includes(e.floor) ? e.floor : "";
+    pick.addEventListener("change", guard(() => {
+      const v = pick.value;
+      finishEdit((rooms) => { const q = { ...(rooms[name] || {}) }; if (v) q.floor = v; else delete q.floor; rooms[name] = q; }, v ? `house3d_finish:floor:${v}` : null);
+    }));
+    el.appendChild(pick);
+    if (!r.outdoor) {
+      // Its walls inside, and one wall a colour of its own.
+      el.appendChild(d("div", "la3d-sec", t("Walls")));
+      el.appendChild(colourRow(t("Its walls"), e.wall || null, WALL.int, (v) => finishEdit((rooms) => {
+        const q = { ...(rooms[name] || {}) }; if (v) q.wall = v; else delete q.wall; rooms[name] = q;
+      }, v ? "house3d_finish:wall" : null), t("The colour of its walls")));
+      const edges = FIN.roomEdges(r.pts).filter(w => w.len >= 0.05);
+      const own = e.walls || {};
+      const n = Object.keys(own).length;
+      const each = btn(eachWall ? t("One wall a colour of its own ▴") : t("One wall a colour of its own ▾"), t("List its walls, each with a colour"),
+        () => { eachWall = !eachWall; if (!eachWall) wallMark = null; sheet(); paint3d(); });
+      const eachRow = d("div", "la3d-acts");
+      eachRow.append(seg(each), d("span", "la3d-sub", n ? tn(n, "{n} wall has its own", "{n} walls have their own") : ""));
+      el.appendChild(eachRow);
+      if (eachWall) {
+        for (const w of edges) {
+          const k = String(w.i);
+          const row = colourRow(t("Wall {n}, {len}", { n: w.i + 1, len: metres(w.len) }), own[k] || null, e.wall || WALL.int, (v) => finishEdit((rooms) => {
+            const q = { ...(rooms[name] || {}) }, ws = { ...(q.walls || {}) };
+            if (v) ws[k] = v; else delete ws[k];
+            q.walls = ws; rooms[name] = q;
+          }, v ? "house3d_finish:one_wall" : null));
+          row.setAttribute("data-la3d-wall", k);
+          const mark = () => { wallMark = { fid: F.fl.id, name, i: w.i }; paint3d(); };
+          for (const ev of ["pointerenter", "focusin"]) row.addEventListener(ev, guard(mark));
+          el.appendChild(row);
+        }
+      }
+      // The floor's outside walls (every room on it).
+      el.appendChild(d("div", "la3d-sec", t("Outside walls")));
+      el.appendChild(colourRow(t("On {floor}", { floor: F.fl.name || F.fl.id }), out.outside || null, WALL.ext, (v) => finishEdit((rooms, floors) => {
+        if (v) floors[fid] = { outside: v }; else delete floors[fid];
+      }, v ? "house3d_finish:outside" : null), t("The colour of the outside walls on {floor}", { floor: F.fl.name || F.fl.id })));
+    }
+    el.classList.add("on");
+    return true;
+  }
+  /** The wall a row points at, outlined on its floor while no piece is picked. */
+  function markWall(){
+    const got = !sel && wallMark && eachWall && ctx.active() && ctx.FIN ? roomOf(wallMark) : null;
+    const w = got ? ctx.FIN.roomEdges(got.r.pts)[wallMark.i] : null;
+    if (!w) return false;
+    const F = got.F;
+    if (outline.parent !== F.group) { if (outline.parent) outline.parent.remove(outline); F.group.add(outline); }
+    outline.position.set((w.a[0] + w.b[0]) / 2, F.fl.elev, (w.a[1] + w.b[1]) / 2);
+    outline.rotation.set(0, ctx.HOUSE.yawOf([w.b[0] - w.a[0], w.b[1] - w.a[1]]), 0);
+    outline.scale.set(w.len + 0.04, Math.max(0.1, F.fl.h - ctx.HOUSE.SLAB_T), 0.3);
+    outlineMat.color.set(COL.gap);
+    outline.visible = true;
+    return true;
+  }
+
   // ── stairs ──────────────────────────────────────────────────────────────
   /** The floors a flight on `fid` may go up to, and where this one goes. */
   const floorList = () => ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, h: G.fl.h, outdoor: G.fl.outdoor, name: G.fl.name,
@@ -1388,7 +1529,14 @@ export function createFurnish(ctx){
     sheet();
     paint3d();
   }
-  function tap(){ gesture = null; if (sel) select(null); }
+  /** A tap on nothing picked: a room's floor opens its floors and walls (anywhere else closes them); with a piece picked, as before. */
+  function tap(e){
+    gesture = null;
+    if (sel) { select(null); return; }
+    const hit = e && ctx.FIN ? roomAt(e.clientX, e.clientY) : null;
+    if (hit) openRoom(hit.F, hit.room);
+    else if (roomSel) closeRoom();
+  }
   function cancel(){ gesture = null; }
   function hover(e){ return pieceAt(e.clientX, e.clientY) ? "grab" : ""; }
 
@@ -1397,6 +1545,7 @@ export function createFurnish(ctx){
    *  with a fit warning). render: ask for a frame (a redraw has one coming). */
   function paint3d(render = true){
     const p = sel && pieceOf(sel), F = p && floorById(p.floor_id);
+    if (!p && markWall()) { paintGaps(null, null); if (render) ctx.render(); return; }
     if (!p || !F || !ctx.active()) {
       const was = outline.visible || gapsNow.length > 0;
       outline.visible = false;
@@ -1445,15 +1594,15 @@ export function createFurnish(ctx){
       bar.style.display = on ? "" : "none";
       keys(!!on);
       if (on) loadFlows().catch(() => {});
-      else { closeMenu(); closeFlow(); sel = null; gesture = null; picker = null; measure = false; paint3d(); }
+      else { closeMenu(); closeFlow(); sel = null; roomSel = null; wallMark = null; gesture = null; picker = null; measure = false; paint3d(); }
     },
     sheet, down, move, up, tap, cancel, hover, paint3d, select,
     /** After Undo, Redo, Discard or a Save: the selection only if it is still there. */
-    refresh(){ if (sel && !pieceOf(sel)) sel = null; picker = null; measure = false; burst = null; paint3d(); },
+    refresh(){ if (sel && !pieceOf(sel)) sel = null; if (roomSel && !roomOf(roomSel)) { roomSel = null; wallMark = null; } picker = null; measure = false; burst = null; paint3d(); },
     /** Every frame (the view draws nothing at rest, so this asks for none). */
     layout(){ if (menuOpen) placeMenu(); },
     state(){
-      return { sel, menu: menuOpen, flows: mods ? Object.keys(mods).filter(k => mods[k]) : null, gesture: gesture ? { id: gesture.id, moved: gesture.moved, snapped: gesture.snapped } : null,
+      return { sel, room: roomSel ? { ...roomSel } : null, wallMark: wallMark ? { ...wallMark } : null, menu: menuOpen, flows: mods ? Object.keys(mods).filter(k => mods[k]) : null, gesture: gesture ? { id: gesture.id, moved: gesture.moved, snapped: gesture.snapped } : null,
                checks: sel && pieceOf(sel) ? checksOf(pieceOf(sel)).map(w => w.kind) : [], outline: outline.visible ? "#" + outlineMat.color.getHexString() : null,
                flowOpen: !!flowEl, picker: !!picker, lastDrag, keys: keysOn, right: rightOnPlan().map(mm),
                gaps: gapsNow.map((g, i) => ({ side: g.side, d: g.d, label: gapMarks[i].label.text, shown: gapMarks[i].line.visible && !!gapMarks[i].line.parent })) };

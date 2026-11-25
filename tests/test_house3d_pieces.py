@@ -256,7 +256,7 @@ def test_furniture_doors_and_heights_are_one_write(disk, tmp_path):  # noqa: F81
     out = _edit(h, conn, openings={"door_0a1b2c3d": dict(_DOOR)}, devices={"sensor.t": {"z_m": 1.4}},
                 pieces={"fur_1a2b3c4d": _sofa(), "fur_00000001": _sofa(id="fur_00000001", floor_id="up", z_m=0.75)})
     assert disk.writes == [HOUSE3D_STORE_KEY]
-    assert out["counts"] == {"pieces": 2, "lights": 0, "openings": 1, "devices": 1, "figures": 0}
+    assert out["counts"] == {"pieces": 2, "lights": 0, "openings": 1, "devices": 1, "figures": 0, "rooms": 0, "floors": 0}
     assert json.loads(_file(tmp_path).read_text(encoding="utf-8"))["data"] == out["data"]
 
 

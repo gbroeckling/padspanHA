@@ -267,7 +267,7 @@ export function createEditor(ctx){
   const keys = (on) => { if (on === keysOn) return; keysOn = on; window[on ? "addEventListener" : "removeEventListener"]("keydown", onKey); };
   // Furniture (P2 Furnish, live_aboard_furnish.js): a tool of its own on this
   // same draft, so one Save writes doors, windows, heights and furniture.
-  const FUR_HINT = t("Build adds a piece. Drag a piece to move it; tap it to change it.");
+  const FUR_HINT = t("Build adds a piece. Drag a piece to move it; tap it to change it. Tap a room's floor for its floor and walls.");
   const fur = ctx.FURNISH ? ctx.FURNISH.createFurnish({
     THREE, HOUSE, PIECES: ctx.PIECES, FURN: ctx.FURN, root, guard, tools, sheet, layer: ctx.layer,
     draft: () => draft, active: () => active() && tool === "furnish",
@@ -276,6 +276,7 @@ export function createEditor(ctx){
     setTopFloor: (fid) => ctx.setTopFloor(fid), viewAt: (x, y) => ctx.viewAt(x, y), centre: () => ctx.centre(),
     host: () => ctx.host(), base: ctx.base || "", paintEditor: () => paint(),
     STOREY: ctx.STOREY || null,                              // stairs: the floor they reach and their rise
+    FIN: ctx.FIN || null,                                    // a room's floor and walls (a tap on its floor)
     scan: () => (typeof ctx.scan === "function" ? ctx.scan() : null),   // a scanned plan's furniture: "Size to the scan"
     count: (name) => { if (typeof ctx.count === "function") ctx.count(name); },
   }) : null;

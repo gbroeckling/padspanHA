@@ -52,6 +52,8 @@ const SHOW = await import(`./live_aboard_show.js${new URL(import.meta.url).searc
 // room on an indoor floor that is outdoors has no walls, a rail if raised),
 // and an outdoor room's surface. It imports nothing itself.
 const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`);
+// Floors and walls chosen in Furnish (live_aboard_finish.js): its report words. It imports nothing itself.
+const FIN = await import(`./live_aboard_finish.js${new URL(import.meta.url).search}`);
 export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArrowDeg } = COMPASS;
 
 // ── The usage report's words (telemetry.py HOUSE3D_EVENTS holds the same) ────
@@ -84,11 +86,14 @@ export const SHOW_EVENTS = SHOW.SHOW_EVENTS;
 // The Look and the rooms (2026-11-19, live_aboard.js), each time: a Look picked in Views ▾ by its kind only (Classic,
 // Studio, a Showcase theme, By the sun turned on; never which theme), a room gone to from Rooms ▾ or a room chip,
 // and a room set placed in Furnish (live_aboard_furnish.js). Never a room's or a theme's name.
+// Floors and walls (2026-11-24, live_aboard_finish.js FINISH_EVENTS): a floor chosen by its material, a room's walls,
+// one wall, a floor's outside walls, and a house drawn with any of it (once per page load). Never which or where.
 export const LOOK_KINDS = ["classic", "studio", "theme", "sun"];
 export const ROOM_WAYS = ["list", "chip"];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
   "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", "house3d_scan_size", "house3d_scan_fill", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
-  ...STAIR_USE_EVENTS, ...SHOW_EVENTS, ...LOOK_KINDS.map(k => `house3d_look:${k}`), ...ROOM_WAYS.map(w => `house3d_rooms:${w}`), "house3d_room_set"];
+  ...STAIR_USE_EVENTS, ...SHOW_EVENTS, ...LOOK_KINDS.map(k => `house3d_look:${k}`), ...ROOM_WAYS.map(w => `house3d_rooms:${w}`), "house3d_room_set",
+  ...FIN.FINISH_EVENTS];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */
@@ -147,6 +152,8 @@ const BAR_TOL = 0.40, BAR_COS = Math.cos(8 * Math.PI / 180);   // a barrier this
 export const GUARD_DROP_M = 0.76;
 export const DOOR_H = DRAFT.DOOR_HEAD_M, SILL_H = DRAFT.WINDOW_SILL_M, HEAD_H = DRAFT.WINDOW_HEAD_M, RAIL_H = 1.0;
 const WALL_EXT = "#d6cfc2", WALL_INT = "#ebe6dd", DOOR_COL = "#8b6a4f", GARAGE_DOOR_COL = "#c3c9d0";
+// The walls as drawn before anything is chosen (Furnish's floors and walls start from these).
+export const WALL_COLOURS = Object.freeze({ ext: WALL_EXT, int: WALL_INT });
 const RAIL_COL = "#6a6157", RAIL_GLASS = "#c9d6de", WINDOW_GLASS = "#9fd2f2";
 // rf_barriers_m materials that tint a solid wall (glass and open are openings).
 const MAT_TINT = { metal: "#9eabb6", concrete: "#aaa69d", brick: "#a8644c", stone: "#9d978b", wood: "#a37c58", tile: "#b9b4aa" };
@@ -984,13 +991,23 @@ export function edgeRailsToStamp(h, barriers){
  *  window's pane) when a sensor says so. A door's height and a window's sill
  *  and head are the defaults unless the 3D file sets them (pc.head_m,
  *  pc.sill_m: live_aboard_draft.js applyOpenings, part C). */
-export function wallElements(pc, floorH){
+export function wallElements(pc, floorH, sides = null){
   const top = (num(pc.wallH) ?? floorH) - SLAB_T, lim = DRAFT.heightLimits(top);   // wallH: its room's own height (deriveWalls)
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
   const base = pc.cls === "ext" ? WALL_EXT : WALL_INT;
   const tint = (pc.kind === "wall" && MAT_TINT[pc.mat]) || base;
   const E = [];
-  const solid = (z0, z1, col, thick = pc.thick) => E.push({ z0, z1, col, thick, glass: false, cuttable: true });
+  // Floors and walls (live_aboard_finish.js wallSides): the wall itself, above
+  // its floor, takes the colour chosen for each face (pos: toward pc's
+  // normal, neg: the other, out: the outside face); a door's leaf, a pane, a
+  // railing and the slab's edge stay as they are. No sides: as before.
+  const paint = (e) => {
+    if (sides && e.z1 > 0 && (e.col === base || e.col === tint) && (sides.pos || sides.neg)) {
+      e.pos = sides.pos || e.col; e.neg = sides.neg || e.col; e.out = sides.out || 0;
+    }
+    return e;
+  };
+  const solid = (z0, z1, col, thick = pc.thick) => E.push(paint({ z0, z1, col, thick, glass: false, cuttable: true }));
   // A raised level stands on a stem wall down to the floor it is raised from (splitLevels);
   // a doorway cuts its own way through it (below).
   const stem = num(pc.stem) > 0 && pc.kind !== "rail" ? num(pc.stem) : 0;

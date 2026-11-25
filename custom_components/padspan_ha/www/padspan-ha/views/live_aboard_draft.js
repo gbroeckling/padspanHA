@@ -24,6 +24,9 @@
 //   pieces    furniture (P2 Furnish, "fur_" + 8 hex digits): each piece
 //             whole, every key kept (live_aboard_pieces.js has its rules)
 //   figures   people figures (P6), passed through whole
+//   rooms     each room's floor material and wall colours, floors each
+//             floor's outside wall colour (Furnish's floors and walls,
+//             live_aboard_finish.js has their rules)
 // The editor works on a draft of exactly these fields; nothing is stored
 // until Save, which sends only what changed (an entry, or null to remove
 // it) in one websocket command. Keys the editor does not own stay in the
@@ -65,7 +68,10 @@ export function doorTypeKeys(v){
 }
 const ID_OF = { door: "door", window: "win", doorway: "doorway" };
 export const FILE_SCHEMA = 1;              // the 3D file this version writes (house3d_store.py SCHEMA)
-export const SECTIONS = ["openings", "lights", "devices", "pieces", "figures"];
+export const SECTIONS = ["openings", "lights", "devices", "pieces", "figures", "rooms", "floors"];
+// What the editor owns of a room's and a floor's floors and walls (house3d_store.py; the view reads them
+// through live_aboard_finish.js readFinish). Any other key in an entry stays in the file: the server keeps it.
+const FINISH_KEYS = { rooms: ["floor", "wall", "walls"], floors: ["outside"] };
 // A light's kind in the file (house3d_store.py _KIND): a short word. One this
 // version does not draw is kept all the same (the view draws its guess).
 export const LIGHT_KIND = /^[a-z0-9_]{1,40}$/;
@@ -126,11 +132,11 @@ export function writable(data, said){
   return Number.isInteger(s) && s >= 0 && s <= FILE_SCHEMA;
 }
 /** The file's data (house3d_get's "data"), cut down to what the editor owns:
- *  {openings, lights, devices, pieces, figures}. Reading is tolerant:
+ *  {openings, lights, devices, pieces, figures, rooms, floors}. Reading is tolerant:
  *  anything it cannot read is left out of the view, and stays in the file. */
 export function ownedOf(data){
   const d = data && typeof data === "object" ? data : {};
-  const out = { openings: {}, lights: {}, devices: {}, pieces: {}, figures: {} };
+  const out = { openings: {}, lights: {}, devices: {}, pieces: {}, figures: {}, rooms: {}, floors: {} };
   const obj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   const ops = d.openings && typeof d.openings === "object" ? d.openings : {};
   for (const k of Object.keys(ops)) {
@@ -172,6 +178,15 @@ export function ownedOf(data){
   }
   const fg = obj(d.figures) ? d.figures : {};
   for (const k of Object.keys(fg)) if (obj(fg[k])) out.figures[k] = copy(fg[k]);
+  // Floors and walls: each room's and each floor's, the keys the editor owns.
+  for (const s of ["rooms", "floors"]) {
+    const m = obj(d[s]) ? d[s] : {};
+    for (const k of Object.keys(m)) {
+      const e = {};
+      for (const f of FINISH_KEYS[s]) if (obj(m[k]) && m[k][f] !== undefined) e[f] = copy(m[k][f]);
+      if (Object.keys(e).length) out[s][k] = e;
+    }
+  }
   // Railings are choices (2026-11-02): a file from before says its are not
   // yet (rails_chosen false, until live_aboard.js stampEdgeRails, after a Save, has given
   // each Open edge its word). Nothing read yet, or a new house: chosen.
