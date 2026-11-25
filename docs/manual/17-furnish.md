@@ -55,6 +55,28 @@ The other ways in:
 - A piece with no room is left out, and the message says how many.
 - It is a first go to adjust. One **Undo** takes the whole set away.
 
+## Floors and walls
+
+Tap a room's floor (with no piece picked) and its panel opens (for the kitchen, **Kitchen: floor and walls**). Tap
+another room to switch to it; tap outside the house to close it.
+
+- **Floor**: **As drawn** (the room's colour, as before), or a material: **Wood**, **Light wood**,
+  **Tile**, **Stone**, **Carpet** or **Concrete**. Each is drawn with its own colour and its planks or
+  joints, laid square to the room's longest wall.
+- **Walls**: the colour of the room's walls on the inside. The other side of a wall it shares keeps the
+  next room's colour.
+- **One wall a colour of its own**: lists the room's walls by number and length; pointing at a row
+  outlines that wall. Give one an accent colour.
+- **Outside walls**: the colour of the outside walls of the whole floor.
+- **As drawn** next to any colour takes it back to how it was.
+
+Each change is one **Undo**, and nothing is kept until **Save**. The floors and walls are in Live
+Aboard's own file, so a PadSpan backup carries them and a restore brings them back.
+
+They show in Live Aboard's own looks, **Classic** and **Studio** (**Views ▾ → Look**). A Showcase
+theme, and the Atlas's look, keep their own colours: there the house looks as it did. Until you pick
+something, nothing changes anywhere.
+
 ## Moving and setting a piece
 
 - **Drag** a piece across the floor. Its back snaps to the walls, and two short lines show how far it
