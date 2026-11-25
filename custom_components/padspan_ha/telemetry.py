@@ -85,6 +85,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     the alarm on the Atlas's emergency button: its controls shown, an arm,
         a disarm, one Home Assistant refused (ALARM_BUTTON_EVENTS); never a
         code, a mode or which alarm
+    Yesterday at home's morning message: sent, sent with nothing to
+        report, or failed, and which of its lines had something
+        (YESTERDAY_HOME_EVENTS); never a name, a room or a time
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -1116,6 +1119,12 @@ ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_P
 STARTER_HOUSE_WORDS: tuple[str, ...] = ("offered", "previewed", "nothing", "made", "no_floor", "reshape", "upload", "replaced",
                                         *(f"rooms_{b}" for b in ROOMS_BANDS if b != "0"))
 STARTER_HOUSE_EVENTS: frozenset[str] = frozenset(f"starter_house:{k}" for k in STARTER_HOUSE_WORDS)
+# Yesterday at home (presence_coordinator.async_send_yesterday_home, 2026-11-25, off by default): the morning message
+# sent with something in it, sent saying there was nothing to report, or not sent (its target failed); and, once per
+# message, each line that had something (presence_coordinator.YESTERDAY_LINES). Counts only, never a name or a time.
+YESTERDAY_HOME_WORDS: tuple[str, ...] = ("sent", "nothing", "failed",
+                                         "line_comings", "line_guests", "line_empty_rooms", "line_lights")
+YESTERDAY_HOME_EVENTS: frozenset[str] = frozenset(f"yesterday_home:{k}" for k in YESTERDAY_HOME_WORDS)
 
 
 # env.plans (2026-11-16): the house's plans by where they came from, and how far the furthest of each kind has got.
@@ -1505,6 +1514,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     # 0.38.178: several wall screens (Settings → Optimize for scale).
     "optimize_for_scale": "scale",
     "guest_tags_enabled": "guest_tags",
+    # Yesterday at home's morning message (2026-11-25, off by default): on only.
+    "yesterday_home_enabled": "yesterday_home",
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",
@@ -1818,7 +1829,7 @@ def event_allowed(name: str) -> bool:
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
-            or name in STARTER_HOUSE_EVENTS)
+            or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

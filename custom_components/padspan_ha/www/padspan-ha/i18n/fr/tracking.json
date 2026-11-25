@@ -310,5 +310,17 @@
 "Verified — matched {n} rotating addresses{note}. Saving...": {
 "one": "Vérifiée — {n} adresse tournante reconnue{note}. Enregistrement...",
 "other": "Vérifiée — {n} adresses tournantes reconnues{note}. Enregistrement..."
-}
+},
+"Yesterday at home": "Hier à la maison",
+"Send a morning message about the day before": "Envoyer chaque matin un message sur la veille",
+"One short message a day through Home Assistant: who came and went and when, guest tags that arrived or left, the rooms empty longest, and lights left on in rooms where nobody was. The figures are Traceback's for that day, and the message links to it. A day with none of these says \"Nothing to report\".": "Un court message par jour via Home Assistant : qui est arrivé et parti et quand, les tags invités arrivés ou partis, les pièces restées vides le plus longtemps, et les lumières restées allumées dans des pièces où il n'y avait personne. Les chiffres sont ceux de Traceback pour ce jour, et le message y renvoie. Un jour sans rien de tout cela dit « Rien à signaler ».",
+"Send it at": "Envoyer à",
+"Send it to": "Envoyer vers",
+"What it tells": "Ce qu'il dit",
+"A Home Assistant notification": "Une notification dans Home Assistant",
+"Who came and went, and when": "Qui est arrivé et parti, et quand",
+"Guest tags that arrived or left": "Les tags invités arrivés ou partis",
+"The rooms empty longest": "Les pièces restées vides le plus longtemps",
+"Lights left on in rooms where nobody was": "Les lumières allumées dans des pièces où il n'y avait personne",
+"Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Seul un administrateur peut modifier ceci. Activé après l'heure du jour, le premier message arrive demain."
 }

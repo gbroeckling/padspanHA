@@ -530,6 +530,37 @@ class TracebackStore:
                 lambda: compute_dwell_stats(self._iter_frames_sync(start_ts, end_ts, extra),
                                             tz_name=tz_name, presorted=True))
 
+    async def async_day_summary(self, start_ts: float, end_ts: float,
+                                guests: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """Yesterday at home's figures for [start_ts, end_ts) (day_summary),
+        streamed over the files in the executor as Insights is: every frame,
+        unthinned, from the frames Traceback replays for that window."""
+        read_end = min(time.time(), end_ts + COMING_GAP_S)
+        async with self._io_lock:
+            extra = list(self._pending)
+            return await self.hass.async_add_executor_job(
+                lambda: day_summary(self._iter_frames_sync(start_ts - COMING_GAP_S, read_end, extra),
+                                    start_ts, end_ts, read_end, guests))
+
+    async def async_recorded_before(self, ts: float) -> bool:
+        """Whether Traceback holds a frame from before `ts`: it was recording
+        then, so a time with nobody in its frames had nobody home (no frame is
+        written while no one is in), not a PadSpan that was not running yet."""
+        def _first() -> float | None:
+            for p in self._files(time.time() - MAX_AGE_S, ts):
+                try:
+                    with open(p, encoding="utf-8") as fh:
+                        for line in fh:
+                            got = _line_ts(line.strip()) if line.strip() else None
+                            if got is not None:
+                                return got
+                except OSError:
+                    continue
+            return None
+        async with self._io_lock:
+            first = await self.hass.async_add_executor_job(_first)
+        return first is not None and first < ts
+
     async def _async_index(self) -> OrderedDict[str, dict[str, Any]]:
         async with self._io_lock:
             if self._keys is None:
@@ -575,3 +606,139 @@ class TracebackStore:
         cutoff = time.time() - MEM_WINDOW_S
         if self.frames and self.frames[0].get("ts", 0) <= cutoff:
             self.frames = [f for f in self.frames if f.get("ts", 0) > cutoff]
+
+
+# ── Yesterday at home (presence_coordinator.async_send_yesterday_home) ──────
+# The morning message's figures, read from the same frames Traceback replays
+# for that day, so the two always agree. Off by default (settings
+# yesterday_home_enabled); nothing here runs while it is off.
+
+# Out of Traceback for longer than this between two sightings is a "left" and
+# a "back": a phone in a dead corner, or room unknown for a few minutes, is
+# not someone going out.
+COMING_GAP_S = 900.0
+
+
+def _merge(spans: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    out: list[tuple[float, float]] = []
+    for s, e in sorted(spans):
+        if out and s <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], e))
+        else:
+            out.append((s, e))
+    return out
+
+
+def empty_spans(occupied: list[tuple[float, float]], start: float, end: float) -> list[tuple[float, float]]:
+    """The stretches of [start, end] outside every occupied span."""
+    out, at = [], start
+    for s, e in _merge([(max(s, start), min(e, end)) for s, e in occupied if e >= start and s <= end]):
+        if s > at:
+            out.append((at, s))
+        at = max(at, e)
+    if at < end:
+        out.append((at, end))
+    return out
+
+
+def day_summary(frames: Iterator[dict[str, Any]] | list[dict[str, Any]], start: float, end: float,
+                read_end: float, guests: list[dict[str, Any]] | None = None,
+                gap_s: float = COMING_GAP_S) -> dict[str, Any]:
+    """One day of Traceback, as the morning message tells it. Pure.
+
+    frames: Traceback's frames in time order from start - gap_s to read_end
+      (at most end + gap_s): the gap before the day says who was already in
+      at midnight, the gap after it whether a last sighting was a leaving.
+    guests: the stays that ran that day, [{id, pid, keys, label, name, start,
+      end}]: a lent tag's comings and goings during a stay are that guest's;
+      a guest tag is never in the people line.
+
+    Returns:
+      people: [{name, events: [(kind, ts)]}], kind "left" or "back";
+        everything Traceback names (its "n"), one entry per device (its
+        padspan id, else its key), in order of the first event.
+      guests: [{name, tag, events: [(kind, ts)]}], kind "arrived" or "left".
+      occupied: {room: [(from, to)]}: someone (anything Traceback holds, as
+        Insights counts occupancy) in the room, from one sighting to the next
+        when they are at most dwell_analytics.MAX_DWELL_GAP_S apart.
+      frames: how many frames fall inside the day.
+    """
+    from .dwell_analytics import MAX_DWELL_GAP_S  # noqa: PLC0415
+    stays = [(str(g.get("pid") or ""), {str(k) for k in (g.get("keys") or []) if k}, g) for g in (guests or [])]
+
+    def _stays_of(o: dict[str, Any]) -> list[dict[str, Any]]:
+        return [g for pid, keys, g in stays if (pid and o.get("pid") == pid) or o.get("k") in keys]
+
+    names: dict[str, str] = {}
+    last_seen: dict[str, float] = {}
+    tag_stays: dict[str, list[dict[str, Any]]] = {}
+    people_ev: dict[str, list[tuple[str, float]]] = {}
+    guest_ev: dict[int, list[tuple[str, float]]] = {}
+    last_room: dict[str, tuple[str, float]] = {}
+    occupied: dict[str, list[tuple[float, float]]] = {}
+    in_day = 0
+
+    def _event(ident: str, kind: str, ts: float) -> None:
+        if not (start <= ts < end):
+            return
+        if ident not in tag_stays:
+            people_ev.setdefault(ident, []).append((kind, ts))
+            return
+        for g in tag_stays[ident]:   # a guest tag: the stay running then, if any
+            if float(g.get("start") or 0) <= ts <= float(g.get("end") or float("inf")):
+                guest_ev.setdefault(id(g), []).append(("arrived" if kind == "back" else kind, ts))
+                return
+
+    for f in frames:
+        ts = f.get("ts")
+        if not isinstance(ts, (int, float)) or ts > read_end:
+            continue
+        if start <= ts < end:
+            in_day += 1
+        seen_now: set[str] = set()
+        for o in f.get("o", []):
+            key = o.get("k")
+            if not key:
+                continue
+            # Rooms: every object, as Insights counts occupancy.
+            room = o.get("r")
+            if room:
+                prev = last_room.get(key)
+                if prev is not None and 0 < ts - prev[1] <= MAX_DWELL_GAP_S:
+                    occupied.setdefault(prev[0], []).append((prev[1], ts))
+                occupied.setdefault(room, []).append((ts, ts))
+                last_room[key] = (room, ts)
+            # Comings and goings: named devices and guest tags, one per padspan id.
+            ident = str(o.get("pid") or key)
+            if ident in seen_now:
+                continue
+            mine = _stays_of(o)
+            if not o.get("n") and not mine:
+                continue
+            seen_now.add(ident)
+            if mine:
+                tag_stays[ident] = mine
+            names[ident] = str(o.get("n") or names.get(ident) or key)
+            before = last_seen.get(ident)
+            if before is None:
+                if ts >= start:
+                    _event(ident, "back", ts)
+            elif ts - before > gap_s:
+                _event(ident, "left", before)
+                _event(ident, "back", ts)
+            last_seen[ident] = ts
+    for ident, before in last_seen.items():
+        if read_end - before > gap_s:
+            _event(ident, "left", before)
+
+    people = [{"name": names[i], "events": sorted(ev, key=lambda e: e[1])}
+              for i, ev in sorted(people_ev.items(), key=lambda kv: min(t for _k, t in kv[1]))]
+    guest_rows = []
+    for _pid, _keys, g in stays:
+        ev = guest_ev.get(id(g))
+        if ev:
+            guest_rows.append({"name": str(g.get("name") or ""), "tag": str(g.get("label") or ""),
+                               "events": sorted(ev, key=lambda e: e[1])})
+    guest_rows.sort(key=lambda r: r["events"][0][1])
+    return {"people": people, "guests": guest_rows,
+            "occupied": {r: _merge(sp) for r, sp in occupied.items()}, "frames": in_day}

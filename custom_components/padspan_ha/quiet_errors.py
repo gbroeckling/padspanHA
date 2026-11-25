@@ -337,6 +337,11 @@ presence:smooth_path_loss_settings
 presence:suspend_databases
 presence:unsuspend_databases
 presence:usual_move
+presence:yesterday_guests
+presence:yesterday_home
+presence:yesterday_lights
+presence:yesterday_link
+presence:yesterday_tz
 presence_rules:home_context_objects
 presence_rules:home_context_zones
 presence_rules:is_carried_persons

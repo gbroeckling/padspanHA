@@ -123,6 +123,10 @@ folding heading on that tab.</p>
   <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
   <tr><td>Guest tags: Use tags as guest tags</td><td>off</td><td>on or off</td><td>Guest tags: the Guests screen, <code>binary_sensor.padspan_guest_home</code> and the guest notices.</td><td><code>guest_tags_enabled</code></td></tr>
   <tr><td>Guest tags: Keep a finished stay's report (name, times, rooms) for</td><td>30</td><td><code>0</code>, <code>7</code>, <code>30</code>, <code>90</code></td><td>Days a finished stay's report is kept. 0: not kept.</td><td><code>guest_retention_days</code></td></tr>
+  <tr><td>Yesterday at home: Send a morning message about the day before</td><td>off</td><td>on or off</td><td>One short message a day through Home Assistant about the day before, from Traceback's figures for that day (<a href="/manual/alerts/">chapter 13</a>).</td><td><code>yesterday_home_enabled</code></td></tr>
+  <tr><td>Yesterday at home: Send it at</td><td><code>08:00</code></td><td></td><td>When the message goes, HH:MM in Home Assistant's time.</td><td><code>yesterday_home_time</code></td></tr>
+  <tr><td>Yesterday at home: Send it to</td><td>empty</td><td></td><td>A notify target from the list Follow alerts use; empty: a Home Assistant notification.</td><td><code>yesterday_home_target</code></td></tr>
+  <tr><td>Yesterday at home: What it tells</td><td><code>['comings', 'guests', 'empty_rooms', 'lights']</code></td><td></td><td>The lines it may hold: <code>comings</code>, <code>guests</code>, <code>empty_rooms</code>, <code>lights</code>.</td><td><code>yesterday_home_lines</code></td></tr>
   <tr><td>Phone Tracking (Private BLE)</td><td>empty</td><td></td><td>The phones and watches whose key (IRK) you added in PadSpan.</td><td><code>irk_devices</code></td></tr>
 </table>
 </div>
@@ -395,6 +399,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
   <tr><td><code>telemetry_heard_ask</code></td><td>empty</td><td></td><td>Whether the where-did-you-hear question is due, or done.</td></tr>
   <tr><td><code>telemetry_install_id</code></td><td>empty</td><td></td><td>The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it).</td></tr>
   <tr><td><code>telemetry_last_day</code></td><td>empty</td><td></td><td>The day the last usage report was sent.</td></tr>
+  <tr><td><code>yesterday_home_sent_day</code></td><td>empty</td><td></td><td>The day Yesterday at home last told, so it is never told twice.</td></tr>
   <tr><td><code>report_locked_key</code></td><td>empty</td><td></td><td>Which free licence keeps the usage report on.</td></tr>
   <tr><td><code>whatsnew_seen_version</code></td><td>empty</td><td></td><td>The last version whose update card someone saw.</td></tr>
   <tr><td><code>first_seen_ts</code></td><td>0</td><td></td><td>When PadSpan first ran here.</td></tr>

@@ -45,6 +45,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "report_locked_key": "",       # sha256 of a FREE licence key granted from 0.38.181 (trial, tester, free year): the usage report stays on while that key is here and unexpired (report_locked_until)
     "guest_tags_enabled": False,   # guest tags (guest_tags.py): off until chosen in Settings; nothing runs while off
     "guest_retention_days": 30,    # a finished guest stay's report is kept this long: 0, 7, 30 or 90
+    # Yesterday at home (presence_coordinator.async_send_yesterday_home): one
+    # morning message through Home Assistant notify about the day before, from
+    # Traceback's frames. Off by default (approved 2026-11-23, free).
+    "yesterday_home_enabled": False,
+    "yesterday_home_time": "08:00",        # "HH:MM", Home Assistant's time
+    "yesterday_home_target": "",           # a notify target (the Follow picker's); "" = a Home Assistant notification
+    "yesterday_home_lines": ["comings", "guests", "empty_rooms", "lights"],   # YESTERDAY_LINES, in that order
+    "yesterday_home_sent_day": "",         # backend-only: the day ("YYYY-MM-DD") last told, so a restart never tells it twice
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
     # Enhanced security (ws_common.require_admin_if_enhanced): off = every
     # command as before; on = only an admin changes the home's shared setup.

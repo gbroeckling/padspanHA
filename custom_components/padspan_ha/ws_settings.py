@@ -798,6 +798,10 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("optimize_for_scale"): bool,
         vol.Optional("guest_tags_enabled"): bool,
         vol.Optional("guest_retention_days"): vol.Coerce(int),
+        vol.Optional("yesterday_home_enabled"): bool,         # presence_coordinator.async_send_yesterday_home; admin only
+        vol.Optional("yesterday_home_time"): str,             # "HH:MM"
+        vol.Optional("yesterday_home_target"): str,           # a notify target, or "" for a Home Assistant notification
+        vol.Optional("yesterday_home_lines"): _LIST,          # words from presence_coordinator.YESTERDAY_LINES
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1332,6 +1336,40 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     connection.send_error(msg["id"], "invalid_format", "Keep finished stays for 0, 7, 30 or 90 days")
                     return
                 payload["guest_retention_days"] = _days
+        # Yesterday at home (presence_coordinator.async_send_yesterday_home):
+        # admin only, as guest tags are — it sends who came and went.
+        _yh_keys = ("yesterday_home_enabled", "yesterday_home_time", "yesterday_home_target", "yesterday_home_lines")
+        if any(k in msg for k in _yh_keys):
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Yesterday at home")
+                return
+            from .presence_coordinator import (  # noqa: PLC0415
+                YESTERDAY_LINES, follow_target_allowed, yesterday_clock, yesterday_stamp_on,
+            )
+            if "yesterday_home_time" in msg:
+                _yt = str(msg["yesterday_home_time"] or "").strip()
+                if yesterday_clock(_yt) is None:
+                    connection.send_error(msg["id"], "invalid_format", "The time must be HH:MM")
+                    return
+                payload["yesterday_home_time"] = _yt
+            if "yesterday_home_target" in msg:
+                _ytg = str(msg["yesterday_home_target"] or "").strip()
+                if len(_ytg) > 120 or not follow_target_allowed(_ytg):
+                    connection.send_error(msg["id"], "invalid_format", "That is not a notification target")
+                    return
+                payload["yesterday_home_target"] = _ytg
+            if "yesterday_home_lines" in msg:
+                _yl = [w for w in YESTERDAY_LINES if w in msg["yesterday_home_lines"]]
+                payload["yesterday_home_lines"] = _yl
+            if "yesterday_home_enabled" in msg:
+                payload["yesterday_home_enabled"] = bool(msg["yesterday_home_enabled"])
+                # Turned on after today's time: the first message comes at
+                # the time tomorrow, not at once.
+                if payload["yesterday_home_enabled"] and not st.data.get("yesterday_home_enabled"):
+                    _ystamp = yesterday_stamp_on(hass, {**st.data, **payload})
+                    if _ystamp is not None:
+                        payload["yesterday_home_sent_day"] = _ystamp
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",

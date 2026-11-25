@@ -277,17 +277,19 @@ export function render(ctx) {
   // once, by the real render (not the no-floor-plan one above). key is the
   // snapshot object's key (o.key || o.address || o.entity_id), the one the
   // frames carry. Playback of that object over that window, house view off.
+  // With no key (?view=traceback&from=&to=, Yesterday at home's link): every
+  // object over that window.
   const _preset = ctx.state._tracebackPreset;
   if (_preset) {
     delete ctx.state._tracebackPreset;
     const s0 = Number(_preset.start_ms), s1 = Number(_preset.end_ms);
-    if (_preset.key && Number.isFinite(s0) && Number.isFinite(s1)) {
+    if (Number.isFinite(s0) && Number.isFinite(s1)) {
       tb.mode = "playback";
       tb.playing = false;
       tb.frameIdx = 0;
       tb.house.on = false;
-      tb.filterKey = String(_preset.key);
-      tb.filterName = String(_preset.name || _preset.key);
+      tb.filterKey = _preset.key ? String(_preset.key) : null;
+      tb.filterName = _preset.key ? String(_preset.name || _preset.key) : t("All objects");
       tb.startTs = Math.min(s0, s1) / 1000;
       tb.endTs = Math.max(s0, s1) / 1000;
       tb.rangePreset = Math.round(tb.endTs - tb.startTs);

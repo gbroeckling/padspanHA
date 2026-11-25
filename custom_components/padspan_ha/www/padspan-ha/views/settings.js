@@ -982,6 +982,63 @@ function _settingsPresence(ctx, el){
     ]));
   }
 
+  // ── Yesterday at home (presence_coordinator.async_send_yesterday_home): off by default ──
+  // One morning message about the day before, from Traceback's frames.
+  {
+    const yOn = settings.yesterday_home_enabled === true;
+    const save = async (patch) => {
+      try { await ctx.actions.settingsSet(patch); ctx.toast(t("Saved")); return true; }
+      catch(e){ ctx.toast(t("Failed to save: {error}", { error: ctx.helpers.errorText(e) }), true); return false; }
+    };
+    const yToggle = el("input",{type:"checkbox",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
+    yToggle.checked = yOn;
+    yToggle.addEventListener("change", async()=>{
+      if (!(await save({ yesterday_home_enabled: yToggle.checked }))) yToggle.checked = !yToggle.checked;
+      else ctx.actions.renderRooms();
+    });
+    const yTime = el("input",{type:"time",class:"input",style:"width:auto"});
+    yTime.value = settings.yesterday_home_time || "08:00";
+    yTime.addEventListener("change", ()=>{ if (yTime.value) save({ yesterday_home_time: yTime.value }); });
+    const yTarget = el("select",{class:"select",style:"width:auto;max-width:100%"});
+    yTarget.appendChild(el("option",{value:""}, t("A Home Assistant notification")));
+    const fill = (list) => {
+      for (const svc of list || []) yTarget.appendChild(el("option",{value:svc}, svc));
+      const cur = settings.yesterday_home_target || "";
+      if (cur && ![...yTarget.options].some(o => o.value === cur)) yTarget.appendChild(el("option",{value:cur}, cur));
+      yTarget.value = cur;
+    };
+    if (Array.isArray(ctx.state._notifyServices) && ctx.state._notifyServices.length) fill(ctx.state._notifyServices);
+    else { fill([]); ctx.actions.wsCall("padspan_ha/notify_services_list", {}).then(r => {
+      ctx.state._notifyServices = (r && r.services) || [];
+      while (yTarget.options.length > 1) yTarget.remove(1);
+      fill(ctx.state._notifyServices);
+    }).catch(() => {}); }
+    yTarget.addEventListener("change", ()=>save({ yesterday_home_target: yTarget.value }));
+    const have = new Set(Array.isArray(settings.yesterday_home_lines) ? settings.yesterday_home_lines : ["comings","guests","empty_rooms","lights"]);
+    const lineBoxes = [];
+    const lineRow = el("div",{style:"display:flex;flex-direction:column;gap:4px;margin:4px 0 8px"});
+    for (const [w, label] of [["comings", t("Who came and went, and when")], ["guests", t("Guest tags that arrived or left")],
+                              ["empty_rooms", t("The rooms empty longest")], ["lights", t("Lights left on in rooms where nobody was")]]) {
+      const c = el("input",{type:"checkbox",style:"accent-color:#52b788"});
+      c.checked = have.has(w); c.value = w;
+      c.addEventListener("change", ()=>save({ yesterday_home_lines: lineBoxes.filter(b => b.checked).map(b => b.value) }));
+      lineBoxes.push(c);
+      lineRow.appendChild(el("label",{style:"font-size:13px;color:#e2e8f0;display:flex;gap:6px;align-items:center"},[c, label]));
+    }
+    put("phones", el("div",{class:"card",style:"border-color:" + (yOn ? "#52b788" : "#2d4a38")},[
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, t("Yesterday at home")),
+      el("div",{style:rowStyle},[ yToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, t("Send a morning message about the day before")) ]),
+      el("div",{class:"muted",style:"font-size:12px;margin:4px 0 8px;line-height:1.5"},
+        t("One short message a day through Home Assistant: who came and went and when, guest tags that arrived or left, the rooms empty longest, and lights left on in rooms where nobody was. The figures are Traceback's for that day, and the message links to it. A day with none of these says \"Nothing to report\".")),
+      el("div",{style:rowStyle},[ el("span",{style:"font-size:12px;color:#94a3b8"},t("Send it at")), yTime ]),
+      el("div",{style:rowStyle},[ el("span",{style:"font-size:12px;color:#94a3b8"},t("Send it to")), yTarget ]),
+      el("div",{style:"font-size:12px;color:#94a3b8"}, t("What it tells")),
+      lineRow,
+      el("div",{class:"muted",style:"font-size:11px"},
+        t("Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.")),
+    ]));
+  }
+
   // ── Fabric source ─────────────────────────────────────────────────────────
   // "Runs without Home Assistant areas" — the fabric is the model, and this
   // decides whether HA's registry gets to write into it.
