@@ -180,5 +180,15 @@
 "{n} stationary refs show {dist} phantom distance (lower = better scanner positioning)": {
 "one": "{n} ortsfeste Referenz zeigt {dist} Phantomstrecke (weniger = besser platzierte Empfänger)",
 "other": "{n} ortsfeste Referenzen zeigen {dist} Phantomstrecke (weniger = besser platzierte Empfänger)"
-}
+},
+"No beacon activity in this time range. Try a longer range — or turn on 💡 Devices to play the house back.": "Keine Beacon-Aktivität in diesem Zeitraum. Versuch einen längeren Zeitraum — oder schalte 💡 Geräte ein, um das Haus abzuspielen.",
+"No beacon or house activity in this time range. Try a longer range.": "Keine Beacon- oder Hausaktivität in diesem Zeitraum. Versuch einen längeren Zeitraum.",
+"Switched by Vacation Mode": "Von Vacation Mode geschaltet",
+"No traceback frames loaded. Select a time range and press Play.": "Keine Traceback-Frames geladen. Wähle einen Zeitraum und tippe auf „Abspielen“.",
+"5 min": "5 Min.",
+"15 min": "15 Min.",
+"30 min": "30 Min.",
+"min": "Min.",
+"to": "bis",
+"Failed to load traceback data: {why}": "Traceback-Daten konnten nicht geladen werden: {why}"
 }

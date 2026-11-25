@@ -76,7 +76,7 @@ export function render(ctx) {
       pane.innerHTML = "";
       pane.appendChild(mode === "busytimes" ? busyTimesView.render(ctx) : insightsView.render(ctx));
     };
-    for (const [label, mode] of [["Insights", "insights"], ["Busy Times", "busytimes"]]) {
+    for (const [label, mode] of [[t("Insights"), "insights"], [t("Busy Times"), "busytimes"]]) {
       const b = document.createElement("button");
       b.className = "btn inline";
       b.dataset.mode = mode;
@@ -1106,8 +1106,8 @@ export function render(ctx) {
 
     if (!tb.frames.length) {
       mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">${
-        !devices ? "No beacon activity in this time range. Try a longer range — or turn on 💡 Devices to play the house back."
-        : hs.loading ? "Loading house history…" : errLine || "No beacon or house activity in this time range. Try a longer range."}</div>`;
+        !devices ? _esc(t("No beacon activity in this time range. Try a longer range — or turn on 💡 Devices to play the house back."))
+        : hs.loading ? _esc(t("Loading house history…")) : errLine || _esc(t("No beacon or house activity in this time range. Try a longer range."))}</div>`;
       _wireRetry();
       _renderHouseEvents();
       return;
@@ -1214,7 +1214,7 @@ export function render(ctx) {
       const when = d.toLocaleDateString([], { month: "short", day: "numeric" }) + " "
         + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       row.innerHTML = `<span style="font-family:monospace;color:#94a3b8">${_esc(when)}</span>` +
-        `<span style="flex:1">${e.vacation ? '<span title="Switched by Vacation Mode">🌴 </span>' : ""}${_esc(e.name)}</span>` +
+        `<span style="flex:1">${e.vacation ? `<span title="${_esc(t("Switched by Vacation Mode"))}">🌴 </span>` : ""}${_esc(e.name)}</span>` +
         `<span style="color:#fbbf24">${_esc(e.from)} → ${_esc(e.to)}</span>`;
       row.addEventListener("click", () => {
         _stopPlayback();
@@ -1233,7 +1233,7 @@ export function render(ctx) {
   function _renderFrame() {
     if (_houseActive()) { _renderHouseFrame(); return; }
     if (!tb.frames.length) {
-      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">No traceback frames loaded. Select a time range and press Play.</div>`;
+      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px">${_esc(t("No traceback frames loaded. Select a time range and press Play."))}</div>`;
       return;
     }
     if (!_staticBase || !_overlayDiv) {
@@ -1428,7 +1428,7 @@ export function render(ctx) {
     rangeRow.appendChild(rangeLbl);
 
     const presets = [
-      { label: "5 min", s: 300 }, { label: "15 min", s: 900 }, { label: "30 min", s: 1800 },
+      { label: t("5 min"), s: 300 }, { label: t("15 min"), s: 900 }, { label: t("30 min"), s: 1800 },
       { label: t("1 hr"), s: 3600 }, { label: t("4 hr"), s: 14400 }, { label: t("12 hr"), s: 43200 },
       { label: t("1 day"), s: 86400 }, { label: t("3 days"), s: 259200 }, { label: t("7 days"), s: 604800 },
     ];
@@ -1454,7 +1454,7 @@ export function render(ctx) {
     // Custom minutes input
     const _customInput = document.createElement("input");
     _customInput.type = "number"; _customInput.min = "1"; _customInput.max = "99999"; _customInput.step = "1";
-    _customInput.placeholder = "min";
+    _customInput.placeholder = t("min");
     _customInput.style.cssText = "width:55px;padding:2px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:10px";
     const _customBtn = document.createElement("button");
     _customBtn.className = "btn inline";
@@ -1498,7 +1498,7 @@ export function render(ctx) {
 
     const toSpan = document.createElement("span");
     toSpan.style.cssText = "font-size:12px;color:#64748b";
-    toSpan.textContent = "to";
+    toSpan.textContent = t("to");
     dtRow.appendChild(toSpan);
 
     const endInput = document.createElement("input");
@@ -1992,7 +1992,7 @@ export function render(ctx) {
 
     const toLbl = document.createElement("span");
     toLbl.style.cssText = "font-size:12px;color:#94a3b8;margin-left:6px";
-    toLbl.textContent = "to";
+    toLbl.textContent = t("to");
     rangeRow.appendChild(toLbl);
 
     const toInput = document.createElement("input");
@@ -2389,7 +2389,7 @@ export function render(ctx) {
       }
     }).catch(err => {
       console.error("Traceback load failed:", err);
-      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#f87171;font-size:14px">Failed to load traceback data: ${_esc(String(err).substring(0, 100))}</div>`;
+      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#f87171;font-size:14px">${_esc(t("Failed to load traceback data: {why}", { why: String(err).substring(0, 100) }))}</div>`;
     });
   } else if (tb.mode === "discovery") {
     _runDiscoverySearch();
@@ -2409,7 +2409,7 @@ export function render(ctx) {
     // Time window selector + load button
     const windowRow = el("div",{style:"display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap;align-items:center"});
     const windows = [
-      {label:"15 min", mins:15}, {label:t("1 hour"), mins:60}, {label:t("4 hours"), mins:240},
+      {label:t("15 min"), mins:15}, {label:t("1 hour"), mins:60}, {label:t("4 hours"), mins:240},
       {label:t("24 hours"), mins:1440}, {label:t("7 days"), mins:10080},
     ];
     if (!ctx.state._distWindow) ctx.state._distWindow = 240;
@@ -2432,7 +2432,7 @@ export function render(ctx) {
     // Custom minutes input
     const customInput = document.createElement("input");
     customInput.type = "number"; customInput.min = "1"; customInput.max = "99999"; customInput.step = "1";
-    customInput.placeholder = "min";
+    customInput.placeholder = t("min");
     customInput.style.cssText = "width:60px;padding:2px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:10px";
     customInput.value = ctx.state._distWindow && !windows.some(w => w.mins === ctx.state._distWindow) ? ctx.state._distWindow : "";
     const customBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px"});

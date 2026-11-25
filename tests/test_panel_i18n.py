@@ -333,7 +333,33 @@ def test_every_t_call_names_its_english() -> None:
     assert not bad, "\n".join(bad[:20])
 
 
-_PANEL_GROUPS = ("panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "server")
+def test_traceback_writes_no_english_past_t() -> None:
+    """Traceback's empty map said "No traceback frames loaded" in English
+    with German loaded: a sentence written straight into the page never
+    reaches the translation. With every t()/tn() call taken out, no English
+    words are left in the text, a title, a placeholder or a button label."""
+    src = (_WWW / "views" / "traceback.js").read_text(encoding="utf-8")
+    rest = _TN_RE.sub("", _T_RE.sub("", src))
+    rest = "\n".join(ln for ln in rest.splitlines() if not ln.lstrip().startswith(("//", "*", "console.")))
+    for gone in ("No traceback frames loaded", "Failed to load traceback data", "No beacon activity",
+                 "No beacon or house activity", "Loading house history", "Switched by Vacation Mode",
+                 '"Insights"', '"Busy Times"', '"5 min"', '"15 min"', '"30 min"'):
+        assert gone not in rest, gone
+    bare = [
+        r'(?:textContent|placeholder)\s*=\s*"[^"]*[A-Za-z]{2}',   # a label or placeholder set to a literal
+        r'\blabel\s*:\s*"[^"]*[A-Za-z]{2}',                       # a preset button's label
+        r'title="[A-Za-z][a-z]+ [a-z]',                           # a tooltip in markup
+        r'>[A-Z][a-z]+ [a-z]+[^<$]*</',                           # a sentence between tags
+        r'\$\{[^{}]*\?\s*"[A-Z][a-z]+ [a-z]',                      # a sentence picked by a ternary in a template
+    ]
+    found = [(p, m.group(0)) for p in bare for m in re.finditer(p, rest)]
+    assert not found, found[:10]
+    # And German has each of them (the traceback group is complete in German).
+    de = json.loads((_LANG_DIR / "de" / "traceback.json").read_text(encoding="utf-8"))
+    assert de["No traceback frames loaded. Select a time range and press Play."].startswith("Keine Traceback-Frames")
+
+
+_PANEL_GROUPS =("panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "server")
 # German first (2026-11-23): these groups are complete in German only. Their nl/fr files exist (an empty map, so the
 # panel's one request per group still answers and the screen stays English there) and hold no key the code does not
 # ask for; they need not be complete until French and Dutch are translated. Take a group out of this list then.
