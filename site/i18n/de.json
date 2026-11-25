@@ -15,8 +15,8 @@
    "de": "PadSpan™ HA"
   },
   {
-   "en": "The most comprehensive BLE room-presence system for Home Assistant. It doesn't just know you're home — it knows <b>which room</b> every Bluetooth device is in, updated every 5 seconds.",
-   "de": "Das umfassendste BLE-System für Anwesenheit pro Raum in Home Assistant. Es weiß nicht nur, dass du zu Hause bist, sondern <b>in welchem Raum</b> jedes Bluetooth-Gerät gerade ist, alle 5 Sekunden aktualisiert. Die Oberfläche von PadSpan ist größtenteils auf Deutsch."
+   "en": "Create an eminently intuitive control panel that really gives you mastery of your residence. Make it as simple or complex as you need, but in the end it will be the most effective control possible with the fewest clicks. Once it becomes a permanent and familiar part of your routine, there will be a sense of confidence that you have your space in the palm of your hand.",
+   "de": "Erstelle eine ausgesprochen intuitive Steuerzentrale, mit der du dein Zuhause wirklich im Griff hast. Mach sie so einfach oder so komplex, wie du sie brauchst, doch am Ende wird sie die wirkungsvollste Steuerung mit den wenigsten Klicks sein. Sobald sie ein fester, vertrauter Teil deines Alltags ist, hast du das sichere Gefühl, deine vier Wände in der Hand zu haben. Die Oberfläche von PadSpan ist größtenteils auf Deutsch."
   },
   {
    "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.8+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
