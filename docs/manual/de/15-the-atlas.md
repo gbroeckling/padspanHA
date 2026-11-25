@@ -247,9 +247,11 @@ Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.
 - Um den Knopf auf einem Bildschirm auszublenden, den jeder antippen kann:
   **Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
   the Atlas**.
-- **Deine Alarmanlage** sitzt neben dem Knopf, wenn Home Assistant eine Alarmzentrale hat: ihr
-  Zustand, und in PadSpan Bright und Pro ein Druck zum Scharf- oder Unscharfschalten, immer nach
-  einer Frage (und mit dem Code, wenn die Alarmanlage einen will). Eine auslösende Alarmanlage
+- **Deine Alarmanlage** ist im Knopf, wenn Home Assistant eine Alarmzentrale hat: Die Mitte wird
+  ihr Schild in ihrer Farbe, und Mitte wie Ring öffnen eine Karte, oben die Alarmanlage (in PadSpan
+  Bright und Pro scharf und unscharf schalten, immer nach einer Frage und mit dem Code, wenn die
+  Alarmanlage einen will), darunter die Notlichter mit **Start test**. Ein Haus mit Alarmanlage und
+  ohne Notlichter bekommt den eigenen Knopf der Alarmanlage, einen schlichten Ring. Eine auslösende Alarmanlage
   erscheint dort in jeder Ausgabe. Siehe [Kapitel 13](13-alerts.md#deine-alarmanlage-am-notfallknopf).
 
 ## WLED: Advanced und Exact look (Pro oder Bright Pro)

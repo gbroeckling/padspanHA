@@ -253,24 +253,32 @@ def test_a_new_toast_replaces_the_last(result) -> None:
     assert result["emerg3"]["toastsOnScreen"] == 1, result["emerg3"]
 
 
-def test_the_alarm_on_the_emergency_button(result) -> None:
-    """The house's alarm (views/alarm_panel.js) on the Atlas's emergency
-    button, the owner's 2026-11-23: no alarm panel, the button is the DOM it
-    was (a free house's with a quiet alarm too); Bright and Pro show its state
-    beside the dial and arm from it only after the question; free shows only
-    an alarm going off, with nothing to press; no emergency lights, the chip
-    alone; a wall screen and a non-admin arm as they unlock a door; counted
-    once, never a name or a code."""
+def test_the_alarm_inside_the_emergency_button(result) -> None:
+    """The house's alarm (views/alarm_panel.js) inside the Atlas's emergency
+    button, the owner's 2026-11-23 and 2026-11-24 ("put it in the emergency
+    button on the top right of the screen inside the button there"): no alarm
+    panel, the button is the DOM it was (a free house's with a quiet alarm
+    too); Bright and Pro: the centre is the alarm's shield, nothing beside the
+    dial, and a press opens the button's card, the alarm on top and the
+    emergency lights below, arming only after the question and never starting
+    the lighting test; free shows only an alarm going off, with nothing to
+    press; no emergency lights, the button for the alarm alone; a wall screen
+    and a non-admin arm as they unlock a door; counted once, never a name or a
+    code."""
     a = result["alarm"]
-    assert a["noPanelSame"] and a["noPanelChip"] == 0 and a["noPanelSent"] == [], a
+    assert a["noPanelSame"] and a["noPanelAlarm"] == 0 and a["noPanelSent"] == [], a
     assert a["freeQuietSame"] and a["freeCard"] is False, a
     assert a["noLightsNoPanel"], a
-    assert a["brightChip"] == ["button", "Disarmed", "lv-alarm lv-alarm-disarmed"], a
-    assert a["brightBeside"] and a["brightBeforeStage"], a
+    assert a["brightCentre"] == ["button", "lv-emerg-btn lv-emerg-alarm lv-emerg-alarm-disarmed", "Alarm: Disarmed"], a
+    assert a["brightInside"] and a["brightBeforeStage"], a
     arm = ["alarm_control_panel.alarm_arm_away:alarm_control_panel.house"]
     for k in ("brightArm", "wallArm", "nonAdminArm"):
-        assert a[k] == {"asked": True, "card": True, "links": 0, "svc": arm}, (k, a[k])
+        assert a[k] == {"asked": True, "card": True, "alarmFirst": True, "lights": True, "noTest": True, "links": 0, "svc": arm}, (k, a[k])
     assert a["brightSent"] == ["alarm_button:shown", "alarm_button:arm"], a
-    assert a["proChip"] == ["button"], a
-    assert a["freeTriggered"] == ["div", "alert", "Triggered · front door contact", 0], a
-    assert a["aloneChip"] and a["hiddenTestChip"], a
+    assert a["proCentre"] == ["button"], a
+    assert a["freeTriggered"] == [True, "Alarm: Triggered · front door contact", True, 0], a
+    assert a["aloneButton"] and a["hiddenTestButton"], a
+    # The button changes with what the house has (the owner, 2026-11-24): an alarm alone, its own plain ring, no
+    # list notch; both, the emergency ring with its notch.
+    assert a["aloneLook"] == ["lv-emerg-ring lv-emerg-ring-alarm lv-emerg-ring-alarm-disarmed", "Alarm: Disarmed", 0], a
+    assert a["bothLook"] == ["lv-emerg-ring", "Alarm and emergency lights", 1], a

@@ -4,28 +4,33 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // The house's alarm on the emergency button (2026-11-23, the owner: "add the
-// alarm control to the emergency button in the top right"). Home Assistant's
-// alarm_control_panel entities, read from hass.states; nothing is stored.
+// alarm control to the emergency button in the top right"; 2026-11-24: "put it
+// in the emergency button on the top right of the screen inside the button
+// there"). Home Assistant's alarm_control_panel entities, read from
+// hass.states; nothing is stored.
 //
-//   the chip    beside the Atlas's emergency button (lights_panel.js
-//               _emergencyOverlay): the alarm's state in words. Bright or Pro
-//               (the owner, 2026-11-24): pressed, it opens the card. Free: no
-//               chip, but while an alarm is going off a red line says so
-//               there, as the leak, smoke, gas and CO alarms ring their rooms
-//               on every tier.
-//   the card    each alarm, its state, what set it off when the panel says
-//               (Alarmo's open_sensors), and Arm (each mode the panel
-//               supports) or Disarm. Every one asks first, with the panel's
-//               code when it wants one (lights_map.js confirmAsk, the box an
-//               unlock asks in): never one blind tap. Home Assistant's own
-//               refusal (a wrong code) is said as it says it.
+//   the button  lights_panel.js _emergencyOverlay: the emergency button's
+//               centre is the alarm's shield, in its state's colour
+//               (alarmSummary), and a press opens the button's card. Bright or
+//               Pro (the owner, 2026-11-24). Free: the shield only while an
+//               alarm is going off, as the leak, smoke, gas and CO alarms ring
+//               their rooms on every tier.
+//   the card    the button's own card (lights_panel.js _openEmergencyCard): the
+//               alarm on top (alarmSection), the emergency lights below. Each
+//               alarm, its state, what set it off when the panel says (Alarmo's
+//               open_sensors), and Arm (each mode the panel supports) or
+//               Disarm. Every one asks first, with the panel's code when it
+//               wants one (lights_map.js confirmAsk, the box an unlock asks
+//               in): never one blind tap. Home Assistant's own refusal (a wrong
+//               code) is said as it says it. Free: the alarm going off, said,
+//               and nothing to press.
 //   the banner  panel.js's red emergency banner, on every tab and every tier:
 //               an alarm going off is a row in it (triggeredAlarms).
 //
 // The services are called from the browser with the person's own Home
 // Assistant login, as a lock's are: anyone who can unlock a door here can arm
 // the alarm, on a wall screen too. Nothing on the card leaves the page.
-// Mounted on document.body, outside the hosts' shadow roots, so styled inline.
+// The card is on document.body, outside the hosts' shadow roots, so styled inline.
 // Imports nothing but its words.
 
 const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
@@ -116,14 +121,16 @@ export function triggeredAlarms(states){
   });
 }
 
-const ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" '
+/** The shield, as the button's centre draws it. */
+export const SHIELD = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" '
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/></svg>';
 
 /**
- * The chip beside the emergency button, or null: no alarm panel, or the free tier with nothing going off.
- * o: { el, panels, states, controls (Bright or Pro), onOpen }.
+ * What the emergency button shows for the house's alarm, or null: no alarm panel, or the free tier with nothing going
+ * off. o: { panels, states, controls (Bright or Pro) }. { kind, word, title, label, n }: the most pressing state of
+ * all the panels (its words, with what set it off), each panel's line, and the button's spoken name.
  */
-export function alarmChip(o){
+export function alarmSummary(o){
   const panels = o.panels || [];
   if (!panels.length) return null;
   const worst = panels.slice().sort((a, b) => URGENCY.indexOf(stateKind(a.state)) - URGENCY.indexOf(stateKind(b.state)))[0];
@@ -131,24 +138,14 @@ export function alarmChip(o){
   if (!o.controls && kind !== "triggered") return null;
   const by = kind === "triggered" ? trippedBy(worst, o.states) : [];
   const word = stateWord(worst.state) + (by.length ? " · " + by.join(", ") : "");
-  const title = panels.map(p => `${p.name}: ${stateWord(p.state)}`).join("\n");
-  const icon = o.el("span", { class: "lv-alarm-ic" });
-  icon.innerHTML = ICON;
-  const kids = [icon, o.el("span", { class: "lv-alarm-tx" }, word)];
-  if (panels.length > 1) kids.push(o.el("span", { class: "lv-alarm-n", "aria-hidden": "true" }, "×" + panels.length));
-  const cls = "lv-alarm lv-alarm-" + kind;
-  // Free: the alarm going off, said, and nothing to press.
-  if (!o.controls) return o.el("div", { class: cls, role: "alert", title }, kids);
-  return o.el("button", { class: cls, title, "aria-label": tn(panels.length, "Alarm: {state}", "{n} alarms: {state}", { state: word }),
-    onclick: () => o.onOpen && o.onOpen() }, kids);
+  return {
+    kind, word, n: panels.length,
+    title: panels.map(p => `${p.name}: ${stateWord(p.state)}`).join("\n"),
+    label: tn(panels.length, "Alarm: {state}", "{n} alarms: {state}", { state: word }),
+  };
 }
 
 const C = {
-  overlay: "position:fixed;inset:0;z-index:10000;background:rgba(3,8,5,.58);backdrop-filter:blur(6px);"
-    + "-webkit-backdrop-filter:blur(6px);display:flex;justify-content:center;",
-  sheet: "width:100%;max-width:520px;max-height:78vh;overflow:auto;padding:14px 16px 18px;box-sizing:border-box;"
-    + "background:linear-gradient(180deg,#1f1010,#140b0b);border:1px solid rgba(220,38,38,.45);"
-    + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;box-shadow:0 -12px 50px rgba(0,0,0,.6)",
   btn: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
     + "background:rgba(255,255,255,.03);border:1px solid rgba(252,165,165,.3);color:rgba(254,226,226,.85)",
   chip: "display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;"
@@ -163,27 +160,23 @@ const CHIP_LOOK = {
 };
 
 /**
- * The card behind the chip. host: { el, states() (hass.states now), call(service, data) (hass.callService on the
- * alarm_control_panel domain), ask (lights_map.js confirmAsk), toast(msg, isError), errorText(e), count(word)
- * (the opt-in report: arm, disarm, refused), keys (dialog_keys.js or null), onClose }.
- * Returns { close, refresh, sheet, overlay }: refresh refills it when what it shows changed (never under a finger),
- * and closes it once the house has no alarm.
+ * The alarm's part of the emergency button's card. host: { el, states() (hass.states now), controls (Bright or Pro),
+ * call(service, data) (hass.callService on the alarm_control_panel domain), ask (lights_map.js confirmAsk),
+ * toast(msg, isError), errorText(e), count(word) (the opt-in report: arm, disarm, refused) }.
+ * Returns { node, fill, shows, empty, close }: the card puts node in and calls fill() when it fills; empty() says
+ * there is nothing to show (no alarm, or the free tier with nothing going off); shows() is what it shows, so the
+ * card refills only when that changed; close() when the card closes (an answer that comes after sends nothing).
  */
-export function openAlarmCard(host){
+export function alarmSection(host){
   const el = host.el;
-  const desktop = typeof window !== "undefined" && window.innerWidth > 768;
-  const overlay = document.createElement("div");
-  overlay.style.cssText = C.overlay + `align-items:${desktop ? "center" : "flex-end"}`;
-  const sheet = el("div", { class: "ps-alarm-card", style: C.sheet + `;border-radius:${desktop ? "16px" : "18px 18px 0 0"}` });
-  overlay.appendChild(sheet);
-  let release = () => {}, down = false, shown = null, busy = null, closed = false;
-  const close = () => { if (closed) return; closed = true; overlay.remove(); release(); if (host.onClose) host.onClose(); };
-  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
-  overlay.addEventListener("pointerdown", () => { down = true; });
-  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) overlay.addEventListener(ev, () => { down = false; });
-  const panelsNow = () => alarmPanels(host.states());
+  const node = el("div", { class: "ps-alarm-card", style: "margin-bottom:12px" });
+  let busy = null, closed = false;
+  const panelsNow = () => {
+    const panels = alarmPanels(host.states());
+    return host.controls ? panels : panels.filter(p => p.state === "triggered");
+  };
   const shows = () => JSON.stringify([panelsNow().map(p => [p.eid, p.name, p.state, p.attrs.supported_features,
-    p.attrs.code_format, p.attrs.code_arm_required, trippedBy(p, host.states())]), busy]);
+    p.attrs.code_format, p.attrs.code_arm_required, trippedBy(p, host.states())]), busy, !!host.controls]);
   const act = async (p, a) => {
     if (busy) return;
     const arming = a.mode !== "disarmed";
@@ -206,15 +199,12 @@ export function openAlarmCard(host){
     }
   };
   const fill = () => {
+    while (node.firstChild) node.removeChild(node.firstChild);
     const panels = panelsNow();
-    if (!panels.length) { close(); return; }
-    shown = shows();
+    if (!panels.length) return;
     const states = host.states();
-    while (sheet.firstChild) sheet.removeChild(sheet.firstChild);
-    sheet.appendChild(el("div", { style: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px" }, [
-      el("div", { style: "font-weight:800;font-size:16px;letter-spacing:-.01em" }, tn(panels.length, "Alarm", "Alarms")),
-      el("button", { style: C.btn, title: t("Close"), onclick: close }, "✕"),
-    ]));
+    node.appendChild(el("div", { style: "font-weight:800;font-size:14px;letter-spacing:-.01em;margin-bottom:2px" },
+      tn(panels.length, "Alarm", "Alarms")));
     for (const p of panels) {
       const kind = stateKind(p.state);
       const by = kind === "triggered" ? trippedBy(p, states) : [];
@@ -223,7 +213,7 @@ export function openAlarmCard(host){
         el("span", { style: C.chip + CHIP_LOOK[kind] }, stateWord(p.state)),
       ])];
       if (by.length) rows.push(el("div", { style: "font-size:12px;color:#fecaca;margin-top:4px" }, t("Set off by {sensors}", { sensors: by.join(", ") })));
-      const acts = actionsFor(p);
+      const acts = host.controls ? actionsFor(p) : [];
       const mine = busy === p.eid;
       if (acts.length) rows.push(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px",
         "aria-busy": mine ? "true" : null }, [
@@ -231,15 +221,10 @@ export function openAlarmCard(host){
           + (busy ? ";opacity:.55;cursor:progress" : ""), "data-alarm-action": a.service, onclick: () => act(p, a) }, a.label())),
         ...(mine ? [el("span", { style: "font-size:12px;color:rgba(254,226,226,.75)" }, t("Sending…"))] : []),
       ]));
-      sheet.appendChild(el("div", { style: "padding:10px 2px;border-bottom:1px solid rgba(252,165,165,.1)", "data-alarm": p.eid }, rows));
+      node.appendChild(el("div", { style: "padding:10px 2px;border-bottom:1px solid rgba(252,165,165,.1)", "data-alarm": p.eid }, rows));
     }
-    sheet.appendChild(el("div", { style: "font-size:11px;color:rgba(226,240,232,.5);line-height:1.5;margin-top:10px" },
+    if (host.controls) node.appendChild(el("div", { style: "font-size:11px;color:rgba(226,240,232,.5);line-height:1.5;margin-top:8px" },
       t("Each one asks first, with the alarm's code when it has one.")));
   };
-  const refresh = () => { if (!closed && !down && shows() !== shown) fill(); };
-  fill();
-  if (closed) return null;
-  document.body.appendChild(overlay);
-  if (host.keys) release = host.keys.holdKeys(sheet, { close, modal: true });
-  return { close, refresh, sheet, overlay };
+  return { node, fill, shows, empty: () => !panelsNow().length, close: () => { closed = true; } };
 }

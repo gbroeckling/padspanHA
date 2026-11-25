@@ -2,13 +2,14 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 //
-// The house's alarm on the emergency button (views/alarm_panel.js), RUN: the
-// modes a panel supports and no others, the code asked for when the panel
-// wants one (number or text, code_arm_required), every arm and disarm asking
-// first in the Atlas's own box (lights_map.js confirmAsk), Home Assistant's
-// refusal said plainly, what set it off named (Alarmo's open_sensors), the
-// free tier's chip only while it goes off, panel.js's emergency banner with
-// the alarm going off in it, and its words in German.
+// The house's alarm inside the emergency button (views/alarm_panel.js), RUN:
+// the modes a panel supports and no others, the code asked for when the
+// panel wants one (number or text, code_arm_required), every arm and disarm
+// asking first in the Atlas's own box (lights_map.js confirmAsk), Home
+// Assistant's refusal said plainly, what set it off named (Alarmo's
+// open_sensors), the button's summary (the free tier's only while it goes
+// off), panel.js's emergency banner with the alarm going off in it, and its
+// words in German.
 //
 // usage: alarm_button.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -57,6 +58,8 @@ const buttonsIn = (n) => (n ? all(n, "button").map(b => b.textContent) : []);
 const press = async (b) => { for (const f of (b._listeners.click || []).slice()) f({ stopPropagation() {}, preventDefault() {}, target: b }); await tick(); await tick(); };
 const pressText = async (root, label) => { const b = all(root, "button").find(x => x.textContent === label); if (!b) throw new Error(`no "${label}" in ${buttonsIn(root).join(", ")}`); await press(b); };
 const reset = () => { document.body.children.length = 0; };
+// The alarm's part of the emergency button's card, as lights_panel.js puts it in (controls: Bright or Pro).
+const openSection = (api, controls = true) => { const sec = A.alarmSection({ ...api, controls }); sec.fill(); document.body.appendChild(sec.node); return sec; };
 
 const ST = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes: { friendly_name: entity_id.split(".")[1].replace(/_/g, " "), ...attributes } });
 const states = (...list) => Object.fromEntries(list.map(s => [s.entity_id, s]));
@@ -93,7 +96,7 @@ await tryCase("modes", async () => {
   // A card on a panel with home and away only shows those two.
   reset();
   const h = host(states(ST("alarm_control_panel.house", "disarmed", { supported_features: 3, code_format: null })));
-  const c = A.openAlarmCard(h.api);
+  const c = openSection(h.api);
   check("modes", buttonsIn(card()).filter(b => b !== "✕").join() === "Arm home,Arm away", buttonsIn(card()));
   c.close();
 });
@@ -101,7 +104,7 @@ await tryCase("modes", async () => {
 await tryCase("no-code", async () => {
   reset();
   const h = host(states(ST("alarm_control_panel.house", "disarmed", { supported_features: 3, code_format: null })));
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   // Never one blind tap: Arm away asks first, and Cancel sends nothing.
   await pressText(card(), "Arm away");
   check("no-code", !!ask() && h.calls.length === 0, buttonsIn(ask()));
@@ -117,7 +120,7 @@ await tryCase("no-code", async () => {
   // Armed now: Disarm only, and it asks.
   h.states = states(ST("alarm_control_panel.house", "armed_away", { supported_features: 3, code_format: null }));
   reset();
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   check("no-code", buttonsIn(card()).filter(b => b !== "✕").join() === "Disarm", buttonsIn(card()));
   await pressText(card(), "Disarm");
   check("no-code", !!ask() && ask().attributes["aria-label"] === "Disarm house?" && h.calls.length === 1, ask() && ask().attributes["aria-label"]);
@@ -131,7 +134,7 @@ await tryCase("code", async () => {
   // A number code, wanted to arm and to disarm.
   reset();
   const h = host(states(ST("alarm_control_panel.alarmo", "disarmed", { supported_features: 7, code_format: "number", code_arm_required: true })));
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   await pressText(card(), "Arm night");
   const field = ask() && all(ask(), "input")[0];
   check("code", field && field.attributes.inputmode === "numeric" && field.attributes.type === "password" && field.attributes.autocomplete === "off",
@@ -147,7 +150,7 @@ await tryCase("code", async () => {
   // Enter in the field says yes once a code is typed.
   h.states = states(ST("alarm_control_panel.alarmo", "armed_night", { supported_features: 7, code_format: "number", code_arm_required: true }));
   reset();
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   await pressText(card(), "Disarm");
   const f2 = all(ask(), "input")[0];
   f2.value = "9876";
@@ -157,14 +160,14 @@ await tryCase("code", async () => {
   // A text code, and a panel that arms without one (code_arm_required false): arming asks with no field, disarming with one.
   reset();
   const h2 = host(states(ST("alarm_control_panel.panel", "disarmed", { supported_features: 2, code_format: "text", code_arm_required: false })));
-  A.openAlarmCard(h2.api);
+  openSection(h2.api);
   await pressText(card(), "Arm away");
   check("code", ask() && all(ask(), "input").length === 0, "arming asked for a code the panel does not want");
   await pressText(ask(), "Arm away"); await tick();
   check("code", h2.calls[0] && !("code" in h2.calls[0]), h2.calls);
   h2.states = states(ST("alarm_control_panel.panel", "armed_away", { supported_features: 2, code_format: "text", code_arm_required: false }));
   reset();
-  A.openAlarmCard(h2.api);
+  openSection(h2.api);
   await pressText(card(), "Disarm");
   const f3 = all(ask(), "input")[0];
   check("code", f3 && f3.attributes.inputmode === "text", f3 && f3.attributes);
@@ -179,7 +182,7 @@ await tryCase("code", async () => {
 await tryCase("refused", async () => {
   reset();
   const h = host(states(ST("alarm_control_panel.alarmo", "armed_away", { supported_features: 3, code_format: "number" })), { refuse: "Invalid alarm code provided" });
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   await pressText(card(), "Disarm");
   all(ask(), "input")[0].value = "0000";
   await pressText(ask(), "Disarm"); await tick();
@@ -206,31 +209,34 @@ await tryCase("tripped", async () => {
   // The card names it too.
   reset();
   const h = host(st);
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   check("tripped", card().textContent.includes("Set off by Back door"), card().textContent);
   check("tripped", A.triggeredAlarms(states(ST("alarm_control_panel.house", "disarmed"))).length === 0, "a quiet alarm in the banner");
 });
 
-await tryCase("chip", async () => {
+await tryCase("summary", async () => {
+  // What the emergency button's centre shows (lights_panel.js draws the shield in this state's colour).
   const one = A.alarmPanels(states(ST("alarm_control_panel.house", "armed_away", { supported_features: 3 })));
   const st2 = states(ST("alarm_control_panel.house", "armed_away", { supported_features: 3 }), ST("alarm_control_panel.garage", "disarmed", { supported_features: 3 }));
   const two = A.alarmPanels(st2);
-  check("chip", A.alarmChip({ el, panels: [], states: {}, controls: true }) === null, "a chip with no alarm");
-  let opened = 0;
-  const c1 = A.alarmChip({ el, panels: one, states: {}, controls: true, onOpen: () => opened++ });
-  check("chip", c1 && c1.localName === "button" && c1.className === "lv-alarm lv-alarm-armed" && c1.textContent === "Armed away", c1 && [c1.className, c1.textContent]);
-  c1.click();
-  check("chip", opened === 1, opened);
+  check("summary", A.alarmSummary({ panels: [], states: {}, controls: true }) === null, "a summary with no alarm");
+  const s1 = A.alarmSummary({ panels: one, states: {}, controls: true });
+  check("summary", s1 && s1.kind === "armed" && s1.word === "Armed away" && s1.label === "Alarm: Armed away" && s1.n === 1, s1);
   // Several: the most pressing state, and how many.
-  const c2 = A.alarmChip({ el, panels: two, states: st2, controls: true });
-  check("chip", c2 && c2.textContent === "Armed away×2" && c2.attributes["aria-label"] === "2 alarms: Armed away", c2 && [c2.textContent, c2.attributes]);
-  check("chip", c2 && c2.attributes.title === "garage: Disarmed\nhouse: Armed away", c2 && c2.attributes.title);
-  // Free: nothing, until it goes off; then said, with what set it off, and nothing to press.
-  check("chip", A.alarmChip({ el, panels: two, states: st2, controls: false }) === null, "a free chip for a quiet alarm");
+  const s2 = A.alarmSummary({ panels: two, states: st2, controls: true });
+  check("summary", s2 && s2.word === "Armed away" && s2.label === "2 alarms: Armed away" && s2.title === "garage: Disarmed\nhouse: Armed away", s2);
+  // Free: nothing, until it goes off; then said, with what set it off.
+  check("summary", A.alarmSummary({ panels: two, states: st2, controls: false }) === null, "a free summary for a quiet alarm");
   const trig = states(ST("alarm_control_panel.house", "triggered", { open_sensors: { "binary_sensor.hall": "on" } }), ST("binary_sensor.hall", "on", { friendly_name: "Hall motion" }));
-  const free = A.alarmChip({ el, panels: A.alarmPanels(trig), states: trig, controls: false });
-  check("chip", free && free.localName === "div" && free.attributes.role === "alert" && free.textContent === "Triggered · Hall motion"
-    && all(free, "button").length === 0, free && [free.localName, free.textContent]);
+  const free = A.alarmSummary({ panels: A.alarmPanels(trig), states: trig, controls: false });
+  check("summary", free && free.kind === "triggered" && free.word === "Triggered · Hall motion", free);
+  // Free, the card: the alarm going off, said, and nothing to press; a quiet alarm not at all.
+  reset();
+  const sf = openSection(host(trig).api, false);
+  check("summary", !sf.empty() && card().textContent.includes("Set off by Hall motion") && all(card(), "button").length === 0, card() && card().textContent);
+  reset();
+  const sq = openSection(host(st2).api, false);
+  check("summary", sq.empty() && (card().children || []).length === 0, "a free card for a quiet alarm");
 });
 
 await tryCase("banner", async () => {
@@ -282,7 +288,7 @@ await tryCase("german", async () => {
     [A.stateWord("armed_away"), A.stateWord("triggered")]);
   reset();
   const h = host(states(ST("alarm_control_panel.haus", "armed_away", { supported_features: 3, code_format: "number" })));
-  A.openAlarmCard(h.api);
+  openSection(h.api);
   check("german", buttonsIn(card()).includes("Unscharf schalten") && card().textContent.includes("Alarmanlage"), buttonsIn(card()));
   await pressText(card(), "Unscharf schalten");
   check("german", ask() && ask().attributes["aria-label"] === "haus unscharf schalten?" && buttonsIn(ask()).includes("Abbrechen")
