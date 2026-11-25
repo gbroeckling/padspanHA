@@ -337,5 +337,6 @@
 "Use the {twin_via} one": "Das von {twin_via} verwenden",
 "{name} is used now.": "{name} wird jetzt verwendet.",
 "Could not switch to it: {why}": "Umstellen ging nicht: {why}",
-"No room called \"{room}\" in this house.": "Kein Raum namens „{room}“ in diesem Haus."
+"No room called \"{room}\" in this house.": "Kein Raum namens „{room}“ in diesem Haus.",
+"Night dimming, burn-in protection and showing each floor in turn come with PadSpan Pro (Settings → Features → PadSpan licence).": "Nachtdimmung, Einbrennschutz und das Zeigen jeder Etage nacheinander gibt es mit PadSpan Pro (Einstellungen → Funktionen → PadSpan-Lizenz)."
 }

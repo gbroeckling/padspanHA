@@ -95,6 +95,32 @@ def tier_at_least(tier: str, want: str) -> bool:
     return _RANK.get(normalize_tier(tier), 0) >= _RANK.get(normalize_tier(want, "pro"), 0)
 
 
+# ── Features that move down the ladder ──────────────────────────────────────
+# One switch moves three features to the bottom rung at once: exact placement
+# of lights and devices on the Atlas (from bright), the plain full-screen wall
+# mode and the 3D house's basics (both from pro). Nothing else moves with
+# them: fixture shapes, Showcase and the rest of the lighting tier stay at
+# bright; the wall's night dimming, burn-in shift and floor cycling, and the
+# 3D house's furniture, AI features, people figures and editor stay at pro.
+#
+# Still one ladder: each gate asks tier_at_least, only the rung it asks for
+# moves. Off, every rung is where it always was, and the settings payload
+# does not even say the switch exists (ws_common: free_basics only while on).
+# The frontend's mirror is views/editions.js (placementTier, wallTier,
+# house3dTier), which reads settings.free_basics. tests/test_free_basics.py.
+FREE_BASICS = False
+
+
+def placement_tier() -> str:
+    """The rung exact placement of lights and devices needs."""
+    return "free" if FREE_BASICS else "bright"
+
+
+def house3d_tier() -> str:
+    """The rung the 3D house (Live Aboard) needs to show at all."""
+    return "free" if FREE_BASICS else "pro"
+
+
 def edition() -> str:
     """Which build this is: 'full' or 'bright' (build_info, stamped at release)."""
     return "bright" if str(EDITION).strip().lower() == "bright" else "full"

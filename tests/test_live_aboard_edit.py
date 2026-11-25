@@ -105,9 +105,9 @@ def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
     placed (paid, not Preview: onDropPlace's gate); the Atlas sidebar, where
     no light is placed, never does. The server holds the same gate."""
     maps = _js(_VIEWS / "maps.js")
-    assert "const onDropPlace = (paid && !preview && mapState._selLight) ?" in maps
+    assert "const onDropPlace = (place && !preview && mapState._selLight) ?" in maps
     mblock = _block(maps, "house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?")
-    assert ('edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)\n'
+    assert ('edit: paid && !preview && _tierAtLeast(tier, "pro") ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)\n'
             '        .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); '
             'return r; }) : null,') in mblock
     # Its heights go on the placement records, on the same gate (2026-10-05).

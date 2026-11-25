@@ -255,5 +255,7 @@
 "Alarms": {
 "one": "Alarmanlage",
 "other": "Alarmanlagen"
-}
+},
+"Placed {n} in {room}.": "{n} in {room} platziert.",
+"Placed {n} of {of} in {room}: {why}": "{n} von {of} in {room} platziert: {why}"
 }

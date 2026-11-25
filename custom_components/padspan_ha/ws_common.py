@@ -245,6 +245,11 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     out["tier"] = _eff(st.data, bool(state["active"]))
     out["tier_floor"] = _floor
     out["edition"] = _edition()
+    # Features moved down the ladder (licence.FREE_BASICS): said only while
+    # the switch is on, so with it off this payload is what it always was.
+    from . import licence as _licence  # noqa: PLC0415
+    if _licence.FREE_BASICS:
+        out["free_basics"] = True
     # The same Zigbee device in two integrations (zigbee_twins.py): which copy
     # the panel's lists leave out, for a caller only. Which pairs were told is
     # the backend's own.

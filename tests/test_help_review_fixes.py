@@ -55,10 +55,10 @@ def _tour(paid: bool, bright_pro_sold: bool = True) -> list[dict]:
     if _NODE is None:
         pytest.skip("node is not installed")
     src = _read(_WWW / "views" / "maps.js")
-    a = src.index("function _lightsTourSteps(paid){")
+    a = src.index("function _lightsTourSteps(paid, place = paid){")
     fn = src[a:src.index("\n}\n", a) + 2]
     m = re.search(r"export const LIGHT_CLASSES = (\[.*?\]);", _read(_WWW / "views" / "lights_map.js"))
-    js = (f"const _LIC_PATH = 'Settings → PadSpan licence'; const _lightsTourFindTable = () => null; const _brightProOpen = () => {str(bright_pro_sold).lower()};\n{fn}\n"
+    js = (f"const _LIC_PATH = 'Settings → PadSpan licence'; const t = (s) => s; const _lightsTourFindTable = () => null; const _brightProOpen = () => {str(bright_pro_sold).lower()};\n{fn}\n"
           f"console.log(JSON.stringify({{steps: _lightsTourSteps({str(paid).lower()}).map(s => ({{title: s.title, body: s.body}})),"
           f" classes: {m.group(1)}}}));")
     res = subprocess.run([_NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=60)

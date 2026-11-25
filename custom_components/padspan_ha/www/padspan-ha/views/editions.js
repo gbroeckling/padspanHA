@@ -194,6 +194,17 @@ export function currentTier(settings) {
   return TIERS.includes(t) ? t : "free";
 }
 
+// ── Features that move down the ladder (licence.py FREE_BASICS) ─────────────
+// Exact placement of lights and devices, the plain wall mode and the 3D
+// house's basics move to the free tier together. The backend sends
+// settings.free_basics only while its switch is on; absent, each rung below is
+// where it always was. Each takes the settings payload, or a host's boolean
+// (host.freeBasics) where a view has no settings to hand.
+export function freeBasics(s) { return s === true || (!!s && typeof s === "object" && s.free_basics === true); }
+export function placementTier(s) { return freeBasics(s) ? "free" : "bright"; }
+export function wallTier(s) { return freeBasics(s) ? "free" : "pro"; }
+export function house3dTier(s) { return freeBasics(s) ? "free" : "pro"; }
+
 export function currentEdition(settings) {
   return String((settings && settings.edition) || "").toLowerCase() === "bright" ? "bright" : "full";
 }
