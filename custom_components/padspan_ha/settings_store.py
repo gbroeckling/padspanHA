@@ -641,6 +641,19 @@ class SettingsStore:
             self.data["lights_panel_enabled"] = True
             self.data["atlas_default_v1_applied"] = True
             _normalized = True
+        # Live Aboard on by default, once, while the 3D house's basics are on
+        # the bottom rung (licence.FREE_BASICS; off, this never runs and the
+        # file is what it always was). A new install starts with it on. An
+        # install with no licence key never had the 3D house to choose, so its
+        # stored "off" was never a choice and turns on; one with a key keeps
+        # what it has. A screen still opens on the flat map until someone picks
+        # 3D there, and a screen too slow for it stays flat (lights_map.js).
+        from . import licence as _licence  # noqa: PLC0415
+        if _licence.FREE_BASICS and not self.data.get("atlas_3d_default_v1_applied"):
+            if not str(self.data.get("forensics_license_key") or "").strip():
+                self.data["atlas_3d_enabled"] = True
+            self.data["atlas_3d_default_v1_applied"] = True
+            _normalized = True
         # Faster room changes, once (see room_speed_v1_applied above).
         if not self.data.get("room_speed_v1_applied"):
             if self.data.get("kalman_q") == 0.125:

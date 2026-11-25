@@ -36,11 +36,12 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates, confirmAsk } =
+        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates, confirmAsk, placeRoomDevices } =
   await import(`./views/lights_map.js${STAMP}`);
 // Which add-ons this install has (views/editions.js addonAllowed, the backend's
 // own answer, settings.addons_licensed): this page asks _addon(name).
-const { addonAllowed } = await import(`./views/editions.js${STAMP}`);
+// And the ladder's rungs for the features that can move down it (licence.py FREE_BASICS).
+const { addonAllowed, tierAtLeast, freeBasics, placementTier, wallTier } = await import(`./views/editions.js${STAMP}`);
 // The house's alarm on the emergency button (views/alarm_panel.js). Optional:
 // without it the button is as it was.
 const ALARM = await import(`./views/alarm_panel.js${STAMP}`)
@@ -499,6 +500,8 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_3d_director_people: s.atlas_3d_director_people,
           // A linked robot vacuum is drawn on the map while Robot Vacuum Import is on (lights_map.js abLive).
           vacuum_import_enabled: s.vacuum_import_enabled,
+          // The 3D house's rung (editions.js house3dTier).
+          free_basics: s.free_basics,
           atlas_3d_director: s.atlas_3d_director };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
@@ -533,6 +536,10 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.tier !== undefined) this.state._tier = String(s.tier);
       // And the add-ons it may use (licence.addon_allowed), kept the same way.
       if (s.addons_licensed !== undefined) this.state._addons = Array.isArray(s.addons_licensed) ? s.addons_licensed : [];
+      // Features moved down the ladder (licence.FREE_BASICS): sent only while on. With the tier, so a failed fetch keeps both.
+      if (s.tier !== undefined) this.state._freeBasics = freeBasics(s);
+      // Enhanced security: on, only an administrator changes the house's setup (placing a device among it).
+      if (s.tier !== undefined) this.state._enhancedSecurity = s.enhanced_security !== false;
       // What the trial card reads: whether any key exists, and the tier (a
       // failed fetch keeps the last answer, same as the tier above); and
       // whether the usage report is on, so its offer counts only leave the
@@ -1073,7 +1080,44 @@ class PadSpanLightsApp extends HTMLElement {
     api.openRoom=(room, onlyEids)=>{ this._roomSheet=openRoomSheet(api, lights, room, onlyEids); };
     api.openFloor=(z)=>openFloorSheet(api, lights, this.state.model, z);
     api.openLights=(eids)=>openLightsSheet(api, lights, eids);
+    // Place a room's devices in one tap (the room sheet's button): only while placement has moved
+    // down the ladder, where this user may place devices, and never on a wall.
+    if(this._mayPlaceRoom()){
+      api.unplacedIn=(room)=>this._unplacedIn(room, lights).length;
+      api.placeRoom=(room)=>this._placeRoom(room, lights);
+    }
     return api;
+  }
+
+  _mayPlaceRoom(){
+    const fb=!!this.state._freeBasics;
+    return fb && tierAtLeast(this.state._tier, placementTier(fb)) && !this._kiosk()
+      && (this._isAdmin() || this.state._enhancedSecurity === false);
+  }
+  // A room's devices with no placement, not hidden and not a door or window, while the room has an outline to place them in.
+  _unplacedIn(room, lights){
+    const geo=(this.state.model?.room_geometry_m||{})[room];
+    if(!geo || geo.type!=="poly" || !Array.isArray(geo.points_m)) return [];
+    const placed=this.state.model?.light_positions_m||{}, hidden=this.state._hidden;
+    return (lights||[]).filter(l=>l.area_name===room && !l.isDoor && !placed[l.entity_id] && !(hidden && hidden.has(l.entity_id)));
+  }
+  async _placeRoom(room, lights){
+    const geo=(this.state.model?.room_geometry_m||{})[room];
+    const at=placeRoomDevices(geo && geo.points_m, this._unplacedIn(room, lights));
+    const all=Object.keys(at), fid=geo && geo.floor_id ? String(geo.floor_id) : null;
+    if(!all.length) return;
+    let n=0;
+    try{
+      for(const eid of all){
+        await this._ws({ type:"padspan_ha/fabric_light_position_set", entity_id:eid, x_m:at[eid][0], y_m:at[eid][1], ...(fid ? { floor_id:fid } : {}) });
+        n++;
+      }
+      this._toast(t("Placed {n} in {room}.", { n, room }));
+    }catch(e){
+      this._toast(t("Placed {n} of {of} in {room}: {why}", { n, of: all.length, room, why: this._errorText(e) }), true);
+    }
+    await this._loadModel();
+    this._render();
   }
 
   _render(){
@@ -1217,6 +1261,8 @@ class PadSpanLightsApp extends HTMLElement {
       tier: this.state._tier,
       // The add-ons this install may use (lights_map.js hostAddon): Pro has them all.
       addons: this.state._addons || [],
+      // Placement and the 3D house's rungs (editions.js), read by lightsHostForTier.
+      freeBasics: !!this.state._freeBasics,
       // Door/window/lock click-to-control (2026-09-22) — Alarm & security
       // (_alarmControls: Bright, Pro or the add-on), as maps.js's own barrierHit.
       barrierHit: this._alarmControls(),
@@ -1229,7 +1275,8 @@ class PadSpanLightsApp extends HTMLElement {
       // builder only, this panel just reflects what it's set to.
       // Gated to Pro specifically (2026-09-23) — same split as the
       // builder's own proTier, not the bright-or-pro `paid` above.
-      layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
+      // A wall below Pro (the plain wall mode, wallTier) is drawn by this layout too.
+      layoutV2: (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall"),
       displayMode: true,
       // Audio (views/room_controls.js), where this install has it: offered in the ⋯ list (with its Set up ›), drawn
       // only while ticked there; on the classic layout, drawn while Settings → Atlas → Audio is on (audioOn).
@@ -1840,7 +1887,10 @@ class PadSpanLightsApp extends HTMLElement {
   _wallOn(){
     let kiosk = false;
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
-    const v2 = String(this.state?._tier || "").toLowerCase() === "pro" && !!this.state?._atlasLayoutV2;
+    // The plain wall mode's rung (editions.js wallTier): Pro on the new layout, as it was; where it has
+    // moved down the ladder, a lower tier's wall draws the new layout's map whatever the layout setting.
+    const pro = String(this.state?._tier || "").toLowerCase() === "pro";
+    const v2 = pro ? !!this.state?._atlasLayoutV2 : tierAtLeast(this.state?._tier, wallTier(!!this.state?._freeBasics));
     if(!kiosk || this._embedded || !v2 || !WALLS){
       // Also when a wall stops being one without a reload (the layout or
       // the tier changed elsewhere): nothing of the wall is left behind.
@@ -1858,7 +1908,7 @@ class PadSpanLightsApp extends HTMLElement {
       HA_SIDEBAR.toggleHaSidebar(this, this._hass);
     }
     const size = ()=>{
-      const p = WALLS.wallParams(location.search, this.state?._wall);
+      const p = this._wallParams();
       // A screen hung on its side whose TV can't turn its picture
       // (?wall_rotate=90|270): the page turns itself, and is sized for the
       // picture as it hangs (width and height swapped).
@@ -1926,13 +1976,19 @@ class PadSpanLightsApp extends HTMLElement {
     if(!this._wakeVis){ this._wakeVis = ask; document.addEventListener("visibilitychange", ask); }
   }
 
+  // The wall's settings and its link's. Night dimming (Fully Kiosk's with it), the burn-in shift and
+  // showing each floor in turn are Pro's: below Pro the plain wall has none of them, whatever is stored.
+  _wallParams(){
+    const p = WALLS.wallParams(location.search, this.state?._wall);
+    return String(this.state?._tier || "").toLowerCase() === "pro" ? p : { ...p, dim: 0, shift: false, cycle: 0, fully: false };
+  }
   // Night dimming on a wall: after sunset the whole picture is that much
   // darker (an overlay: cheaper than a filter over a 3D view). Asked at every
   // build, so it follows the sun with the poll.
   _wallNight(){
     const r = this.shadowRoot;
     if(!r) return;
-    const p = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall) : null;
+    const p = this.hasAttribute("data-wall") ? this._wallParams() : null;
     const dim = p ? p.dim : 0;
     const night = this._hass?.states?.["sun.sun"]?.state === "below_horizon";
     let d = r.querySelector("#wallDim");
@@ -1998,7 +2054,7 @@ class PadSpanLightsApp extends HTMLElement {
   // (lights_map.js view.wallStops). It waits while someone uses the wall
   // (its controls are showing) and while the page is hidden.
   _wallCycle(){
-    const s = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall).cycle : 0;
+    const s = this.hasAttribute("data-wall") ? this._wallParams().cycle : 0;
     if(s === this._cycleS) return;
     if(this._cycleTimer){ clearInterval(this._cycleTimer); this._cycleTimer = null; }
     this._cycleS = s;
@@ -2015,7 +2071,7 @@ class PadSpanLightsApp extends HTMLElement {
   // round a small square, one step every three minutes, so no edge stays lit
   // on the same pixels for hours. Off unless asked for.
   _wallShift(){
-    const on = this.hasAttribute("data-wall") && WALLS.wallParams(location.search, this.state?._wall).shift;
+    const on = this.hasAttribute("data-wall") && this._wallParams().shift;
     // Everything the page draws: #content, and Live Aboard's full screen,
     // which moves its view out to the top of the page (paintCover). The
     // `translate` property, not transform: it adds to theirs.

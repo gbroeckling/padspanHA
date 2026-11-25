@@ -17,7 +17,7 @@
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
 const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, brightProOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
-        tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
+        tierAtLeast, currentTier, house3dTier, wallTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
         ADDONS, ADDONS_URL, addonAllowed, addonKey, addonPrice, addonPriceParts } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
@@ -4385,11 +4385,16 @@ function _settingsAI(ctx, el){
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{"data-focus-part":"la3d",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
+  // Its basics on the free rung (editions.js house3dTier): no longer experimental, and only what is
+  // Pro's at any tier is left out below Pro (the wizard, the director, furniture, people and tags).
+  const basics = house3dTier(settings) === "free";
+  const pro = tierAtLeast(currentTier(settings), "pro");
   // Experimental for now (2026-10-05: label it so in the stable release).
-  box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
+  if (!basics) box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
     t("EXPERIMENTAL — still changing; tell us what you find")));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    t("Adds a Map / Live Aboard switch to the Atlas: turn, pan and zoom around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default.")));
+    basics ? t("Adds a Map / Live Aboard switch to the Atlas: turn, pan and zoom around your floors, rooms, walls and lights, built from the map you already drew. Each screen opens on the flat map until 3D is picked there, and a screen too slow for 3D keeps the flat map.")
+      : t("Adds a Map / Live Aboard switch to the Atlas: turn, pan and zoom around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default.")));
   // The setup wizard (views/aboard_wizard.js): every step from scratch,
   // with the optional extras below exposed along the way.
   const wizBtn = el("button",{class:"btn inline",style:"margin:0 0 8px;background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"},t("✨ Set it up step by step"));
@@ -4398,7 +4403,7 @@ function _atlas3dSection(ctx, el, settings){
       .then(m => m.openLiveAboardWizard(ctx))
       .catch(e => ctx.toast(t("Could not open the wizard: {why}", { why: ctx.helpers.errorText(e) }), true));
   });
-  box.appendChild(wizBtn);
+  if (pro) box.appendChild(wizBtn);
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, t("Saves as soon as you change it. No restart needed."));
   const save = async (key, value, undo) => {
     try {
@@ -4486,10 +4491,10 @@ function _atlas3dSection(ctx, el, settings){
   // The director (live_aboard_director.js): what the sidebar's Live Aboard
   // flies to when it goes off, each with a camera's snapshot or none. An
   // administrator's (ws_settings holds the same rule).
-  more.appendChild(_atlas3dDirector(ctx, el, settings, save, row));
+  if (pro) more.appendChild(_atlas3dDirector(ctx, el, settings, save, row));
 
   // The AI Task that reads photos lives in Settings → AI (with its switches).
-  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:8px"},
+  if (pro) more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:8px"},
     t("Furniture from a photo, and the AI Task that reads it, are in Settings → AI.")));
 
   // North: the GPS Bridge's own bearing (settings.fabric_bearing_deg), kept
@@ -4621,7 +4626,7 @@ function _atlas3dSection(ctx, el, settings){
   // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
   // server takes a backup first and removes nothing without one. Asked here
   // in the page, the way Clear calibration asks above.
-  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) {
+  if (pro && ctx.hass && ctx.hass.user && ctx.hass.user.is_admin) {
     const rmWrap = el("span",{"data-la3d-rmfur":"", style:"display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center"});
     const rmBtn = () => {
       rmWrap.innerHTML = "";
@@ -4651,10 +4656,10 @@ function _atlas3dSection(ctx, el, settings){
   if (onCb.checked) loadCompass();
   // The shared library's rows, built once the switch is on (below).
   let libraryRows = false;
-  const addLibraryRows = () => { if (!libraryRows) { libraryRows = true; _atlas3dLibraryRows(ctx, el, settings, more, row, save); } };
+  const addLibraryRows = () => { if (pro && !libraryRows) { libraryRows = true; _atlas3dLibraryRows(ctx, el, settings, more, row, save); } };
   if (onCb.checked) addLibraryRows();
   box.appendChild(more);
-  box.appendChild(both);
+  if (pro) box.appendChild(both);
   onCb.addEventListener("change", ()=>{
     const want = onCb.checked;
     more.style.display = want ? "block" : "none";
@@ -5280,13 +5285,15 @@ function _settingsAtlas(ctx, el){
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // Power teams (power_team.py, the full edition's): a wall dimmer and the smart bulbs it feeds, as one light.
   if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));
-  // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
+  // The 3D house is Pro's (PadSpan Pro and Bright Pro) unless its basics have
+  // moved down the ladder (editions.js house3dTier): below its rung, no box at
   // all, and whatever is stored is kept for when a key comes back.
-  if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));
+  if (tierAtLeast(currentTier(settings), house3dTier(settings))) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));
   wrap.appendChild(lightsCard);
   // 📺 Wall screens: how big a ?kiosk=1 wall draws, for its room. Not on a
-  // Bright install that can't unlock it (wall mode is PadSpan Pro's).
-  if (WALLCARD && !(String(settings.edition || "").toLowerCase() === "bright" && !tierAtLeast(currentTier(settings), "pro"))) {
+  // Bright install that can't unlock it (wall mode is PadSpan Pro's, or its
+  // plain mode everyone's where it has moved down the ladder: wallTier).
+  if (WALLCARD && !(String(settings.edition || "").toLowerCase() === "bright" && !tierAtLeast(currentTier(settings), wallTier(settings)))) {
     try { wrap.appendChild(WALLCARD.wallCard(ctx, el, settings)); } catch (e) { console.warn("PadSpan: wall screens card", e); }
   }
   if (SCREENSCARD) {

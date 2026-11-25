@@ -479,5 +479,7 @@
 "one": "Sauf 1 carré approximatif tiré de vos pièces Home Assistant : la pièce dessinée ici prend sa place.",
 "other": "Sauf {n} carrés approximatifs tirés de vos pièces Home Assistant : les pièces dessinées ici prennent leur place."
 },
-"Use the outline the file gives {room}": "Utiliser le contour que le fichier donne à {room}"
+"Use the outline the file gives {room}": "Utiliser le contour que le fichier donne à {room}",
+"Every light starts out clustered at the centre of its room. Here you put each one where it really hangs. Its shape, size, colour and effects need {key}.": "Chaque lumière commence regroupée au centre de sa pièce. Ici, vous placez chacune là où elle est vraiment suspendue. Sa forme, sa taille, sa couleur et ses effets demandent {key}.",
+"Placing each light where it really hangs is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need {key}. A key goes in Settings → Features → PadSpan licence once you have one.": "Placer chaque lumière là où elle est vraiment suspendue est gratuit. Les formes, tailles et angles des luminaires, les bandes WLED, Showcase et Fit room demandent {key}. Une clé se saisit dans Paramètres → Fonctions → Licence PadSpan dès que vous en avez une."
 }

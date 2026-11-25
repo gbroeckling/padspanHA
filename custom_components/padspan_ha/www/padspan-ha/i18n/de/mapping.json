@@ -479,5 +479,7 @@
 "one": "Außer 1 grobem Kasten aus deinen Home-Assistant-Räumen: Der hier gezeichnete Raum tritt an seine Stelle.",
 "other": "Außer {n} groben Kästen aus deinen Home-Assistant-Räumen: Die hier gezeichneten Räume treten an ihre Stelle."
 },
-"Use the outline the file gives {room}": "Den Umriss nehmen, den die Datei {room} gibt"
+"Use the outline the file gives {room}": "Den Umriss nehmen, den die Datei {room} gibt",
+"Every light starts out clustered at the centre of its room. Here you put each one where it really hangs. Its shape, size, colour and effects need {key}.": "Jedes Licht steht anfangs gebündelt in der Mitte seines Raums. Hier setzt du jedes dorthin, wo es wirklich hängt. Für Form, Größe, Farbe und Effekte brauchst du {key}.",
+"Placing each light where it really hangs is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need {key}. A key goes in Settings → Features → PadSpan licence once you have one.": "Jedes Licht dort zu platzieren, wo es wirklich hängt, ist kostenlos. Für Leuchtenformen, -größen und -winkel, WLED-Streifen, Showcase und Fit room brauchst du {key}. Einen Schlüssel gibst du unter Einstellungen → Funktionen → PadSpan-Lizenz ein, sobald du einen hast."
 }

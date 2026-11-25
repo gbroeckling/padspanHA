@@ -298,5 +298,7 @@
 "Not saved": "Nicht gespeichert",
 "Done": "Fertig",
 "Could not save the matches: {why}": "Die Zuordnung konnte nicht gespeichert werden: {why}",
-"No players found. Audio knows Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha and Anthem players in Home Assistant.": "Keine Player gefunden. Audio kennt Player von Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha und Anthem in Home Assistant."
+"No players found. Audio knows Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha and Anthem players in Home Assistant.": "Keine Player gefunden. Audio kennt Player von Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha und Anthem in Home Assistant.",
+"Placed {n} in {room}.": "{n} in {room} platziert.",
+"Placed {n} of {of} in {room}: {why}": "{n} von {of} in {room} platziert: {why}"
 }

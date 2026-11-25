@@ -190,9 +190,10 @@ def test_the_builder_links_openers_and_locks_and_opens_the_door_card_with_alarm_
                  "onLinkDoorLock: alarm && !preview ? async (l, lockEid) => {",
                  "onBuildFromRelays: alarm && !preview ? () => {", "    barrierHit: alarm,"):
         assert hook in maps, hook
-    # Every other placement and editing tool stays on light placement's own gate.
+    # Every other placement and editing tool stays on light placement's own gate (placing a row, on its own rung
+    # since the free basics: tests/test_free_basics.py).
     for hook in ("onConfigureDoor: paid && !preview ? (l) => {", "onUnlinkDoor: paid && !preview ? async (l) => {",
-                 "onPlaceRow: paid && !preview ? (eid) => {", "onToggleDoorSteel: paid && !preview ? async (l) => {"):
+                 "onPlaceRow: place && !preview ? (eid) => {", "onToggleDoorSteel: paid && !preview ? async (l) => {"):
         assert hook in maps, hook
     # Without the build tools a door's wall section still opens its card (one function for both).
     assert maps.count("_openDoorCard(ctx, ") == 3          # the function and its two callers

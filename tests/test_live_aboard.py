@@ -169,7 +169,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
     assert lm[at:at + 400].count(".catch(") == 1, "the import must carry its own .catch"
     assert lm.index("function _laLoad(") < at < lm.index("export function buildLightsMapCard(")
     gate = ("const _cardH3 = (host) => (host.house3d && host.house3d.settings && host.house3d.settings.atlas_3d_enabled === true\n"
-            '  && tierAtLeast(host.tier, "pro") ? host.house3d : null);')
+            '  && tierAtLeast(host.tier, house3dTier(host.house3d.settings)) ? host.house3d : null);')
     assert gate in lm.replace("\r\n", "\n") and "let h3 = _cardH3(host);" in lm
     assert "if (h3) mount3d();" in lm
     assert lm.count("_laLoad(") == 2, "one definition, one call (in mount3d)"

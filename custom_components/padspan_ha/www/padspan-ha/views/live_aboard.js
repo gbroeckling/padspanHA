@@ -763,6 +763,7 @@ function createSlot(slotKey){
   // ☰ brought the bars back (zooming further in hides them again).
   let keepOff = null;                                       // full screen: the page's cards kept in sight
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
+  let experimental = true;                                // the first-time card says it is (the host's experimental)
   let dialOn = false;                                     // the emergency dial is in the panel (coverCss puts it in the cover's corner)
   // The view about to show afresh (made, or back after Map): on the sidebar
   // (not a wall, not Furnish) its first frame steps the bars aside (openBare).
@@ -1670,7 +1671,7 @@ function createSlot(slotKey){
     card.setAttribute("role", "dialog");
     card.setAttribute("aria-label", t("How Live Aboard works"));
     const ul = d("ul");
-    for (const line of ["Live Aboard is experimental: it is still changing, and some of your house may not show yet.",
+    for (const line of [...(experimental ? ["Live Aboard is experimental: it is still changing, and some of your house may not show yet."] : []),
                      t("Tap a light to switch it. Hold it for brightness and colour."),
                      t("Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms."),
                      t("Double-tap a room to go there."),
@@ -6868,6 +6869,8 @@ function createSlot(slotKey){
         setFurnishView(!!furnishP);
         // The sidebar: the map alone when zoomed in, and full screen.
         mapOnly = p.mapOnly === true;
+        // Its basics no longer experimental where the host says so (editions.js house3dTier).
+        experimental = p.experimental !== false;
         if (panelCss) panelCss.textContent = mapOnly ? CSS_PANEL : "";
         if (!mapOnly) endScreen();
         floorSteps = stepsOf(p.floorSteps);

@@ -73,7 +73,7 @@ def test_the_north_row_writes_only_the_gps_bridges_bearing(box) -> None:
 def test_the_box_is_pro_only_in_either_edition(box) -> None:
     _case(box, "gate:")
     src = (_VIEWS / "settings.js").read_text(encoding="utf-8")
-    assert 'if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));' in src
+    assert 'if (tierAtLeast(currentTier(settings), house3dTier(settings))) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));' in src
 
 
 def test_the_two_settings_and_their_defaults() -> None:
