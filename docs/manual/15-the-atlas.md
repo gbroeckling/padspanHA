@@ -108,7 +108,9 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
 
 - **On the map**: a small speaker beside a room's name while one of its players is on, struck
   through while the room's first player is muted. Nothing while they are all off, and no other new
-  marks. Tap it, or the name, for the room's sheet: a tap on the map never changes anything.
+  marks. Tap it, or the name, for the room's sheet: a tap on the map never changes anything. The 3D
+  view shows the same speaker at the room's name (where the names are hidden, where the name would
+  be); a tap on it opens the room's panel.
 - **The sheet**: under the room's name, its temperature and humidity (the middle reading of its
   sensors) and who is there. **Room off (n)** turns off the room's lights and its players, never a
   lock, a shade, the thermostat or a plug, and shows only while something is on. Then the scenes,

@@ -120,7 +120,9 @@ der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbil
 - **Auf der Karte**: ein kleiner Lautsprecher neben dem Namen eines Raums, solange einer seiner
   Player an ist, durchgestrichen, solange der erste Player des Raums stumm ist. Nichts, solange alle
   aus sind, und keine anderen neuen Zeichen. Tipp darauf oder auf den Namen für das Blatt des Raums:
-  Ein Tippen auf die Karte ändert nie etwas.
+  Ein Tippen auf die Karte ändert nie etwas. Die 3D-Ansicht zeigt denselben Lautsprecher beim Namen
+  des Raums (sind die Namen ausgeblendet, dort, wo der Name stünde); ein Tippen darauf öffnet das
+  Feld des Raums.
 - **Das Blatt**: unter dem Namen des Raums seine Temperatur und Luftfeuchtigkeit (der mittlere Wert
   seiner Sensoren) und wer da ist. **Raum aus (n)** schaltet die Lichter und Player des Raums aus,
   nie ein Schloss, eine Beschattung, das Thermostat oder eine Steckdose, und erscheint nur, solange

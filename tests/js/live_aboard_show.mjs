@@ -125,7 +125,7 @@ const LBE = Object.fromEntries(LM.gatherLights(STATES, {}, {}, "pro", {}, {}, {}
 // ── the host: the sidebar's, with its settings ──────────────────────────────
 const SENT = [];
 let SCAN = null;                 // a scanned plan's furniture, beside the file (house3d_get's scan_pieces)
-const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null };
+const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null, looks: null, asked: 0 };
 const store = new Map();
 const prefs = { get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, String(v)) };
 const host = document.createElement("padspan-lights-app");
@@ -145,7 +145,7 @@ const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden:
   people: H.settings && H.settings.atlas_3d_people ? { snapshot: () => SNAP } : null,
   tags: H.settings && H.settings.atlas_3d_tags ? { snapshot: () => SNAP } : null,
   settings3d: H.settings, admin: H.admin, saveSetting: async (k, v) => { H.saved.push([k, v]); return true; },
-  goTo: (t) => H.went.push(t), audio: H.audio });
+  goTo: (t) => H.went.push(t), audio: H.audio, roomAudio: H.looks ? () => { H.asked++; return H.looks; } : null });
 let slot = null;
 function poll(){
   const c = document.createElement("div"), stage = document.createElement("div");
@@ -585,6 +585,38 @@ await tryCase("setup: Audio is listed where the host hands it, says Audio, and i
   store.delete("show_show-a"); H.audio = null; poll(); await settle();
   check(name, none && JSON.stringify(said) === JSON.stringify(["Audio", "Set up ›", "audio_setup", false]) && closed && tickedNow
     && JSON.stringify(opened) === JSON.stringify(["card", "card"]) && wall && plain, { none, said, closed, tickedNow, opened, wall, plain });
+});
+
+// ── Audio's speakers in 3D (the owner, 2026-11-25: "Yes, add them in 3D") ──────────────────────────────────────────
+await tryCase("setup: Audio ticked, the flat map's speaker at a room's name in 3D: on, muted, none while off; a tap is the room's", async () => {
+  const name = "setup: Audio ticked, the flat map's speaker at a room's name in 3D: on, muted, none while off; a tap is the room's";
+  const listOpen = async () => { if (S().show.menu.open) { click(more()); await settle(); } click(more()); await settle(); };
+  H.audio = { setup: () => {} }; H.looks = { Kitchen: "on", Loft: "muted" }; H.asked = 0;
+  poll(); await settle();
+  const off = S().audio.length, askedOff = H.asked;                       // not ticked: nothing drawn, the looks never asked
+  await listOpen(); await toggle("room_controls");
+  if (S().show.menu.open) { click(more()); await settle(); }
+  poll(); await settle();
+  const on = S().audio.map(a => [a.room, a.look]).sort((a, b) => a[0].localeCompare(b[0]));
+  const shown = S().audio.filter(a => a.shown).length;
+  // A tap on one: the room (its panel), never a light or a switch.
+  const at = (S().audio.find(a => a.room === "Kitchen") || {}).at;
+  const r0 = slot.element.querySelector("canvas"), box = r0 && r0.getBoundingClientRect ? r0.getBoundingClientRect() : { left: 0, top: 0 };
+  const hit = at ? slot._pick(box.left + at[0], box.top + at[1]) : null;
+  // The players all off: nothing; and unticked again: nothing, the looks not asked.
+  H.looks = { Kitchen: "on" }; poll(); await settle();
+  const one = S().audio.map(a => a.room);
+  H.looks = {}; poll(); await settle();
+  const none = S().audio.length;
+  H.looks = { Kitchen: "on" };
+  await listOpen(); await toggle("room_controls");
+  if (S().show.menu.open) { click(more()); await settle(); }
+  const asked = H.asked; poll(); await settle();
+  const unticked = S().audio.length, askedAfter = H.asked - asked;
+  store.delete("show_show-a"); H.audio = null; H.looks = null; poll(); await settle();
+  check(name, off === 0 && askedOff === 0 && JSON.stringify(on) === JSON.stringify([["Kitchen", "on"], ["Loft", "muted"]]) && shown >= 1
+    && (!hit || hit.hit === "room:Kitchen") && JSON.stringify(one) === JSON.stringify(["Kitchen"]) && none === 0 && unticked === 0 && askedAfter === 0
+    && SHOW.SHOW_ITEMS.find(i => i.key === "room_controls").dflt === false, { off, askedOff, on, shown, at, hit, one, none, unticked, askedAfter });
 });
 
 LA.releaseLiveAboardSlot("show-a");

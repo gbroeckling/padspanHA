@@ -4344,6 +4344,9 @@ export function buildLightsMapCard(hostIn){
           scenes: scenesNow(),
           // Audio's line in this view's ⋯ list, and its Set up › (the matching card over the map), where the host hands Audio.
           audio: audioSetup(),
+          // And, with that line ticked on this screen, the flat map's speakers at the rooms' names (room_controls.js looks:
+          // {room: "on" | "muted"}), asked by the view only while it is ticked there.
+          roomAudio: host.roomControls ? () => host.roomControls.looks() : null,
           onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }

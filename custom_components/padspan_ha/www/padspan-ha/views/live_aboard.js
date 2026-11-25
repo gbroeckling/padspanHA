@@ -654,6 +654,8 @@ function createSlot(slotKey){
   // sensor outside every room) saying what they read.
   let openings = [], sensorsUi = [], tints = [], readouts = [], chips = [], heats = [];
   let sensorRes = [], sensorsSig = null;
+  // Audio: a speaker per room at its name (syncAudio), their textures and materials, what they were built from.
+  let audioUi = [], audioRes = [], audioKey = null;
   let liveMs = 0, lastAmbient = 0, rehoverDue = false;   // liveMs: how often something moving by itself is drawn (0: still)
   let northDismissed = null;               // the pointerdown that only put north back
   // The 3D file (part C), as the editor owns it (live_aboard_draft.js
@@ -852,8 +854,8 @@ function createSlot(slotKey){
     layer = null; furnishP = null; topCb = null; plansP = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
-    disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes);
-    shellRes = []; lightRes = []; sensorRes = [];
+    disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes); disposeList(audioRes);
+    shellRes = []; lightRes = []; sensorRes = []; audioRes = []; audioUi = []; audioKey = null;
     // three.js gives every sprite (a readout, a room's name) one geometry for
     // the whole page, and each renderer that drew one hangs a listener on it
     // that renderer.dispose() never takes off: that listener would keep this
@@ -2024,6 +2026,7 @@ function createSlot(slotKey){
   // ── the house ─────────────────────────────────────────────────────────────
   function clearShell(){
     clearSensors();
+    clearAudio();
     openings = [];
     if (use && !use.pressing) use.clear();            // what it marked is gone
     for (const F of floorsUi) scene.remove(F.group);
@@ -3779,6 +3782,20 @@ function createSlot(slotKey){
       const op = (C.clsOp ?? 1) * C.fk;
       if (C.sprite.material.opacity !== op) C.sprite.material.opacity = op;
     }
+    // Audio: each speaker just right of its room's name where the name shows, else where the name would be
+    // (a little up, clear of the readout chip under it); hidden where the name is (behind a wall, under a floor).
+    for (const sp of audioUi) {
+      const u = sp.userData, lu = u.label.userData;
+      if (!u.F.group.visible) continue;
+      sp.position.copy(u.label.position);
+      const hPx = Math.max(READ_PX[0] * wallK, Math.min(READ_PX[1] * wallK, READ_H / mppAt(sp.position)));
+      sp.scale.set(hPx * k, hPx * k, 1);
+      const named = u.label.visible && lu.px > 0;
+      sp.center.set(named ? 0.5 - (lu.px * (lu.aspect / 2 - 0.2) + 4 + hPx / 2) / hPx : 0.5, named ? 0.5 + (lu.dy || 0) / hPx : 0.5 - 6 / hPx);
+      sp.visible = !quiet && !lu.covered && !(persp && lu.behind);
+      const op = u.op * (level === "room" && !isOpen(u.F, u.i) ? ROOM_FADE : 1);
+      if (sp.material.opacity !== op) sp.material.opacity = op;
+    }
   }
   /** Where a chip sits on its spot: under its room's name (or where the name
    *  would be), clear of it; moved with its name, or alone where no name
@@ -5212,6 +5229,15 @@ function createSlot(slotKey){
       if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, live: T.live, label: T.label,
                                                         card: T.kind === "person" && panel ? panel.cardOf(T.key, T.card) : T.card } };
     }
+    // Audio: a room's speaker, drawn over everything, is pressed where it shows, as the room's name is: its panel (a
+    // tag's name on it still wins); never a light under it.
+    for (const sp of audioUi) {
+      if (!sp.visible || !sp.userData.F.group.visible || (tagHit && tagHit.d === 0)) continue;
+      const q = labelQuad(sp), poly = q.map(v => screenPt(v, rect));
+      if (!poly.every(Boolean) || !nearPoly(clientX, clientY, poly, 8)) continue;
+      const room = sp.userData.room;
+      return { hit: { kind: "room", key: "room:" + room, room, quad: q, label: roomWords(room) || t("{room} — opens its 0 devices", { room }) }, under: [] };
+    }
     // "Lights as buttons": a button within reach is the target (a tag or a person nearer still wins); a light is
     // pressed by its button alone.
     if (btnOn) {
@@ -5854,6 +5880,72 @@ function createSlot(slotKey){
     if (S.mesh) { S.mesh.setMatrixAt(S.i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055)); S.mesh.instanceMatrix.needsUpdate = true; }
     if (motionL && S.kind === "motion") motionL.move(eid, S.z);
     if (S.chip && S.chip.outdoor) placeChip(S.chip);
+    return true;
+  }
+
+  // ── Audio: a speaker at a room's name while its player is on (room_controls.js, through the card) ──
+  // The owner, 2026-11-25 ("Yes, add them in 3D"): with this screen's ⋯ Audio line ticked, the flat Atlas's speaker
+  // (iso_lights.js speakerMark) here too, from the same looks (p.roomAudio(): {room: "on" | "muted"}, a room with a
+  // matched player on, slashed while its first is muted; nothing while they are all off), in the room name's colour.
+  // One sprite per such room, its texture drawn once per colour and look, sized with the names (sizeNames); built
+  // again only when what it shows changed. A tap on one is a tap on the room (pickAt: its panel, with its Audio):
+  // nothing on the map switches anything.
+  const AUDIO_PX = 64;
+  function clearAudio(){
+    for (const sp of audioUi) if (sp.parent) sp.parent.remove(sp);
+    disposeList(audioRes);
+    audioRes = []; audioUi = []; audioKey = null;
+  }
+  function speakerTexture(color, look, made){
+    const key = `${color}|${look}`;
+    if (made.has(key)) return made.get(key);
+    const c = document.createElement("canvas");
+    c.width = c.height = AUDIO_PX;
+    const g = c.getContext("2d"), s = AUDIO_PX * 0.33, x = AUDIO_PX / 2, y = AUDIO_PX / 2, w = s * 0.22;
+    const P = (a, b) => [x + a * s, y + b * s];
+    const line = (pts) => { g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(...P(a, b)) : g.moveTo(...P(a, b)))); };
+    g.lineJoin = "round"; g.lineCap = "round";
+    const speaker = (ink, lw, fill) => {
+      g.strokeStyle = ink; g.lineWidth = lw;
+      line([[-1, -0.35], [-0.55, -0.35], [-0.05, -0.85], [-0.05, 0.85], [-0.55, 0.35], [-1, 0.35]]);
+      g.closePath();
+      if (fill) { g.globalAlpha = 0.35; g.fillStyle = ink; g.fill(); g.globalAlpha = 1; }
+      g.stroke();
+      for (const r of [0.4, 0.8]) { g.beginPath(); g.arc(x + 0.25 * s, y, r * s, -Math.PI / 2, Math.PI / 2); g.stroke(); }
+    };
+    speaker("rgba(7,16,8,0.86)", w * 2.8, false);           // the dark edge the names have
+    speaker(color, w, true);
+    if (look === "muted") for (const [ink, lw] of [["#071008", w * 2.6], [color, w]]) {
+      g.strokeStyle = ink; g.lineWidth = lw; line([[-1.05, -1], [1.05, 1]]); g.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    audioRes.push(tex);
+    made.set(key, tex);
+    return tex;
+  }
+  /** The card's p: the speakers as p.roomAudio() says while this screen's ⋯ Audio is ticked (true: they changed). */
+  function syncAudio(p){
+    const on = !!(showOn && !showSuspended() && showOn.room_controls === true && p && typeof p.roomAudio === "function");
+    const got = on ? p.roomAudio() : null, looks = got && typeof got === "object" && Object.keys(got).length ? got : null;
+    const key = looks ? `${shellGen}|${JSON.stringify(looks)}` : null;
+    if (key === audioKey) return false;
+    clearAudio();
+    audioKey = key;
+    if (!looks) return true;
+    const made = new Map();
+    for (const F of floorsUi) F.rooms.forEach((r, i) => {
+      const look = Object.prototype.hasOwnProperty.call(looks, r.name) ? looks[r.name] : null, lbl = F.labels[i];
+      if (!look || !lbl) return;
+      const m = new THREE.SpriteMaterial({ map: speakerTexture(lbl.userData.color || "#ffffff", look, made), transparent: true,
+                                           depthTest: false, depthWrite: false, sizeAttenuation: false });
+      audioRes.push(m);
+      const sp = new THREE.Sprite(m);
+      sp.renderOrder = 31;                                   // over everything, as the names are
+      sp.userData = { room: r.name, look, F, i, label: lbl, op: 1 };
+      F.group.add(sp);
+      audioUi.push(sp);
+    });
     return true;
   }
 
@@ -6685,6 +6777,7 @@ function createSlot(slotKey){
     paintWet(p);
     paintHeat();
     syncMarks(p, vd);
+    if (syncAudio(p)) requestRender();
     if (raisedL) raisedL.touch();                            // what shows may have changed
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = walking() ? null : HOUSE.topFloorElev(house.floors, p.topFloorIds || null);   // walking: every floor shows
@@ -6965,6 +7058,10 @@ function createSlot(slotKey){
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),
+               // Audio: each room's speaker, its look, shown or not, beside its name or not, and where it is (px in the view).
+               audio: audioUi.map(sp => { const r = view3Rect(), q = renderer && r.width ? screenPt(sp.position, r) : null;
+                 return { room: sp.userData.room, look: sp.userData.look, shown: sp.visible && sp.userData.F.group.visible, opacity: sp.material.opacity,
+                          beside: sp.center.x < 0.5, at: q ? [Math.round(q[0] - r.left), Math.round(q[1] - r.top)] : null }; }),
                dimmed: lights.filter(L => dimOf(L.eid)).map(L => L.eid),
                split: furnishOn ? (viewports().plan ? (viewports().d3 ? "both" : "plan") : "3d") : null, plan: { ...plan } };
     },
