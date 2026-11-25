@@ -224,6 +224,12 @@ guest_tags:refresh
 heldout:room_of
 house3d_heights:move_heights
 licence_homes:machine_id
+lights_follow:area_entities
+lights_follow:bump
+lights_follow:guest_keys
+lights_follow:room_names
+lights_follow:room_names_areas
+lights_follow:team_light_of
 maps_store:crop_png
 maps_store:decode_png_to_rgba
 maps_store:delete_map

@@ -675,7 +675,11 @@ def test_a_team_member_switched_by_padspan_is_switched_as_its_team() -> None:
     src = {f: (ROOT / "custom_components/padspan_ha" / f).read_text(encoding="utf-8") for f in ("vacation_mode.py", "emergency_test.py", "presence_coordinator.py")}
     assert "target = team_light_of(hass, entity_id)" in src["vacation_mode.py"] and '{"entity_id": target}' in src["vacation_mode.py"]
     assert "target = team_light_of(hass, eid)" in src["emergency_test.py"] and '{"entity_id": target}, blocking=True' in src["emergency_test.py"]
-    assert "_team = team_light_of(self.hass, entity_id)" in src["presence_coordinator.py"]
+    # Presence automations and Lights follow people switch through power_team.async_switch, which does the same.
+    assert "await async_switch(self.hass, entity_id, action == \"turn_on\", source=\"presence\")" in src["presence_coordinator.py"]
+    switch = (ROOT / "custom_components/padspan_ha/power_team.py").read_text(encoding="utf-8")
+    switch = switch[switch.index("async def async_switch("):]
+    assert "target = team_light_of(hass, eid)" in switch and '{"entity_id": target}' in switch
 
 
 # ── the review of 2026-11-21: what a real house does that the first tests did not ───────────────────

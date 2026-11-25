@@ -51,6 +51,9 @@ const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`)
 // Settings → Atlas → Power teams (views/power_teams.js). Optional, as the others are.
 const POWER_TEAMS = await import(`./power_teams.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: power_teams failed to load", err); return null; });
+// Settings → Tracking → Home Assistant and integrations → Lights follow people (views/lights_follow.js). Optional too.
+const LIGHTS_FOLLOW = await import(`./lights_follow.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: lights_follow failed to load", err); return null; });
 
 // Its words in the panel's language (views/i18n.js; English is the key). So far the frame, Appearance, Scanner Map
 // and Tracking; the other tabs are still English.
@@ -2903,6 +2906,9 @@ function _settingsPresence(ctx, el){
     ]));
     put("integrations", el("div",{class:"card"}, cardChildren));
   }
+
+  // ── Lights follow people (lights_follow.py): off until turned on here ──
+  if (LIGHTS_FOLLOW) put("integrations", LIGHTS_FOLLOW.lightsFollowSection(ctx, el));
 
   // ── Suspend Databases (raw radio test) ─────────────────────────────────
   {

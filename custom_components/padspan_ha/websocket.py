@@ -390,6 +390,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_guests import WS_COMMANDS as _guest_commands
     for _cmd in _guest_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Lights follow people (lights_follow.py) — off by default; reading it works either way.
+    from .lights_follow import ws_lights_follow_get
+    websocket_api.async_register_command(hass, ws_lights_follow_get)
     # Sub-zones (ws_subzones.py) — normally off; list works, the rest refuse while off.
     from .ws_subzones import WS_COMMANDS as _subzone_commands
     for _cmd in _subzone_commands:

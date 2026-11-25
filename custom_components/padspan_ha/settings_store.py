@@ -45,6 +45,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "report_locked_key": "",       # sha256 of a FREE licence key granted from 0.38.181 (trial, tester, free year): the usage report stays on while that key is here and unexpired (report_locked_until)
     "guest_tags_enabled": False,   # guest tags (guest_tags.py): off until chosen in Settings; nothing runs while off
     "guest_retention_days": 30,    # a finished guest stay's report is kept this long: 0, 7, 30 or 90
+    # Lights follow people (lights_follow.py): off until chosen in Settings; nothing runs while off.
+    "lights_follow_enabled": False,
+    "lights_follow_rooms": {},     # {room: {lights, off_delay_s, dark, lux_entity, lux_below, quiet, sensors}} — lights_follow.clean_rooms
+    "lights_follow_people": {},    # {name (lower case): counts} — a name not here counts, unless a guest tag
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
     # Enhanced security (ws_common.require_admin_if_enhanced): off = every
     # command as before; on = only an admin changes the home's shared setup.

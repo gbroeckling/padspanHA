@@ -706,11 +706,14 @@ async def test_vacation_followers_are_still_left_to_their_leader(house):
 
 
 def test_presence_rules_route_exact_lights_through_the_exact_path():
+    # The arrive/depart rules and Lights follow people switch through power_team.async_switch, which
+    # sends a WLED light PadSpan runs through async_power (its remembered look).
+    from custom_components.padspan_ha import power_team as PT
     from custom_components.padspan_ha import presence_coordinator as PC
-    src = inspect.getsource(PC)
-    i = src.index("# A WLED light PadSpan runs: its remembered look")
-    block = src[i:i + 600]
-    assert "is_exact_entity(self.hass, entity_id)" in block and 'async_power(self.hass, entity_id, action == "turn_on", source="presence")' in block
+    assert 'await async_switch(self.hass, entity_id, action == "turn_on", source="presence")' in inspect.getsource(PC)
+    block = inspect.getsource(PT.async_switch)
+    assert 'if domain == "light" and is_exact_entity(hass, target):' in block
+    assert "await async_power(hass, target, on, source=source)" in block
 
 
 async def test_the_services_turn_on_with_the_look_and_fall_back_for_other_lights(house):

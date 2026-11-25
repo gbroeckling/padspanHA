@@ -1,0 +1,58 @@
+blueprint:
+  name: PadSpan - lights on in whichever room you walk into
+  description: >-
+    One automation for the whole house: when the phone, watch or tag you pick
+    shows a new room, the lights of the Home Assistant area with that name go
+    on. A room that is not an area is skipped, and leaving the house
+    (not_home) does nothing. It waits for the room to hold for a few seconds,
+    so walking through a doorway does not set everything off. Pair it with
+    "PadSpan - lights off when a room is empty" for the other half.
+  domain: automation
+  source_url: https://github.com/gbroeckling/padspanHA/blob/main/blueprints/automation/padspan_ha/lights_on_in_whichever_room.yaml
+  input:
+    person:
+      name: Area sensor
+      description: The area sensor of the phone, watch or tag (sensor.<name>_area).
+      selector:
+        entity:
+          domain: sensor
+    settle:
+      name: Room holds for
+      default:
+        seconds: 10
+      selector:
+        duration:
+    only_after_sunset:
+      name: Only after sunset
+      default: true
+      selector:
+        boolean:
+
+mode: queued
+max: 5
+
+variables:
+  only_after_sunset: !input only_after_sunset
+
+triggers:
+  - trigger: state
+    entity_id: !input person
+    not_from:
+      - unknown
+      - unavailable
+    not_to:
+      - unknown
+      - unavailable
+      - not_home
+    for: !input settle
+
+conditions:
+  - condition: template
+    value_template: "{{ area_id(trigger.to_state.state) is not none }}"
+  - condition: template
+    value_template: "{{ not only_after_sunset or is_state('sun.sun', 'below_horizon') }}"
+
+actions:
+  - action: light.turn_on
+    target:
+      area_id: "{{ area_id(trigger.to_state.state) }}"
