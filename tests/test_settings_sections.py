@@ -29,7 +29,7 @@ SETTINGS_JS = (VIEWS / "settings.js").read_text(encoding="utf-8")
 # Every card the Presence tab draws, by its title, in the section it belongs to.
 EXPECTED = {
     "rooms": ["Room Change Delay", "Hold Room Through Short Gaps", "Why This Room (Sensor Attribute)", "Home/Away Timeout"],
-    "phones": ["Guest tags", "Phone Tracking (Private BLE)"],
+    "phones": ["Guest tags", "Yesterday at home", "Phone Tracking (Private BLE)"],
     "shown": ["Quiet Mode", "Object History Retention", "BLE Advertisement Timeout"],
     "positioning": ["Positioning Algorithm", "Positioning Choices", "Walk a Room (Calibration)", "Distance Calibration",
                     "Signal smoothing", "3D Positioning — Device Height", "Calibration Accuracy Reminders",

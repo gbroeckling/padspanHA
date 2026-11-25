@@ -310,5 +310,17 @@
 "Verified — matched {n} rotating addresses{note}. Saving...": {
 "one": "Geverifieerd — {n} wisselend adres herkend{note}. Opslaan...",
 "other": "Geverifieerd — {n} wisselende adressen herkend{note}. Opslaan..."
-}
+},
+"Yesterday at home": "Gisteren thuis",
+"Send a morning message about the day before": "Elke ochtend een bericht over de dag ervoor sturen",
+"One short message a day through Home Assistant: who came and went and when, guest tags that arrived or left, the rooms empty longest, and lights left on in rooms where nobody was. The figures are Traceback's for that day, and the message links to it. A day with none of these says \"Nothing to report\".": "Eén kort bericht per dag via Home Assistant: wie kwam en ging en wanneer, gasttags die aankwamen of vertrokken, de kamers die het langst leeg waren, en lampen die aan bleven in kamers waar niemand was. De cijfers zijn die van Traceback voor die dag, en het bericht linkt ernaar. Een dag zonder dit alles zegt \"Niets te melden\".",
+"Send it at": "Versturen om",
+"Send it to": "Versturen naar",
+"What it tells": "Wat het vertelt",
+"A Home Assistant notification": "Een melding in Home Assistant",
+"Who came and went, and when": "Wie kwam en ging, en wanneer",
+"Guest tags that arrived or left": "Gasttags die aankwamen of vertrokken",
+"The rooms empty longest": "De kamers die het langst leeg waren",
+"Lights left on in rooms where nobody was": "Lampen die aan bleven in kamers waar niemand was",
+"Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Alleen een beheerder kan dit wijzigen. Na het tijdstip van vandaag aangezet, komt het eerste bericht morgen."
 }

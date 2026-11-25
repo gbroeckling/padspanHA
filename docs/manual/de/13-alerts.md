@@ -13,6 +13,7 @@ wie du es ein- oder ausschaltest.
 | Eine offen gelassene Tür, oder ein offenes Fenster im Regen | Der Raum bekommt im Atlas einen gelben Ring; ein Banner auf einem Wandbildschirm | **Einstellungen → Atlas → Atlas — Mapped Light Control → Alert pulse** |
 | Der Urlaubsmodus endet oder wird ausgeschaltet | Eine Home-Assistant-Benachrichtigung, und die Alarmziele aus Folgen | Immer, solange der Urlaubsmodus genutzt wird |
 | Ein Gast kommt, geht oder betritt einen Raum, den er nicht betreten soll | Dein Handy oder eine Home-Assistant-Benachrichtigung | Wenn du einen Gast-Tag verleihst |
+| Gestern zu Hause: wer kam und ging, Gäste, die am längsten leeren Räume, brennende Lichter | Dein Handy oder eine Home-Assistant-Benachrichtigung, jeden Morgen | **Einstellungen → Ortung → Handys und Gast-Tags → Gestern zu Hause** (aus, bis du es einschaltest) |
 | PadSpan konnte ein Speichern nicht bestätigen | **Einstellungen → Reparaturen** von Home Assistant | Immer an |
 | Eine neue stabile Version | Eine Home-Assistant-Benachrichtigung | Ab Werk an; siehe [Kapitel 3](03-install-update-uninstall.md) |
 | Claudes Lesevorgänge überschreiten dein Monatslimit | Eine Home-Assistant-Benachrichtigung | **Einstellungen → KI** (aus, solange du es nicht einstellst) |
@@ -205,6 +206,47 @@ Hinweise:
 
 Jeder dieser Hinweise löst auch das Ereignis `padspan_ha_guest` aus. Die
 [Anleitung zu Gast-Tags](../../GUEST_TAGS_GUIDE.md) hat den Rest.
+
+## Gestern zu Hause
+
+Eine kurze Nachricht jeden Morgen über den Vortag. Aus, bis du sie unter
+**Einstellungen → Ortung → Handys und Gast-Tags → Gestern zu Hause** einschaltest (nur ein
+Administrator).
+
+- **Senden um**: die Uhrzeit, in der Zeitzone von Home Assistant (am Anfang 08:00). Ist Home
+  Assistant dann aus, geht die Nachricht, sobald es wieder läuft, am selben Tag. Nach der heutigen
+  Uhrzeit eingeschaltet, kommt die erste Nachricht morgen.
+- **Senden an**: ein Handy oder ein anderes notify-Ziel (die Liste, die auch die Alarme aus Folgen
+  nutzen), oder **Eine Benachrichtigung in Home Assistant** (die Voreinstellung).
+- **Was sie sagt**: hake die Zeilen an, die du willst.
+
+| Zeile | Was sie sagt |
+|---|---|
+| **Wer kam und ging, und wann** | Jedes benannte Gerät, das ging oder zurückkam: „Alex's phone left 08:09, back 17:40“. Fehlt es in Traceback länger als 15 Minuten, zählt das als Gehen; eine kürzere Lücke nicht. |
+| **Gast-Tags, die ankamen oder gingen** | Ein an einen Gast verliehener Tag, während des Aufenthalts: „Jordan (Guest tag 1) left 09:59, arrived 14:00“. Braucht eingeschaltete Gast-Tags. Ein Gast-Tag steht nie in der Zeile darüber. |
+| **Die Räume, die am längsten leer waren** | Die drei Räume mit der längsten Zeit ohne jemanden darin: „Garage all day; Living room until 17:40 (17 h 40 min); Kitchen from 08:09 (15 h 51 min)“. |
+| **Lichter, die in Räumen brannten, in denen niemand war** | Ein Licht, das insgesamt eine halbe Stunde oder länger an war, während sein Raum leer war: „Ceiling light (Kitchen) 1 h 51 min“. |
+
+Die Zahlen sind die von Traceback für diesen Tag, von Mitternacht bis Mitternacht. Die Nachricht
+endet mit einem Link, der Traceback an diesem Tag öffnet, mit allen Geräten, zum Abspielen:
+„Traceback for the day: https://…/padspan-ha?view=traceback&from=…&to=…“.
+
+Ein Tag ohne etwas für die angehakten Zeilen bekommt **Nothing to report.** und den Link, nie eine
+leere Nachricht. Eine Nachricht am Tag: Der Tag wird als erzählt markiert, bevor die Nachricht
+geht, also schickt ein Neustart sie nie zweimal, und eine, die nicht ankam (etwa weil ein Handy
+umbenannt wurde), wird auch nicht noch einmal geschickt. Das Protokoll sagt, warum.
+
+Gut zu wissen:
+
+- Die Räume sind die Räume mit einem Empfänger, und jeder Raum, in dem Traceback an dem Tag jemanden
+  hatte.
+- Alles, dem Traceback folgt, zählt als jemand im Raum, wie in **Traceback → Insights**: Schlüssel
+  am Haken halten den Flur davon ab, leer zu sein.
+- Die Lichter kommen aus dem Verlauf von Home Assistant, einem Raum über ihren Home-Assistant-Bereich
+  zugeordnet.
+- Die Zeilen zu leeren Räumen und Lichtern brauchen Traceback-Aufzeichnungen von vor dem Tag; eine
+  neue Installation lässt sie an ihrem ersten Tag weg.
+- Die Nachricht ist auf Englisch, wie alle Benachrichtigungen von PadSpan.
 
 ## Reparaturen
 

@@ -79,6 +79,7 @@ to turn it on or off.</p>
   <tr><td>A door left open, or a window open in the rain</td><td>The room rings amber on the Atlas; a banner on a wall screen</td><td><b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b></td></tr>
   <tr><td>Vacation Mode ends or is turned off</td><td>A Home Assistant notification, and your Follow alert targets</td><td>Always, while Vacation Mode is used</td></tr>
   <tr><td>A guest arrives, leaves, or goes into a room they shouldn't</td><td>Your phone, or a Home Assistant notification</td><td>When you lend a guest tag</td></tr>
+  <tr><td>Yesterday at home: who came and went, guests, the rooms empty longest, lights left on</td><td>Your phone, or a Home Assistant notification, each morning</td><td><b>Settings → Tracking → Phones and guest tags → Yesterday at home</b> (off unless you turn it on)</td></tr>
   <tr><td>PadSpan couldn't confirm a save</td><td>Home Assistant's <b>Settings → Repairs</b></td><td>Always on</td></tr>
   <tr><td>A new stable version</td><td>A Home Assistant notification</td><td>On by default; see <a href="/manual/install-update-uninstall/">chapter 3</a></td></tr>
   <tr><td>Claude's reads pass your monthly limit</td><td>A Home Assistant notification</td><td><b>Settings → AI</b> (off unless you set it)</td></tr>
@@ -258,6 +259,43 @@ default).</li>
 </ul>
 <p>Every one of these also fires the <code>padspan_ha_guest</code> event. The <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GUEST_TAGS_GUIDE.md">Guest tags guide</a>
 has the rest.</p>
+<h2 id="yesterday-at-home">Yesterday at home</h2>
+<p>One short message each morning about the day before. Off until you turn it on in
+<b>Settings → Tracking → Phones and guest tags → Yesterday at home</b> (an administrator only).</p>
+<ul>
+<li><b>Send it at</b>: the time, in Home Assistant's time zone (08:00 to start with). If Home Assistant
+is off then, the message goes when it is back, the same day. Turned on after today's time, the
+first message comes tomorrow.</li>
+<li><b>Send it to</b>: a phone or other notify target (the list Follow alerts use), or
+<b>A Home Assistant notification</b> (the default).</li>
+<li><b>What it tells</b>: tick the lines you want.</li>
+</ul>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Line</th><th>What it says</th></tr>
+  <tr><td><b>Who came and went, and when</b></td><td>Each named device that left or came back: "Alex's phone left 08:09, back 17:40". Missing from Traceback for more than 15 minutes counts as leaving; a shorter gap doesn't.</td></tr>
+  <tr><td><b>Guest tags that arrived or left</b></td><td>A tag lent to a guest, during the stay: "Jordan (Guest tag 1) left 09:59, arrived 14:00". Needs guest tags on. A guest tag is never in the line above.</td></tr>
+  <tr><td><b>The rooms empty longest</b></td><td>The three rooms with the longest stretch with nobody in them: "Garage all day; Living room until 17:40 (17 h 40 min); Kitchen from 08:09 (15 h 51 min)".</td></tr>
+  <tr><td><b>Lights left on in rooms where nobody was</b></td><td>A light that was on for half an hour or more, in all, while its room was empty: "Ceiling light (Kitchen) 1 h 51 min".</td></tr>
+</table>
+</div>
+<p>The figures are Traceback's for that day, midnight to midnight. The message ends with a link that
+opens Traceback on that day, every device, so you can play it back:
+"Traceback for the day: https://…/padspan-ha?view=traceback&amp;from=…&amp;to=…".</p>
+<p>A day with nothing for the lines you ticked gets <b>Nothing to report.</b> and the link, never an
+empty message. One message a day: the day is marked as told before the message goes, so a restart
+never sends it twice, and one that failed (a phone renamed, say) isn't sent again either. The log
+says why.</p>
+<p>Worth knowing:</p>
+<ul>
+<li>The rooms are the rooms with a receiver, and any room Traceback had someone in that day.</li>
+<li>Anything Traceback follows counts as someone in a room, as it does in <b>Traceback → Insights</b>:
+keys left on a hook keep the Hall from being empty.</li>
+<li>Lights come from Home Assistant's history, matched to a room by their Home Assistant area.</li>
+<li>The empty rooms and lights lines need Traceback to have been recording before the day began, so
+a new install leaves them out on its first day.</li>
+<li>The message is in English, as all of PadSpan's notifications are.</li>
+</ul>
 <h2 id="repairs">Repairs</h2>
 <p>PadSpan raises one kind of Home Assistant repair, under <b>Settings → Repairs</b>:</p>
 <blockquote>

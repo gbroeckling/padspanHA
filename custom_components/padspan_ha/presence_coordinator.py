@@ -798,6 +798,273 @@ async def async_send_follow_notify(
     raise FollowNotifyNotSent("send_failed", f"auto-detect: {last_auto_err}")
 
 
+# ── Yesterday at home (approved 2026-11-23, free, off by default) ───────────
+# One short morning message about the day before, through Home Assistant
+# notify: who came and went and when, guest tags that arrived or left, the
+# rooms empty longest, and lights left on in rooms where nobody was. The
+# figures are Traceback's for that day (traceback_store.day_summary), and the
+# message links to Traceback on that day. Settings → Tracking → Phones and
+# guest tags. The poll asks yesterday_due each time; it answers at once while
+# off. The day told is saved before the message goes (yesterday_home_sent_day),
+# so a restart never sends it twice. In English, as every PadSpan notification is.
+
+YESTERDAY_LINES: tuple[str, ...] = ("comings", "guests", "empty_rooms", "lights")
+LIGHT_LEFT_MIN_S = 1800.0     # on this long with nobody in the room: "left on"
+EMPTY_ROOMS_SHOWN = 3
+PEOPLE_SHOWN = 8
+EVENTS_SHOWN = 6              # per person or guest
+LIGHTS_SHOWN = 4
+
+
+def yesterday_clock(spec: Any) -> int | None:
+    """Minutes after midnight for "HH:MM", else None."""
+    s = str(spec or "").strip()
+    if len(s) != 5 or s[2] != ":" or not (s[:2] + s[3:]).isdigit():
+        return None
+    h, m = int(s[:2]), int(s[3:])
+    return h * 60 + m if h < 24 and m < 60 else None
+
+
+def _house_tz(hass: Any) -> Any:
+    from zoneinfo import ZoneInfo  # noqa: PLC0415
+    try:
+        return ZoneInfo(getattr(hass.config, "time_zone", None) or "UTC")
+    except Exception:  # noqa: BLE001 — an unknown zone name: the house's day as UTC's
+        _quiet_error("presence:yesterday_tz")
+        return ZoneInfo("UTC")
+
+
+def yesterday_window(hass: Any, now_ts: float) -> tuple[str, float, float]:
+    """("YYYY-MM-DD", start, end) of the day before now, midnight to
+    midnight in Home Assistant's time zone (23 or 25 hours across a clock change)."""
+    from datetime import datetime, time as dtime  # noqa: PLC0415
+    tz = _house_tz(hass)
+    today = datetime.fromtimestamp(now_ts, tz).date()
+    day = today - timedelta(days=1)
+    start = datetime.combine(day, dtime(0), tzinfo=tz).timestamp()
+    end = datetime.combine(today, dtime(0), tzinfo=tz).timestamp()
+    return day.isoformat(), start, end
+
+
+def _past_time(hass: Any, data: dict[str, Any], now_ts: float) -> bool:
+    from datetime import datetime  # noqa: PLC0415
+    at = yesterday_clock(data.get("yesterday_home_time"))
+    if at is None:
+        at = 8 * 60
+    local = datetime.fromtimestamp(now_ts, _house_tz(hass))
+    return local.hour * 60 + local.minute >= at
+
+
+def yesterday_due(hass: Any, data: dict[str, Any], now_ts: float) -> str | None:
+    """The day to tell now, or None: on, today's time reached, and that day
+    not told yet. A Home Assistant that was off at the time tells it when it
+    is back, the same day."""
+    if data.get("yesterday_home_enabled") is not True or not _past_time(hass, data, now_ts):
+        return None
+    day = yesterday_window(hass, now_ts)[0]
+    return None if data.get("yesterday_home_sent_day") == day else day
+
+
+def yesterday_stamp_on(hass: Any, data: dict[str, Any], now_ts: float | None = None) -> str | None:
+    """Turned on after today's time: the day to mark as told, so the first
+    message comes at the time tomorrow instead of at once."""
+    now_ts = time.time() if now_ts is None else now_ts
+    return yesterday_window(hass, now_ts)[0] if _past_time(hass, data, now_ts) else None
+
+
+def yesterday_link(hass: Any, start: float, end: float) -> str:
+    """Traceback on that day (panel.js ?view=traceback&from=&to=, epoch seconds)."""
+    path = f"/padspan-ha?view=traceback&from={int(start)}&to={int(end)}"
+    try:
+        from homeassistant.helpers.network import get_url  # noqa: PLC0415
+        return get_url(hass, prefer_external=True).rstrip("/") + path
+    except Exception:  # noqa: BLE001 — no URL set up in Home Assistant: the path alone
+        _quiet_error("presence:yesterday_link")
+        return path
+
+
+def lights_left_on(history: dict[str, list[tuple[float, str]]], light_rooms: dict[str, tuple[str, str]],
+                   empty: dict[str, list[tuple[float, float]]], start: float, end: float) -> list[tuple[str, str, float]]:
+    """[(room, light name, seconds)]: how long each light was on in its
+    room's empty stretches that day, LIGHT_LEFT_MIN_S or more, longest first.
+    history: {entity: [(ts, state)]} from the recorder; light_rooms: {entity:
+    (room, name)}; empty: {room: [(from, to)]}."""
+    from .traceback_store import _merge  # noqa: PLC0415
+    out = []
+    for eid, (room, name) in light_rooms.items():
+        rows = sorted(history.get(eid) or [])
+        on: list[tuple[float, float]] = []
+        for i, (ts, state) in enumerate(rows):
+            if state == "on":
+                nxt = rows[i + 1][0] if i + 1 < len(rows) else end
+                s, e = max(ts, start), min(nxt, end)
+                if e > s:
+                    on.append((s, e))
+        total = 0.0
+        for s, e in _merge(on):
+            for es, ee in empty.get(room) or []:
+                total += max(0.0, min(e, ee) - max(s, es))
+        if total >= LIGHT_LEFT_MIN_S:
+            out.append((room, name, total))
+    out.sort(key=lambda r: (-r[2], r[0], r[1]))
+    return out
+
+
+def _span_words(seconds: float) -> str:
+    m = int(round(seconds / 60.0))
+    h, m = divmod(m, 60)
+    return f"{h} h {m} min" if h and m else f"{h} h" if h else f"{m} min"
+
+
+def yesterday_message(day_label: str, summary: dict[str, Any], rooms: list[str], lights: list[tuple[str, str, float]],
+                      lines: list[str], start: float, end: float, clock: Any, link: str,
+                      covered: bool = True) -> tuple[str, str, list[str]]:
+    """(title, message, the lines that had something). clock(ts) -> "HH:MM".
+    rooms: the rooms PadSpan can see someone in; covered: Traceback was
+    recording before the day began, so a room with no one in it was empty
+    (without that, the empty rooms and lights lines say nothing)."""
+    from .traceback_store import empty_spans  # noqa: PLC0415
+    parts: list[str] = []
+    said: list[str] = []
+
+    def _events(evs: list[tuple[str, float]]) -> str:
+        shown = ", ".join(f"{kind} {clock(ts)}" for kind, ts in evs[:EVENTS_SHOWN])
+        return shown + (f" and {len(evs) - EVENTS_SHOWN} more" if len(evs) > EVENTS_SHOWN else "")
+
+    if "comings" in lines and summary.get("people"):
+        ppl = summary["people"]
+        txt = "; ".join(f"{p['name']} {_events(p['events'])}" for p in ppl[:PEOPLE_SHOWN])
+        if len(ppl) > PEOPLE_SHOWN:
+            txt += f"; {len(ppl) - PEOPLE_SHOWN} more"
+        parts.append(f"Came and went: {txt}.")
+        said.append("comings")
+    if "guests" in lines and summary.get("guests"):
+        txt = "; ".join((f"{g['name']} ({g['tag']}) " if g.get("tag") else f"{g['name']} ") + _events(g["events"])
+                        for g in summary["guests"])
+        parts.append(f"Guests: {txt}.")
+        said.append("guests")
+    if "empty_rooms" in lines and covered and rooms:
+        longest = []
+        for room in rooms:
+            spans = empty_spans((summary.get("occupied") or {}).get(room) or [], start, end)
+            if spans:
+                s, e = max(spans, key=lambda sp: (sp[1] - sp[0], -sp[0]))
+                longest.append((e - s, room, s, e))
+        longest.sort(key=lambda r: (-r[0], r[1]))
+        if longest:
+            def _when(s: float, e: float) -> str:
+                if s <= start and e >= end:
+                    return "all day"
+                at = f"until {clock(e)}" if s <= start else f"from {clock(s)}" if e >= end else f"{clock(s)}-{clock(e)}"
+                return f"{at} ({_span_words(e - s)})"
+            bits = [f"{room} {_when(s, e)}" for _len, room, s, e in longest[:EMPTY_ROOMS_SHOWN]]
+            parts.append("Empty longest: " + "; ".join(bits) + ".")
+            said.append("empty_rooms")
+    if "lights" in lines and covered and lights:
+        bits = [f"{name} ({room}) {_span_words(secs)}" for room, name, secs in lights[:LIGHTS_SHOWN]]
+        if len(lights) > LIGHTS_SHOWN:
+            bits.append(f"{len(lights) - LIGHTS_SHOWN} more")
+        parts.append("Lights on with nobody there: " + "; ".join(bits) + ".")
+        said.append("lights")
+    if not parts:
+        parts.append("Nothing to report.")
+    parts.append(f"Traceback for the day: {link}")
+    return f"PadSpan: yesterday at home ({day_label})", "\n".join(parts), said
+
+
+async def async_send_yesterday_home(hass: HomeAssistant, day: str, rooms: list[str],
+                                    now_ts: float | None = None) -> str:
+    """Tell `day` (yesterday_due's): "sent", "nothing" (sent, nothing to
+    report) or "failed". The day is saved as told first, so a restart, or a
+    send that fails, never sends it again."""
+    from datetime import datetime  # noqa: PLC0415
+    from .presence_rules import place_name  # noqa: PLC0415
+    from .telemetry import bump  # noqa: PLC0415
+    now_ts = time.time() if now_ts is None else now_ts
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    _day, start, end = yesterday_window(hass, now_ts)
+    if st is None or _day != day:
+        return "failed"
+    await st.async_set(yesterday_home_sent_day=day)
+    data = st.data or {}
+    lines = [w for w in YESTERDAY_LINES if w in (data.get("yesterday_home_lines") or [])]
+    tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
+    guests: list[dict[str, Any]] = []
+    if "guests" in lines:
+        try:
+            from .guest_tags import async_get_store, enabled as _guests_on  # noqa: PLC0415
+            if _guests_on(hass):
+                gs = await async_get_store(hass)
+                for s in gs.sessions().values():
+                    if (s.get("start") or 0) < end and (s.get("ended") or float("inf")) > start:
+                        tag = gs.tags().get(s.get("pid")) or {}
+                        guests.append({"pid": s.get("pid"), "keys": tag.get("keys") or [], "label": tag.get("label"),
+                                       "name": s.get("name"), "start": s.get("start"), "end": s.get("ended")})
+        except Exception:  # noqa: BLE001 — the guests line is left out
+            _quiet_error("presence:yesterday_guests")
+    summary: dict[str, Any] = {"people": [], "guests": [], "occupied": {}, "frames": 0}
+    covered = False
+    if tb is not None:
+        summary = await tb.async_day_summary(start, end, guests)
+        covered = await tb.async_recorded_before(start)
+    # The rooms PadSpan can see someone in: each receiver's room, and every
+    # room Traceback had someone in that day, one spelling each.
+    by_name: dict[str, str] = {}
+    for r in [*rooms, *(summary.get("occupied") or {})]:
+        if r and place_name(r) not in by_name:
+            by_name[place_name(r)] = r
+    occ: dict[str, list[tuple[float, float]]] = {}
+    for r, spans in (summary.get("occupied") or {}).items():
+        occ.setdefault(by_name[place_name(r)], []).extend(spans)
+    summary["occupied"] = occ
+    room_list = sorted(by_name.values())
+    lights: list[tuple[str, str, float]] = []
+    if "lights" in lines and covered and room_list:
+        try:
+            from .traceback_store import empty_spans  # noqa: PLC0415
+            from .vacation_mode import _async_fetch_history, _eligible_entity_ids  # noqa: PLC0415
+            from .ws_occupancy import _entity_area_name  # noqa: PLC0415
+            light_rooms: dict[str, tuple[str, str]] = {}
+            for eid in _eligible_entity_ids(hass):
+                if not eid.startswith("light."):
+                    continue
+                room = by_name.get(place_name(_entity_area_name(hass, eid)))
+                if room:
+                    state = hass.states.get(eid)
+                    name = str((getattr(state, "attributes", None) or {}).get("friendly_name") or eid)
+                    light_rooms[eid] = (room, name)
+            if light_rooms:
+                # Two days back from midnight: a 25-hour day is held whole.
+                hist = await _async_fetch_history(hass, sorted(light_rooms), 2,
+                                                  end=datetime.fromtimestamp(end, _house_tz(hass)))
+                empty = {r: empty_spans(occ.get(r) or [], start, end) for r in room_list}
+                lights = lights_left_on(hist or {}, light_rooms, empty, start, end)
+        except Exception:  # noqa: BLE001 — the lights line is left out
+            _quiet_error("presence:yesterday_lights")
+    tz = _house_tz(hass)
+
+    def clock(ts: float) -> str:
+        return datetime.fromtimestamp(ts, tz).strftime("%H:%M")
+    label = datetime.fromtimestamp(start, tz).strftime("%a %d %b")
+    title, message, said = yesterday_message(label, summary, room_list, lights, lines, start, end, clock,
+                                             yesterday_link(hass, start, end), covered)
+    target = str(data.get("yesterday_home_target") or "").strip()
+    try:
+        if target:
+            await async_send_follow_notify(hass, target, "", title, message)
+        else:
+            from homeassistant.components.persistent_notification import async_create  # noqa: PLC0415
+            async_create(hass, message, title=title, notification_id="padspan_ha_yesterday_home")
+    except Exception as err:  # noqa: BLE001 — FollowNotifyNotSent or the call's own
+        _LOGGER.warning("Yesterday at home not sent via %s: %s", target or "a Home Assistant notification", err)
+        bump(hass, "yesterday_home:failed")
+        return "failed"
+    bump(hass, "yesterday_home:sent" if said else "yesterday_home:nothing")
+    for w in said:
+        bump(hass, f"yesterday_home:line_{w}")
+    return "sent" if said else "nothing"
+
+
 class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Central BLE room-presence engine for PadSpan HA.
 
@@ -2110,6 +2377,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await _guest_poll(self.hass, result, _cur_present)
         except Exception as _guest_err:
             _LOGGER.warning("Guest tags (non-fatal): %s", _guest_err)
+
+        # ── Yesterday at home: once a day at the chosen time; nothing while off ──
+        self._maybe_yesterday_home()
 
         # ── Adjacency co-visibility learning (Phase 1) ────────────────────────
         # In auto mode, when no map-derived adjacency exists, learn room
@@ -4856,6 +5126,25 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if isinstance(c, dict) and ((pid and c.get("padspan_id") == pid) or (cid and k == cid)):
                 return c
         return None
+
+    def _maybe_yesterday_home(self) -> None:
+        """Start the morning message when it is due (yesterday_due), in its
+        own task so the poll never waits on Traceback's files."""
+        try:
+            st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            data = (st.data if st else None) or {}
+            if data.get("yesterday_home_enabled") is not True:
+                return
+            task = getattr(self, "_yesterday_task", None)
+            if task is not None and not task.done():
+                return
+            day = yesterday_due(self.hass, data, time.time())
+            if day:
+                rooms = sorted({str(r) for r in self._last_source_to_area.values() if r})
+                self._yesterday_task = self.hass.async_create_task(
+                    async_send_yesterday_home(self.hass, day, rooms))
+        except Exception:  # noqa: BLE001 — never stops the poll
+            _quiet_error("presence:yesterday_home")
 
     async def _send_follow_notify(
         self, key: str, cfg: dict[str, Any], title: str, message: str,

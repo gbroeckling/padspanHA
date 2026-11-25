@@ -235,5 +235,8 @@
 "An announcement needs a message.": "Une annonce a besoin d'un message.",
 "A sub-zone's presence sensor can't be one of PadSpan's own sensors.": "Le capteur de présence d'une sous-zone ne peut pas être l'un des capteurs de PadSpan.",
 "Put the user and password in their own boxes, not in the address": "Saisissez l’utilisateur et le mot de passe dans leurs propres champs, pas dans l’adresse",
-"A Valetudo user name cannot contain a colon": "Un nom d’utilisateur Valetudo ne peut pas contenir de deux-points"
+"A Valetudo user name cannot contain a colon": "Un nom d’utilisateur Valetudo ne peut pas contenir de deux-points",
+"Only an administrator can change Yesterday at home": "Seul un administrateur peut modifier Hier à la maison",
+"The time must be HH:MM": "L'heure doit être au format HH:MM",
+"That is not a notification target": "Ce n'est pas une destination de notification"
 }

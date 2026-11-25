@@ -14,6 +14,7 @@ to turn it on or off.
 | A door left open, or a window open in the rain | The room rings amber on the Atlas; a banner on a wall screen | **Settings → Atlas → Atlas — Mapped Light Control → Alert pulse** |
 | Vacation Mode ends or is turned off | A Home Assistant notification, and your Follow alert targets | Always, while Vacation Mode is used |
 | A guest arrives, leaves, or goes into a room they shouldn't | Your phone, or a Home Assistant notification | When you lend a guest tag |
+| Yesterday at home: who came and went, guests, the rooms empty longest, lights left on | Your phone, or a Home Assistant notification, each morning | **Settings → Tracking → Phones and guest tags → Yesterday at home** (off unless you turn it on) |
 | PadSpan couldn't confirm a save | Home Assistant's **Settings → Repairs** | Always on |
 | A new stable version | A Home Assistant notification | On by default; see [chapter 3](03-install-update-uninstall.md) |
 | Claude's reads pass your monthly limit | A Home Assistant notification | **Settings → AI** (off unless you set it) |
@@ -207,6 +208,44 @@ When you lend a guest tag (**Guests → Lend to a guest**; guest tags are on in
 
 Every one of these also fires the `padspan_ha_guest` event. The [Guest tags guide](../GUEST_TAGS_GUIDE.md)
 has the rest.
+
+## Yesterday at home
+
+One short message each morning about the day before. Off until you turn it on in
+**Settings → Tracking → Phones and guest tags → Yesterday at home** (an administrator only).
+
+- **Send it at**: the time, in Home Assistant's time zone (08:00 to start with). If Home Assistant
+  is off then, the message goes when it is back, the same day. Turned on after today's time, the
+  first message comes tomorrow.
+- **Send it to**: a phone or other notify target (the list Follow alerts use), or
+  **A Home Assistant notification** (the default).
+- **What it tells**: tick the lines you want.
+
+| Line | What it says |
+|---|---|
+| **Who came and went, and when** | Each named device that left or came back: "Alex's phone left 08:09, back 17:40". Missing from Traceback for more than 15 minutes counts as leaving; a shorter gap doesn't. |
+| **Guest tags that arrived or left** | A tag lent to a guest, during the stay: "Jordan (Guest tag 1) left 09:59, arrived 14:00". Needs guest tags on. A guest tag is never in the line above. |
+| **The rooms empty longest** | The three rooms with the longest stretch with nobody in them: "Garage all day; Living room until 17:40 (17 h 40 min); Kitchen from 08:09 (15 h 51 min)". |
+| **Lights left on in rooms where nobody was** | A light that was on for half an hour or more, in all, while its room was empty: "Ceiling light (Kitchen) 1 h 51 min". |
+
+The figures are Traceback's for that day, midnight to midnight. The message ends with a link that
+opens Traceback on that day, every device, so you can play it back:
+"Traceback for the day: https://…/padspan-ha?view=traceback&from=…&to=…".
+
+A day with nothing for the lines you ticked gets **Nothing to report.** and the link, never an
+empty message. One message a day: the day is marked as told before the message goes, so a restart
+never sends it twice, and one that failed (a phone renamed, say) isn't sent again either. The log
+says why.
+
+Worth knowing:
+
+- The rooms are the rooms with a receiver, and any room Traceback had someone in that day.
+- Anything Traceback follows counts as someone in a room, as it does in **Traceback → Insights**:
+  keys left on a hook keep the Hall from being empty.
+- Lights come from Home Assistant's history, matched to a room by their Home Assistant area.
+- The empty rooms and lights lines need Traceback to have been recording before the day began, so
+  a new install leaves them out on its first day.
+- The message is in English, as all of PadSpan's notifications are.
 
 ## Repairs
 

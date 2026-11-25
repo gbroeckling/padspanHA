@@ -61,6 +61,10 @@ folding heading on that tab.
 |---|---|---|---|---|
 | Guest tags: Use tags as guest tags | off | on or off | Guest tags: the Guests screen, `binary_sensor.padspan_guest_home` and the guest notices. | `guest_tags_enabled` |
 | Guest tags: Keep a finished stay's report (name, times, rooms) for | 30 | `0`, `7`, `30`, `90` | Days a finished stay's report is kept. 0: not kept. | `guest_retention_days` |
+| Yesterday at home: Send a morning message about the day before | off | on or off | One short message a day through Home Assistant about the day before, from Traceback's figures for that day ([chapter 13](13-alerts.md)). | `yesterday_home_enabled` |
+| Yesterday at home: Send it at | `08:00` |  | When the message goes, HH:MM in Home Assistant's time. | `yesterday_home_time` |
+| Yesterday at home: Send it to | empty |  | A notify target from the list Follow alerts use; empty: a Home Assistant notification. | `yesterday_home_target` |
+| Yesterday at home: What it tells | `['comings', 'guests', 'empty_rooms', 'lights']` |  | The lines it may hold: `comings`, `guests`, `empty_rooms`, `lights`. | `yesterday_home_lines` |
 | Phone Tracking (Private BLE) | empty |  | The phones and watches whose key (IRK) you added in PadSpan. | `irk_devices` |
 
 ### Settings → Tracking → What the panel shows
@@ -326,6 +330,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `telemetry_heard_ask` | empty |  | Whether the where-did-you-hear question is due, or done. |
 | `telemetry_install_id` | empty |  | The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it). |
 | `telemetry_last_day` | empty |  | The day the last usage report was sent. |
+| `yesterday_home_sent_day` | empty |  | The day Yesterday at home last told, so it is never told twice. |
 | `report_locked_key` | empty |  | Which free licence keeps the usage report on. |
 | `whatsnew_seen_version` | empty |  | The last version whose update card someone saw. |
 | `first_seen_ts` | 0 |  | When PadSpan first ran here. |

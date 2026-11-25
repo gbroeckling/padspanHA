@@ -1180,6 +1180,9 @@ class PadSpanHaApp extends HTMLElement {
       }
       const reqRoom = (q.get("room") || "").trim();
       if (reqRoom && reqRoom.length <= 100) this._urlRoom = reqRoom;
+      // ?view=traceback&from=<s>&to=<s> (epoch seconds): Traceback over that window, every object
+      // (Yesterday at home's link, presence_coordinator.yesterday_link).
+      if (reqView === "traceback") this._tracebackWindow(q);
       this._urlLinksSeen = window.location.search;   // _urlLinks: this load's link is handled here
       this.state.kioskMode = q.get("kiosk") === "1";
     } catch(e) { /* ignore */ }
@@ -5301,6 +5304,19 @@ class PadSpanHaApp extends HTMLElement {
       this._urlRoom = r;
       if(this.state.model) this._openUrlTargets();
     }
+    if(q.get("view") === "traceback" && this._tracebackWindow(q)){
+      this._urlPinnedView = "traceback";
+      this._openCountedView("traceback");
+    }
+  }
+
+  /** ?from=&to= (epoch seconds) with ?view=traceback: that window for Traceback's
+   *  next draw (views/traceback.js _tracebackPreset). True when the link had one. */
+  _tracebackWindow(q){
+    const a = Number(q.get("from")), b = Number(q.get("to"));
+    if(!q.get("from") || !q.get("to") || !Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return false;
+    this.state._tracebackPreset = { start_ms: Math.round(a * 1000), end_ms: Math.round(b * 1000) };
+    return true;
   }
 
   /** ?room= from the page's link, once the house (model) has loaded: that
