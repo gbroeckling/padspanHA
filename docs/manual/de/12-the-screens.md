@@ -144,7 +144,7 @@ und eine Karte **Bewegungsprotokoll** seine letzten Raumwechsel.
 
 Unter der Karte:
 
-- **📍 Finden** (PadSpan Pro): in welche Richtung du gehen musst, um es zu finden. Wähl unter
+- **📍 Finden** (PadSpan Pro oder das Add-on Präsenz-Auswertungen): in welche Richtung du gehen musst, um es zu finden. Wähl unter
   **Du trägst:** dein eigenes Handy. Im selben Raum zeigt es die Entfernung in Metern, und ob du
   näher kommst oder dich entfernst. In einem anderen Raum sagt es, in welchen Raum du als Nächstes
   gehst, und ob eine Etage hinauf oder hinunter. Kein Kompass, keine Kamera.
@@ -202,7 +202,7 @@ Die Zeile oben wechselt zwischen vier Modi:
     deinem Computer gespeichert: Nichts wird hochgeladen. Ein Video wird in Echtzeit aufgenommen,
     lass den Tab also im Vordergrund, bis es gespeichert ist. Es spielt auf dem Etagenstapel; das
     3D-Haus kommt später. In jeder Ausgabe kostenlos.
-  - **Full house activity** (PadSpan Pro) spielt dasselbe auf deinem Atlas ab, und mit
+  - **Full house activity** (PadSpan Pro oder das Add-on Zeitreise) spielt dasselbe auf deinem Atlas ab, und mit
     **💡 Devices** auch das Haus: Lichter, Schlösser, Bewegung, Türen und Fenster und Messwerte von
     Sensoren, aus dem Recorder von Home Assistant.
 - **New Objects**: welche Geräte in einem Zeitfenster zum ersten Mal gehört wurden (bis zu 7 Tage
@@ -210,7 +210,7 @@ Die Zeile oben wechselt zwischen vier Modi:
 - **Insights**: zwei Tabellen für die letzten 1, 3 oder 7 Tage. **Time in Room**: wie lange jedes
   Gerät an jedem Tag in jedem Raum war, und wie oft es hineinging. **Peak Concurrent Occupancy**: die
   meisten verfolgten Geräte auf einmal in einem Raum, an jedem Tag, und wann.
-- **Busy Times** (PadSpan Pro): ein Kasten pro Raum, der belebteste zuerst, jeder mit einem
+- **Busy Times** (PadSpan Pro oder das Add-on Präsenz-Auswertungen): ein Kasten pro Raum, der belebteste zuerst, jeder mit einem
   24-Stunden-Balkendiagramm, wann dort viel los ist.
 
 Insights und Busy Times funktionieren ohne Grundriss. **Verwalten → History → Open History** hat die
@@ -220,7 +220,7 @@ gespeicherte Liste der Raumwechsel, jeder mit **▶ Traceback**, um diesen Momen
 
 Welche Bluetooth-Geräte zwischen zwei Zeitpunkten in der Nähe deiner Empfänger waren: nach einem
 Einbruch oder einem gestohlenen Paket, oder um einen unbekannten Tracker zu entdecken, der immer
-wiederkommt. Es ist eine Funktion von PadSpan Pro und aus, bis du es einschaltest.
+wiederkommt. Es braucht PadSpan Pro oder das Add-on Forensik und ist aus, bis du es einschaltest.
 
 **Einschalten**: **Einstellungen → Funktionen → Forensik → Aufzeichnung von Anwesenheitssitzungen einschalten**. Es
 bittet dich, das zu bestätigen. Solange es an ist, prüft PadSpan alle 60 Sekunden, welche Geräte es

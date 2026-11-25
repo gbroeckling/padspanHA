@@ -11,8 +11,9 @@
 //
 //   the button  lights_panel.js _emergencyOverlay: the emergency button's
 //               centre is the alarm's shield, in its state's colour
-//               (alarmSummary), and a press opens the button's card. Bright or
-//               Pro (the owner, 2026-11-24). Free: the shield only while an
+//               (alarmSummary), and a press opens the button's card. Alarm &
+//               security: PadSpan Pro or its add-on, and Bright Pro (the owner,
+//               2026-11-24, 2026-11-25). Without it: the shield only while an
 //               alarm is going off, as the leak, smoke, gas and CO alarms ring
 //               their rooms on every tier.
 //   the card    the button's own card (lights_panel.js _openEmergencyCard): the
@@ -127,7 +128,7 @@ export const SHIELD = '<svg viewBox="0 0 24 24" width="22" height="22" fill="non
 
 /**
  * What the emergency button shows for the house's alarm, or null: no alarm panel, or the free tier with nothing going
- * off. o: { panels, states, controls (Bright or Pro) }. { kind, word, title, label, n }: the most pressing state of
+ * off. o: { panels, states, controls (Alarm & security: Bright, Pro or the add-on) }. { kind, word, title, label, n }: the most pressing state of
  * all the panels (its words, with what set it off), each panel's line, and the button's spoken name.
  */
 export function alarmSummary(o){
@@ -160,7 +161,7 @@ const CHIP_LOOK = {
 };
 
 /**
- * The alarm's part of the emergency button's card. host: { el, states() (hass.states now), controls (Bright or Pro),
+ * The alarm's part of the emergency button's card. host: { el, states() (hass.states now), controls (Alarm & security),
  * call(service, data) (hass.callService on the alarm_control_panel domain), ask (lights_map.js confirmAsk),
  * toast(msg, isError), errorText(e), count(word) (the opt-in report: arm, disarm, refused) }.
  * Returns { node, fill, shows, empty, close }: the card puts node in and calls fill() when it fills; empty() says

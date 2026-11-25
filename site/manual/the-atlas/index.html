@@ -81,7 +81,12 @@ controls, Whole house presets, Vacation Mode, and openers built from relays.</li
 (<a href="/manual/padspan-pro/">chapter 25</a>). PadSpan Bright is the same Atlas on its own, without presence
 tracking, with its own Bright Pro key. A Bright Pro key unlocks the placement tools: placement,
 shapes and sizes, WLED's Advanced controls, Automorph and Showcase. Whole house presets, Vacation
-Mode and the heatmap need PadSpan Pro.</p>
+Mode and the heatmap need PadSpan Pro or their add-on.</p>
+<p>Without Pro, an add-on unlocks one part of the Atlas (<a href="/manual/padspan-pro/#add-ons">chapter 25</a>):
+<b>Audio</b>; <b>Alarm &amp; security</b> (Arm and Disarm in the emergency button, the emergency lights test,
+and a door's card with its opener and lock); <b>Climate map</b> (the heatmap); <b>Vacation Mode &amp;
+presets</b>; and the <b>Looks pack</b> (Showcase with its themes, the West Coast Forest and the presets
+bar, on the free map: placement stays Pro's).</p>
 <h2 id="getting-there">Getting there</h2>
 <ul>
 <li><b>Mapping → Atlas builder</b>: where you place and edit devices.</li>
@@ -133,7 +138,8 @@ shows open or shut from its sensor. <b>Invert</b>, next to <b>Delete</b> in the 
 that reports backwards: if a door shows the wrong state, check that first. A lock on the map shows
 its state. A tap doesn't turn it: a tap or a hold opens its card, with <b>Lock</b> or <b>Unlock</b>, and
 <b>Unlock</b> asks first.</p>
-<p>A door or window can also carry what opens it and what locks it (PadSpan Bright Pro or PadSpan Pro).
+<p>A door or window can also carry what opens it and what locks it (PadSpan Pro or the Alarm &amp;
+security add-on; a Bright Pro key too).
 Tick a cover (a garage door, a gate, a blind), switch, button or script on <b>Devices → Door
 Openers</b>, then link it to the door or window in <b>Mapping → Atlas builder</b>, beside its sensor and
 its lock. A tap on the door then opens one card: whether it is open or closed, <b>Open</b> or <b>Close</b>
@@ -194,7 +200,11 @@ Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come fro
 Assistant speakers</b> on the matching card (off unless ticked) adds every other player with a
 volume: Music Assistant, ESPHome, Cast, TVs.</p></li>
 </ul>
-<h2 id="heatmap-pro">Heatmap (Pro)</h2>
+<p>Audio needs PadSpan Pro or the Audio add-on. The <b>⋯</b> list is part of the new layout, PadSpan
+Pro's; on the classic layout, <b>Settings → Atlas → Atlas — Mapped Light Control → Audio</b> (off by
+default, shown where Audio is allowed) does the same for the whole house: the speaker beside a
+playing room's name, and the sheet's Audio with <b>Match rooms</b>.</p>
+<h2 id="heatmap-pro-or-the-climate-map-add-on">Heatmap (Pro or the Climate map add-on)</h2>
 <p><b>Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)</b>, off by default, adds a <b>♨ Heatmap</b> chip to the Atlas. Tap it to step through
 <b>Temperature</b>, <b>Humidity</b> and <b>CO₂</b> (the kinds your house has a sensor for), then off. Each
@@ -249,6 +259,8 @@ left alone. <b>Save the wake-up</b>;</li>
 </ul>
 <p>An administrator changes the wake-up and the curve. The sun curve is adapted from Adaptive Lighting.</p>
 <h2 id="showcase-automorph-and-presets-pro">Showcase, Automorph and presets (Pro)</h2>
+<p>Showcase, its themes, the West Coast Forest and the presets bar also come with the Looks pack add-on,
+on the free map; Whole house presets with the Vacation Mode &amp; presets add-on.</p>
 <ul>
 <li><b>Showcase</b>: 20 themes for the whole map (colour, room edges, glow and light pools together).
 Pick one in the Atlas toolbar under <b>Presentation</b>.</li>
@@ -260,7 +272,7 @@ layout) under a name, and <b>Apply</b> brings it back.</li>
 (on or off, brightness, colour, effect, fan speed), and <b>Apply</b> puts the whole house back that
 way, after asking. Locks are never included.</li>
 </ul>
-<h2 id="vacation-mode-pro">Vacation Mode (Pro)</h2>
+<h2 id="vacation-mode-pro-or-the-vacation-mode--presets-add-on">Vacation Mode (Pro or the Vacation Mode &amp; presets add-on)</h2>
 <p>The first entry in the Whole house presets list. It learns your house's routine from Home
 Assistant's history (each light, each day of the week) and keeps switching lights to match, with
 some randomness so it doesn't look like a timer, until you turn it off. While it runs, a banner sits
@@ -296,7 +308,8 @@ Météo-France. In the USA, the weatheralerts or nws_alerts custom integrations 
 <h2 id="emergency-lighting-test">Emergency lighting test</h2>
 <p>A round red <b>Test emergency lighting</b> button at the top right of the map, shown only when PadSpan
 finds emergency lights: a Home Assistant group with "emergency" in its name (nested groups too), or
-else WLED lights named "emergency".</p>
+else WLED lights named "emergency". It needs PadSpan Pro or the Alarm &amp; security add-on (a Bright Pro
+key keeps it); without either, there is no test, and the button shows only an alarm going off.</p>
 <ul>
 <li><b>Tap the red centre</b>: every emergency light comes on, and it says <b>Test on — tap to end</b>. Lights
 already on stay on when it ends.</li>
@@ -308,7 +321,7 @@ won't switch those lights off under it.</li>
 Show the Test emergency lighting button on the Atlas</b>.</li>
 <li><b>Your house alarm</b> is inside the button when Home Assistant has an alarm panel: the centre
 becomes its shield in its colour, and the centre and the ring both open one card, the alarm on top
-(on PadSpan Bright and Pro, Arm and Disarm, always after a question and with the code when the
+(with PadSpan Pro, the Alarm &amp; security add-on or Bright Pro, Arm and Disarm, always after a question and with the code when the
 alarm wants one) and the emergency lights below, with <b>Start test</b>. A house with an alarm and no
 emergency lights gets the alarm's own button, a plain ring. An alarm going off shows on the button
 on every edition. See <a href="/manual/alerts/#your-house-alarm-on-the-emergency-button">chapter 13</a>.</li>
@@ -327,6 +340,8 @@ and put back if you switch back.</li>
 </ol>
 <p>Only an administrator can change who runs a light.</p>
 <h2 id="openers-locks-and-lights-from-relays-pro">Openers, locks and lights from relays (Pro)</h2>
+<p>Openers and locks also come with the Alarm &amp; security add-on, as does ticking an opener on <b>Devices
+→ Door Openers</b>; a light from relays stays Pro's.</p>
 <p>A garage door, window opener, door strike or light wired to plain relays? <b>Build an Opener, Lock, or
 Light from Relays</b> (<b>+ Build an opener, lock, or light from relays</b> in the Atlas builder's list)
 makes it a proper Home Assistant cover, lock or light.</p>

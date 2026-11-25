@@ -71,10 +71,12 @@ def test_the_file_is_fetched_only_with_the_atlas_look_showcase_and_the_theme() -
     assert "if (!want) { dropForest(false); return; }" in sync
     # Nothing at the top of the file brings it in: the import is inside syncForest, and only update() calls that.
     assert la.count("syncForest()") == 2 and "    applySun(p);\n    syncForest();\n" in la
-    # atlas is only ever set with the "atlas" look; on is Showcase on, and below Pro Showcase is off.
+    # atlas is only ever set with the "atlas" look; on is Showcase on, and below Bright Showcase is off unless the
+    # Looks pack add-on keeps it (lights_map.js lightsHostForTier).
     assert 'A = LOOKS && p.look3d === "atlas" ? LOOKS.atlasLook(p.atlasLook) : null;' in la
     lm = _code(_VIEWS / "lights_map.js")
-    assert "showcase: false, onShowcase: null," in lm and "atlasLook: { on: !!host.showcase," in lm
+    assert '...(hostAddon(host, "looks") ? {} : { showcase: false, onShowcase: null }),' in lm
+    assert "atlasLook: { on: !!host.showcase," in lm
 
 
 def test_every_other_look_draws_as_before() -> None:

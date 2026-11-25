@@ -42,7 +42,8 @@ def _panel_look(cases: list) -> list:
 
 
 def _settings_card(cases: list) -> list:
-    """[settings, tier] -> [now, locked themes, shown themes] from the Theme card's own lines."""
+    """[settings, tier] -> [now, locked themes, shown themes] from the Theme card's own lines. The Looks pack
+    (editions.js addonAllowed: Pro, or the add-on in settings.addons_licensed) unlocks the four."""
     src = (_WWW / "views" / "settings.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     card = src[src.index("    const PAL = "):]
     head = card[:card.index("    const NAMES = ")]
@@ -50,10 +51,11 @@ def _settings_card(cases: list) -> list:
     hidden = re.search(r"if \((locked && hideLocked)\) return null;", card).group(1)
     fn = (head + "const ALL = ['night','graphite','ocean','dusk','contrast','light','day'];"
           f"return [now, ALL.filter(val => {locked}), ALL.filter(val => {{ const locked = {locked}; return !({hidden}); }})];")
-    code = ("const f = new Function('settings', 'tierAtLeast', 'currentTier', " + json.dumps(fn) + ");"
+    code = ("const f = new Function('settings', 'tierAtLeast', 'currentTier', 'addonAllowed', " + json.dumps(fn) + ");"
             "const order = ['free', 'pro'];"
             "const at = (t, want) => order.indexOf(t) >= order.indexOf(want);"
-            "console.log(JSON.stringify(JSON.parse(process.argv[1]).map(([s, t]) => f(s, at, () => t))));")
+            "const add = (t) => (st, name) => t === 'pro' || (Array.isArray(st.addons_licensed) && st.addons_licensed.includes(name));"
+            "console.log(JSON.stringify(JSON.parse(process.argv[1]).map(([s, t]) => f(s, at, () => t, add(t)))));")
     return _run(code, cases)
 
 
@@ -83,18 +85,23 @@ def test_themes_already_chosen_are_unchanged():
 
 
 def test_the_settings_card_offers_high_contrast_on_free_bright_and_pro():
-    free, bright, pro, free_saved, free_lapsed = _settings_card([
+    free, bright, pro, free_saved, free_lapsed, looks, other, looks_ocean = _settings_card([
         [{}, "free"], [{"edition": "bright"}, "free"], [{}, "pro"],
-        [{"theme_palette": "contrast"}, "free"], [{"theme_palette": "ocean"}, "free"]])
+        [{"theme_palette": "contrast"}, "free"], [{"theme_palette": "ocean"}, "free"],
+        [{"addons_licensed": ["looks"]}, "free"], [{"addons_licensed": ["audio"]}, "free"],
+        [{"addons_licensed": ["looks"], "theme_palette": "ocean"}, "free"]])
     assert free[1] == ["graphite", "ocean", "dusk", "day"] and "contrast" in free[2]
     assert bright[2] == ["night", "contrast", "light"], "Bright shows Night, High contrast and Light"
     assert pro[1] == [] and len(pro[2]) == 7
     assert free_saved[0] == "contrast" and free_lapsed[0] == "night"
+    # The Looks pack add-on (the owner, 2026-11-25): the four as with Pro; another add-on, as free.
+    assert looks[1] == [] and len(looks[2]) == 7 and looks_ocean[0] == "ocean"
+    assert other == free
 
 
 def test_the_card_text_says_high_contrast_is_everyones():
     st = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
-    assert "Graphite, Ocean, Dusk and Day come with PadSpan Pro (" in st
+    assert 'Graphite, Ocean, Dusk and Day come with {what} ({path}).' in st and 'what: proOrAddon("looks")' in st
     assert "Night, Light and High contrast are in every edition." in st
     site_file = Path(__file__).resolve().parents[1] / "site" / "index.html"
     if not site_file.exists():

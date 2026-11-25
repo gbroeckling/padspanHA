@@ -4,6 +4,11 @@
 
 The words this manual and PadSpan's panel use, in alphabetical order.
 
+**Add-on.** One part of PadSpan Pro, bought on its own for an install without Pro: Audio, Alarm &
+security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics or
+Presence insights. One payment covers 2 years, on up to three homes; PadSpan Pro includes them all.
+See [chapter 25](25-padspan-pro.md#add-ons).
+
 **Administrator.** A Home Assistant user with administrator rights. Backups, restores, a Factory
 Reset, phones' keys, floor plan uploads and anything that sends data out of the house need one; with
 Enhanced security on, so does every change to PadSpan's shared setup.

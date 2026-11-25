@@ -103,8 +103,8 @@ def test_the_sidebar_hands_in_scenes_and_keeps_a_wall_on_its_page() -> None:
     # A new scene and an edit are an administrator's, never on a wall.
     assert "add: admin && !kiosk ? (from) => sceneNew(from) : null" in lm
     assert lm.count("sc.admin !== true || sc.kiosk === true") == 2
-    # Presets as the bar has them: PadSpan Pro's.
-    assert 'tierAtLeast(h.tier, "pro") && typeof h.onWholeHouseApply === "function"' in lm
+    # Presets as the bar has them: PadSpan Pro's and the Vacation Mode & presets add-on's (tests/test_addon_gates.py).
+    assert 'hostAddon(h, "vacation") && typeof h.onWholeHouseApply === "function"' in lm
 
 
 def test_mapping_atlas_hands_in_scenes_too() -> None:

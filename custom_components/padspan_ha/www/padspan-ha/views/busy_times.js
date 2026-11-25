@@ -26,14 +26,14 @@
  * (docs/03_MAPPING_SUITE.md), and cramming a second concern into it is
  * exactly what Insights' own "not touched this pass" note was avoiding.
  *
- * PadSpan Pro — the underlying dwell data is already free (it's the same
+ * PadSpan Pro or the Presence insights add-on — the underlying dwell data is already free (it's the same
  * padspan_ha/insights_get Insights uses), so this is a presentation-layer
  * gate, the same pattern Automorph and Showcase already use over otherwise-
  * free Atlas data. No dedicated backend gate for that reason: gating
  * insights_get itself would also break the free Insights tab.
  */
 
-const { tierAtLeast, currentTier } =
+const { addonAllowed, addonPrice } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
 // must not blank the view it sits in.
@@ -57,7 +57,7 @@ export function render(ctx) {
     el("span", { class: "muted", style: "font-size:11px" }, t("which rooms are busiest, and when — aggregated across every tracked object")),
   ]));
 
-  if (!tierAtLeast(currentTier(ctx.state.settings), "pro")) {
+  if (!addonAllowed(ctx.state.settings, "insights")) {
     root.appendChild(_buildProGateCard(ctx, t("Busy Times")));
     return root;
   }
@@ -258,9 +258,9 @@ function _buildProGateCard(ctx, featureName) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:6px" },
-    t("{feature} is a PadSpan Pro feature", { feature: featureName })));
+    t("{feature} needs PadSpan Pro or the {addon} add-on ({price})", { feature: featureName, addon: t("Presence insights"), price: addonPrice("insights") })));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    t("Unlock it, and everything else gated, with a PadSpan Pro key.")));
+    t("The {addon} add-on unlocks Busy Times and Locate; a PadSpan Pro key unlocks them and everything else gated.", { addon: t("Presence insights") })));
   card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, t("Settings → Features → PadSpan licence")));
   // The trial is all of PadSpan Pro (since 2026-10-27), so the card says it
   // unlocks Busy Times too. Null once there is any key.

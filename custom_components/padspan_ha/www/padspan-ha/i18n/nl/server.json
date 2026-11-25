@@ -239,5 +239,6 @@
 "Only an administrator can change Yesterday at home": "Alleen een beheerder kan Gisteren thuis wijzigen",
 "The time must be HH:MM": "De tijd moet HH:MM zijn",
 "That is not a notification target": "Dat is geen meldingsdoel",
-"Only an administrator can match players to rooms": "Alleen een beheerder kan spelers aan kamers koppelen"
+"Only an administrator can match players to rooms": "Alleen een beheerder kan spelers aan kamers koppelen",
+"The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "De noodverlichtingstest vereist PadSpan Pro of de add-on “Alarm en beveiliging”. Vul een sleutel in bij Instellingen → Functies → PadSpan-licentie, of haal er een op https://padspan.traks.ca/#addons"
 }

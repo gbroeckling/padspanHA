@@ -84,7 +84,13 @@ Advanced-Steuerung für WLED, Whole house presets, Vacation Mode und Öffner aus
 90 Tagen (<a href="/manual/padspan-pro/de/">Kapitel 25</a>). PadSpan Bright ist derselbe Atlas für sich allein, ohne
 Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel. Ein Bright-Pro-Schlüssel schaltet die
 Platzierungswerkzeuge frei: Platzierung, Formen und Größen, die Advanced-Steuerung für WLED,
-Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauchen PadSpan Pro.</p>
+Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauchen PadSpan Pro oder
+ihr Add-on.</p>
+<p>Ohne Pro schaltet ein Add-on einen Teil des Atlas frei (<a href="/manual/padspan-pro/de/#add-ons">Kapitel 25</a>):
+<b>Audio</b>; <b>Alarm &amp; Sicherheit</b> (scharf und unscharf schalten im Notfallknopf, der Test der
+Notbeleuchtung und die Karte einer Tür mit ihrem Öffner und ihrem Schloss); <b>Klimakarte</b> (die
+Heatmap); <b>Urlaubsmodus &amp; Voreinstellungen</b>; und das <b>Looks-Paket</b> (Showcase mit seinen Themen,
+der West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Platzieren bleibt bei Pro).</p>
 <h2 id="so-kommst-du-hin">So kommst du hin</h2>
 <ul>
 <li><b>Karten → Atlas-Editor</b>: wo du Geräte platzierst und bearbeitest.</li>
@@ -142,8 +148,8 @@ offen oder zu. <b>Umkehren</b>, neben <b>Löschen</b> in der Wandliste, dreht ei
 herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schloss auf der Karte zeigt
 seinen Zustand. Ein Tippen schaltet es nicht: Tippen oder Halten öffnet seine Karte mit <b>Lock</b> oder
 <b>Unlock</b>, und <b>Unlock</b> fragt vorher nach.</p>
-<p>Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Bright Pro
-oder PadSpan Pro). Hak unter <b>Geräte → Türöffner</b> eine Abdeckung (ein Garagentor, ein Tor, ein
+<p>Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Pro oder
+das Add-on Alarm &amp; Sicherheit; auch ein Bright-Pro-Schlüssel). Hak unter <b>Geräte → Türöffner</b> eine Abdeckung (ein Garagentor, ein Tor, ein
 Rollo), einen Schalter, einen Taster oder ein Skript an und verknüpf sie dann in <b>Karten →
 Atlas-Editor</b> mit der Tür oder dem Fenster, neben ihrem Sensor und ihrem Schloss. Ein Tippen auf
 die Tür öffnet dann eine Karte: ob sie offen oder zu ist, <b>Open</b> oder <b>Close</b> für eine Abdeckung
@@ -211,7 +217,12 @@ Triad, Denon, Yamaha und Anthem, nach der Integration in Home Assistant, aus der
 <b>Lautsprecher aus Home Assistant einbeziehen</b> auf der Zuordnungskarte (aus, bis angehakt) nimmt
 jeden anderen Player mit Lautstärke dazu: Music Assistant, ESPHome, Cast, Fernseher.</p></li>
 </ul>
-<h2 id="heatmap-pro">Heatmap (Pro)</h2>
+<p>Audio braucht PadSpan Pro oder das Add-on Audio. Die <b>⋯</b>-Liste gehört zum neuen Layout von
+PadSpan Pro; auf dem klassischen Layout macht <b>Einstellungen → Atlas → Atlas — Mapped Light Control
+→ Audio</b> (ab Werk aus, da, wo Audio freigeschaltet ist) dasselbe für das ganze Haus: den
+Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, und Audio im Blatt mit <b>Räume
+zuordnen</b>.</p>
+<h2 id="heatmap-pro-oder-das-add-on-klimakarte">Heatmap (Pro oder das Add-on Klimakarte)</h2>
 <p><b>Einstellungen → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)</b>, ab Werk aus, gibt dem Atlas einen Chip <b>♨ Heatmap</b>. Tipp darauf, um
 <b>Temperature</b>, <b>Humidity</b> und <b>CO₂</b> durchzugehen (die Arten, für die dein Haus einen Sensor
@@ -273,6 +284,9 @@ wird bis dahin voll hell. Ein Team, das schon an ist, bleibt, wie es ist. <b>Sav
 <p>Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adaptive Lighting
 übernommen.</p>
 <h2 id="showcase-automorph-und-presets-pro">Showcase, Automorph und Presets (Pro)</h2>
+<p>Showcase, seine Themen, der West Coast Forest und die Presets-Leiste gibt es auch mit dem Add-on
+Looks-Paket, auf der kostenlosen Karte; Whole house presets mit dem Add-on Urlaubsmodus &amp;
+Voreinstellungen.</p>
 <ul>
 <li><b>Showcase</b>: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
 zusammen). Wähl eines in der Werkzeugleiste des Atlas unter <b>Presentation</b>.</li>
@@ -285,7 +299,7 @@ Etage, Abstand und Anordnung) unter einem Namen, und <b>Apply</b> holt ihn zurü
 Ventilators fest (an oder aus, Helligkeit, Farbe, Effekt, Ventilatorstufe), und <b>Apply</b> stellt
 das ganze Haus wieder so her, nachdem es gefragt hat. Schlösser sind nie dabei.</li>
 </ul>
-<h2 id="vacation-mode-pro">Vacation Mode (Pro)</h2>
+<h2 id="vacation-mode-pro-oder-das-add-on-urlaubsmodus--voreinstellungen">Vacation Mode (Pro oder das Add-on Urlaubsmodus &amp; Voreinstellungen)</h2>
 <p>Der erste Eintrag in der Liste Whole house presets. Er lernt den Tagesablauf deines Hauses aus dem
 Verlauf von Home Assistant (jedes Licht, jeder Wochentag) und schaltet weiter Lichter passend dazu,
 mit etwas Zufall, damit es nicht nach einer Zeitschaltuhr aussieht, bis du ihn ausschaltest. Solange
@@ -327,7 +341,9 @@ Météo-France. In den USA fügen die Custom-Integrationen weatheralerts oder nw
 <h2 id="test-der-notbeleuchtung">Test der Notbeleuchtung</h2>
 <p>Ein runder roter Knopf <b>Test emergency lighting</b> oben rechts auf der Karte, nur da, wenn PadSpan
 Notlichter findet: eine Home-Assistant-Gruppe mit „emergency“ im Namen (auch verschachtelte
-Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.</p>
+Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen. Er braucht PadSpan Pro oder das Add-on
+Alarm &amp; Sicherheit (ein Bright-Pro-Schlüssel behält ihn); ohne beides gibt es keinen Test, und der
+Knopf zeigt nur eine auslösende Alarmanlage.</p>
 <ul>
 <li><b>Tipp auf die rote Mitte</b>: Jedes Notlicht geht an, und es zeigt <b>Test on — tap to end</b>.
 Lichter, die schon an waren, bleiben an, wenn er endet.</li>
@@ -340,8 +356,8 @@ schaltet der Test diese Lichter nicht unter ihr aus.</li>
 <b>Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
 the Atlas</b>.</li>
 <li><b>Deine Alarmanlage</b> ist im Knopf, wenn Home Assistant eine Alarmzentrale hat: Die Mitte wird
-ihr Schild in ihrer Farbe, und Mitte wie Ring öffnen eine Karte, oben die Alarmanlage (in PadSpan
-Bright und Pro scharf und unscharf schalten, immer nach einer Frage und mit dem Code, wenn die
+ihr Schild in ihrer Farbe, und Mitte wie Ring öffnen eine Karte, oben die Alarmanlage (mit PadSpan
+Pro, dem Add-on Alarm &amp; Sicherheit oder Bright Pro scharf und unscharf schalten, immer nach einer Frage und mit dem Code, wenn die
 Alarmanlage einen will), darunter die Notlichter mit <b>Start test</b>. Ein Haus mit Alarmanlage und
 ohne Notlichter bekommt den eigenen Knopf der Alarmanlage, einen schlichten Ring. Eine auslösende Alarmanlage
 erscheint dort in jeder Ausgabe. Siehe <a href="/manual/alerts/de/#deine-alarmanlage-am-notfallknopf">Kapitel 13</a>.</li>
@@ -360,6 +376,8 @@ abgeschaltet und wieder eingeschaltet, wenn du zurückwechselst.</li>
 </ol>
 <p>Nur ein Administrator kann ändern, wer ein Licht steuert.</p>
 <h2 id="öffner-schlösser-und-lichter-aus-relais-pro">Öffner, Schlösser und Lichter aus Relais (Pro)</h2>
+<p>Öffner und Schlösser gibt es auch mit dem Add-on Alarm &amp; Sicherheit, ebenso das Anhaken eines Öffners
+unter <b>Geräte → Türöffner</b>; ein Licht aus Relais bleibt bei Pro.</p>
 <p>Ein Garagentor, ein Fensteröffner, ein Türöffner oder ein Licht an einfachen Relais?
 <b>Öffner, Schloss oder Licht aus Relais bauen</b> (<b>+ Build an opener, lock, or light from relays</b>
 in der Liste des Atlas-Editors) macht daraus eine richtige Abdeckung, ein Schloss oder ein Licht in

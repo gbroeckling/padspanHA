@@ -52,7 +52,6 @@
 "Theme": "Thème",
 "Night is PadSpan's dark forest green. Graphite, Ocean and Dusk are Night in charcoal, navy or plum. High contrast is black with white text and solid edges, for eyes that need it. Light inverts every colour in the panel (white becomes black, black becomes white) for anyone who can't use a dark screen; photos and map images are turned back so they still look normal. Day is the panel redrawn in light colours. Every one keeps the green accent and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D house and Live Tracker keep their night colours. It takes effect immediately, in every browser. The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change it either, so Light won't help there if you can't use a dark screen.": "Nuit est le vert forêt sombre de PadSpan. Graphite, Océan et Crépuscule sont Nuit en anthracite, bleu marine ou prune. Contraste élevé est noir avec du texte blanc et des bords nets, pour les yeux qui en ont besoin. Clair inverse toutes les couleurs du panneau (le blanc devient noir, le noir devient blanc) pour qui ne peut pas utiliser un écran sombre ; les photos et les images de plan sont remises à l’endroit pour rester normales. Jour est le panneau redessiné en couleurs claires. Chacun garde l’accent vert et les couleurs qui ont un sens (alarmes, avertissements, suivi), et les plans, les graphiques, la maison 3D et le Suivi en direct gardent leurs couleurs de nuit. Il s’applique tout de suite, dans chaque navigateur. La page Atlas de la barre latérale fait exception : elle reste sombre avec chaque thème, et Clair ne la change pas non plus ; Clair n’y aide donc pas si vous ne pouvez pas utiliser un écran sombre.",
 "Light (inverted)": "Clair (inversé)",
-"Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.": "Graphite, Océan, Crépuscule et Jour sont inclus dans PadSpan Pro ({path}). Nuit, Clair et Contraste élevé sont dans toutes les éditions.",
 "Follow the sun": "Suivre le soleil",
 "Day from sunrise to sunset, then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun).": "Jour du lever au coucher du soleil, puis le thème choisi plus haut (Nuit si c’est Jour ou Clair). Se base sur le Soleil de Home Assistant (sun.sun).",
 "Light (inverted) from sunrise to sunset, then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun).": "Clair (inversé) du lever au coucher du soleil, puis le thème choisi plus haut (Nuit si c’est Jour ou Clair). Se base sur le Soleil de Home Assistant (sun.sun).",
@@ -167,5 +166,6 @@
 "Relearned {name}: {db} dB — {n} points updated.": {
 "one": "{name} réappris : {db} dB — {n} point mis à jour.",
 "other": "{name} réappris : {db} dB — {n} points mis à jour."
-}
+},
+"Graphite, Ocean, Dusk and Day come with {what} ({path}). Night, Light and High contrast are in every edition.": "Graphite, Océan, Crépuscule et Jour sont inclus avec {what} ({path}). Nuit, Clair et Contraste élevé sont dans toutes les éditions."
 }

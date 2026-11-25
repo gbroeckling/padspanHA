@@ -33,16 +33,17 @@
  * someone's own phone, so guessing "the viewer" would be wrong as often
  * as it was right.
  *
- * PadSpan Pro. Gated both here (the presentation) and server-side on the
- * locate_self_key setting itself (ws_settings.py refuses the write below
- * pro) — unlike Busy Times, this introduces a genuinely new setting, so
+ * PadSpan Pro or the Presence insights add-on. Gated both here (the
+ * presentation) and server-side on the locate_self_key setting itself
+ * (ws_settings.py refuses the write without either) — unlike Busy Times,
+ * this introduces a genuinely new setting, so
  * unlike that presentation-only gate, there's a real write to refuse.
  */
 
 const { pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, currentTier } =
+const { addonAllowed, addonPrice } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
 // must not blank the view it sits in.
@@ -73,7 +74,7 @@ export function render(ctx, { targetKey } = {}) {
 
   // Every root this returns answers _refresh (Follow calls it each poll).
   root._refresh = () => {};
-  if (!tierAtLeast(currentTier(ctx.state.settings), "pro")) {
+  if (!addonAllowed(ctx.state.settings, "insights")) {
     root.appendChild(_buildProGateCard(ctx, "Locate"));
     return root;
   }
@@ -309,9 +310,10 @@ function _buildProGateCard(ctx, featureName) {
   const { el } = ctx.helpers;
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:16px;margin-bottom:6px" },
-    t("{feature} is a PadSpan Pro feature", { feature: featureName === "Locate" ? t("Locate") : featureName })));
+    t("{feature} needs PadSpan Pro or the {addon} add-on ({price})", { feature: featureName === "Locate" ? t("Locate") : featureName,
+      addon: t("Presence insights"), price: addonPrice("insights") })));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    t("Unlock it, and everything else gated, with a PadSpan Pro key.")));
+    t("The {addon} add-on unlocks Busy Times and Locate; a PadSpan Pro key unlocks them and everything else gated.", { addon: t("Presence insights") })));
   card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, t("Settings → Features → PadSpan licence")));
   // The trial is all of PadSpan Pro (since 2026-10-27), so the card says it
   // unlocks Locate too. Null once there is any key.

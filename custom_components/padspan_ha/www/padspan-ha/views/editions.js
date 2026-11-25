@@ -95,20 +95,26 @@ export const ADDON_TERM = "2 years";
 export const ADDONS_URL = "https://padspan.traks.ca/#addons";
 export const ADDONS = Object.freeze([
   { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map" },
-  { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm in the emergency button, locks, garage and gate openers on the map, and Alert pulse. A triggered alarm always shows, free" },
+  { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free" },
   { name: "wifi", words: "Wi-Fi coverage", price: "$6.45 CAD", desc: "The UniFi Wi-Fi coverage map" },
   { name: "climate", words: "Climate map", price: "$8.65 CAD", desc: "The Heatmap: rooms by temperature, humidity and CO₂" },
   { name: "timetravel", words: "Time travel", price: "$7.55 CAD", desc: "The day replayed on the Atlas map (Playback on the Atlas)" },
   { name: "vacation", words: "Vacation Mode & presets", price: "$4.25 CAD", desc: "Vacation Mode and Whole House Presets" },
   { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
   { name: "forensics", words: "Forensics", price: "$5.56 CAD", desc: "Which Bluetooth devices were near a scanner in any time window" },
-  { name: "insights", words: "Insights", price: "$5.56 CAD", desc: "Busy Times and Locate" },
+  { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Busy Times and Locate" },
 ]);
 /** Whether add-on `name`'s features may be used: always on Pro, else the
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
 export function addonAllowed(settings, name) {
   const s = settings || {};
   return currentTier(s) === "pro" || (Array.isArray(s.addons_licensed) && s.addons_licensed.includes(name));
+}
+/** An add-on's price as the site sells it ("$8.65 CAD"), "" for no such add-on: what a refusal says beside the
+ *  add-on's name ("PadSpan Pro or the Climate map add-on ($8.65 CAD)"), never written out there. */
+export function addonPrice(name) {
+  const a = ADDONS.find(x => x.name === name);
+  return a ? a.price : "";
 }
 /** Whether this install's key is an add-on key (not a Pro key), lapsed or
  *  not: the backend's own answer (settings.addon_key, licence.is_addon_key).

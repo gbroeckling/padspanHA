@@ -130,6 +130,10 @@ def _live_house(monkeypatch, **kw):
     return h
 
 
+# A key that has the test (emergency_test.licensed): PadSpan Pro. The websocket commands are refused without one.
+_PRO = {"forensics_license_key": "PSPAN-TEST-0000-0000-0000", "license_tier": "pro",
+        "forensics_license_expires": "2099-12-31 00:00:00"}
+
 LIVE_WLED = ["light.a1_slwf_09", "light.upper_south_2", "light.emergencysparebed_slwf_09"]
 LIVE_MEMBERS = ["switch.pakedge_poe_port_7", "switch.pakedge_poe_port_8", *LIVE_WLED]
 
@@ -333,7 +337,7 @@ def _conn(out, errors=None):
 
 
 def test_ws_commands_answer(monkeypatch):
-    h = _live_house(monkeypatch)
+    h = _live_house(monkeypatch, settings=_PRO)
     out = []
     conn = _conn(out)
     _run(ET.ws_emergency_test(h.hass, conn, {"id": 1, "type": "padspan_ha/emergency_test", "on": True}))
@@ -346,7 +350,7 @@ def test_ws_commands_answer(monkeypatch):
 
 def test_service_calls_carry_the_callers_context(monkeypatch):
     """HA's permissions and logbook see the person who tapped, not the system."""
-    h = _live_house(monkeypatch)
+    h = _live_house(monkeypatch, settings=_PRO)
     conn = _conn([])
     _run(ET.ws_emergency_test(h.hass, conn, {"id": 7, "type": "padspan_ha/emergency_test", "on": True}))
     assert h.contexts and set(h.contexts) == {("user-ctx", 7)}
@@ -443,7 +447,7 @@ def test_by_hand_outside_a_test_only_switches(monkeypatch):
 
 
 def test_by_hand_refuses_what_is_not_a_member(monkeypatch):
-    h = _live_house(monkeypatch)
+    h = _live_house(monkeypatch, settings=_PRO)
     assert _run(ET.async_member(h.hass, "switch.pakedge_poe_port_1", False)) is None
     assert h.states["switch.pakedge_poe_port_1"].state == "on"
     errors = []
@@ -629,7 +633,8 @@ def test_the_button_can_be_hidden_in_settings():
             "s.atlas_emergency_button === false;") in lp
     # Hidden, the test's button goes; the house's alarm inside the button stays (the button for the alarm alone;
     # nothing at all without one, as before).
-    assert "const lights = !!(s && s.available) && !(this.state._emergButtonHidden && !(s.test && s.test.active));" in lp
+    assert ("const lights = this._alarmControls() && !!(s && s.available) && "
+            "!(this.state._emergButtonHidden && !(s.test && s.test.active));") in lp
     assert "if(!lights && !alarm) return null;" in lp
 
 
@@ -660,3 +665,48 @@ def test_the_settings_card_saves_each_switch_by_its_own_rule():
     assert "Goodie" not in out["title"] and "Atlas" in out["title"], out["title"]
     assert "On by default" in out["blurb"] and "Lights panel" not in out["blurb"], out["blurb"]
     assert any("No restart needed" in t for t in out["restartNotes"]), out["restartNotes"]
+
+
+# ── The licence (the owner, 2026-11-25): Alarm & security ─────────────────────
+
+
+_ADDON = {"forensics_license_key": "PSPAN-TEST-0000-0000-0001", "license_tier": "free",
+          "forensics_license_expires": "2099-12-31 00:00:00"}
+
+
+@pytest.mark.parametrize("key, allowed", [
+    ({}, False),                                                        # no key: free
+    ({**_ADDON, "license_addons": ["audio"]}, False),                   # another add-on only
+    ({**_ADDON, "license_addons": ["alarm"]}, True),                    # the Alarm & security add-on
+    (_PRO, True),                                                       # PadSpan Pro includes every add-on
+    ({**_PRO, "license_tier": "bright"}, True),                         # a Bright key keeps what it had
+])
+def test_the_test_force_off_and_the_list_need_alarm_and_security(monkeypatch, key, allowed):
+    """Starting a test, Force off and a light switched from the list are refused without PadSpan Pro or the Alarm &
+    security add-on (a Bright key keeps them), with a message that says what brings them back; the status is
+    answered to everyone, and nothing is switched by a refused command."""
+    h = _live_house(monkeypatch, settings=key)
+    out, errors = [], []
+    conn = _conn(out, errors)
+    _run(ET.ws_emergency_test(h.hass, conn, {"id": 1, "type": "padspan_ha/emergency_test", "on": True}))
+    _run(ET.ws_emergency_member(h.hass, conn, {"id": 2, "entity_id": "light.a1_slwf_09", "on": True}))
+    _run(ET.ws_emergency_force_off(h.hass, conn, {"id": 3, "type": "padspan_ha/emergency_force_off"}))
+    if allowed:
+        assert errors == [] and len(out) == 3 and h.calls
+    else:
+        assert errors == [ET.ADDON_CODE] * 3 and out == [] and h.calls == []
+    _run(ET.ws_emergency_status(h.hass, conn, {"id": 4, "type": "padspan_ha/emergency_status"}))
+    assert out[-1]["available"] is True
+    assert ET.ADDON_MESSAGE.startswith("The emergency lights test needs PadSpan Pro or the Alarm & security add-on.")
+    assert "https://padspan.traks.ca/#addons" in ET.ADDON_MESSAGE
+
+
+def test_a_running_test_can_always_be_ended(monkeypatch):
+    """A test started while the install had the add-on can be ended after it lapsed: the lights it turned on are
+    never left on for want of a key."""
+    h = _live_house(monkeypatch, settings=_PRO)
+    _run(ET.async_test(h.hass, True))
+    h.settings.data = {}
+    out, errors = [], []
+    _run(ET.ws_emergency_test(h.hass, _conn(out, errors), {"id": 5, "type": "padspan_ha/emergency_test", "on": False}))
+    assert errors == [] and out[-1]["test"]["active"] is False

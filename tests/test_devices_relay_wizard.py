@@ -39,6 +39,7 @@ def _run_js(tmp_path: Path, script: str) -> dict:
     shutil.copy(_VIEWS / "devices.js", tmp_path / "devices.mjs")
     shutil.copy(_VIEWS / "device_name.js", tmp_path / "device_name.js")
     shutil.copy(_VIEWS / "i18n.js", tmp_path / "i18n.js")
+    shutil.copy(_VIEWS / "editions.js", tmp_path / "editions.js")   # Door Openers' gate (editions.js addonAllowed)
     (tmp_path / "run.mjs").write_text(script, encoding="utf-8")
     res = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True,
                           text=True, encoding="utf-8", timeout=60)

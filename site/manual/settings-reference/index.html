@@ -98,10 +98,10 @@ folding heading on that tab.</p>
 <table>
   <tr><th>Card: control</th><th>Default</th><th>Range or choices</th><th>What it does</th><th>Key</th></tr>
   <tr><td>Panel Style</td><td><code>2025</code></td><td><code>classic</code>, <code>2025</code></td><td><code>2025</code> restyles the panel's frame (grouped menu with icons); <code>classic</code> is the original.</td><td><code>ui_skin</code></td></tr>
-  <tr><td>Theme</td><td>empty</td><td><code>graphite</code>, <code>ocean</code>, <code>dusk</code>, <code>contrast</code></td><td>The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (<code>contrast</code>). Graphite, Ocean and Dusk come with Pro.</td><td><code>theme_palette</code></td></tr>
+  <tr><td>Theme</td><td>empty</td><td><code>graphite</code>, <code>ocean</code>, <code>dusk</code>, <code>contrast</code></td><td>The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (<code>contrast</code>). Graphite, Ocean and Dusk come with Pro or the Looks pack add-on.</td><td><code>theme_palette</code></td></tr>
   <tr><td>Theme: Light (inverted)</td><td>off</td><td>on or off</td><td>The panel's colours turned light (inverted).</td><td><code>light_theme</code></td></tr>
-  <tr><td>Theme: Day</td><td>off</td><td>on or off</td><td>Day, PadSpan's designed light look (Pro). It wins over Light.</td><td><code>day_theme</code></td></tr>
-  <tr><td>Theme: Follow the sun</td><td>off</td><td>on or off</td><td>Day (Light without Pro) from sunrise to sunset, the theme you picked at night.</td><td><code>theme_follow_sun</code></td></tr>
+  <tr><td>Theme: Day</td><td>off</td><td>on or off</td><td>Day, PadSpan's designed light look (Pro or the Looks pack add-on). It wins over Light.</td><td><code>day_theme</code></td></tr>
+  <tr><td>Theme: Follow the sun</td><td>off</td><td>on or off</td><td>Day (Light without Pro or the Looks pack) from sunrise to sunset, the theme you picked at night.</td><td><code>theme_follow_sun</code></td></tr>
   <tr><td>Units: Show lengths in feet and inches</td><td>off</td><td>on or off</td><td>Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way.</td><td><code>units_feet</code></td></tr>
   <tr><td>2D Map Mode: Replace 3D isometric view with flat 2D map</td><td>off</td><td>on or off</td><td>Experimental: the Overview shows the floor plan flat, with zoom and pan.</td><td><code>overview_2d_mode</code></td></tr>
 </table>
@@ -220,7 +220,7 @@ folding heading on that tab.</p>
   <tr><td>Experimental Features: MAC Rotation Bridging</td><td>off</td><td>on or off</td><td>Links a device's old and new address when its address changes.</td><td><code>mac_rotation_bridging</code></td></tr>
   <tr><td>Experimental Features: Apple Device Classification</td><td>off</td><td>on or off</td><td>Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only.</td><td><code>apple_auto_classify</code></td></tr>
   <tr><td>Experimental Features: RSSI Vector Capture</td><td>off</td><td>on or off</td><td>A Record button in Health for signal recordings to replay.</td><td><code>rssi_capture_enabled</code></td></tr>
-  <tr><td>Forensics</td><td>off</td><td>on or off</td><td>Pro: records when every Bluetooth device nearby comes and goes, to look back at later.</td><td><code>forensics_enabled</code></td></tr>
+  <tr><td>Forensics</td><td>off</td><td>on or off</td><td>Pro or the Forensics add-on: records when every Bluetooth device nearby comes and goes, to look back at later.</td><td><code>forensics_enabled</code></td></tr>
   <tr><td>Forensics: Keep sessions for</td><td>14</td><td><code>7</code>, <code>14</code>, <code>30</code>, <code>60</code>, <code>90</code></td><td>Days Forensics keeps what it recorded.</td><td><code>forensics_retention_days</code></td></tr>
 </table>
 </div>
@@ -247,7 +247,8 @@ folding heading on that tab.</p>
   <tr><td>Atlas — Mapped Light Control: Draw lit lights in their own colour on the Atlas</td><td>off</td><td>on or off</td><td>Lit lights in the colour they report. Off: amber.</td><td><code>atlas_live_colours</code></td></tr>
   <tr><td>Atlas — Mapped Light Control: Alert pulse</td><td>off</td><td>on or off</td><td>Rings an opening left open, or open in the rain, and names the worst alert.</td><td><code>atlas_alert_pulse</code></td></tr>
   <tr><td>Atlas — Mapped Light Control: Notify when a leak, smoke, gas or CO alarm goes off</td><td>on</td><td>on or off</td><td>Sends one notification when the alarm latches and one when it clears, where Follow alerts go.</td><td><code>emergency_notify</code></td></tr>
-  <tr><td>Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂)</td><td>off</td><td>on or off</td><td>A Heatmap chip on the Atlas: rooms coloured by their own sensors.</td><td><code>atlas_heatmap_enabled</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂)</td><td>off</td><td>on or off</td><td>A Heatmap chip on the Atlas: rooms coloured by their own sensors. Pro or the Climate map add-on.</td><td><code>atlas_heatmap_enabled</code></td></tr>
+  <tr><td>Atlas — Mapped Light Control: Audio</td><td>off</td><td>on or off</td><td>On the classic layout, for the whole house: a speaker beside a room's name while one of its players is on, and Audio in the room's card. Pro or the Audio add-on; on the new layout each screen's ⋯ list has it instead.</td><td><code>atlas_audio_enabled</code></td></tr>
   <tr><td>Power teams</td><td>empty</td><td></td><td>Each wall dimmer or switch and the smart bulbs it feeds, as one light (<a href="/manual/home-assistant-reference/">chapter 14</a>).</td><td><code>power_teams</code></td></tr>
   <tr><td>Outdoor weather: Show rain and snow on the Atlas</td><td>on</td><td>on or off</td><td>Rain or snow around the house while it really rains or snows.</td><td><code>atlas_weather_enabled</code></td></tr>
   <tr><td>Outdoor weather: Rain sensor</td><td>empty</td><td>an entity: <code>binary_sensor.*</code> or <code>sensor.*</code>, or empty</td><td>A rain sensor that says when it is wet. Empty: the weather entity decides.</td><td><code>atlas_weather_rain_entity</code></td></tr>
@@ -299,7 +300,7 @@ folding heading on that tab.</p>
   <tr><td>Overview</td><td>Warp</td><td>50</td><td>0 to 100</td><td>How strongly the signal distortion map is drawn.</td><td><code>distortion_intensity</code></td></tr>
   <tr><td>Overview</td><td>Heat: Source</td><td>0</td><td>0 to 100</td><td>Which readings the Radio Map overlay draws from.</td><td><code>heatmap_source</code></td></tr>
   <tr><td>Follow</td><td>Follow</td><td>empty</td><td></td><td>The devices you follow. Following a device with no name gives it one.</td><td><code>followed_addrs</code></td></tr>
-  <tr><td>Locate</td><td>Locate: You</td><td>empty</td><td></td><td>Pro: which device is you, for directions.</td><td><code>locate_self_key</code></td></tr>
+  <tr><td>Locate</td><td>Locate: You</td><td>empty</td><td></td><td>Pro or the Presence insights add-on: which device is you, for directions.</td><td><code>locate_self_key</code></td></tr>
   <tr><td>Bluetooth</td><td>Scanners: Exclude</td><td>empty</td><td></td><td>Receivers left out of positioning. Nothing they recorded is deleted.</td><td><code>excluded_scanners</code></td></tr>
   <tr><td>Bluetooth</td><td>Scanners: Min signal: off</td><td>empty</td><td></td><td>For each receiver, readings weaker than this are ignored.</td><td><code>scanner_min_rssi</code></td></tr>
   <tr><td>Calibration</td><td>Beacon Tune: Auto-Cal</td><td>on</td><td>on or off</td><td>Pinned beacons add calibration points by themselves.</td><td><code>beacon_auto_calibrate</code></td></tr>
@@ -324,7 +325,7 @@ folding heading on that tab.</p>
   <tr><td>Manage → Beacon Characteristics</td><td>Beacon Signal Profiles</td><td>empty</td><td>a list</td><td>Beacons left out of calibration tuning.</td><td><code>beacon_tune_disabled</code></td></tr>
   <tr><td>Manage → Beacon Characteristics</td><td>Beacon Signal Profiles</td><td>empty</td><td>a mapping</td><td>Beacons moved to another model group.</td><td><code>beacon_group_overrides</code></td></tr>
   <tr><td>Mapping → Atlas builder</td><td>Classic layout</td><td>on</td><td>on or off</td><td>On: the Atlas's new layout (wall screens need it). Off: the classic layout.</td><td><code>atlas_layout_v2</code></td></tr>
-  <tr><td>Mapping → Atlas builder</td><td>Showcase</td><td>off</td><td>on or off</td><td>Pro: the Atlas's presentation look.</td><td><code>lights_showcase</code></td></tr>
+  <tr><td>Mapping → Atlas builder</td><td>Showcase</td><td>off</td><td>on or off</td><td>Bright Pro, Pro or the Looks pack add-on: the Atlas's presentation look.</td><td><code>lights_showcase</code></td></tr>
   <tr><td>Mapping → Atlas builder</td><td>Showcase: Theme</td><td><code>classic</code></td><td><code>classic</code>, <code>cinematic_glass</code>, <code>neo_hud</code>, <code>ambient_premium</code>, <code>dataviz_precision</code>, <code>organic_bioluminescent</code>, <code>material_you</code>, <code>neon_precision</code>, <code>luxury_realestate</code>, <code>wabi_sabi</code>, <code>hygge</code>, <code>aurora</code>, <code>automotive_hud</code>, <code>art_deco</code>, <code>swiss_style</code>, <code>bauhaus</code>, <code>holographic</code>, <code>retro_futurism</code>, <code>obsidian_noir</code>, <code>west_coast_forest</code></td><td>Showcase's theme.</td><td><code>lights_showcase_theme</code></td></tr>
   <tr><td>Mapping → Atlas builder</td><td>Showcase: Fit room</td><td>off</td><td>on or off</td><td>Never draws a light bigger than its room.</td><td><code>lights_fit_rooms</code></td></tr>
   <tr><td>Mapping → Atlas builder</td><td>Showcase: Light spread</td><td>off</td><td>on or off</td><td>Lines of equal light on the floor.</td><td><code>lights_isolux</code></td></tr>

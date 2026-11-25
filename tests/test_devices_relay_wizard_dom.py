@@ -31,6 +31,7 @@ def _run(tmp_path: Path, body: str) -> dict:
     shutil.copy(_VIEWS / "devices.js", tmp_path / "devices.mjs")
     shutil.copy(_VIEWS / "device_name.js", tmp_path / "device_name.js")
     shutil.copy(_VIEWS / "i18n.js", tmp_path / "i18n.js")   # devices.js's words (views/i18n.js)
+    shutil.copy(_VIEWS / "editions.js", tmp_path / "editions.js")   # Door Openers' gate (editions.js addonAllowed)
     shutil.copy(_SHIM, tmp_path / "dom_shim.mjs")
     harness = f"""
 import {{ install }} from './dom_shim.mjs';

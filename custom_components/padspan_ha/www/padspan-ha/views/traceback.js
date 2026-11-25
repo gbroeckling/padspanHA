@@ -30,7 +30,7 @@ const busyTimesView =
 // Atlas map (see house_activity.js's header).
 const houseActivity =
   await import(`./house_activity.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, currentTier } =
+const { addonAllowed } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 /** Open Traceback on one object over one window (a guest stay's report):
@@ -295,8 +295,8 @@ export function render(ctx) {
       tb.rangePreset = Math.round(tb.endTs - tb.startTs);
     }
   }
-  // PadSpan Pro specifically — below Pro the switch is not offered at all.
-  const _houseOK = tierAtLeast(currentTier(ctx.state.settings), "pro");
+  // PadSpan Pro or the Time travel add-on — without either the switch is not offered at all.
+  const _houseOK = addonAllowed(ctx.state.settings, "timetravel");
   const _houseActive = () => _houseOK && tb.house.on && tb.mode === "playback";
   // Full house activity has two modes (2026-09-24: "split it in two,
   // devices, and no devices"): the Atlas map with the tracked beacons — or,
@@ -2333,7 +2333,7 @@ export function render(ctx) {
   modeRow.appendChild(_makeModeBtn(t("Insights"), "insights"));
   modeRow.appendChild(_makeModeBtn(t("Busy Times"), "busytimes"));
 
-  // Full house activity (PadSpan Pro) — an option of Playback, off until picked.
+  // Full house activity (PadSpan Pro or the Time travel add-on) — an option of Playback, off until picked.
   const houseBtn = document.createElement("button");
   houseBtn.className = "btn inline";
   const _paintHouseBtn = () => {

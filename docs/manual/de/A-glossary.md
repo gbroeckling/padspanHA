@@ -10,6 +10,11 @@ Die Wörter, die dieses Handbuch und PadSpans Panel benutzen, alphabetisch geord
 **Abwesenheits-Timeout.** Wie lange ein Gerät nicht gehört wird, bevor es `not_home` zeigt (5 Minuten,
 wenn du es nicht änderst, unter Einstellungen → Ortung → Räume und Zeiten → Zuhause/Abwesend-Timeout).
 
+**Add-on.** Ein Teil von PadSpan Pro, einzeln gekauft für eine Installation ohne Pro: Audio, Alarm &
+Sicherheit, WLAN-Abdeckung, Klimakarte, Zeitreise, Urlaubsmodus & Voreinstellungen, Looks-Paket,
+Forensik oder Präsenz-Auswertungen. Eine Zahlung gilt 2 Jahre, auf bis zu drei Zuhause; PadSpan Pro
+enthält sie alle. Siehe [Kapitel 25](25-padspan-pro.md#add-ons).
+
 **Administrator.** Ein Benutzer von Home Assistant mit Administratorrechten. Backups,
 Wiederherstellungen, ein Factory Reset, die Schlüssel von Handys, das Hochladen von Grundrissen und
 alles, was Daten aus dem Haus schickt, brauchen einen; ist die erweiterte Sicherheit an, gilt das auch

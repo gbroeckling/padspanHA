@@ -85,6 +85,8 @@ def test_the_flat_lines_are_exactly_what_the_flat_map_reads() -> None:
     assert read == flat == {"scenes", "light_taps", "other_floors", "scan_furniture", "edgecut", "room_controls"}, (read, flat)
     # "Furniture from scans" (2026-11-16): listed on the sidebar Atlas, read only once a screen ticks it.
     assert 'lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],' in lm
-    # Room controls (2026-11-25): listed where the host hands its room controls (the Atlas tab), read only once ticked.
-    assert 'const roomControlsOn = () => DISPLAY && !!host.roomControls && flatShow("room_controls") === true;' in lm
+    # Room controls (2026-11-25): listed where the host hands its room controls (the Atlas tab), read only once ticked;
+    # the classic layout (no ⋯ list) goes by Settings → Atlas → Audio instead (host.audioOn; tests/test_addon_gates.py).
+    assert ('const roomControlsOn = () => !!host.roomControls && (DISPLAY ? flatShow("room_controls") === true : '
+            'host.audioOn === true);') in lm
     assert 'const scanOn = () => !!scanLoad && flatShow("scan_furniture") === true;' in lm

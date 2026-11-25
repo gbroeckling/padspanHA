@@ -88,7 +88,6 @@
 "Merged from: {list}": "Fusionné depuis : {list}",
 "Door / Window Openers": "Ouvre-portes et fenêtres",
 "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock.": "Marquez une entité volet, interrupteur, bouton ou script comme ouvre-porte/fenêtre (une porte de garage, un portail ou toute autre ouverture motorisée) pour qu’elle soit proposée et reliée depuis la ligne de cette porte/fenêtre dans Plans → Éditeur d’Atlas, à côté de son capteur et de sa serrure.",
-"Door Openers is a Bright / Pro feature.": "Les ouvre-portes sont une fonction Bright / Pro.",
 "Marked as an opener.": "Marqué comme ouvre-porte.",
 "No longer an opener.": "N’est plus un ouvre-porte.",
 "Could not save: {why}": "Non enregistré : {why}",
@@ -269,5 +268,6 @@
 "{n} need attention": {
 "one": "{n} demande votre attention",
 "other": "{n} demandent votre attention"
-}
+},
+"Door Openers needs PadSpan Pro or the Alarm & security add-on ({price}). Enter the key in Settings → Features → PadSpan licence.": "Les ouvre-portes nécessitent PadSpan Pro ou le module « Alarme et sécurité » ({price}). Saisissez la clé dans Paramètres → Fonctions → Licence PadSpan."
 }

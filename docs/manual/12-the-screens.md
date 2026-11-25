@@ -43,7 +43,7 @@ style, the menu has no headings. A PadSpan Bright install shows only its lightin
 |---|---|---|---|---|---|
 | **Overview** | Where everyone and everything is now, on a drawing of your house; before any room is drawn, Who's where now. | Always | Main list | Main list | Live |
 | **Live Tracker** | The live map on its own, full screen, for a wall tablet or a second screen. | Always | More tools | Main list | Live |
-| **Follow** | One person or thing: its room now, its movements, Locate (Pro) and alerts when it moves. | Always | Main list | Main list | Live |
+| **Follow** | One person or thing: its room now, its movements, Locate (Pro or Presence insights) and alerts when it moves. | Always | Main list | Main list | Live |
 | **Occupancy** | How many people are in the building, and how the number was reached. | Always | More tools | Main list | Live |
 | **Guests** | Guest tags: who is staying now, the tags you lend, and past stays. | While guest tags are on (Settings → Tracking → Phones and guest tags) | Main list | Main list | Live |
 | **Setup** | The steps from a floor plan to a calibrated map, in order. | Until every step is done, or setup is skipped | Main list | Main list | Build |
@@ -54,10 +54,10 @@ style, the menu has no headings. A PadSpan Bright install shows only its lightin
 | **Training** | Animated walkthroughs and the Full Manual, inside the panel. | Always | Main list | Main list | Build |
 | **Manage** | Data clean-ups, backups, Home Assistant entities, alerts by email or phone, logs, Factory Reset. | Always | More tools | Main list | Build |
 | **Settings** | Every setting, in tabs. | Always | Main list | Main list | Build |
-| **Traceback** | Replay where devices went, with Insights (time in each room) and Busy Times (Pro). | Always | More tools | Main list | Diagnose |
+| **Traceback** | Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights). | Always | More tools | Main list | Diagnose |
 | **Health** | Is PadSpan working? Its own checks, receivers' health, and Problems found. | Always | More tools | Main list | Diagnose |
-| **Wi-Fi coverage** | A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia. | While UniFi Utopia's Wi-Fi survey answers | More tools | More tools | Diagnose |
-| **Forensics** | Pro: which Bluetooth devices were near your receivers between two times. | While Forensics is on (Settings → Features → Forensics) | Main list | Main list | Diagnose |
+| **Wi-Fi coverage** | A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia. | While UniFi Utopia's Wi-Fi survey answers, with Pro or the Wi-Fi coverage add-on | More tools | More tools | Diagnose |
+| **Forensics** | Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times. | While Forensics is on (Settings → Features → Forensics) | Main list | Main list | Diagnose |
 | **Monitor** | What PadSpan hears, in numbers, and Export for support. | Always | More tools | More tools (Settings → UI Structure can move it to the main list) | Diagnose |
 | **Devices** | Every device PadSpan tracks or hears, in four lists, and the device registry. | Always | More tools | More tools (Settings → UI Structure can move it to the main list) | Internals |
 | **Bluetooth** | What each receiver hears, and the IRK Manager for phones and watches. | Always | More tools | More tools (Settings → UI Structure can move it to the main list) | Internals |
@@ -155,7 +155,7 @@ about it. In Advanced and Development, the card also lists the receivers that he
 
 Under the card:
 
-- **📍 Locate** (PadSpan Pro): which way to walk to find it. Under **You are carrying:**, pick your
+- **📍 Locate** (PadSpan Pro or the Presence insights add-on): which way to walk to find it. Under **You are carrying:**, pick your
   own phone. In the same room, it shows the distance in metres, getting closer or further. In
   another room, it says which room to head to next, and up or down a floor. No compass, no camera.
 - **Movement Alerts**: tell you when it changes room, arrives or leaves, on your phone or by email.
@@ -207,14 +207,14 @@ The row at the top switches between four modes:
     out. The clip is made in your browser and saved to your computer: nothing is uploaded. A video
     records in real time, so keep the tab in front until it is saved. It plays on the floor stack;
     the 3D house comes later. Free in every edition.
-  - **Full house activity** (PadSpan Pro) plays the same back on your Atlas, and with **💡 Devices**
+  - **Full house activity** (PadSpan Pro or the Time travel add-on) plays the same back on your Atlas, and with **💡 Devices**
     on, the house too: lights, locks, motion, doors and windows, and sensor readings, from Home
     Assistant's recorder.
 - **New Objects**: which devices were first heard in a window (up to 7 days back).
 - **Insights**: two tables for the last 1, 3 or 7 days. **Time in Room**: how long each device spent
   in each room each day, and how many times it went in. **Peak Concurrent Occupancy**: the most
   tracked devices in one room at once, each day, and when.
-- **Busy Times** (PadSpan Pro): one box per room, busiest first, each with a 24-hour bar chart of
+- **Busy Times** (PadSpan Pro or the Presence insights add-on): one box per room, busiest first, each with a 24-hour bar chart of
   when it gets busy.
 
 Insights and Busy Times work without a floor plan. **Manage → History → Open History** has the
@@ -223,8 +223,8 @@ saved list of room changes, each with **▶ Traceback** to play that moment back
 ## Forensics
 
 Which Bluetooth devices were near your receivers between two times: after a break-in or a package
-theft, or to spot an unknown tracker that keeps coming back. It is a PadSpan Pro feature, and off
-until you turn it on.
+theft, or to spot an unknown tracker that keeps coming back. It needs PadSpan Pro or the Forensics
+add-on, and is off until you turn it on.
 
 **Turn it on**: **Settings → Features → Forensics → Enable presence-session recording**. It asks you
 to confirm. While it is on, PadSpan checks every 60 seconds which devices it hears and records

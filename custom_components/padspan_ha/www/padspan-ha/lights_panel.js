@@ -38,6 +38,9 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
         vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates, confirmAsk } =
   await import(`./views/lights_map.js${STAMP}`);
+// Which add-ons this install has (views/editions.js addonAllowed, the backend's
+// own answer, settings.addons_licensed): this page asks _addon(name).
+const { addonAllowed } = await import(`./views/editions.js${STAMP}`);
 // The house's alarm on the emergency button (views/alarm_panel.js). Optional:
 // without it the button is as it was.
 const ALARM = await import(`./views/alarm_panel.js${STAMP}`)
@@ -469,6 +472,8 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = s.atlas_emergency_button === false;
       if (s.atlas_live_colours !== undefined) this.state._liveColours = s.atlas_live_colours === true;
       if (s.atlas_heatmap_enabled !== undefined) this.state._heatmapOn = s.atlas_heatmap_enabled === true;
+      // Settings → Atlas → Audio: the classic layout's Audio, house-wide (_roomControlsOn). A failed fetch keeps the last answer.
+      if (s.atlas_audio_enabled !== undefined) this.state._audioOn = s.atlas_audio_enabled === true;
       // Settings → Atlas → Atlas — Mapped Light Control → Alert pulse, normally off.
       this.state._alertPulse = s.atlas_alert_pulse === true;
       // Outdoor weather (Settings → Atlas → Atlas — Mapped Light Control → Outdoor weather), field by field. A
@@ -526,6 +531,8 @@ class PadSpanLightsApp extends HTMLElement {
       // fetch that failed keeps the tier it last knew rather than flickering
       // a Pro house down to the free drawing for one poll.
       if (s.tier !== undefined) this.state._tier = String(s.tier);
+      // And the add-ons it may use (licence.addon_allowed), kept the same way.
+      if (s.addons_licensed !== undefined) this.state._addons = Array.isArray(s.addons_licensed) ? s.addons_licensed : [];
       // What the trial card reads: whether any key exists, and the tier (a
       // failed fetch keeps the last answer, same as the tier above); and
       // whether the usage report is on, so its offer counts only leave the
@@ -669,8 +676,9 @@ class PadSpanLightsApp extends HTMLElement {
     // Settings → UI Structure → "Show the Test emergency lighting button".
     // Hidden only while idle: a test running (started here or elsewhere)
     // always shows, so it can be seen and ended. The alarm is not the test:
-    // it stays.
-    const lights = !!(s && s.available) && !(this.state._emergButtonHidden && !(s.test && s.test.active));
+    // it stays. The emergency lights are Alarm & security's (_alarmControls):
+    // without it, only an alarm going off, and with none, no button.
+    const lights = this._alarmControls() && !!(s && s.available) && !(this.state._emergButtonHidden && !(s.test && s.test.active));
     if(!lights && !alarm) return null;
     const active = lights && !!(s.test && s.test.active);
     const busy = lights && !!this._emergBusy;
@@ -748,10 +756,12 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   // ── The house's alarm inside the emergency button (views/alarm_panel.js) ──
-  // Its state and Arm/Disarm on Bright and Pro. On the free tier only an
-  // alarm going off, said: a safety alert is free. Read from this page's hass
-  // at every draw (the 5 s poll), never stored.
-  _alarmControls(){ return ["bright","pro"].includes(String(this.state._tier||"").toLowerCase()); }
+  // Its state and Arm/Disarm with Alarm & security: PadSpan Pro or the add-on
+  // (and Bright Pro, which always had them). Without it only an alarm going
+  // off, said: a safety alert is free. Read from this page's hass at every
+  // draw (the 5 s poll), never stored. The same gate gives the door, garage
+  // and gate card (barrierHit) and the emergency lights (_emergencyOverlay).
+  _alarmControls(){ return String(this.state._tier||"").toLowerCase()==="bright" || this._addon("alarm"); }
   _alarmSummary(){
     if(!ALARM) return null;
     const states = (this._hass && this._hass.states) || {};
@@ -786,7 +796,7 @@ class PadSpanLightsApp extends HTMLElement {
       + `border-radius:${desktop ? "16px" : "18px 18px 0 0"};color:#e2e8f0;font-family:Inter,system-ui,sans-serif;`
       + "box-shadow:0 -12px 50px rgba(0,0,0,.6)"});
     overlay.appendChild(sheet);
-    // The house's alarm, on top. Bright and Pro arm and disarm it; free sees
+    // The house's alarm, on top. Alarm & security arms and disarms it; without it one sees
     // it only while it goes off.
     const alarm = ALARM ? ALARM.alarmSection({
       el, controls: this._alarmControls(),
@@ -819,7 +829,7 @@ class PadSpanLightsApp extends HTMLElement {
       + "font-size:10px;font-weight:700;letter-spacing:.04em;white-space:nowrap;" + style}, text);
     const fill = ()=>{
       const s = this.state._emerg;
-      const lights = !!(s && s.available);
+      const lights = this._alarmControls() && !!(s && s.available);
       const withAlarm = !!alarm && !alarm.empty();
       if(!lights && !withAlarm){ close(); return; }
       shown = shows();
@@ -976,12 +986,17 @@ class PadSpanLightsApp extends HTMLElement {
   _kiosk(){ try { return new URLSearchParams(location.search).get("kiosk")==="1"; } catch (_) { return false; } }
 
   _isAdmin(){ return !!(this._hass && this._hass.user && this._hass.user.is_admin); }
+  // Whether this install may use add-on `name` (views/editions.js addonAllowed): Pro includes every add-on.
+  _addon(name){ return addonAllowed({ tier: this.state._tier, addons_licensed: this.state._addons }, name); }
   // Whether this install has Audio (views/room_controls.js: the ⋯ list's "Audio" line, its "Set up ›", a room sheet's
-  // Audio part): the ONE place it is decided. Pro includes everything.
-  _audioAllowed(){ return String(this.state._tier||"").toLowerCase()==="pro"; }
-  // Audio on this screen: the ⋯ list's "Audio" (key room_controls) ticked where the map has that list (Pro's display layout).
+  // Audio part, Settings → Atlas → Audio): the ONE place it is decided. PadSpan Pro or the Audio add-on.
+  _audioAllowed(){ return this._addon("audio"); }
+  // Audio on this screen. Pro's display layout: the ⋯ list's "Audio" (key room_controls), ticked per screen. The classic
+  // layout has no ⋯ list: Settings → Atlas → Audio (atlas_audio_enabled) turns it on for the whole house.
   _roomControlsOn(){
-    return !!ROOMCTL && this._audioAllowed() && !!this.state._atlasLayoutV2 && screenShowLine("atlas","room_controls")===true;
+    if(!ROOMCTL || !this._audioAllowed()) return false;
+    const v2 = String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2;
+    return v2 ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;
   }
   // This page's room controls (views/room_controls.js), made once: functions only, read when used.
   _roomCtl(){
@@ -1180,8 +1195,7 @@ class PadSpanLightsApp extends HTMLElement {
     // ── The shared map card — identical map to the Mapping → Lights tab ──────
     // The same empty list every render: the map's patch keys on it (lights_map.js drawStageSvg).
     const floors=this.state.model.floors||NO_FLOORS;
-    // Door/window/lock click-to-control (2026-09-22) — same gate as
-    // maps.js's own barrierHit (_isPro there): Bright or Pro, never free.
+    // Light placement's tier (Bright or Pro): the trial card below is offered without it.
     const paid=["bright","pro"].includes(String(this.state._tier||"").toLowerCase());
     // A wall (?kiosk=1): nothing on it may lead off this page (the ⋯ list's
     // links, the scene row's + New scene and ✎); what is set up elsewhere
@@ -1194,7 +1208,11 @@ class PadSpanLightsApp extends HTMLElement {
       floors,
       model: this.state.model,
       tier: this.state._tier,
-      barrierHit: paid,
+      // The add-ons this install may use (lights_map.js hostAddon): Pro has them all.
+      addons: this.state._addons || [],
+      // Door/window/lock click-to-control (2026-09-22) — Alarm & security
+      // (_alarmControls: Bright, Pro or the add-on), as maps.js's own barrierHit.
+      barrierHit: this._alarmControls(),
       byRoom,
       hiddenEids: hidden,
       // This screen IS the house map (2026-09-21: "anything to the
@@ -1207,8 +1225,9 @@ class PadSpanLightsApp extends HTMLElement {
       layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
       displayMode: true,
       // Audio (views/room_controls.js), where this install has it: offered in the ⋯ list (with its Set up ›), drawn
-      // only while ticked there.
+      // only while ticked there; on the classic layout, drawn while Settings → Atlas → Audio is on (audioOn).
       roomControls: this._audioAllowed() ? this._roomCtl() : null,
+      audioOn: this.state._audioOn === true,
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
       // The wall's own shape, as it is hung (a turned wall is tall): what its
@@ -1514,8 +1533,8 @@ class PadSpanLightsApp extends HTMLElement {
       // The heatmap layer chip (atlas_heatmap.js): off by default, this
       // browser remembers the last kind like the class filter above.
       // Only once it's turned on in Settings: until then no chip at all.
-      // PadSpan Pro's (2026-10-22), and only once it's turned on in
-      // Settings: below Pro, or off, no chip at all.
+      // PadSpan Pro's or the Climate map add-on's, and only once it's turned
+      // on in Settings: without either, or off, no chip at all.
       heatmap: this._heatmapPro() ? this.state._heatmap : null,
       onHeatmap: !this._heatmapPro() ? null : (kind)=>{
         this.state._heatmap=kind||null;
@@ -2012,9 +2031,9 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   // What a wall set up on the window and the host, undone.
-  // The heatmap chip: PadSpan Pro, and turned on in Settings → Atlas → Atlas — Mapped Light Control.
+  // The heatmap chip: PadSpan Pro or the Climate map add-on, and turned on in Settings → Atlas → Atlas — Mapped Light Control.
   _heatmapPro(){
-    return String(this.state._tier || "").toLowerCase() === "pro" && !!this.state._heatmapOn;
+    return this._addon("climate") && !!this.state._heatmapOn;
   }
 
   _wallOff(){

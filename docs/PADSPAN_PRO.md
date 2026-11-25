@@ -64,14 +64,14 @@ trial or a tester's) never needs one. Prices in CAD:
 | Add-on | Price | What it unlocks |
 | --- | --- | --- |
 | Audio | $6.45 | Volume, mute and off for each room's players on the map |
-| Alarm & security | $6.45 | Arm and disarm in the emergency button, locks, garage and gate openers on the map, and Alert pulse (a triggered alarm always shows, free) |
+| Alarm & security | $6.45 | Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers (a triggered alarm, locks and Alert pulse stay free) |
 | Wi-Fi coverage | $6.45 | The UniFi Wi-Fi coverage map |
 | Climate map | $8.65 | The Heatmap: rooms by temperature, humidity and CO₂ |
 | Time travel | $7.55 | The day replayed on the Atlas map (Playback on the Atlas) |
 | Vacation Mode & presets | $4.25 | Vacation Mode and Whole House Presets |
 | Looks pack | $4.25 | Day and three more themes, Showcase and the forest |
 | Forensics | $5.56 | Which Bluetooth devices were near a scanner in any time window |
-| Insights | $5.56 | Busy Times and Locate |
+| Presence insights | $5.56 | Busy Times and Locate |
 
 - Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Your add-ons share one
   key of their own: buy another with the same email and it joins that key; buy one again and it runs

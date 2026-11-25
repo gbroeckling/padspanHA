@@ -52,7 +52,6 @@
 "Theme": "Design",
 "Night is PadSpan's dark forest green. Graphite, Ocean and Dusk are Night in charcoal, navy or plum. High contrast is black with white text and solid edges, for eyes that need it. Light inverts every colour in the panel (white becomes black, black becomes white) for anyone who can't use a dark screen; photos and map images are turned back so they still look normal. Day is the panel redrawn in light colours. Every one keeps the green accent and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D house and Live Tracker keep their night colours. It takes effect immediately, in every browser. The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change it either, so Light won't help there if you can't use a dark screen.": "Nacht ist PadSpans dunkles Waldgrün. Graphit, Ozean und Dämmerung sind Nacht in Anthrazit, Marineblau oder Pflaume. Hoher Kontrast ist Schwarz mit weißer Schrift und klaren Kanten, für Augen, die das brauchen. Hell kehrt jede Farbe im Panel um (Weiß wird Schwarz, Schwarz wird Weiß), für alle, die keinen dunklen Bildschirm nutzen können; Fotos und Kartenbilder werden zurückgedreht, damit sie normal aussehen. Tag ist das Panel neu in hellen Farben gezeichnet. Jedes behält den grünen Akzent und die Farben, die etwas bedeuten (Alarme, Warnungen, Ortung), und Karten, Diagramme, das 3D-Haus und der Live-Tracker behalten ihre Nachtfarben. Es wirkt sofort, in jedem Browser. Die Atlas-Seite in der Seitenleiste ist die Ausnahme: Sie bleibt bei jedem Design dunkel, und auch Hell ändert sie nicht; dort hilft Hell also nicht, wenn du keinen dunklen Bildschirm nutzen kannst.",
 "Light (inverted)": "Hell (invertiert)",
-"Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.": "Graphit, Ozean, Dämmerung und Tag gehören zu PadSpan Pro ({path}). Nacht, Hell und Hoher Kontrast gibt es in jeder Edition.",
 "Follow the sun": "Der Sonne folgen",
 "Day from sunrise to sunset, then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun).": "Tag von Sonnenaufgang bis Sonnenuntergang, danach das oben gewählte Design (Nacht, wenn das Tag oder Hell ist). Richtet sich nach der Sonne von Home Assistant (sun.sun).",
 "Light (inverted) from sunrise to sunset, then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun).": "Hell (invertiert) von Sonnenaufgang bis Sonnenuntergang, danach das oben gewählte Design (Nacht, wenn das Tag oder Hell ist). Richtet sich nach der Sonne von Home Assistant (sun.sun).",
@@ -167,5 +166,6 @@
 "Relearned {name}: {db} dB — {n} points updated.": {
 "one": "{name} neu gelernt: {db} dB — {n} Punkt aktualisiert.",
 "other": "{name} neu gelernt: {db} dB — {n} Punkte aktualisiert."
-}
+},
+"Graphite, Ocean, Dusk and Day come with {what} ({path}). Night, Light and High contrast are in every edition.": "Graphit, Ozean, Dämmerung und Tag gibt es mit {what} ({path}). Nacht, Hell und Hoher Kontrast gibt es in jeder Edition."
 }

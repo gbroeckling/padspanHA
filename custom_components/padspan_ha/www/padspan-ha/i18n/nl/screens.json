@@ -96,8 +96,6 @@
 "No mapped route between {from} and {to} yet — draw room adjacency in Mapping → Layout (in Advanced mode) to get turn-by-turn steps here.": "Nog geen route tussen {from} en {to} — teken welke kamers aan elkaar grenzen in Kaarten → Layout (in de modus Geavanceerd) voor stap-voor-stap hier.",
 "No mapped route between {from} and {to} yet — draw room adjacency in Mapping → Layout to get turn-by-turn steps here.": "Nog geen route tussen {from} en {to} — teken welke kamers aan elkaar grenzen in Kaarten → Layout voor stap-voor-stap hier.",
 "Head to: {room}": "Ga naar: {room}",
-"{feature} is a PadSpan Pro feature": "{feature} is een functie van PadSpan Pro",
-"Unlock it, and everything else gated, with a PadSpan Pro key.": "Ontgrendel het, en al het andere dat op slot zit, met een sleutel voor PadSpan Pro.",
 "Settings → Features → PadSpan licence": "Instellingen → Functies → PadSpan-licentie",
 "{n} rooms to go": {
 "one": "nog {n} kamer",
@@ -633,5 +631,8 @@
 "one": "Eén ontvanger heeft nog geen Home Assistant-ruimte en geeft dus geen kamer: {names}.",
 "other": "{n} ontvangers hebben nog geen Home Assistant-ruimte en geven dus geen kamer: {names}."
 },
-"No tag called \"{tag}\" to follow.": "Geen tag met de naam ‘{tag}’ om te volgen."
+"No tag called \"{tag}\" to follow.": "Geen tag met de naam ‘{tag}’ om te volgen.",
+"Presence insights": "Aanwezigheidsinzichten",
+"{feature} needs PadSpan Pro or the {addon} add-on ({price})": "{feature} vereist PadSpan Pro of de add-on “{addon}” ({price})",
+"The {addon} add-on unlocks Busy Times and Locate; a PadSpan Pro key unlocks them and everything else gated.": "De add-on “{addon}” ontgrendelt Busy Times en Zoeken; een sleutel voor PadSpan Pro ontgrendelt ze, en al het andere dat op slot zit."
 }

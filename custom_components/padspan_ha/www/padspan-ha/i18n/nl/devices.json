@@ -88,7 +88,6 @@
 "Merged from: {list}": "Samengevoegd uit: {list}",
 "Door / Window Openers": "Deur- en raamopeners",
 "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock.": "Markeer een cover, schakelaar, knop of script als deur-/raamopener (een garagedeur, poort of een andere aangedreven opening) zodat het op de rij van die deur of dat raam in Kaarten → Atlas-editor kan worden aangeboden en gekoppeld, naast de sensor en het slot.",
-"Door Openers is a Bright / Pro feature.": "Deuropeners horen bij Bright / Pro.",
 "Marked as an opener.": "Gemarkeerd als opener.",
 "No longer an opener.": "Geen opener meer.",
 "Could not save: {why}": "Niet opgeslagen: {why}",
@@ -269,5 +268,6 @@
 "{n} need attention": {
 "one": "{n} vraagt aandacht",
 "other": "{n} vragen aandacht"
-}
+},
+"Door Openers needs PadSpan Pro or the Alarm & security add-on ({price}). Enter the key in Settings → Features → PadSpan licence.": "Deuropeners vereisen PadSpan Pro of de add-on “Alarm en beveiliging” ({price}). Vul de sleutel in bij Instellingen → Functies → PadSpan-licentie."
 }

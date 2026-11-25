@@ -297,10 +297,10 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   {
     const settings = ctx.state.settings || {};
     const PAL = ["graphite", "ocean", "dusk", "contrast"];   // day_theme.js PALETTES
-    const PRO_LOOKS = ["graphite", "ocean", "dusk", "day"];   // PadSpan Pro; Night, Light and High contrast are everyone's
-    const proOk = tierAtLeast(currentTier(settings), "pro");
+    const PRO_LOOKS = ["graphite", "ocean", "dusk", "day"];   // PadSpan Pro or the Looks pack; Night, Light and High contrast are everyone's
+    const proOk = addonAllowed(settings, "looks");
     // PadSpan Bright never had these and its ladder doesn't sell PadSpan Pro:
-    // there they are simply not shown, unless a Pro key unlocks them.
+    // there they are simply not shown, unless a key unlocks them.
     const hideLocked = String(settings.edition || "").toLowerCase() === "bright" && !proOk;
     const now = proOk && settings.day_theme === true ? "day" : settings.light_theme === true ? "light"
       : PAL.includes(settings.theme_palette) && (proOk || !PRO_LOOKS.includes(settings.theme_palette)) ? settings.theme_palette : "night";
@@ -309,7 +309,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       const locked = PRO_LOOKS.includes(val) && !proOk;
       if (locked && hideLocked) return null;
       const b = el("button",{class:"btn inline"+(now===val?" on":""), ...(locked ? { disabled:"", style:"opacity:.45;cursor:default",
-        title:"PadSpan Pro: " + t("Settings → Features → PadSpan licence") } : {})}, label);
+        title:proOrAddon("looks") + ": " + t("Settings → Features → PadSpan licence") } : {})}, label);
       b.addEventListener("click", async()=>{
         if (now === val || locked) return;
         try {
@@ -321,7 +321,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       return b;
     };
     // Follow the sun (panel.js _sunLook): Day while the sun is up (Light
-    // without Pro), the Theme picked here once it sets. Off by default.
+    // without the Looks pack), the Theme picked here once it sets. Off by default.
     const sunToggle = el("input",{type:"checkbox",id:"themeFollowSunToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
     sunToggle.checked = settings.theme_follow_sun === true;
     sunToggle.addEventListener("change", async()=>{
@@ -338,7 +338,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night",t("Night")), mkTheme("graphite",t("Graphite")), mkTheme("ocean",t("Ocean")),
         mkTheme("dusk",t("Dusk")), mkTheme("contrast",t("High contrast")), mkTheme("light",t("Light (inverted)")), mkTheme("day",t("Day")) ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
-        t("Graphite, Ocean, Dusk and Day come with PadSpan Pro ({path}). Night, Light and High contrast are in every edition.", { path: t("Settings → Features → PadSpan licence") }))]),
+        t("Graphite, Ocean, Dusk and Day come with {what} ({path}). Night, Light and High contrast are in every edition.", { what: proOrAddon("looks"), path: t("Settings → Features → PadSpan licence") }))]),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:12px"},[
         sunToggle,
         el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, t("Follow the sun")),
@@ -3460,9 +3460,15 @@ export function reportOffConfirmText(s){
 const ADDON_WORDS = {
   audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
   climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
-  looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Insights"),
+  looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
 };
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
+// What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
+// panel's language with its price (editions.js ADDONS).
+function proOrAddon(name){
+  const a = ADDONS.find(x => x.name === name);
+  return t("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: a.price });
+}
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
   box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, t("Homes")));
@@ -3846,9 +3852,9 @@ function _settingsFeatures(ctx, el){
     toggle.checked = forensicsOn;
     toggle.addEventListener("change", async()=>{
       const live = ctx.state.dataMode === "live";
-      // Forensics is a PadSpan PRO feature (tier "pro"): a Bright Pro key is
-      // a valid key too, but not for this. Backend-owned answer, not the key.
-      const hasKey = String(settings.tier || "") === "pro";
+      // Forensics is PadSpan Pro's and the Forensics add-on's: a Bright Pro key
+      // is a valid key too, but not for this. Backend-owned answer, not the key.
+      const hasKey = addonAllowed(settings, "forensics");
       if(toggle.checked){
         let msg = t("Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.");
         if(!live) msg += "\n\n" + t("Note: data mode is currently Sample — nothing will be recorded until you switch data mode to Live.");
@@ -3857,26 +3863,33 @@ function _settingsFeatures(ctx, el){
           return;
         }
         if(!hasKey){
-          // Forensics is a PadSpan Pro feature — ask for the licence key.
-          const key = prompt(t("Forensics is a PadSpan Pro feature.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):"));
+          // Forensics needs PadSpan Pro or its add-on — ask for the licence key.
+          const key = prompt(t("Forensics needs {what}.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):", { what: proOrAddon("forensics") }));
           if(!key || !key.trim()){
             toggle.checked = false;
-            ctx.toast(t("A PadSpan Pro licence key is required for Forensics"), true);
+            ctx.toast(t("Forensics needs {what}.", { what: proOrAddon("forensics") }), true);
             return;
           }
           toggle.disabled = true;
           try {
             const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
-            if(r?.ok){
+            if(r?.ok && !addonAllowed(r.settings || {}, "forensics")){
+              // A key without Forensics (another add-on): it is on, Forensics stays off.
+              if(r.settings) ctx.state.settings = r.settings;
+              toggle.checked = false;
+              ctx.toast(t("Licence activated. It doesn't include Forensics: that needs {what}.", { what: proOrAddon("forensics") }), true);
+              ctx.actions.renderNav && ctx.actions.renderNav();
+              ctx.actions.renderRooms();
+            } else if(r?.ok){
               if(r.settings) ctx.state.settings = r.settings;
               ctx.toast(live
-                ? t("PadSpan Pro activated — Forensics recording enabled")
-                : t("PadSpan Pro activated — recording starts once data mode is Live"));
+                ? t("Licence activated — Forensics recording enabled")
+                : t("Licence activated — recording starts once data mode is Live"));
               ctx.actions.renderNav && ctx.actions.renderNav();
               ctx.actions.renderRooms();
             } else {
               toggle.checked = false;
-              ctx.toast(r?.message || t("Key not valid for PadSpan Pro"), true);
+              ctx.toast(r?.message || t("That key was not accepted"), true);
             }
           } catch(e){
             toggle.checked = false;
@@ -3936,9 +3949,9 @@ function _settingsFeatures(ctx, el){
             }catch(e){ ctx.toast(t("Only a Home Assistant admin can reveal the licence key"), true); }
           }}, t("Show licence key"));
         card.appendChild(revealBtn);
-      } else {
+      } else if(!addonAllowed(settings, "forensics")){
         card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
-          t("Requires a PadSpan Pro licence key. Enter one in PadSpan licence at the top of this tab, or you will be asked for it when enabling.")));
+          t("Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.", { what: proOrAddon("forensics") })));
       }
     }
 
@@ -5205,9 +5218,9 @@ function _settingsAtlas(ctx, el){
   });
   // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
   // temperature, humidity and CO2 drawn across each room from its own sensors.
-  // PadSpan Pro's (2026-10-22): below Pro, no row at all, and whatever
-  // is stored is kept for when a key comes back (as the 3D house's below).
-  if (tierAtLeast(currentTier(settings), "pro")) {
+  // PadSpan Pro's and the Climate map add-on's: without either, no row at all,
+  // and whatever is stored is kept for when a key comes back (as the 3D house's below).
+  if (addonAllowed(settings, "climate")) {
   const heatRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
   const heatCb = el("input",{type:"checkbox"});
   heatCb.checked = settings.atlas_heatmap_enabled === true;
@@ -5225,6 +5238,31 @@ function _settingsAtlas(ctx, el){
       heatNote.textContent = t("Saved \u2014 the Atlas changes at its next refresh.");
     } catch (e) {
       heatCb.checked = !want;
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
+    }
+  });
+  }
+  // Audio (views/room_controls.js) on the classic layout, house-wide, normally off: what the ⋯ list's Audio line does
+  // per screen on the new layout (lights_panel.js _roomControlsOn). PadSpan Pro's and the Audio add-on's: without
+  // either, no row at all, and whatever is stored is kept for when a key comes back.
+  if (addonAllowed(settings, "audio")) {
+  const audioRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-audio"});
+  const audioCb = el("input",{type:"checkbox"});
+  audioCb.checked = settings.atlas_audio_enabled === true;
+  audioRow.appendChild(audioCb);
+  audioRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Audio")));
+  lightsCard.appendChild(audioRow);
+  const audioNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    t("A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (\u25A6 New layout) each screen ticks Audio in its \u22EF list instead. Off: none."));
+  lightsCard.appendChild(audioNote);
+  audioCb.addEventListener("change", async ()=>{
+    const want = audioCb.checked;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_audio_enabled: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      audioNote.textContent = t("Saved \u2014 the Atlas changes at its next refresh.");
+    } catch (e) {
+      audioCb.checked = !want;
       ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   });

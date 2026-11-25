@@ -57,10 +57,12 @@ def test_the_counts_are_a_closed_list_and_carry_no_name():
     assert 'host.count(arming ? "arm" : "disarm")' in card and 'host.count("refused")' in card
 
 
-def test_the_controls_are_bright_or_pro_and_the_banner_every_tier():
+def test_the_controls_are_alarm_and_security_and_the_banner_every_tier():
+    """Arm and Disarm are Alarm & security's (the owner, 2026-11-25): PadSpan Pro or the add-on, and a Bright key
+    keeps them; a triggered alarm and the banner stay free (tests/test_addon_gates.py runs the panel)."""
     panel = _src("lights_panel.js")
-    assert '_alarmControls(){ return ["bright","pro"].includes(String(this.state._tier||"").toLowerCase()); }' in panel
-    assert "el, controls: this._alarmControls()," in panel   # the card's alarm part: buttons on Bright and Pro only
+    assert '_alarmControls(){ return String(this.state._tier||"").toLowerCase()==="bright" || this._addon("alarm"); }' in panel
+    assert "el, controls: this._alarmControls()," in panel   # the card's alarm part: buttons with Alarm & security only
     card = _src("views/alarm_panel.js")
     assert 'return host.controls ? panels : panels.filter(p => p.state === "triggered");' in card
     assert "const acts = host.controls ? actionsFor(p) : [];" in card

@@ -239,5 +239,6 @@
 "Only an administrator can change Yesterday at home": "Nur ein Administrator kann „Gestern zu Hause“ ändern",
 "The time must be HH:MM": "Die Uhrzeit muss HH:MM sein",
 "That is not a notification target": "Das ist kein Benachrichtigungsziel",
-"Only an administrator can match players to rooms": "Nur ein Administrator kann Player Räumen zuordnen"
+"Only an administrator can match players to rooms": "Nur ein Administrator kann Player Räumen zuordnen",
+"The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Der Notbeleuchtungstest braucht PadSpan Pro oder das Add-on „Alarm & Sicherheit“. Gib einen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein oder hol dir einen auf https://padspan.traks.ca/#addons"
 }

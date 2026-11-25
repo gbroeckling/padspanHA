@@ -23,7 +23,7 @@
 
 const _q = new URL(import.meta.url).search;
 const { buildIsoSVG, fabricFrame, floorNameAtLevel, pointInPolygon } = await import(`./iso_lights.js${_q}`);
-const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts,
+const { gatherLights, ensureLightsRegistry, lightIsTouched, atlasLookFromSettings, atlasIsoLookOpts, lightsHostForTier,
         sunElevationDeg, ambientFromElevation, sunAmbient, withoutZigbeeDuplicates } = await import(`./lights_map.js${_q}`);
 const { airQualityBadness, airQualityWord, AIR_QUALITY_CLASSES, isAirQualityEntity, readingNeedsPlacement } =
   await import(`./light_codes.js${_q}`);
@@ -308,6 +308,9 @@ export function activityEvents(timeline, nameOf, startMs, endMs, attrsOf = null)
  * unlinked ones were counted and named with nothing on the map changing.
  */
 export function atlasShownEids(model, settings, lights, shapeOverrides = {}, frame = null) {
+  // As this install may show it (_asShown): below Bright nothing is placed.
+  const shown = _asShown(settings, model);
+  model = shown.model;
   // What the frame DRAWS, from the frame's own fabric (review round 17): the
   // outside floor's rooms and placements are drawn on no plate, and a wall
   // on a floor with no slab is never drawn.
@@ -320,7 +323,7 @@ export function atlasShownEids(model, settings, lights, shapeOverrides = {}, fra
   const walls = new Set(((model && model.rf_barriers_m) || [])
     .filter(b => b && b.linked_entity_id && drawnLevels.has(fr.levelOf(String(b.floor_id || "main"))))
     .map(b => String(b.linked_entity_id)));
-  const hidden = _hiddenOnMap(settings, model, lights, shapeOverrides);
+  const hidden = _hiddenOnMap(settings, shown, lights, shapeOverrides);
   const out = new Set();
   for (const l of lights || []) {
     const eid = String(l.entity_id);
@@ -337,11 +340,19 @@ export function atlasShownEids(model, settings, lights, shapeOverrides = {}, fra
   }
   return out;
 }
-// The Atlas's own hiding: the hidden list, and its "hide untouched" look.
-function _hiddenOnMap(settings, model, lights, shapeOverrides) {
+// What this install may show on the replayed Atlas, as the Atlas itself does
+// (lights_map.js lightsHostForTier): placed lights and the tools that need
+// them only with Bright or Pro, Showcase with those or the Looks pack; the
+// Time travel add-on alone replays the free map. Its model and its look.
+function _asShown(settings, model) {
+  const s = settings || {};
+  return lightsHostForTier({ tier: s.tier, addons: s.addons_licensed, model, ...atlasLookFromSettings(s) });
+}
+// The Atlas's own hiding: the hidden list, and its "hide untouched" look (shown: _asShown).
+function _hiddenOnMap(settings, shown, lights, shapeOverrides) {
   const hidden = new Set(Array.isArray(settings && settings.lights_hidden) ? settings.lights_hidden : []);
-  if (!atlasLookFromSettings(settings || {}).hideUntouched) return hidden;
-  for (const l of lights || []) if (!lightIsTouched(l, shapeOverrides, (model && model.light_positions_m) || {})) hidden.add(l.entity_id);
+  if (!shown.hideUntouched) return hidden;
+  for (const l of lights || []) if (!lightIsTouched(l, shapeOverrides, (shown.model && shown.model.light_positions_m) || {})) hidden.add(l.entity_id);
   return hidden;
 }
 /** hs.events, only the ones a frame shows (hs.shown); all while not yet known (null). */
@@ -610,9 +621,11 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   // The Atlas tab's own look (2026-09-23: "should match the atlas tab
   // settings and look") — the same reading the Atlas panel makes. Its
   // "hide untouched" filter hides on the drawing only, as there. Daylight is
-  // the replayed moment's sun, from the house's own location.
-  const look = atlasLookFromSettings(settings);
-  const hiddenOnMap = _hiddenOnMap(settings, model, lights, shapeOverrides);
+  // the replayed moment's sun, from the house's own location. As this
+  // install may show it (_asShown): the Time travel add-on alone draws no
+  // placement and no Showcase.
+  const look = _asShown(settings, model);
+  const hiddenOnMap = _hiddenOnMap(settings, look, lights, shapeOverrides);
   const lat = Number(ctx.hass?.config?.latitude), lon = Number(ctx.hass?.config?.longitude);
   const ambient = Number.isFinite(lat) && Number.isFinite(lon) && ctx.hass?.config?.latitude != null
     ? ambientFromElevation(sunElevationDeg(lat, lon, tMs)) : sunAmbient(ctx.hass);
@@ -622,7 +635,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   const { positions } = atlasFocusPositions(model, floorGap, horizGap);
   const focusZ = positions[Math.max(0, Math.min(hs.focusIdx ?? 0, positions.length - 1))];
 
-  return buildIsoSVG(model, byRoom, hiddenOnMap, focusZ, floorGap, horizGap, lightsByEid, !!reg.loading, floors, {
+  return buildIsoSVG(look.model, byRoom, hiddenOnMap, focusZ, floorGap, horizGap, lightsByEid, !!reg.loading, floors, {
     ...atlasIsoLookOpts(look, ambient),
     beacons: beaconsForFrame(frames, frameIdx, model, beaconOpts),
     // No restart gate: the timeline already keeps a restart's or a

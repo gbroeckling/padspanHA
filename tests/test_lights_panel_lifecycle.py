@@ -267,7 +267,11 @@ def test_the_alarm_inside_the_emergency_button(result) -> None:
     code."""
     a = result["alarm"]
     assert a["noPanelSame"] and a["noPanelAlarm"] == 0 and a["noPanelSent"] == [], a
-    assert a["freeQuietSame"] and a["freeCard"] is False, a
+    # Alarm & security (the owner, 2026-11-25): without it no arming and no lights test, so a quiet alarm shows no button.
+    assert a["freeQuietNone"] and a["freeCard"] is False and a["otherAddonNone"], a
+    assert a["addonLook"], a
+    assert a["addonArm"] == {"asked": True, "card": True, "alarmFirst": True, "lights": True, "noTest": True, "links": 0,
+                             "svc": ["alarm_control_panel.alarm_arm_away:alarm_control_panel.house"]}, a
     assert a["noLightsNoPanel"], a
     assert a["brightCentre"] == ["button", "lv-emerg-btn lv-emerg-alarm lv-emerg-alarm-disarmed", "Alarm: Disarmed"], a
     assert a["brightInside"] and a["brightBeforeStage"], a
@@ -277,6 +281,7 @@ def test_the_alarm_inside_the_emergency_button(result) -> None:
     assert a["brightSent"] == ["alarm_button:shown", "alarm_button:arm"], a
     assert a["proCentre"] == ["button"], a
     assert a["freeTriggered"] == [True, "Alarm: Triggered · front door contact", True, 0], a
+    assert a["freeTriggeredAlone"], a
     assert a["aloneButton"] and a["hiddenTestButton"], a
     # The button changes with what the house has (the owner, 2026-11-24): an alarm alone, its own plain ring, no
     # list notch; both, the emergency ring with its notch.
@@ -295,8 +300,17 @@ def test_room_controls_through_the_panel(result) -> None:
     assert r["onSvc"] == ["media_player.volume_up:media_player.c4_kitchen"], r
     assert r["onSent"] == ["room_controls:on", "room_controls:up"], r
     assert r["nonAdmin"] == {"svc": ["media_player.volume_up:media_player.c4_kitchen"], "matchDisabled": True}, r
-    # Audio is allowed in one place (lights_panel.js _audioAllowed: Pro today); below it nothing of it shows.
+    # Audio is allowed in one place (lights_panel.js _audioAllowed: PadSpan Pro or the Audio add-on); without it
+    # nothing of it shows.
     assert r["pro"] == {"allowed": True} and r["belowPro"] == {"allowed": False, "icon": False, "audio": False}, r
+    # The add-on alone, on the classic layout (no ⋯ list): Settings → Atlas → Audio turns it on for the house.
+    assert r["addonOff"] == {"allowed": True, "icon": False, "audio": False}, r
+    assert r["addonOn"] == {"allowed": True, "icon": True, "audio": True}, r
+    assert r["otherAddon"] == {"allowed": False, "icon": False, "audio": False}, r
+    # Pro: the switch on the classic layout, the ⋯ line (unticked here) on the display layout.
+    assert r["proClassic"] == {"allowed": True, "icon": True, "audio": True}, r
+    assert r["proV2Unticked"] == {"allowed": True, "icon": False, "audio": False}, r
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
-    assert panel.count('String(this.state._tier||"").toLowerCase()==="pro"; }') == 1
-    assert "this._audioAllowed() && !!this.state._atlasLayoutV2" in panel and "roomControls: this._audioAllowed() ? this._roomCtl() : null," in panel
+    assert '_audioAllowed(){ return this._addon("audio"); }' in panel
+    assert "roomControls: this._audioAllowed() ? this._roomCtl() : null," in panel
+    assert 'return v2 ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;' in panel

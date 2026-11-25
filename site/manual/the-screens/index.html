@@ -103,7 +103,7 @@ style, the menu has no headings. A PadSpan Bright install shows only its lightin
   <tr><th>Screen</th><th>What it is</th><th>In the menu</th><th>Basic</th><th>Advanced and Development</th><th>Heading</th></tr>
   <tr><td><b>Overview</b></td><td>Where everyone and everything is now, on a drawing of your house; before any room is drawn, Who's where now.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
   <tr><td><b>Live Tracker</b></td><td>The live map on its own, full screen, for a wall tablet or a second screen.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Live</td></tr>
-  <tr><td><b>Follow</b></td><td>One person or thing: its room now, its movements, Locate (Pro) and alerts when it moves.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
+  <tr><td><b>Follow</b></td><td>One person or thing: its room now, its movements, Locate (Pro or Presence insights) and alerts when it moves.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
   <tr><td><b>Occupancy</b></td><td>How many people are in the building, and how the number was reached.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Live</td></tr>
   <tr><td><b>Guests</b></td><td>Guest tags: who is staying now, the tags you lend, and past stays.</td><td>While guest tags are on (Settings → Tracking → Phones and guest tags)</td><td>Main list</td><td>Main list</td><td>Live</td></tr>
   <tr><td><b>Setup</b></td><td>The steps from a floor plan to a calibrated map, in order.</td><td>Until every step is done, or setup is skipped</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
@@ -114,10 +114,10 @@ style, the menu has no headings. A PadSpan Bright install shows only its lightin
   <tr><td><b>Training</b></td><td>Animated walkthroughs and the Full Manual, inside the panel.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
   <tr><td><b>Manage</b></td><td>Data clean-ups, backups, Home Assistant entities, alerts by email or phone, logs, Factory Reset.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Build</td></tr>
   <tr><td><b>Settings</b></td><td>Every setting, in tabs.</td><td>Always</td><td>Main list</td><td>Main list</td><td>Build</td></tr>
-  <tr><td><b>Traceback</b></td><td>Replay where devices went, with Insights (time in each room) and Busy Times (Pro).</td><td>Always</td><td>More tools</td><td>Main list</td><td>Diagnose</td></tr>
+  <tr><td><b>Traceback</b></td><td>Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights).</td><td>Always</td><td>More tools</td><td>Main list</td><td>Diagnose</td></tr>
   <tr><td><b>Health</b></td><td>Is PadSpan working? Its own checks, receivers' health, and Problems found.</td><td>Always</td><td>More tools</td><td>Main list</td><td>Diagnose</td></tr>
-  <tr><td><b>Wi-Fi coverage</b></td><td>A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia.</td><td>While UniFi Utopia's Wi-Fi survey answers</td><td>More tools</td><td>More tools</td><td>Diagnose</td></tr>
-  <tr><td><b>Forensics</b></td><td>Pro: which Bluetooth devices were near your receivers between two times.</td><td>While Forensics is on (Settings → Features → Forensics)</td><td>Main list</td><td>Main list</td><td>Diagnose</td></tr>
+  <tr><td><b>Wi-Fi coverage</b></td><td>A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia.</td><td>While UniFi Utopia's Wi-Fi survey answers, with Pro or the Wi-Fi coverage add-on</td><td>More tools</td><td>More tools</td><td>Diagnose</td></tr>
+  <tr><td><b>Forensics</b></td><td>Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times.</td><td>While Forensics is on (Settings → Features → Forensics)</td><td>Main list</td><td>Main list</td><td>Diagnose</td></tr>
   <tr><td><b>Monitor</b></td><td>What PadSpan hears, in numbers, and Export for support.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Diagnose</td></tr>
   <tr><td><b>Devices</b></td><td>Every device PadSpan tracks or hears, in four lists, and the device registry.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
   <tr><td><b>Bluetooth</b></td><td>What each receiver hears, and the IRK Manager for phones and watches.</td><td>Always</td><td>More tools</td><td>More tools (Settings → UI Structure can move it to the main list)</td><td>Internals</td></tr>
@@ -202,7 +202,7 @@ about it. In Advanced and Development, the card also lists the receivers that he
 <b>Movement log</b> card its recent room changes.</p>
 <p>Under the card:</p>
 <ul>
-<li><b>📍 Locate</b> (PadSpan Pro): which way to walk to find it. Under <b>You are carrying:</b>, pick your
+<li><b>📍 Locate</b> (PadSpan Pro or the Presence insights add-on): which way to walk to find it. Under <b>You are carrying:</b>, pick your
 own phone. In the same room, it shows the distance in metres, getting closer or further. In
 another room, it says which room to head to next, and up or down a floor. No compass, no camera.</li>
 <li><b>Movement Alerts</b>: tell you when it changes room, arrives or leaves, on your phone or by email.
@@ -251,7 +251,7 @@ what it hides (and each name and room as it will show) before you press <b>Save 
 out. The clip is made in your browser and saved to your computer: nothing is uploaded. A video
 records in real time, so keep the tab in front until it is saved. It plays on the floor stack;
 the 3D house comes later. Free in every edition.</li>
-<li><b>Full house activity</b> (PadSpan Pro) plays the same back on your Atlas, and with <b>💡 Devices</b>
+<li><b>Full house activity</b> (PadSpan Pro or the Time travel add-on) plays the same back on your Atlas, and with <b>💡 Devices</b>
 on, the house too: lights, locks, motion, doors and windows, and sensor readings, from Home
 Assistant's recorder.</li>
 </ul></li>
@@ -259,15 +259,15 @@ Assistant's recorder.</li>
 <li><b>Insights</b>: two tables for the last 1, 3 or 7 days. <b>Time in Room</b>: how long each device spent
 in each room each day, and how many times it went in. <b>Peak Concurrent Occupancy</b>: the most
 tracked devices in one room at once, each day, and when.</li>
-<li><b>Busy Times</b> (PadSpan Pro): one box per room, busiest first, each with a 24-hour bar chart of
+<li><b>Busy Times</b> (PadSpan Pro or the Presence insights add-on): one box per room, busiest first, each with a 24-hour bar chart of
 when it gets busy.</li>
 </ul>
 <p>Insights and Busy Times work without a floor plan. <b>Manage → History → Open History</b> has the
 saved list of room changes, each with <b>▶ Traceback</b> to play that moment back.</p>
 <h2 id="forensics">Forensics</h2>
 <p>Which Bluetooth devices were near your receivers between two times: after a break-in or a package
-theft, or to spot an unknown tracker that keeps coming back. It is a PadSpan Pro feature, and off
-until you turn it on.</p>
+theft, or to spot an unknown tracker that keeps coming back. It needs PadSpan Pro or the Forensics
+add-on, and is off until you turn it on.</p>
 <p><b>Turn it on</b>: <b>Settings → Features → Forensics → Enable presence-session recording</b>. It asks you
 to confirm. While it is on, PadSpan checks every 60 seconds which devices it hears and records
 <b>presence sessions</b>: stretches of time a device was heard. More than 5 minutes of silence ends a

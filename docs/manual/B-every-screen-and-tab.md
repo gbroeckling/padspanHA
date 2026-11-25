@@ -12,7 +12,7 @@ button explains it in the panel.
 |---|---|---|
 | **Overview** | Where everyone and everything is now, on a drawing of your house; before any room is drawn, Who's where now. | – |
 | **Live Tracker** | The live map on its own, full screen, for a wall tablet or a second screen. | – |
-| **Follow** | One person or thing: its room now, its movements, Locate (Pro) and alerts when it moves. | – |
+| **Follow** | One person or thing: its room now, its movements, Locate (Pro or Presence insights) and alerts when it moves. | – |
 | **Devices** | Every device PadSpan tracks or hears, in four lists, and the device registry. | – |
 | **Bluetooth** | What each receiver hears, and the IRK Manager for phones and watches. | **Visualisation**, **Advertisements**, **Scanners**, **IRK Manager**, **ESPHome Configs** |
 | **Presence** | For experts: which rooms each device has been seen in, and what each receiver hears. | – |
@@ -25,8 +25,8 @@ button explains it in the panel.
 | **Manage** | Data clean-ups, backups, Home Assistant entities, alerts by email or phone, logs, Factory Reset. | **Data**, **HA Entities**, **Beacon Characteristics**, **History**, **Events**, **Logs**, **Factory Reset** |
 | **Training** | Animated walkthroughs and the Full Manual, inside the panel. | – |
 | **Calibration** | Teach PadSpan what each spot sounds like, and see how accurate it is. | **Results**, **Tune**, **Beacon Tune**, **Beacon and floor**, **Pin & Listen**, **Roam**, **Model**, **Accuracy by spot** |
-| **Traceback** | Replay where devices went, with Insights (time in each room) and Busy Times (Pro). | – |
-| **Forensics** | Pro: which Bluetooth devices were near your receivers between two times. | – |
+| **Traceback** | Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights). | – |
+| **Forensics** | Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times. | – |
 | **Occupancy** | How many people are in the building, and how the number was reached. | – |
 | **Guests** | Guest tags: who is staying now, the tags you lend, and past stays. | – |
 | **Health** | Is PadSpan working? Its own checks, receivers' health, and Problems found. | – |

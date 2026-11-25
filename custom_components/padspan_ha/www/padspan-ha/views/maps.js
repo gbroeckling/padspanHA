@@ -10,7 +10,7 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
-        surfacesForEdition: _surfacesForEdition } =
+        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -8661,6 +8661,19 @@ function _isPro(ctx) {
   const t = String(ctx.state.settings?.tier || "").toLowerCase();
   return t === "bright" || t === "pro";
 }
+// Alarm & security (the owner, 2026-11-25): a door's card on the map, and
+// linking an opener or a lock to it. Bright or Pro as before (_isPro), or the
+// add-on (editions.js addonAllowed). Every other tool here stays _isPro's.
+function _alarmOk(ctx) {
+  return _isPro(ctx) || _addonAllowed(ctx.state.settings, "alarm");
+}
+// A linked door / window / lock's own card (lights_map.js openBarrierCard):
+// what a tap on its wall section opens, in the build tools and without them.
+function _openDoorCard(ctx, model, eid) {
+  const bar = ((model && model.rf_barriers_m) || []).find(b => b.linked_entity_id === eid);
+  if (bar) openBarrierCard(ctx.hass, bar, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
+    doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {} });
+}
 
 
 
@@ -9347,9 +9360,7 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       if (ev.pointerId !== capId) return;
       const wasArmed = armed; armed = false; clear();
       if (!wasArmed) {
-        const bar = ((o.model && o.model.rf_barriers_m) || []).find(b => b.linked_entity_id === heid);
-        if (bar) openBarrierCard(ctx.hass, bar, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
-          doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {} });
+        _openDoorCard(ctx, o.model, heid);
         return;
       }
       o.mapState._focusRow = heid;
@@ -10339,6 +10350,8 @@ function _lightsTab(ctx, maps, active) {
   // key and every placement is back.
   const paid = _isPro(ctx);
   if (!paid) { mapState._lightsDraftM = {}; mapState._selLight = null; mapState._lightsTransform = false; }
+  // Alarm & security: the door card and linking openers and locks (_alarmOk).
+  const alarm = _alarmOk(ctx);
   // The type override is PRO specifically — not the bright-or-pro gate
   // _isPro answers. (_isPro's name predates the tier ladder; it means paid.)
   const proTier = String(tier || "").toLowerCase() === "pro";
@@ -10440,8 +10453,11 @@ function _lightsTab(ctx, maps, active) {
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
-        "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
+        "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips and Fit room "
         + (_brightProOpen() ? "need PadSpan Bright Pro or PadSpan Pro. " : "need PadSpan Pro. ")
+        // Showcase is the Looks pack's too (lights_map.js lightsHostForTier).
+        + (_addonAllowed(ctx.state.settings, "looks") ? ""
+          : "Showcase needs PadSpan Pro or the Looks pack add-on (" + _addonPrice("looks") + "). ")
         + "Already have a key? Enter it in " + _LIC_PATH + ". "),
       el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
         "Get PadSpan Pro \u2014 " + _licPrice()),
@@ -10936,6 +10952,8 @@ function _lightsTab(ctx, maps, active) {
     floors,
     model: modelForRender,
     tier,
+    // The add-ons this install may use (lights_map.js hostAddon): Pro has them all.
+    addons: ctx.state.settings?.addons_licensed || [],
     byRoom,
     hiddenEids,
     lightsByEid,
@@ -10995,7 +11013,7 @@ function _lightsTab(ctx, maps, active) {
     classFilter: mapState._lightsClass || "all",
     onClassFilter: (cls) => { mapState._lightsClass = cls; ctx.actions.renderRooms(); },
     // The heatmap layer chip (atlas_heatmap.js) — a view choice of this tab, off by default.
-    // PadSpan Pro's, and only once it's turned on in Settings.
+    // PadSpan Pro's or the Climate map add-on's, and only once it's turned on in Settings.
     heatmap: _heatPro(ctx) ? (mapState._lightsHeatmap || null) : null,
     onHeatmap: !_heatPro(ctx) ? null
       : (kind) => { mapState._lightsHeatmap = kind || null; ctx.actions.renderRooms(); },
@@ -11053,7 +11071,8 @@ function _lightsTab(ctx, maps, active) {
       } catch (e) { ctx.toast(TW ? TW.useFailed(ctx.helpers.errorText(e)) : ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
-    onLinkDoorOpener: paid && !preview ? async (l, openerEid) => {
+    // Linking an opener or a lock to a linked door: Alarm & security's (_alarmOk).
+    onLinkDoorOpener: alarm && !preview ? async (l, openerEid) => {
       const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
       if (!bar) { ctx.toast("That link no longer exists.", true); return; }
       try {
@@ -11064,7 +11083,7 @@ function _lightsTab(ctx, maps, active) {
       } catch (e) { ctx.toast("Could not link the opener: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     } : null,
-    onLinkDoorLock: paid && !preview ? async (l, lockEid) => {
+    onLinkDoorLock: alarm && !preview ? async (l, lockEid) => {
       const bar = (ctx.state.model?.rf_barriers_m || []).find(b => b.linked_entity_id === l.entity_id);
       if (!bar) { ctx.toast("That link no longer exists.", true); return; }
       try {
@@ -11086,9 +11105,10 @@ function _lightsTab(ctx, maps, active) {
     // literal HTML <select> anywhere else on this screen). Not a second
     // implementation of the wizard — jumps to the one that already exists,
     // same "all avenues lead to the same tool" shape as the on-map circle
-    // tool above. Builder only, same gate as every other link/build
-    // action here.
-    onBuildFromRelays: paid && !preview ? () => {
+    // tool above. Builder only, the openers' and locks' gate (Alarm &
+    // security, _alarmOk); the wizard itself keeps its relay light for
+    // Bright and Pro (devices.js).
+    onBuildFromRelays: alarm && !preview ? () => {
       ctx.state.view = "devices";
       ctx.state._devicesTab = "openers";
       ctx.state._relayWizardOpen = true;
@@ -11192,8 +11212,9 @@ function _lightsTab(ctx, maps, active) {
     // would make it the one thing "Preview as sidebar" doesn't actually
     // preview. `!preview` originally guarded free tier in EDITING mode
     // only (_wireLightsBuild never runs there anyway) — paid alone already
-    // covers that.
-    barrierHit: paid,
+    // covers that. Alarm & security's now (_alarmOk): without the build tools
+    // a tap on it opens the card all the same (the free branch below).
+    barrierHit: alarm,
     // Build-tool interaction: hexes select and drag instead of toggling.
     // Free tier: a hex switches the light, exactly as the sidebar does.
     // Preview: the shared use surface — tap switches, chip/hold opens the
@@ -11206,6 +11227,10 @@ function _lightsTab(ctx, maps, active) {
           isoDiv.querySelectorAll(".lhex").forEach(g => {
             g.style.cursor = "pointer";
             g.addEventListener("click", e => { e.stopPropagation(); toggle(g.dataset.eid); });
+          });
+          // Alarm & security without the build tools: a door's wall section opens its card.
+          isoDiv.querySelectorAll("polyline.lbarhit[data-eid]").forEach(hb => {
+            hb.addEventListener("click", e => { e.stopPropagation(); _openDoorCard(ctx, modelForRender, hb.getAttribute("data-eid")); });
           });
         }),
     transform: !!mapState._lightsTransform,
@@ -13817,8 +13842,8 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
   return card;
 }
 
-// The Atlas heatmap chip: PadSpan Pro, and turned on in Settings → UI Structure → Atlas.
+// The Atlas heatmap chip: PadSpan Pro or the Climate map add-on, and turned on in Settings → UI Structure → Atlas.
 function _heatPro(ctx){
   const s = (ctx && ctx.state && ctx.state.settings) || {};
-  return String(s.tier || "").toLowerCase() === "pro" && s.atlas_heatmap_enabled === true;
+  return _addonAllowed(s, "climate") && s.atlas_heatmap_enabled === true;
 }

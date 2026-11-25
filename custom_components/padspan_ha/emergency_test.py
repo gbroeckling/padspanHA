@@ -44,6 +44,13 @@ switched here by hand since. A new test or Force off replaces the record.
 
 Every service call is bounded (SERVICE_TIMEOUT_S) and made with the caller's
 context, so HA's permissions and logbook see the real user.
+
+THE LICENCE (the owner, 2026-11-25): the test, Force off and the list's
+switches are PadSpan Pro's and the Alarm & security add-on's (ADDON,
+licence.addon_allowed), and a Bright key keeps them (licensed); without them
+each is refused with ADDON_MESSAGE. The
+status is answered to everyone (it only reads), and a test already running can
+always be ended, so lights a test turned on are never left on for want of a key.
 """
 
 import asyncio
@@ -75,6 +82,19 @@ _LOCK = "emergency_test_lock"
 _UNSUB = "emergency_test_unsub"
 _EMPTY = {"active": False, "started_at": None, "kept_on": [], "manual": [], "members": [], "pending_off": []}
 _GONE = ("unavailable", "unknown")
+# Which add-on the test is (licence.ADDONS), and what a refusal says: what brings it back (editions.js: a gate is
+# never a dead end).
+ADDON = "alarm"
+ADDON_CODE = "addon_required"
+ADDON_MESSAGE = ("The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in "
+                 "Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons")
+
+
+def licensed(hass: HomeAssistant) -> bool:
+    """Whether this install has the test: PadSpan Pro or the Alarm & security add-on, and a Bright key, which
+    has had the alarm's controls all along (lights_panel.js _alarmControls; never demoted)."""
+    from .licence import hass_addon_allowed, hass_tier_at_least  # noqa: PLC0415 — licence reads ws_common, which reads a lot
+    return hass_tier_at_least(hass, "bright") or hass_addon_allowed(hass, ADDON)
 
 
 # ── Which lights ─────────────────────────────────────────────────────────────
@@ -446,6 +466,9 @@ async def ws_emergency_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_test", vol.Required("on"): bool})
 @websocket_api.async_response
 async def ws_emergency_test(hass: HomeAssistant, connection, msg) -> None:
+    if msg["on"] and not licensed(hass):
+        connection.send_error(msg["id"], ADDON_CODE, ADDON_MESSAGE)
+        return
     ctx = connection.context(msg)
     results = await async_test(hass, msg["on"], ctx)
     connection.send_result(msg["id"], {**await async_status(hass, ctx), "results": results})
@@ -454,6 +477,9 @@ async def ws_emergency_test(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_force_off"})
 @websocket_api.async_response
 async def ws_emergency_force_off(hass: HomeAssistant, connection, msg) -> None:
+    if not licensed(hass):
+        connection.send_error(msg["id"], ADDON_CODE, ADDON_MESSAGE)
+        return
     ctx = connection.context(msg)
     results = await async_force_off(hass, ctx)
     connection.send_result(msg["id"], {**await async_status(hass, ctx), "results": results})
@@ -463,6 +489,9 @@ async def ws_emergency_force_off(hass: HomeAssistant, connection, msg) -> None:
                                   vol.Optional("on"): bool})
 @websocket_api.async_response
 async def ws_emergency_member(hass: HomeAssistant, connection, msg) -> None:
+    if not licensed(hass):
+        connection.send_error(msg["id"], ADDON_CODE, ADDON_MESSAGE)
+        return
     ctx = connection.context(msg)
     results = await async_member(hass, msg["entity_id"], msg.get("on"), ctx)
     if results is None:

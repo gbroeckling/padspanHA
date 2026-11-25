@@ -96,8 +96,6 @@
 "No mapped route between {from} and {to} yet — draw room adjacency in Mapping → Layout (in Advanced mode) to get turn-by-turn steps here.": "Noch kein Weg zwischen {from} und {to} — zeichne die Nachbarschaft der Räume in Karten → Layout (im Modus Erweitert), dann gibt es hier Schritt für Schritt.",
 "No mapped route between {from} and {to} yet — draw room adjacency in Mapping → Layout to get turn-by-turn steps here.": "Noch kein Weg zwischen {from} und {to} — zeichne die Nachbarschaft der Räume in Karten → Layout, dann gibt es hier Schritt für Schritt.",
 "Head to: {room}": "Geh nach: {room}",
-"{feature} is a PadSpan Pro feature": "{feature} ist eine Funktion von PadSpan Pro",
-"Unlock it, and everything else gated, with a PadSpan Pro key.": "Schalte es und alles andere Gesperrte mit einem Schlüssel für PadSpan Pro frei.",
 "Settings → Features → PadSpan licence": "Einstellungen → Funktionen → PadSpan-Lizenz",
 "{n} rooms to go": {
 "one": "noch {n} Raum",
@@ -633,5 +631,8 @@
 "one": "Ein Empfänger hat noch keinen Home-Assistant-Bereich und liefert daher keinen Raum: {names}.",
 "other": "{n} Empfänger haben noch keinen Home-Assistant-Bereich und liefern daher keinen Raum: {names}."
 },
-"No tag called \"{tag}\" to follow.": "Kein Tag namens „{tag}“ zum Folgen."
+"No tag called \"{tag}\" to follow.": "Kein Tag namens „{tag}“ zum Folgen.",
+"Presence insights": "Präsenz-Auswertungen",
+"{feature} needs PadSpan Pro or the {addon} add-on ({price})": "{feature} braucht PadSpan Pro oder das Add-on „{addon}“ ({price})",
+"The {addon} add-on unlocks Busy Times and Locate; a PadSpan Pro key unlocks them and everything else gated.": "Das Add-on „{addon}“ schaltet Stoßzeiten und Finden frei; ein Schlüssel für PadSpan Pro schaltet sie und alles andere Gesperrte frei."
 }

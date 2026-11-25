@@ -356,15 +356,16 @@ def _pro_expiry_state(hass: HomeAssistant) -> dict[str, Any]:
 def _padspan_pro_active(hass: HomeAssistant) -> bool:
     """True when this install runs at the `pro` tier (key active, tier pro).
 
-    The gate for the presence-side Pro features (Forensics, ...). Lighting
-    features gate at `bright` — see _tier_at_least — because a Bright Pro key
-    unlocks them and a Pro key is a superset. One ladder, one comparison.
+    Lighting features gate at `bright` — see _tier_at_least — because a
+    Bright Pro key unlocks them and a Pro key is a superset. One ladder, one
+    comparison. A feature an add-on also unlocks (Forensics recording, Locate,
+    ...) asks licence.addon_allowed / hass_addon_allowed instead, which says
+    yes to Pro too.
 
-    Soft degrade by design: this gate governs Pro EDITING and Forensics
-    recording (forensics_store._recording_enabled) only. Data a user
-    already created stays readable and exportable when a licence lapses —
-    losing access to your own recorded history because a card expired is not
-    something this product does.
+    Soft degrade by design: these gates govern paid EDITING and recording
+    only. Data a user already created stays readable and exportable when a
+    licence lapses — losing access to your own recorded history because a
+    card expired is not something this product does.
     """
     return _tier_at_least(hass, "pro")
 

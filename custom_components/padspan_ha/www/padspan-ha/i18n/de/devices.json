@@ -88,7 +88,6 @@
 "Merged from: {list}": "Zusammengelegt aus: {list}",
 "Door / Window Openers": "Tür- und Fensteröffner",
 "Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock.": "Markiere eine Abdeckung, einen Schalter, eine Taste oder ein Skript als Tür-/Fensteröffner (ein Garagentor, ein Tor oder eine andere angetriebene Öffnung), damit es in der Zeile der Tür bzw. des Fensters unter Karten → Atlas-Editor angeboten und verknüpft werden kann, gleich neben Sensor und Schloss.",
-"Door Openers is a Bright / Pro feature.": "Türöffner gehören zu Bright / Pro.",
 "Marked as an opener.": "Als Öffner markiert.",
 "No longer an opener.": "Kein Öffner mehr.",
 "Could not save: {why}": "Nicht gespeichert: {why}",
@@ -269,5 +268,6 @@
 "{n} need attention": {
 "one": "{n} braucht Aufmerksamkeit",
 "other": "{n} brauchen Aufmerksamkeit"
-}
+},
+"Door Openers needs PadSpan Pro or the Alarm & security add-on ({price}). Enter the key in Settings → Features → PadSpan licence.": "Türöffner brauchen PadSpan Pro oder das Add-on „Alarm & Sicherheit“ ({price}). Gib den Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein."
 }

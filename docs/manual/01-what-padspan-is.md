@@ -43,6 +43,7 @@ again.
 |---|:---:|---|
 | **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations. Free. |
 | **PadSpan Pro** | `pro` | Everything above, plus: exact placement on the Atlas (each light's shape, size and angle, WLED, Automorph, Showcase), Live Aboard (your house in 3D, experimental) with Furnish, the wall screen, Whole house presets and Vacation Mode, Forensics, Busy Times, Locate, and the Graphite, Ocean, Dusk and Day themes. |
+| **Add-ons** | `free`, with add-ons | One part of Pro each, for an install without it: Audio, Alarm & security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics and Presence insights. Each covers 2 years, on up to three homes ([chapter 25](25-padspan-pro.md#add-ons)). |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter download made from the same code: only the Atlas, for a house that wants its lights on a map and no presence tracking. |
 | **PadSpan Bright Pro** | `bright` | Bright's full Atlas tools (placement, shapes, WLED, Automorph, Showcase), on a Bright install. Sold until December 15, 2026. |
 

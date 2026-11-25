@@ -637,8 +637,9 @@ if (Cls) {
   const QUIET = { "alarm_control_panel.house": ST("alarm_control_panel.house", "disarmed", { supported_features: 3, code_format: null }) };
   const TRIG = { "alarm_control_panel.house": ST("alarm_control_panel.house", "triggered", { supported_features: 3, code_format: "number",
       open_sensors: { "binary_sensor.front_door_contact": "on" } }) };
-  const open = async ({ tier = "bright", extra = {}, emerg = true, admin = true, kiosk = false, hidden = false }) => {
-    const settings = { ...BASE, tier, telemetry_enabled: true, pro_has_key: tier !== "free", ...(hidden ? { atlas_emergency_button: false } : {}) };
+  const open = async ({ tier = "bright", extra = {}, emerg = true, admin = true, kiosk = false, hidden = false, addons = null }) => {
+    const settings = { ...BASE, tier, telemetry_enabled: true, pro_has_key: tier !== "free" || !!addons, ...(hidden ? { atlas_emergency_button: false } : {}),
+      ...(addons ? { addons_licensed: addons } : {}) };
     const hass = makeHass({ settings, admin, extraStates: STAGE(extra) });
     const real = hass.callWS;
     const sent = [], svc = [], tests = [];
@@ -696,11 +697,23 @@ if (Cls) {
     alarm.noPanelAlarm = p.find("lv-emerg-alarm").length;
     alarm.noPanelSent = p.sent.filter(e => e.startsWith("alarm_button:"));
     p.done();
-    // Free, a quiet alarm: the same overlay again, byte for byte, and no alarm in the button's card.
+    // Free, a quiet alarm: no Alarm & security, so no arming and no emergency lights test either (the owner,
+    // 2026-11-25): no button at all, and no alarm in a card.
     p = await open({ tier: "free", extra: QUIET });
-    alarm.freeQuietSame = real === JSON.stringify(tree(p.el._emergencyOverlay()));
+    alarm.freeQuietNone = p.el._emergencyOverlay() === null && p.find("lv-emerg-anchor").length === 0;
     p.el._openEmergencyCard();
     alarm.freeCard = !!(p.el._emergCard && p.el._emergCard.sheet._all().find(n => n.className === "ps-alarm-card"));
+    p.el._emergCard && p.el._emergCard.close();
+    p.done();
+    // Free with another add-on (Audio): the same, nothing of Alarm & security.
+    p = await open({ tier: "free", extra: QUIET, addons: ["audio"] });
+    alarm.otherAddonNone = p.el._emergencyOverlay() === null && !p.el._alarmControls();
+    p.done();
+    // Free with the Alarm & security add-on: as Bright and Pro, the shield and the lights' notch, armed from the card
+    // after the question, the lights test below it; never the test from the centre.
+    p = await open({ tier: "free", extra: QUIET, addons: ["alarm"] });
+    alarm.addonLook = p.find("lv-emerg-notch").length === 1 && p.find("lv-emerg-alarm").length === 1;
+    alarm.addonArm = await armFrom(p);
     p.el._emergCard && p.el._emergCard.close();
     p.done();
     // No emergency lights and no alarm: no button at all, as before.
@@ -728,8 +741,10 @@ if (Cls) {
     p = await open({ tier: "pro", extra: QUIET });
     alarm.proCentre = p.find("lv-emerg-alarm").map(n => n.localName);
     p.done();
-    // Free, the alarm going off: the shield in red, and the card says it, with the sensor, nothing to press.
+    // Free, the alarm going off: the shield in red, and the card says it, with the sensor, nothing to press. The
+    // house's emergency lights are Alarm & security's: the button is the alarm's alone (no list notch).
     p = await open({ tier: "free", extra: TRIG });
+    alarm.freeTriggeredAlone = p.find("lv-emerg-notch").length === 0 && p.find("lv-emerg-dial").length === 1;
     const f = p.find("lv-emerg-alarm")[0];
     const fc = f ? await openCard(p) : null;
     alarm.freeTriggered = f ? [f.className.includes("lv-emerg-alarm-triggered"), f.attributes["aria-label"],
@@ -772,9 +787,9 @@ if (Cls) {
   const tree = (n) => (n ? { tag: n.localName, style: n.style ? n.style.cssText : "", text: n._text || "", a: n.attributes, kids: (n.children || []).map(tree) } : null);
   const C4 = { "media_player.c4_kitchen": ST("media_player.c4_kitchen", "on", { friendly_name: "Kitchen", volume_level: 0.4, is_volume_muted: false, supported_features: 4 | 8 | 256 | 1024 }) };
   const settings = { ...BASE, atlas_layout_v2: true, telemetry_enabled: true, pro_has_key: true, room_audio_matches: { kitchen: ["media_player.c4_kitchen"] }, room_audio_ha_speakers: false };
-  const open = async ({ admin = true, ticked = false, without = false, tier = "pro" } = {}) => {
+  const open = async ({ admin = true, ticked = false, without = false, tier = "pro", addons = null, more = {} } = {}) => {
     if (ticked) localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ room_controls: true })); else localStorage.removeItem("padspan_la3d_show_atlas");
-    const hass = makeHass({ settings: { ...settings, tier }, admin, extraStates: C4 });
+    const hass = makeHass({ settings: { ...settings, tier, ...(addons ? { addons_licensed: addons } : {}), ...more }, admin, extraStates: C4 });
     hass.entities = Object.fromEntries([...ENTITY_REG.map(e => [e.entity_id, e]), ["media_player.c4_kitchen", { entity_id: "media_player.c4_kitchen", platform: "control4", area_id: "kitchen" }]]);
     hass.areas = Object.fromEntries(AREAS.map(a => [a.area_id, a]));
     const real = hass.callWS, sent = [], svc = [];
@@ -831,6 +846,27 @@ if (Cls) {
     p.done();
     p = await open({ ticked: true });
     roomCtl.pro = { allowed: p.el._audioAllowed() };
+    p.done();
+    // The Audio add-on without Pro (the owner, 2026-11-25): no ⋯ list (Pro's display layout), so Settings → Atlas →
+    // Audio (atlas_audio_enabled) is its way in, house-wide: off, nothing; on, the speaker and the sheet's Audio.
+    const seen = (q) => { const s = q.sheet(); return { allowed: q.el._audioAllowed(), icon: q.svg().includes("lroom-audio"),
+      audio: !!s._all().find(n => n.attributes && n.attributes["data-room-controls"] === "audio") }; };
+    p = await open({ ticked: true, tier: "free", addons: ["audio"] });
+    roomCtl.addonOff = seen(p);
+    p.done();
+    p = await open({ tier: "free", addons: ["audio"], more: { atlas_audio_enabled: true } });
+    roomCtl.addonOn = seen(p);
+    p.done();
+    // Another add-on alone: nothing of Audio, the switch on or not.
+    p = await open({ tier: "free", addons: ["climate"], more: { atlas_audio_enabled: true } });
+    roomCtl.otherAddon = seen(p);
+    p.done();
+    // Pro on the classic layout: the switch, as for the add-on; on Pro's display layout the ⋯ line decides, not it.
+    p = await open({ more: { atlas_layout_v2: false, atlas_audio_enabled: true } });
+    roomCtl.proClassic = seen(p);
+    p.done();
+    p = await open({ more: { atlas_audio_enabled: true } });
+    roomCtl.proV2Unticked = seen(p);
     p.done();
     localStorage.removeItem("padspan_la3d_show_atlas");
   } catch (e) { fail("room controls", "lifecycle", e); }

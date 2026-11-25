@@ -20,7 +20,7 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-const { tierAtLeast } =
+const { tierAtLeast, addonAllowed } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
 // alone), the English with its {placeholders} filled.
@@ -121,11 +121,20 @@ const _loadShowList = () => _showLoading || (_showLoading = import(`./live_aboar
 // tier the backend computed (settings.tier); nothing here re-derives it.
 export const LIGHTING_TIER = "bright";
 export const lightingUnlocked = (tier) => tierAtLeast(tier, LIGHTING_TIER);
+// The add-ons (editions.js ADDONS; the owner, 2026-11-25): each host hands the
+// ones this install may use as host.addons (settings.addons_licensed) beside
+// host.tier, and every add-on gate here asks this, the one way: PadSpan Pro
+// has them all (editions.js addonAllowed).
+export const hostAddon = (host, name) => addonAllowed({ tier: host && host.tier, addons_licensed: host && host.addons }, name);
 
 /**
  * The host as the tier sees it. Paid: the host untouched. Free: the fabric's
  * light positions withheld (every light clusters in its room), the
  * presentation modes off and their controls absent, the untouched filter off.
+ * The Looks pack add-on (hostAddon "looks") keeps Showcase, its themes, the
+ * West Coast Forest and the Look presets; placement and the tools that need
+ * it (Fit room, Light spread, Automorph, Scene, Ripple, Hide untouched, the
+ * type override) stay Bright or Pro.
  * The host's own objects are never mutated — the model is shallow-copied
  * with a fresh, empty light_positions_m.
  */
@@ -134,7 +143,7 @@ export function lightsHostForTier(host){
   return {
     ...host,
     model: host.model ? { ...host.model, light_positions_m: {} } : host.model,
-    showcase: false, onShowcase: null,
+    ...(hostAddon(host, "looks") ? {} : { showcase: false, onShowcase: null }),
     fitRooms: false, onFitRooms: null,
     hideUntouched: false, untouchedCount: 0, onHideUntouched: null,
     onTypeOverride: null, typeOverrides: {},
@@ -4096,8 +4105,9 @@ export function buildLightsMapCard(hostIn){
   // ── The scene row (scene_row.js) ─────────────────────────────────────────
   // host.scenes is the sidebar's {slot, states, entities, admin, kiosk,
   // callService, setMany, openHa, toast, rerender, telemetry}: Home
-  // Assistant's scenes and the one-floor Whole house presets (PadSpan Pro's,
-  // as the bar is), each a small map under the flat map and in Live Aboard.
+  // Assistant's scenes and the one-floor Whole house presets (PadSpan Pro's
+  // and the Vacation Mode & presets add-on's, as the bar is), each a small map
+  // under the flat map and in Live Aboard.
   // A tap runs it or turns its lights off through the host's own calls (the
   // map's: setMany, Home Assistant's services, applyWholeHouse).
   // openDrawer: the rail's drawers (the sidebar's layout); whFocus: the Whole house bar, a preset chosen.
@@ -4113,7 +4123,7 @@ export function buildLightsMapCard(hostIn){
       return effectiveState(eid, st.state).state === "on";
     };
     const floorOf = (eid) => { const f = lightFloorId(lbe[eid] || { entity_id: eid }, h.model); return f ? SCENES.canonFloor(f, floors) : null; };
-    const presets = tierAtLeast(h.tier, "pro") && typeof h.onWholeHouseApply === "function" ? h.wholeHousePresets || [] : [];
+    const presets = hostAddon(h, "vacation") && typeof h.onWholeHouseApply === "function" ? h.wholeHousePresets || [] : [];
     const admin = sc.admin === true, kiosk = sc.kiosk === true;
     return { tiles: SCENES.sceneTiles({ states, entities: sc.entities, model: h.model, floors, presets, isLight, isOn, floorOf }),
              admin, kiosk, editPresets: !!whFocus, count: sceneCount,
@@ -4188,8 +4198,9 @@ export function buildLightsMapCard(hostIn){
   // A display screen's (the Atlas tab, the sidebar, a wall), never the builder's, which edits the whole house.
   const edgecutOn = () => DISPLAY && flatShow("edgecut") === true;
   // Room controls (⋯ list, per screen, off unless ticked; room_controls.js through host.roomControls, the Atlas tab's):
-  // a speaker beside the name of a room whose player is on, and the room sheet's audio, shades and climate.
-  const roomControlsOn = () => DISPLAY && !!host.roomControls && flatShow("room_controls") === true;
+  // a speaker beside the name of a room whose player is on, and the room sheet's audio, shades and climate. The classic
+  // layout has no ⋯ list: there the host's audioOn (Settings → Atlas → Audio, house-wide) says it.
+  const roomControlsOn = () => !!host.roomControls && (DISPLAY ? flatShow("room_controls") === true : host.audioOn === true);
   // The ⋯ list's Audio line, offered where the host hands Audio: its Set up › opens the matching card over the map
   // (live_aboard_show.js goShow "audio_setup"), for an administrator (setup null for anyone else: no link).
   const audioSetup = () => (host.roomControls ? { setup: host.roomControls.canMatch() ? () => host.roomControls.openMatch() : null } : null);
@@ -5371,7 +5382,8 @@ export function buildLightsMapCard(hostIn){
   // but about the HOUSE rather than the map's look, so it shows whether or
   // not Showcase is on. Apply changes every light and fan at once, so it is
   // a two-click confirm (the same pattern as the flood Reset and untag).
-  if (host.onWholeHouseApply && tierAtLeast(host.tier, "pro")) {
+  // PadSpan Pro's and the Vacation Mode & presets add-on's (hostAddon).
+  if (host.onWholeHouseApply && hostAddon(host, "vacation")) {
     const whp = host.wholeHousePresets || [];
     const whBar = el("div", { class: "lv-presetbar" });
     whBar.appendChild(el("span", { class: "lv-lbl" }, t("Whole house")));

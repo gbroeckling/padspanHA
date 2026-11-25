@@ -2754,10 +2754,10 @@ class PadSpanHaApp extends HTMLElement {
   async _applyTheme(){
     // Day wins, then Light (the inversion), then a palette (day_theme.js
     // PALETTES); none of them is Night.
-    // Day and three palettes are PadSpan Pro's: without Pro (a lapsed key
-    // too) they are Night. Light, the accessibility inversion, and High
-    // contrast are everyone's.
-    const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";
+    // Day and three palettes are PadSpan Pro's and the Looks pack add-on's:
+    // without either (a lapsed key too) they are Night. Light, the
+    // accessibility inversion, and High contrast are everyone's.
+    const pro = this._addon("looks");
     const look = this._sunLook(pro);
     const day = pro && !!look.day_theme;
     const named = String(look.theme_palette || "");
@@ -2791,7 +2791,7 @@ class PadSpanHaApp extends HTMLElement {
 
   // Follow the sun (settings.theme_follow_sun, off by default): while the sun
   // is up (sun.sun above_horizon) the panel is Day, or Light (inverted)
-  // without PadSpan Pro; once it sets, the Theme picked, unless that is Day
+  // without the Looks pack; once it sets, the Theme picked, unless that is Day
   // or Light itself, which give Night. Off, or with no sun.sun, the Theme
   // picked as it always was. set hass() asks again only when the sun's state
   // changes.
@@ -3706,8 +3706,9 @@ class PadSpanHaApp extends HTMLElement {
     let out = new Set(MENU.map(x => x[0]));
     if (!forensicsOn) out.delete("forensics");
     if (!guestsOn) out.delete("guests");
-    // Wi-Fi coverage only while UniFi Utopia's survey answers (_wifiProbe).
-    if (!this.state._wifiSurveyOn) out.delete("wifi");
+    // Wi-Fi coverage only while UniFi Utopia's survey answers (_wifiProbe),
+    // and with PadSpan Pro or the Wi-Fi coverage add-on (_addon).
+    if (!this.state._wifiSurveyOn || !this._addon("wifi")) out.delete("wifi");
     if (!this._setupInMenu()) out.delete("setup");
     // The EDITION decides last: a Bright build shows its lighting surfaces
     // (and the rest only behind the reveal switch). The full edition is
@@ -3716,6 +3717,12 @@ class PadSpanHaApp extends HTMLElement {
       out = new Set(EDITIONS.surfacesForEdition([...out], this.state.settings || {}));
     }
     return out;
+  }
+
+  /** Whether this install may use add-on `name` (views/editions.js addonAllowed, the backend's own answer):
+   *  PadSpan Pro has them all. No editions module (it failed to load): no. */
+  _addon(name){
+    return !!(EDITIONS && EDITIONS.addonAllowed && EDITIONS.addonAllowed(this.state.settings || {}, name));
   }
 
   /** Setup in the menu (owner's D4, 2026-11-13; review 2026-11-11): at the
@@ -3790,6 +3797,7 @@ class PadSpanHaApp extends HTMLElement {
     const settings = this.state.settings || {};
     if (view === "forensics" && settings.forensics_enabled !== true) return false;
     if (view === "guests" && settings.guest_tags_enabled !== true) return false;
+    if (view === "wifi" && !this._addon("wifi")) return false;
     if (EDITIONS && EDITIONS.surfacesForEdition && !EDITIONS.surfacesForEdition([view], settings).length) return false;
     return true;
   }
@@ -5268,10 +5276,11 @@ class PadSpanHaApp extends HTMLElement {
    *  loads draw nothing when they land, and the poll does not redraw Mapping's or Settings' tabs), so the
    *  placeholder stayed until a menu click. */
   /** Is UniFi Utopia's Wi-Fi survey there? Asked on the house's own data, never on a wall screen: once a
-   *  page load, again every ten minutes while the answer is no. The Wi-Fi coverage tab follows the answer. */
+   *  page load, again every ten minutes while the answer is no. The Wi-Fi coverage tab follows the answer.
+   *  Not asked without PadSpan Pro or the Wi-Fi coverage add-on: the tab is not there anyway. */
   _wifiProbe(){
     const st = this.state;
-    if (st.dataMode !== "live" || st.kioskMode || !this._callWS || st._wifiSurveyOn) return;
+    if (st.dataMode !== "live" || st.kioskMode || !this._callWS || st._wifiSurveyOn || !this._addon("wifi")) return;
     const now = Date.now();
     if (this._wifiProbeAt && now - this._wifiProbeAt < 600000) return;
     this._wifiProbeAt = now;

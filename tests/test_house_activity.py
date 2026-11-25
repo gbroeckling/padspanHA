@@ -145,14 +145,15 @@ out.inVac = [HA.inVacation([[100, 200], [500, null]], 150_000), HA.inVacation([[
     assert out["inVac"] == [True, False, True]
 
 
-def test_full_house_activity_is_offered_to_pro_only():
+def test_full_house_activity_is_offered_to_pro_or_time_travel_only():
+    """PadSpan Pro or the Time travel add-on (the owner, 2026-11-25; tests/test_addon_gates.py)."""
     src = (_VIEWS / "traceback.js").read_text(encoding="utf-8")
     m = re.search(r"const _houseOK = ([^;]+);", src)
     assert m, "traceback.js no longer computes _houseOK"
-    assert 'tierAtLeast(currentTier(ctx.state.settings), "pro")' in m.group(1)
+    assert m.group(1) == 'addonAllowed(ctx.state.settings, "timetravel")'
     # The switch is only put on screen at all when _houseOK holds…
     assert "if (_houseOK) modeRow.appendChild(houseBtn);" in src
-    # …and a stored "on" does nothing below Pro.
+    # …and a stored "on" does nothing without it.
     assert re.search(r"const _houseActive = \(\) => _houseOK && tb\.house\.on", src)
 
 
@@ -631,7 +632,7 @@ const L = (entity_id, extra) => ({ entity_id, area_name: "Hall", ...extra });
 const lights = [L("sensor.placed_t", { isTemp: true }), L("sensor.room_t", { isTemp: true }), L("light.placed"),
   L("light.in_room"), L("light.hidden"), L("light.no_room", { area_name: null }),
   L("binary_sensor.linked_door", { isDoor: true }), L("binary_sensor.loose_door", { isDoor: true })];
-out.shown = [...HA.atlasShownEids(model, { lights_hidden: ["light.hidden", "binary_sensor.linked_door"] }, lights)].sort();
+out.shown = [...HA.atlasShownEids(model, { tier: "pro", lights_hidden: ["light.hidden", "binary_sensor.linked_door"] }, lights)].sort();
 """)
     assert out["shown"] == ["binary_sensor.linked_door", "light.in_room", "light.placed", "sensor.placed_t"], out
 
@@ -714,7 +715,7 @@ const L = (entity_id, extra) => ({ entity_id, area_name: null, ...extra });
 const lights = [L("light.garden", { area_name: "Garden" }), L("light.porch"), L("sensor.temp_out", { isTemp: true }),
   L("sensor.co2_lost", { isAir: true }), L("sensor.co2_in", { isAir: true }),
   L("binary_sensor.attic_window", { isDoor: true }), L("lock.front", { isLock: true })];
-out.shown = [...HA.atlasShownEids(model, { lights_hidden: ["lock.front"] }, lights)].sort();
+out.shown = [...HA.atlasShownEids(model, { tier: "pro", lights_hidden: ["lock.front"] }, lights)].sort();
 """)
     assert out["shown"] == ["lock.front", "sensor.co2_in"], out
 
@@ -781,3 +782,38 @@ out.ev = HA.activityEvents(HA.buildStateTimeline({ "sensor.t": rows }), (e) => e
   .map(e => [e.t / 1000, e.from, e.to]);
 """)
     assert out["ev"] == [[60, "20°", "21°"]], out
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_replay_draws_only_what_the_install_may_show():
+    """The replay drew placed lights and the Showcase look whatever the key (the owner, 2026-11-25): the Time travel
+    add-on alone replays the free map, no placement and no Showcase; with the Looks pack too, Showcase but still no
+    placement; Pro, both. And a placed reading counts as shown only where it is drawn placed."""
+    out = _run("""
+const placed = { "light.hall": { x_m: 0.5, y_m: 3.5, floor_id: "main" } };
+const geo = { Hall: { type: "poly", floor_id: "main", points_m: [[0, 0], [5, 0], [5, 4], [0, 4]] } };
+const modelOf = (pos) => ({ floors: [{ id: "main", name: "Main", level: 0 }], areas: [{ id: "hall", name: "Hall", floor_id: "main" }],
+  room_geometry_m: geo, light_positions_m: pos });
+const reg = { ts: Date.now() + 1e9, areaMap: { "light.hall": "Hall" }, platformMap: {}, manufacturerMap: {}, ipMap: {}, pairMap: {}, doorLockMap: {} };
+const light = { entity_id: "light.hall", state: "on", attributes: { friendly_name: "Hall", brightness: 255 } };
+const hs = { timeline: HA.buildStateTimeline({ "light.hall": [{ s: "on", a: { brightness: 255 }, lu: 50 }] }), events: [], eids: [] };
+const frames = [{ ts: 100, o: [] }];
+const draw = (model, settings) => HA.renderHouseFrame({ state: { model, settings, _modelLoaded: true, _lightsRegStore: { reg } },
+  hass: { states: { "light.hall": light }, callWS: async () => ({}), config: { latitude: 49.28, longitude: -123.12 } } }, hs, frames, 0, {}, () => {});
+const SC = { lights_showcase: true, lights_showcase_theme: "classic" };
+const tt = { tier: "free", addons_licensed: ["timetravel"] }, ttLooks = { tier: "free", addons_licensed: ["timetravel", "looks"] };
+// Time travel alone: exactly the free map (no placement, no Showcase), whatever is stored.
+out.ttFree = draw(modelOf(placed), { ...tt, ...SC }) === draw(modelOf({}), tt);
+// With the Looks pack: Showcase is drawn, and placement still is not.
+out.looksShowcase = draw(modelOf({}), { ...ttLooks, ...SC }) !== draw(modelOf({}), ttLooks);
+out.looksNoPlacement = draw(modelOf(placed), { ...ttLooks, ...SC }) === draw(modelOf({}), { ...ttLooks, ...SC });
+// Pro: both.
+out.proPlacement = draw(modelOf(placed), { tier: "pro" }) !== draw(modelOf({}), { tier: "pro" });
+out.proShowcase = draw(modelOf(placed), { tier: "pro", ...SC }) !== draw(modelOf(placed), { tier: "pro" });
+const L = (entity_id, extra) => ({ entity_id, area_name: "Hall", ...extra });
+const m2 = { room_geometry_m: geo, light_positions_m: { "sensor.placed_t": { x_m: 1, y_m: 1, floor_id: "main" } } };
+out.shownTt = [...HA.atlasShownEids(m2, tt, [L("sensor.placed_t", { isTemp: true })])];
+out.shownPro = [...HA.atlasShownEids(m2, { tier: "pro" }, [L("sensor.placed_t", { isTemp: true })])];
+""")
+    assert out == {"ttFree": True, "looksShowcase": True, "looksNoPlacement": True, "proPlacement": True,
+                   "proShowcase": True, "shownTt": [], "shownPro": ["sensor.placed_t"]}, out

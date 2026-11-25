@@ -19,7 +19,14 @@ für Leuchten heißt immer noch **Lights**.
 90 Tagen ([Kapitel 25](25-padspan-pro.md)). PadSpan Bright ist derselbe Atlas für sich allein, ohne
 Anwesenheitserkennung, mit eigenem Bright-Pro-Schlüssel. Ein Bright-Pro-Schlüssel schaltet die
 Platzierungswerkzeuge frei: Platzierung, Formen und Größen, die Advanced-Steuerung für WLED,
-Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauchen PadSpan Pro.
+Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauchen PadSpan Pro oder
+ihr Add-on.
+
+Ohne Pro schaltet ein Add-on einen Teil des Atlas frei ([Kapitel 25](25-padspan-pro.md#add-ons)):
+**Audio**; **Alarm & Sicherheit** (scharf und unscharf schalten im Notfallknopf, der Test der
+Notbeleuchtung und die Karte einer Tür mit ihrem Öffner und ihrem Schloss); **Klimakarte** (die
+Heatmap); **Urlaubsmodus & Voreinstellungen**; und das **Looks-Paket** (Showcase mit seinen Themen,
+der West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Platzieren bleibt bei Pro).
 
 ## So kommst du hin
 
@@ -82,8 +89,8 @@ herum meldet: Zeigt eine Tür den falschen Zustand, prüf das zuerst. Ein Schlos
 seinen Zustand. Ein Tippen schaltet es nicht: Tippen oder Halten öffnet seine Karte mit **Lock** oder
 **Unlock**, und **Unlock** fragt vorher nach.
 
-Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Bright Pro
-oder PadSpan Pro). Hak unter **Geräte → Türöffner** eine Abdeckung (ein Garagentor, ein Tor, ein
+Eine Tür oder ein Fenster kann auch tragen, was sie öffnet und was sie abschließt (PadSpan Pro oder
+das Add-on Alarm & Sicherheit; auch ein Bright-Pro-Schlüssel). Hak unter **Geräte → Türöffner** eine Abdeckung (ein Garagentor, ein Tor, ein
 Rollo), einen Schalter, einen Taster oder ein Skript an und verknüpf sie dann in **Karten →
 Atlas-Editor** mit der Tür oder dem Fenster, neben ihrem Sensor und ihrem Schloss. Ein Tippen auf
 die Tür öffnet dann eine Karte: ob sie offen oder zu ist, **Open** oder **Close** für eine Abdeckung
@@ -156,7 +163,13 @@ der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbil
   **Lautsprecher aus Home Assistant einbeziehen** auf der Zuordnungskarte (aus, bis angehakt) nimmt
   jeden anderen Player mit Lautstärke dazu: Music Assistant, ESPHome, Cast, Fernseher.
 
-## Heatmap (Pro)
+Audio braucht PadSpan Pro oder das Add-on Audio. Die **⋯**-Liste gehört zum neuen Layout von
+PadSpan Pro; auf dem klassischen Layout macht **Einstellungen → Atlas → Atlas — Mapped Light Control
+→ Audio** (ab Werk aus, da, wo Audio freigeschaltet ist) dasselbe für das ganze Haus: den
+Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, und Audio im Blatt mit **Räume
+zuordnen**.
+
+## Heatmap (Pro oder das Add-on Klimakarte)
 
 **Einstellungen → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)**, ab Werk aus, gibt dem Atlas einen Chip **♨ Heatmap**. Tipp darauf, um
@@ -226,6 +239,10 @@ Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adap
 
 ## Showcase, Automorph und Presets (Pro)
 
+Showcase, seine Themen, der West Coast Forest und die Presets-Leiste gibt es auch mit dem Add-on
+Looks-Paket, auf der kostenlosen Karte; Whole house presets mit dem Add-on Urlaubsmodus &
+Voreinstellungen.
+
 - **Showcase**: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
   zusammen). Wähl eines in der Werkzeugleiste des Atlas unter **Presentation**.
 - **Automorph**: ein weicher Schein, auf der Karte von einer Leuchte hinaus in ihren Raum gezeichnet,
@@ -237,7 +254,7 @@ Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adap
   Ventilators fest (an oder aus, Helligkeit, Farbe, Effekt, Ventilatorstufe), und **Apply** stellt
   das ganze Haus wieder so her, nachdem es gefragt hat. Schlösser sind nie dabei.
 
-## Vacation Mode (Pro)
+## Vacation Mode (Pro oder das Add-on Urlaubsmodus & Voreinstellungen)
 
 Der erste Eintrag in der Liste Whole house presets. Er lernt den Tagesablauf deines Hauses aus dem
 Verlauf von Home Assistant (jedes Licht, jeder Wochentag) und schaltet weiter Lichter passend dazu,
@@ -283,7 +300,9 @@ Météo-France. In den USA fügen die Custom-Integrationen weatheralerts oder nw
 
 Ein runder roter Knopf **Test emergency lighting** oben rechts auf der Karte, nur da, wenn PadSpan
 Notlichter findet: eine Home-Assistant-Gruppe mit „emergency“ im Namen (auch verschachtelte
-Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.
+Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen. Er braucht PadSpan Pro oder das Add-on
+Alarm & Sicherheit (ein Bright-Pro-Schlüssel behält ihn); ohne beides gibt es keinen Test, und der
+Knopf zeigt nur eine auslösende Alarmanlage.
 
 - **Tipp auf die rote Mitte**: Jedes Notlicht geht an, und es zeigt **Test on — tap to end**.
   Lichter, die schon an waren, bleiben an, wenn er endet.
@@ -296,8 +315,8 @@ Gruppen), oder sonst WLED-Lichter, die „emergency“ heißen.
   **Einstellungen → Atlas → Atlas — Mapped Light Control → Show the Test emergency lighting button on
   the Atlas**.
 - **Deine Alarmanlage** ist im Knopf, wenn Home Assistant eine Alarmzentrale hat: Die Mitte wird
-  ihr Schild in ihrer Farbe, und Mitte wie Ring öffnen eine Karte, oben die Alarmanlage (in PadSpan
-  Bright und Pro scharf und unscharf schalten, immer nach einer Frage und mit dem Code, wenn die
+  ihr Schild in ihrer Farbe, und Mitte wie Ring öffnen eine Karte, oben die Alarmanlage (mit PadSpan
+  Pro, dem Add-on Alarm & Sicherheit oder Bright Pro scharf und unscharf schalten, immer nach einer Frage und mit dem Code, wenn die
   Alarmanlage einen will), darunter die Notlichter mit **Start test**. Ein Haus mit Alarmanlage und
   ohne Notlichter bekommt den eigenen Knopf der Alarmanlage, einen schlichten Ring. Eine auslösende Alarmanlage
   erscheint dort in jeder Ausgabe. Siehe [Kapitel 13](13-alerts.md#deine-alarmanlage-am-notfallknopf).
@@ -319,6 +338,9 @@ Reitern: **Layout**, **Effect**, **Presets & playlists**, **LEDs**, **Sync & tea
 Nur ein Administrator kann ändern, wer ein Licht steuert.
 
 ## Öffner, Schlösser und Lichter aus Relais (Pro)
+
+Öffner und Schlösser gibt es auch mit dem Add-on Alarm & Sicherheit, ebenso das Anhaken eines Öffners
+unter **Geräte → Türöffner**; ein Licht aus Relais bleibt bei Pro.
 
 Ein Garagentor, ein Fensteröffner, ein Türöffner oder ein Licht an einfachen Relais?
 **Öffner, Schloss oder Licht aus Relais bauen** (**+ Build an opener, lock, or light from relays**

@@ -36,9 +36,12 @@ def test_the_view_under_the_dom_shim():
 def test_the_tab_follows_unifi_utopias_answer():
     p = (_WWW / "panel.js").read_text(encoding="utf-8")
     assert '["wifi","Wi-Fi coverage","mdi:wifi"]' in p
-    assert 'if (!this.state._wifiSurveyOn) out.delete("wifi");' in p
+    # And with PadSpan Pro or the Wi-Fi coverage add-on (the owner, 2026-11-25; tests/test_addon_gates.py).
+    assert 'if (!this.state._wifiSurveyOn || !this._addon("wifi")) out.delete("wifi");' in p
+    assert 'if (view === "wifi" && !this._addon("wifi")) return false;' in p, "a ?view= link neither"
     probe = p[p.index("  _wifiProbe(){"):p.index("  _loadMissingView(v){")]
     assert 'st.dataMode !== "live" || st.kioskMode' in probe, "never asked on a wall screen or in Sample mode"
+    assert '!this._addon("wifi")) return;' in probe, "never asked without the add-on"
     assert '"unifi_utopia/wifi_heatmap"' in probe and "600000" in probe
 
 

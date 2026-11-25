@@ -730,7 +730,7 @@ def menu_in_code() -> dict:
 SCREENS = {
     "overview": "Where everyone and everything is now, on a drawing of your house; before any room is drawn, Who's where now.",
     "purelive": "The live map on its own, full screen, for a wall tablet or a second screen.",
-    "follow": "One person or thing: its room now, its movements, Locate (Pro) and alerts when it moves.",
+    "follow": "One person or thing: its room now, its movements, Locate (Pro or Presence insights) and alerts when it moves.",
     "occupancy": "How many people are in the building, and how the number was reached.",
     "guests": "Guest tags: who is staying now, the tags you lend, and past stays.",
     "setup": "The steps from a floor plan to a calibrated map, in order.",
@@ -741,9 +741,9 @@ SCREENS = {
     "training": "Animated walkthroughs and the Full Manual, inside the panel.",
     "manage": "Data clean-ups, backups, Home Assistant entities, alerts by email or phone, logs, Factory Reset.",
     "settings": "Every setting, in tabs.",
-    "traceback": "Replay where devices went, with Insights (time in each room) and Busy Times (Pro).",
+    "traceback": "Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights).",
     "health": "Is PadSpan working? Its own checks, receivers' health, and Problems found.",
-    "forensics": "Pro: which Bluetooth devices were near your receivers between two times.",
+    "forensics": "Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times.",
     "monitor": "What PadSpan hears, in numbers, and Export for support.",
     "devices": "Every device PadSpan tracks or hears, in four lists, and the device registry.",
     "bluetooth": "What each receiver hears, and the IRK Manager for phones and watches.",
@@ -759,7 +759,7 @@ SHOWN_WHEN = {
     "forensics": "While Forensics is on (Settings → Features → Forensics)",
     "guests": "While guest tags are on (Settings → Tracking → Phones and guest tags)",
     "setup": "Until every step is done, or setup is skipped",
-    "wifi": "While UniFi Utopia's Wi-Fi survey answers",
+    "wifi": "While UniFi Utopia's Wi-Fi survey answers, with Pro or the Wi-Fi coverage add-on",
 }
 
 
@@ -1332,10 +1332,10 @@ T = "Settings → Tracking → "
 SETTINGS_ENTRIES: dict[str, tuple] = {
     # Settings → Appearance
     "ui_skin": ("Settings → Appearance", "Panel Style", "", "`2025` restyles the panel's frame (grouped menu with icons); `classic` is the original."),
-    "theme_palette": ("Settings → Appearance", "Theme", "", "The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro."),
+    "theme_palette": ("Settings → Appearance", "Theme", "", "The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro or the Looks pack add-on."),
     "light_theme": ("Settings → Appearance", "Theme", "Light (inverted)", "The panel's colours turned light (inverted)."),
-    "day_theme": ("Settings → Appearance", "Theme", "Day", "Day, PadSpan's designed light look (Pro). It wins over Light."),
-    "theme_follow_sun": ("Settings → Appearance", "Theme", "Follow the sun", "Day (Light without Pro) from sunrise to sunset, the theme you picked at night."),
+    "day_theme": ("Settings → Appearance", "Theme", "Day", "Day, PadSpan's designed light look (Pro or the Looks pack add-on). It wins over Light."),
+    "theme_follow_sun": ("Settings → Appearance", "Theme", "Follow the sun", "Day (Light without Pro or the Looks pack) from sunrise to sunset, the theme you picked at night."),
     "units_feet": ("Settings → Appearance", "Units", "Show lengths in feet and inches", "Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way."),
     "overview_2d_mode": ("Settings → Appearance", "2D Map Mode", "Replace 3D isometric view with flat 2D map", "Experimental: the Overview shows the floor plan flat, with zoom and pan."),
     # Settings → Tracking
@@ -1402,7 +1402,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "mac_rotation_bridging": ("Settings → Features", "Experimental Features", "MAC Rotation Bridging", "Links a device's old and new address when its address changes."),
     "apple_auto_classify": ("Settings → Features", "Experimental Features", "Apple Device Classification", "Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only."),
     "rssi_capture_enabled": ("Settings → Features", "Experimental Features", "RSSI Vector Capture", "A Record button in Health for signal recordings to replay."),
-    "forensics_enabled": ("Settings → Features", "Forensics", "", "Pro: records when every Bluetooth device nearby comes and goes, to look back at later."),
+    "forensics_enabled": ("Settings → Features", "Forensics", "", "Pro or the Forensics add-on: records when every Bluetooth device nearby comes and goes, to look back at later."),
     "forensics_retention_days": ("Settings → Features", "Forensics", "Keep sessions for", "Days Forensics keeps what it recorded."),
     # Settings → AI
     "atlas_3d_ai_task_entity": ("Settings → AI", "Your AI", "AI Task", "The Home Assistant AI Task PadSpan asks to read a photo or a plan. Empty: none, and nothing is read."),
@@ -1419,7 +1419,8 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "atlas_live_colours": ("Settings → Atlas", "Atlas — Mapped Light Control", "Draw lit lights in their own colour on the Atlas", "Lit lights in the colour they report. Off: amber."),
     "atlas_alert_pulse": ("Settings → Atlas", "Atlas — Mapped Light Control", "Alert pulse", "Rings an opening left open, or open in the rain, and names the worst alert."),
     "emergency_notify": ("Settings → Atlas", "Atlas — Mapped Light Control", "Notify when a leak, smoke, gas or CO alarm goes off", "Sends one notification when the alarm latches and one when it clears, where Follow alerts go."),
-    "atlas_heatmap_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Heatmap chip on the Atlas (temperature, humidity, CO₂)", "A Heatmap chip on the Atlas: rooms coloured by their own sensors."),
+    "atlas_heatmap_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Heatmap chip on the Atlas (temperature, humidity, CO₂)", "A Heatmap chip on the Atlas: rooms coloured by their own sensors. Pro or the Climate map add-on."),
+    "atlas_audio_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Audio", "On the classic layout, for the whole house: a speaker beside a room's name while one of its players is on, and Audio in the room's card. Pro or the Audio add-on; on the new layout each screen's ⋯ list has it instead."),
     "power_teams": ("Settings → Atlas", "Power teams", "", "Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md))."),
     "atlas_weather_enabled": ("Settings → Atlas", "Outdoor weather", "Show rain and snow on the Atlas", "Rain or snow around the house while it really rains or snows."),
     "atlas_weather_rain_entity": ("Settings → Atlas", "Outdoor weather", "Rain sensor", "A rain sensor that says when it is wet. Empty: the weather entity decides."),
@@ -1459,7 +1460,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "distortion_intensity": ("Overview", "Warp", "", "How strongly the signal distortion map is drawn."),
     "heatmap_source": ("Overview", "Heat", "Source", "Which readings the Radio Map overlay draws from."),
     "followed_addrs": ("Follow", "Follow", "", "The devices you follow. Following a device with no name gives it one."),
-    "locate_self_key": ("Locate", "Locate", "You", "Pro: which device is you, for directions."),
+    "locate_self_key": ("Locate", "Locate", "You", "Pro or the Presence insights add-on: which device is you, for directions."),
     "excluded_scanners": ("Bluetooth", "Scanners", "Exclude", "Receivers left out of positioning. Nothing they recorded is deleted."),
     "scanner_min_rssi": ("Bluetooth", "Scanners", "Min signal: off", "For each receiver, readings weaker than this are ignored."),
     "beacon_auto_calibrate": ("Calibration", "Beacon Tune", "Auto-Cal", "Pinned beacons add calibration points by themselves."),
@@ -1485,7 +1486,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "beacon_tune_disabled": ("Manage → Beacon Characteristics", "Beacon Signal Profiles", "", "Beacons left out of calibration tuning."),
     "beacon_group_overrides": ("Manage → Beacon Characteristics", "Beacon Signal Profiles", "", "Beacons moved to another model group."),
     "atlas_layout_v2": ("Mapping → Atlas builder", "Classic layout", "", "On: the Atlas's new layout (wall screens need it). Off: the classic layout."),
-    "lights_showcase": ("Mapping → Atlas builder", "Showcase", "", "Pro: the Atlas's presentation look."),
+    "lights_showcase": ("Mapping → Atlas builder", "Showcase", "", "Bright Pro, Pro or the Looks pack add-on: the Atlas's presentation look."),
     "lights_showcase_theme": ("Mapping → Atlas builder", "Showcase", "Theme", "Showcase's theme."),
     "lights_fit_rooms": ("Mapping → Atlas builder", "Showcase", "Fit room", "Never draws a light bigger than its room."),
     "lights_isolux": ("Mapping → Atlas builder", "Showcase", "Light spread", "Lines of equal light on the floor."),

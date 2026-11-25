@@ -115,6 +115,10 @@ auf der Karte. Der Knopf ändert sich mit dem, was dein Haus hat:
   ihn nie startet.
 - **Keins von beiden**: kein Knopf.
 
+Der Test der Notbeleuchtung und das Scharf- und Unscharfschalten brauchen PadSpan Pro oder das
+Add-on Alarm & Sicherheit (ein Bright-Pro-Schlüssel behält sie). Ohne beides ist der Knopf nur da,
+solange die Alarmanlage auslöst.
+
 **Wenn sie auslöst**, in jeder Ausgabe, auch in der kostenlosen:
 
 - Eine Zeile im roten Banner auf jedem PadSpan-Bildschirm: „Alarm ausgelöst: Haus · Hintertür“. Auf
@@ -123,7 +127,7 @@ auf der Karte. Der Knopf ändert sich mit dem, was dein Haus hat:
 - Der Sensor, der sie ausgelöst hat, wird genannt, wenn die Alarmanlage sagt, welcher es war
   (Alarmo tut das). Sonst wird nur die Alarmanlage genannt.
 
-**Ihr Zustand, scharf und unscharf schalten** (PadSpan Bright und PadSpan Pro):
+**Ihr Zustand, scharf und unscharf schalten** (PadSpan Pro, das Add-on Alarm & Sicherheit oder PadSpan Bright Pro):
 
 - Das Schild im Knopf zeigt den Zustand der Alarmanlage mit seiner Farbe: grau unscharf, blau
   scharf, gelb ausstehend, rot ausgelöst. Halte den Zeiger darauf für den Zustand in Worten:
@@ -168,7 +172,7 @@ offen gelassene Tür.
 
 ## Hinweise des Urlaubsmodus
 
-Der Urlaubsmodus (PadSpan Pro) steuert deine Lichter, während du weg bist
+Der Urlaubsmodus (PadSpan Pro oder das Add-on Urlaubsmodus & Voreinstellungen) steuert deine Lichter, während du weg bist
 ([Atlas-Anleitung](../../ATLAS_GUIDE.md)). Er sagt dir, wenn er aufhört:
 
 - **PadSpan: Vacation Mode ended**: Er hat das für ihn festgelegte Enddatum erreicht.

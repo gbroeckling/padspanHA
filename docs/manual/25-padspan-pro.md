@@ -18,7 +18,8 @@ the paid parts on the same install, with nothing to reinstall:
 - anything gated later.
 
 A PadSpan Pro key also unlocks PadSpan Bright's tools. Prices and where to buy a key:
-[padspan.traks.ca](https://padspan.traks.ca).
+[padspan.traks.ca](https://padspan.traks.ca). Without Pro, an add-on unlocks one feature
+([Add-ons](#add-ons)).
 
 Everything below is in **Settings → Features → PadSpan licence** unless it says otherwise. Starting
 a trial, entering a key and signing up as a tester need a Home Assistant administrator.
@@ -62,6 +63,34 @@ One key covers up to five Home Assistants (a cabin, a parent's house, a test ins
 
 **Show this key's homes** lists them, lets you name this one and remove one you no longer use. If a
 home isn't counted, the licence card says why.
+
+## Add-ons
+
+Without Pro, one feature at a time: each add-on is one payment that covers 2 years, no subscription,
+on up to three homes. **PadSpan Pro includes them all.** Prices, and where to buy one:
+[padspan.traks.ca/#addons](https://padspan.traks.ca/#addons).
+
+| Add-on | What it unlocks |
+| --- | --- |
+| Audio | Volume, mute and off for each room's players: the **⋯** list's Audio line on the new layout, **Settings → Atlas → Audio** on the classic one ([chapter 15](15-the-atlas.md#audio)) |
+| Alarm & security | Arm and Disarm in the emergency button, the emergency lights test, a door's card with its opener and lock, **Devices → Door Openers**, and openers and locks built from relays |
+| Wi-Fi coverage | The Wi-Fi coverage tab |
+| Climate map | The ♨ Heatmap on the Atlas |
+| Time travel | Full house activity: the day replayed on the Atlas (Traceback → Playback) |
+| Vacation Mode & presets | Vacation Mode and the Whole house presets |
+| Looks pack | The Graphite, Ocean, Dusk and Day themes; on the Atlas, Showcase with its themes, the West Coast Forest and the presets bar |
+| Forensics | Forensics recording |
+| Presence insights | Busy Times and Locate |
+
+Free on every install, with or without them: an alarm going off (in the emergency button, with
+nothing to press, and in the red banner), locking and unlocking on the map and in a room's card,
+Alert pulse, the Insights tab and a device's 📍 Locate flash.
+
+- Your add-ons share one key: buy another with the same email and it joins that key. Enter it here
+  like any key; the licence card lists each add-on with its date. An add-on key is not a Pro key.
+- Each add-on gets the same 14 days past its date that a key does.
+- The 90-day trial is still yours: it keeps the add-on key aside and puts it back when it ends.
+- Where a feature is locked, it says what unlocks it: "PadSpan Pro or the … add-on", with the price.
 
 ## Get Pro free by testing it
 

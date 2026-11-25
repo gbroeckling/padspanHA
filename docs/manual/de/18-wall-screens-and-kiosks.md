@@ -161,8 +161,8 @@ Jeder andere Bildschirm bekommt weiter alles. Ist es an, zeigt die Liste hinter 
 - Lass Live Aboard auf einem alten oder langsamen Tablet auf der Qualität **Low**.
 - Der Knopf **Test emergency lighting** sitzt oben rechts im Atlas. Auf einem Bildschirm, den jeder
   antippen kann, blendest du ihn aus ([Kapitel 15](15-the-atlas.md#test-der-notbeleuchtung)).
-- Deine Alarmanlage darin funktioniert auf einem Wandbildschirm wie überall (PadSpan Bright und
-  Pro): Jedes Scharf- und Unscharfschalten fragt zuerst, mit dem Code, wenn die Alarmanlage einen
+- Deine Alarmanlage darin funktioniert auf einem Wandbildschirm wie überall (PadSpan Pro, das
+  Add-on Alarm & Sicherheit oder Bright Pro): Jedes Scharf- und Unscharfschalten fragt zuerst, mit dem Code, wenn die Alarmanlage einen
   will, und nichts auf ihrer Karte führt von der Seite weg
   ([Kapitel 13](13-alerts.md#deine-alarmanlage-am-notfallknopf)).
 - Wer an einem gemeinsamen Bildschirm was ändern darf: [Kapitel 21](21-users-and-security.md).

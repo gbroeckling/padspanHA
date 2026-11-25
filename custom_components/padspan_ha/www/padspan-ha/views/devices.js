@@ -18,6 +18,8 @@ const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the Openers lists leave the
 // duplicate copy out. Optional: missing, every copy is offered.
 const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).catch(() => null);
+// Door Openers and the relay wizard's openers and locks are Alarm & security's (editions.js addonAllowed).
+const { addonAllowed, addonPrice } = await import(`./editions.js${new URL(import.meta.url).search}`);
 const _dup = (ctx, eid) => !!(TW && TW.duplicateOf(eid, ctx.state && ctx.state.settings));
 const TABS = [
   { id: "all",      get label() { return t("All Devices"); } },
@@ -668,7 +670,15 @@ function normalizeRoom(state) {
 const _OPENER_DOMAINS = ["cover.", "switch.", "button.", "script."];
 const _OPENER_NAME_HINT = /\b(door|gate|garage|opener)\b/i;
 
-function _isDoorOpenersPaidTier(ctx) {
+// Alarm & security (the owner, 2026-11-25): marking openers here, and the
+// relay wizard's openers and its lock. PadSpan Pro or the add-on, and Bright
+// Pro as before. The wizard's relay light is not alarm: Bright or Pro only
+// (_relayLightAllowed).
+function _doorOpenersAllowed(ctx) {
+  const t = String((ctx.state.settings && ctx.state.settings.tier) || "").toLowerCase();
+  return t === "bright" || addonAllowed(ctx.state.settings, "alarm");
+}
+function _relayLightAllowed(ctx) {
   const t = String((ctx.state.settings && ctx.state.settings.tier) || "").toLowerCase();
   return t === "bright" || t === "pro";
 }
@@ -680,9 +690,9 @@ function _renderDoorOpeners(ctx) {
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
     t("Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock.")));
 
-  if (!_isDoorOpenersPaidTier(ctx)) {
+  if (!_doorOpenersAllowed(ctx)) {
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;background:#2a220a;border:1px solid #78350f;border-radius:8px;padding:10px" },
-      t("Door Openers is a Bright / Pro feature.")));
+      t("Door Openers needs PadSpan Pro or the Alarm & security add-on ({price}). Enter the key in Settings → Features → PadSpan licence.", { price: addonPrice("alarm") })));
     return card;
   }
 
@@ -1208,7 +1218,10 @@ function _renderRelayWizard(ctx) {
   }
 
   // ── Open form ────────────────────────────────────────────────────────────
-  if (!ctx.state._relayWizardKind) ctx.state._relayWizardKind = _RELAY_KINDS[0].id;
+  // The relay light only where light placement is (Bright or Pro): the
+  // Alarm & security add-on builds the openers and the lock.
+  const kinds = _relayLightAllowed(ctx) ? _RELAY_KINDS : _RELAY_KINDS.filter(k => k.id !== "relay_light");
+  if (!kinds.some(k => k.id === ctx.state._relayWizardKind)) ctx.state._relayWizardKind = kinds[0].id;
   const kind = ctx.state._relayWizardKind;
   const states = (ctx.hass && ctx.hass.states) || {};
   // A Zigbee device's duplicate copy is left out of both lists (zigbee_twins.js).
@@ -1220,7 +1233,7 @@ function _renderRelayWizard(ctx) {
 
   const kindSel = document.createElement("select");
   kindSel.style.cssText = "width:100%;background:#1a2e1e;color:#e2e8f0;border:1px solid #2d4a36;border-radius:8px;padding:7px;font-size:12px;margin-bottom:10px";
-  for (const k of _RELAY_KINDS) {
+  for (const k of kinds) {
     const o = document.createElement("option"); o.value = k.id; o.textContent = k.label; if (k.id === kind) o.selected = true;
     kindSel.appendChild(o);
   }

@@ -274,21 +274,21 @@ class ForensicsStore:
 
 
 def _recording_enabled(hass: HomeAssistant) -> bool:
-    """Record only while Forensics is on, in live mode, and the licence reaches Pro.
+    """Record only while Forensics is on, in live mode, and the licence has it:
+    PadSpan Pro, or the Forensics add-on (licence.addon_allowed).
 
     A lapsed licence keeps what Forensics already recorded (the query has no
     gate, so it stays searchable and exportable until retention prunes it)
-    but records nothing new:
-    Forensics is Pro, and the soft degrade (ws_common._padspan_pro_active)
-    stops paid activity, never access to your own history. Until 2026-10-28
-    nothing checked, so a trial that ended kept recording.
+    but records nothing new: the soft degrade stops paid activity, never
+    access to your own history. Until 2026-10-28 nothing checked, so a trial
+    that ended kept recording.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     data = st.data if st else {}
     if not (bool(data.get("forensics_enabled")) and data.get("data_mode") == "live"):
         return False
-    from .ws_common import _padspan_pro_active  # noqa: PLC0415
-    return _padspan_pro_active(hass)
+    from .licence import hass_addon_allowed  # noqa: PLC0415
+    return hass_addon_allowed(hass, "forensics")
 
 
 def retention_days(hass: HomeAssistant) -> int:

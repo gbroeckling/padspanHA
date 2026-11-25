@@ -229,6 +229,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_live_colours": False,          # the working Atlas draws a lit light in the colour it reports (Settings → Atlas → Atlas — Mapped Light Control); off: amber, as ever
     "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → Atlas → Atlas — Mapped Light Control)
     "atlas_heatmap_enabled": False,       # Atlas: offer the ♨ Heatmap chip (temperature / humidity / CO2); off: no chip, the Atlas as ever (Settings → Atlas → Atlas — Mapped Light Control)
+    "atlas_audio_enabled": False,         # Atlas, the classic layout: Audio (views/room_controls.js) house-wide, as the ⋯ list's Audio line does per screen on Pro's display layout: a speaker beside a playing room's name, the room sheet's Audio; off: none (Settings → Atlas → Atlas — Mapped Light Control)
     "atlas_alert_pulse": False,           # Atlas: ring a room's flagged opening (a door, window, gate or cover left open over 6 h, a window or cover open in the rain or snow); a wall names the worst alert (Settings → Atlas → Atlas — Mapped Light Control)
     # Atlas outdoor weather (docs/IDEA_ATLAS_WEATHER.md, views/atlas_weather.js) — rain or snow outside the floor
     # plates while it is actually raining or snowing. On by default in both editions (Pro animates, free is still).

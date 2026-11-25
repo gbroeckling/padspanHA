@@ -18,7 +18,8 @@ dass du etwas neu installierst:
 - alles, was später hinter Pro kommt.
 
 Ein PadSpan-Pro-Schlüssel schaltet auch die Werkzeuge von PadSpan Bright frei. Preise und wo du
-einen Schlüssel kaufst: [padspan.traks.ca](https://padspan.traks.ca).
+einen Schlüssel kaufst: [padspan.traks.ca](https://padspan.traks.ca). Ohne Pro schaltet ein Add-on
+eine Funktion frei ([Add-ons](#add-ons)).
 
 Alles unten steht unter **Einstellungen → Funktionen → PadSpan-Lizenz**, wenn nichts anderes
 dasteht. Einen Testzeitraum starten, einen Schlüssel eintragen und sich als Tester anmelden braucht
@@ -71,6 +72,37 @@ Testinstallation):
 
 **Show this key's homes** listet sie auf, lässt dich dieses Zuhause benennen und eines entfernen,
 das du nicht mehr nutzt. Wird ein Zuhause nicht gezählt, sagt die Lizenzkarte, warum.
+
+## Add-ons
+
+Ohne Pro eine Funktion nach der anderen: Jedes Add-on ist eine Zahlung für 2 Jahre, kein Abo, auf bis
+zu drei Zuhause. **PadSpan Pro enthält sie alle.** Preise, und wo du eines kaufst:
+[padspan.traks.ca/#addons](https://padspan.traks.ca/#addons).
+
+| Add-on | Was es freischaltet |
+| --- | --- |
+| Audio | Lautstärke, Stummschalten und Aus für die Player jedes Raums: die Zeile Audio in der **⋯**-Liste auf dem neuen Layout, **Einstellungen → Atlas → Audio** auf dem klassischen ([Kapitel 15](15-the-atlas.md#audio)) |
+| Alarm & Sicherheit | Scharf und unscharf schalten im Notfallknopf, der Test der Notbeleuchtung, die Karte einer Tür mit Öffner und Schloss, **Geräte → Türöffner** und Öffner und Schlösser aus Relais |
+| WLAN-Abdeckung | Der Reiter Wi-Fi coverage |
+| Klimakarte | Die ♨ Heatmap im Atlas |
+| Zeitreise | Full house activity: der Tag noch einmal im Atlas abgespielt (Traceback → Playback) |
+| Urlaubsmodus & Voreinstellungen | Der Urlaubsmodus und die Whole house presets |
+| Looks-Paket | Die Themen Graphit, Ozean, Dämmerung und Tag; im Atlas Showcase mit seinen Themen, der West Coast Forest und die Presets-Leiste |
+| Forensik | Die Aufzeichnung von Forensik |
+| Präsenz-Auswertungen | Stoßzeiten und Finden |
+
+Kostenlos auf jeder Installation, mit oder ohne sie: eine auslösende Alarmanlage (im Notfallknopf,
+ohne etwas zum Drücken, und im roten Banner), Auf- und Zuschließen auf der Karte und in der Karte
+eines Raums, Alert pulse, der Reiter Auswertungen und das 📍 Locate-Blinken eines Geräts.
+
+- Deine Add-ons teilen sich einen Schlüssel: Kaufst du ein weiteres mit derselben E-Mail, kommt es
+  zu diesem Schlüssel dazu. Trag ihn hier ein wie jeden Schlüssel; die Lizenzkarte zeigt jedes
+  Add-on mit seinem Datum. Ein Add-on-Schlüssel ist kein Pro-Schlüssel.
+- Jedes Add-on bekommt nach seinem Datum dieselben 14 Tage wie ein Schlüssel.
+- Der Testzeitraum von 90 Tagen bleibt dir: Er legt den Add-on-Schlüssel beiseite und setzt ihn
+  wieder ein, wenn er endet.
+- Wo eine Funktion gesperrt ist, steht, was sie freischaltet: „PadSpan Pro oder das Add-on …“, mit
+  dem Preis.
 
 ## Pro kostenlos bekommen, indem du es testest
 

@@ -126,6 +126,9 @@ right of the map. The button changes with what your house has:
   then starts from **Start test** in the card, so a hand going for the alarm never starts it.
 - **Neither**: no button.
 
+The emergency lights test, and arming and disarming, need PadSpan Pro or the Alarm & security add-on
+(a Bright Pro key keeps them). Without either, the button is there only while the alarm goes off.
+
 **When it goes off**, in every edition, free too:
 
 - A row in the red banner on every PadSpan screen: "Alarm going off: House · Back door". On a phone,
@@ -134,7 +137,7 @@ right of the map. The button changes with what your house has:
 - The sensor that set it off is named when the alarm says which one (Alarmo does). Otherwise only
   the alarm is named.
 
-**Its state, arming and disarming** (PadSpan Bright and PadSpan Pro):
+**Its state, arming and disarming** (PadSpan Pro, the Alarm & security add-on or PadSpan Bright Pro):
 
 - The shield in the button shows the alarm's state by its colour: grey disarmed, blue armed, amber
   pending, red going off. Hold the pointer on it for the state in words: **Disarmed**, **Armed
@@ -173,7 +176,7 @@ order, worst first: smoke, gas, CO, a leak, an opening in the rain, a door left 
 
 ## Vacation Mode notices
 
-Vacation Mode (PadSpan Pro) runs your lights while you're away ([Atlas guide](../ATLAS_GUIDE.md)).
+Vacation Mode (PadSpan Pro or the Vacation Mode & presets add-on) runs your lights while you're away ([Atlas guide](../ATLAS_GUIDE.md)).
 It tells you when it stops:
 
 - **PadSpan: Vacation Mode ended**: it reached the end date set for it.

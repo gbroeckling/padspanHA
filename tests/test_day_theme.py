@@ -207,16 +207,18 @@ def test_seven_theme_choices_and_light_is_still_the_inversion():
     assert 'settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette })' in settings
 
 
-def test_day_and_the_palettes_are_pro_light_is_everyones():
+def test_day_and_the_palettes_are_pro_or_the_looks_pack_light_is_everyones():
     panel = (_WWW / "panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     body = panel[panel.index("  async _applyTheme(){"):]
     body = body[:body.index("\n  }\n")]
-    assert 'const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";' in body
+    # PadSpan Pro or the Looks pack add-on (panel.js _addon, editions.js addonAllowed; tests/test_addon_gates.py).
+    assert 'const pro = this._addon("looks");' in body
     assert "const day = pro && !!look.day_theme;" in body
     assert '(pro ? ["graphite", "ocean", "dusk", "contrast"] : ["contrast"]).includes(named)' in body, "High contrast is everyone's"
     assert "const invert = !on && !!look.light_theme;" in body, "Light never needs Pro"
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     assert 'const PRO_LOOKS = ["graphite", "ocean", "dusk", "day"];' in settings
+    assert 'const proOk = addonAllowed(settings, "looks");' in settings
     assert "const locked = PRO_LOOKS.includes(val) && !proOk;" in settings
 
 

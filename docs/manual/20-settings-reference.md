@@ -38,10 +38,10 @@ folding heading on that tab.
 | Card: control | Default | Range or choices | What it does | Key |
 |---|---|---|---|---|
 | Panel Style | `2025` | `classic`, `2025` | `2025` restyles the panel's frame (grouped menu with icons); `classic` is the original. | `ui_skin` |
-| Theme | empty | `graphite`, `ocean`, `dusk`, `contrast` | The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro. | `theme_palette` |
+| Theme | empty | `graphite`, `ocean`, `dusk`, `contrast` | The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro or the Looks pack add-on. | `theme_palette` |
 | Theme: Light (inverted) | off | on or off | The panel's colours turned light (inverted). | `light_theme` |
-| Theme: Day | off | on or off | Day, PadSpan's designed light look (Pro). It wins over Light. | `day_theme` |
-| Theme: Follow the sun | off | on or off | Day (Light without Pro) from sunrise to sunset, the theme you picked at night. | `theme_follow_sun` |
+| Theme: Day | off | on or off | Day, PadSpan's designed light look (Pro or the Looks pack add-on). It wins over Light. | `day_theme` |
+| Theme: Follow the sun | off | on or off | Day (Light without Pro or the Looks pack) from sunrise to sunset, the theme you picked at night. | `theme_follow_sun` |
 | Units: Show lengths in feet and inches | off | on or off | Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way. | `units_feet` |
 | 2D Map Mode: Replace 3D isometric view with flat 2D map | off | on or off | Experimental: the Overview shows the floor plan flat, with zoom and pan. | `overview_2d_mode` |
 
@@ -151,7 +151,7 @@ folding heading on that tab.
 | Experimental Features: MAC Rotation Bridging | off | on or off | Links a device's old and new address when its address changes. | `mac_rotation_bridging` |
 | Experimental Features: Apple Device Classification | off | on or off | Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only. | `apple_auto_classify` |
 | Experimental Features: RSSI Vector Capture | off | on or off | A Record button in Health for signal recordings to replay. | `rssi_capture_enabled` |
-| Forensics | off | on or off | Pro: records when every Bluetooth device nearby comes and goes, to look back at later. | `forensics_enabled` |
+| Forensics | off | on or off | Pro or the Forensics add-on: records when every Bluetooth device nearby comes and goes, to look back at later. | `forensics_enabled` |
 | Forensics: Keep sessions for | 14 | `7`, `14`, `30`, `60`, `90` | Days Forensics keeps what it recorded. | `forensics_retention_days` |
 
 ### Settings → AI
@@ -176,7 +176,8 @@ folding heading on that tab.
 | Atlas — Mapped Light Control: Draw lit lights in their own colour on the Atlas | off | on or off | Lit lights in the colour they report. Off: amber. | `atlas_live_colours` |
 | Atlas — Mapped Light Control: Alert pulse | off | on or off | Rings an opening left open, or open in the rain, and names the worst alert. | `atlas_alert_pulse` |
 | Atlas — Mapped Light Control: Notify when a leak, smoke, gas or CO alarm goes off | on | on or off | Sends one notification when the alarm latches and one when it clears, where Follow alerts go. | `emergency_notify` |
-| Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂) | off | on or off | A Heatmap chip on the Atlas: rooms coloured by their own sensors. | `atlas_heatmap_enabled` |
+| Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂) | off | on or off | A Heatmap chip on the Atlas: rooms coloured by their own sensors. Pro or the Climate map add-on. | `atlas_heatmap_enabled` |
+| Atlas — Mapped Light Control: Audio | off | on or off | On the classic layout, for the whole house: a speaker beside a room's name while one of its players is on, and Audio in the room's card. Pro or the Audio add-on; on the new layout each screen's ⋯ list has it instead. | `atlas_audio_enabled` |
 | Power teams | empty |  | Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). | `power_teams` |
 | Outdoor weather: Show rain and snow on the Atlas | on | on or off | Rain or snow around the house while it really rains or snows. | `atlas_weather_enabled` |
 | Outdoor weather: Rain sensor | empty | an entity: `binary_sensor.*` or `sensor.*`, or empty | A rain sensor that says when it is wet. Empty: the weather entity decides. | `atlas_weather_rain_entity` |
@@ -229,7 +230,7 @@ Settings PadSpan keeps for a control on another screen. Each is saved when you u
 | Overview | Warp | 50 | 0 to 100 | How strongly the signal distortion map is drawn. | `distortion_intensity` |
 | Overview | Heat: Source | 0 | 0 to 100 | Which readings the Radio Map overlay draws from. | `heatmap_source` |
 | Follow | Follow | empty |  | The devices you follow. Following a device with no name gives it one. | `followed_addrs` |
-| Locate | Locate: You | empty |  | Pro: which device is you, for directions. | `locate_self_key` |
+| Locate | Locate: You | empty |  | Pro or the Presence insights add-on: which device is you, for directions. | `locate_self_key` |
 | Bluetooth | Scanners: Exclude | empty |  | Receivers left out of positioning. Nothing they recorded is deleted. | `excluded_scanners` |
 | Bluetooth | Scanners: Min signal: off | empty |  | For each receiver, readings weaker than this are ignored. | `scanner_min_rssi` |
 | Calibration | Beacon Tune: Auto-Cal | on | on or off | Pinned beacons add calibration points by themselves. | `beacon_auto_calibrate` |
@@ -254,7 +255,7 @@ Settings PadSpan keeps for a control on another screen. Each is saved when you u
 | Manage → Beacon Characteristics | Beacon Signal Profiles | empty | a list | Beacons left out of calibration tuning. | `beacon_tune_disabled` |
 | Manage → Beacon Characteristics | Beacon Signal Profiles | empty | a mapping | Beacons moved to another model group. | `beacon_group_overrides` |
 | Mapping → Atlas builder | Classic layout | on | on or off | On: the Atlas's new layout (wall screens need it). Off: the classic layout. | `atlas_layout_v2` |
-| Mapping → Atlas builder | Showcase | off | on or off | Pro: the Atlas's presentation look. | `lights_showcase` |
+| Mapping → Atlas builder | Showcase | off | on or off | Bright Pro, Pro or the Looks pack add-on: the Atlas's presentation look. | `lights_showcase` |
 | Mapping → Atlas builder | Showcase: Theme | `classic` | `classic`, `cinematic_glass`, `neo_hud`, `ambient_premium`, `dataviz_precision`, `organic_bioluminescent`, `material_you`, `neon_precision`, `luxury_realestate`, `wabi_sabi`, `hygge`, `aurora`, `automotive_hud`, `art_deco`, `swiss_style`, `bauhaus`, `holographic`, `retro_futurism`, `obsidian_noir`, `west_coast_forest` | Showcase's theme. | `lights_showcase_theme` |
 | Mapping → Atlas builder | Showcase: Fit room | off | on or off | Never draws a light bigger than its room. | `lights_fit_rooms` |
 | Mapping → Atlas builder | Showcase: Light spread | off | on or off | Lines of equal light on the floor. | `lights_isolux` |

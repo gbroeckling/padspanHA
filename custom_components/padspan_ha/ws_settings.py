@@ -30,7 +30,7 @@ from .const import (
     LIGHT_TYPE_OVERRIDE_KINDS,
 )
 from .bluetooth_live import get_bluetooth_live
-from .ws_common import require_admin_if_enhanced, _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
+from .ws_common import require_admin_if_enhanced, _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache
 from .quiet_errors import note as _quiet_error
 from .util import address_refusal
 from .ws_common import id_text, name_text, shallow, SETTINGS_LIST_MAX
@@ -588,17 +588,18 @@ def _text_map(raw: Any) -> dict[str, str]:
             if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip()}
 
 
-def _pro_after(hass: HomeAssistant, st: Any, msg: dict[str, Any]) -> bool:
-    """Pro at the tier this message leaves: a Pro-only key sent beside a tier
-    override is judged by that override, not by the one stored before it, so
-    the same message gives the same result every time it is sent."""
+def _addon_after(hass: HomeAssistant, st: Any, msg: dict[str, Any], name: str) -> bool:
+    """Add-on `name` (Pro, or an active key that carries it: licence.addon_allowed)
+    at the tier this message leaves: a key only that add-on may turn on, sent
+    beside a tier override, is judged by that override, not by the one stored
+    before it, so the same message gives the same result every time it is sent."""
+    from .licence import addon_allowed, hass_addon_allowed  # noqa: PLC0415
     if "license_tier_override" not in msg:
-        return _padspan_pro_active(hass)
-    from .licence import effective_tier, tier_at_least  # noqa: PLC0415
+        return hass_addon_allowed(hass, name)
     from .ws_common import _pro_expiry_state  # noqa: PLC0415
     after = {**((getattr(st, "data", None) or {})),
              "license_tier_override": str(msg["license_tier_override"] or "").strip().lower()}
-    return tier_at_least(effective_tier(after, bool(_pro_expiry_state(hass)["active"])), "pro")
+    return addon_allowed(after, bool(_pro_expiry_state(hass)["active"]), name)
 
 
 def _companion_url(value: Any) -> str | None:
@@ -696,6 +697,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_alert_pulse"): bool,
         vol.Optional("emergency_notify"): bool,                # flood_latch.py — a notification when an alarm latches
         vol.Optional("atlas_heatmap_enabled"): bool,
+        vol.Optional("atlas_audio_enabled"): bool,
         vol.Optional("atlas_weather_enabled"): bool,
         vol.Optional("atlas_weather_rain_entity"): vol.Any(str, None),
         vol.Optional("atlas_weather_condition_entity"): vol.Any(str, None),
@@ -1045,12 +1047,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "hidden_map_ids" in msg:
             payload["hidden_map_ids"] = _texts(msg["hidden_map_ids"])
         if "locate_self_key" in msg:
-            # Locate is a PadSpan Pro feature; same gate as forensics_enabled
-            # below — refusing the write here (not just hiding the tab) means
-            # a free install can't get room-graph wayfinding by editing the
-            # frontend, only by not persisting who "you" are.
+            # Locate is PadSpan Pro's and the Presence insights add-on's; the
+            # same kind of gate as forensics_enabled below — refusing the write
+            # here (not just hiding the tab) means a free install can't get
+            # room-graph wayfinding by editing the frontend, only by not
+            # persisting who "you" are.
             _lsk = str(msg.get("locate_self_key") or "")
-            payload["locate_self_key"] = _lsk if _pro_after(hass, st, msg) else ""
+            payload["locate_self_key"] = _lsk if _addon_after(hass, st, msg, "insights") else ""
         if "followed_addrs" in msg:
             _new_followed = [x.upper() for x in _texts(msg["followed_addrs"])]
             payload["followed_addrs"] = _new_followed
@@ -1559,7 +1562,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "tasmota_ble_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled", "subzones_enabled", "screens_remote_enabled",
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
-                    "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled",
+                    "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled", "atlas_audio_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled", "ai_plan_build_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
@@ -1588,10 +1591,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 return
             payload["license_tier_override"] = _ov
         if "forensics_enabled" in msg:
-            # Enabling requires an activated PadSpan Pro licence key (set via
-            # padspan_ha/forensics_license_activate).  Disabling is always allowed.
+            # Enabling requires an activated key with PadSpan Pro or the
+            # Forensics add-on (set via padspan_ha/forensics_license_activate).
+            # Disabling is always allowed.
             _want = bool(msg["forensics_enabled"])
-            if _want and not _pro_after(hass, st, msg):
+            if _want and not _addon_after(hass, st, msg, "forensics"):
                 _want = False      # same gate as everywhere else: expiry included
             payload["forensics_enabled"] = _want
         if "forensics_retention_days" in msg:
