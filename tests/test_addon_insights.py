@@ -230,10 +230,11 @@ def test_what_was_used_counts_only_what_the_install_may_use() -> None:
     pro = {"forensics_license_key": _KEY, "license_tier": "pro", **state}
     assert A.used_words(pro, usage, True) == ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
                                               "forensics", "insights", "maps", "lighting"]
-    # An add-on key: its own (audio and climate), and what is still everyone's (maps, not on sale; lighting).
-    assert A.used_words({**_addon_key(), **state}, usage, True) == ["audio", "climate", "maps", "lighting"]
-    # Free: a palette stored from Pro days is not the Looks pack used.
-    assert A.used_words(dict(state), usage, False) == ["maps", "lighting"]
+    # An add-on key: its own (audio and climate), and what is still everyone's (maps, not on sale). Lighting is an
+    # add-on on sale now, so a key without it doesn't count it.
+    assert A.used_words({**_addon_key(), **state}, usage, True) == ["audio", "climate", "maps"]
+    # Free: a palette stored from Pro days is not the Looks pack used; nor a power team's curve without lighting.
+    assert A.used_words(dict(state), usage, False) == ["maps"]
     # Bright keeps the alarm's controls.
     assert A.used_words({"forensics_license_key": _KEY, "license_tier": "bright"}, usage, True) == ["alarm", "maps"]
     assert A.used_words(pro, {}, True) == ["climate", "looks", "lighting"], "settings alone"

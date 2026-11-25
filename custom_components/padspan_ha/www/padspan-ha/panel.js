@@ -1643,7 +1643,7 @@ class PadSpanHaApp extends HTMLElement {
     }
     const NAMES = { audio: t("Audio"), alarm: t("Alarm & security"), wifi: t("Wi-Fi coverage"), climate: t("Climate map"),
       timetravel: t("Time travel"), vacation: t("Vacation Mode & presets"), looks: t("Looks pack"), forensics: t("Forensics"),
-      insights: t("Presence insights") };
+      insights: t("Presence insights"), lighting: t("Advanced smart lighting") };
     const list = EDITIONS.addonSaleCardPicks(st).map(n => (NAMES[n] || n) + " " + EDITIONS.addonPrice(n)).join(", ");
     const card = el("div", { "data-sale-card": "card",
       style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });

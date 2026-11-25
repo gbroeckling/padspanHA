@@ -809,12 +809,12 @@ def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[st
 # place, the site opened, keys entered, add-ons gained and when against the sale, the sale card). Licence, holdings,
 # market and the moved cohort are each install's latest report; the funnel is summed over every report; use and licence
 # changes read each install's reports over the window. tests/test_addon_dashboards.py holds these lists to the sender's.
-_ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps")
+_ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting")
 _ADDON_LICENCES = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                    "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 _ADDON_DAYS = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
-_ADDON_NOT_SOLD = ("lighting",)     # Advanced smart lighting (circadian, power teams): everyone's until it is sold
-_ADDON_USED = _ADDONS + _ADDON_NOT_SOLD
+_ADDON_NOT_SOLD = ()                # every used word is an add-on now (Advanced smart lighting is sold)
+_ADDON_USED = tuple(dict.fromkeys(_ADDONS + _ADDON_NOT_SOLD))
 _ADDON_MOVED = (("emergency_test", "alarm"), ("power_teams", "lighting"), ("circadian", "lighting"), ("lidar", "maps"))
 _ADDON_OFFER_PLACES = {"licence_card": _ADDONS, "busy_times": ("insights",), "locate": ("insights",),
                        "door_openers": ("alarm",), "emergency_test": ("alarm",), "themes": ("looks",),

@@ -473,7 +473,7 @@ foreach ($tabs as $t => $n) { $tabs_out[$t] = array('count' => $n, 'installs' =>
 // addon_buy:, addon_key:, addon_gained:, addon_gained_in:, addon_sale_card:)
 // is in `usage` with every other event; `refused` sets the offers where a
 // feature refused an add-on against each install's latest report.
-$ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps');
+$ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps', 'lighting');
 $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pro_tester', 'bright', 'addon',
                         'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
@@ -543,7 +543,7 @@ foreach ($latest as $id => $r) {
         if (addon_holds($a, $ADDON_MOVED[$w])) { $addons['moved'][$w]['holds']++; }
         if (addon_pro($a)) { $addons['moved'][$w]['pro']++; }
     }
-    foreach (array_merge($ADDON_NAMES, array('lighting')) as $name) {
+    foreach (array_unique(array_merge($ADDON_NAMES, array('lighting'))) as $name) {
         if (!addon_on_it($a, $name)) { continue; }
         incr($addons['on_it'], $name);
         if (isset($addon_used_by[$name][$id])) { incr($addons['used'], $name); }
