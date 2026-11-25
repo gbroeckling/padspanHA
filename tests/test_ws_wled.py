@@ -133,7 +133,7 @@ def fake(monkeypatch, tmp_path):
     ent = SimpleNamespace(entity_id="light.upper_north", device_id="dev1")
     monkeypatch.setattr(dr, "async_get", lambda h: SimpleNamespace(async_get=lambda i: dev if i == "dev1" else None), raising=False)
     monkeypatch.setattr(er, "async_get", lambda h: SimpleNamespace(async_get=lambda e: ent if e == "light.upper_north" else None), raising=False)
-    monkeypatch.setattr(W, "_tier_at_least", lambda h, t: True)
+    monkeypatch.setattr(W, "_licensed", lambda h: True)
     calls = []
     state = {"cfg": {"hw": {"led": {"maxpwr": 850}}}}
 
@@ -167,7 +167,7 @@ async def test_a_light_outside_the_wled_integration_is_refused(fake):
 
 
 async def test_below_bright_nothing_is_reached(fake, monkeypatch):
-    monkeypatch.setattr(W, "_tier_at_least", lambda h, t: False)
+    monkeypatch.setattr(W, "_licensed", lambda h: False)
     conn = _Conn()
     await W.ws_wled_get(fake.hass, conn, {"id": 1, "entity_id": "light.upper_north", "path": "json/info"})
     assert conn.errors[0][0] == "bright_required" and fake.calls == []

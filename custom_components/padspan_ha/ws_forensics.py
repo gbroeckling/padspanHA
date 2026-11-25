@@ -281,7 +281,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             return
     from .settings_store import licence_key_hash as _lk_hash  # noqa: PLC0415
     if data.get("valid"):
-        from .licence import answer_tier, normalize_addons, normalize_addons_until  # noqa: PLC0415
+        from .licence import NEEDS_UPDATE, answer_tier, normalize_addons, normalize_addons_until  # noqa: PLC0415
         # The server names the tier it sold ("pro" / "bright"). A server that
         # does not (yet) say is a Pro key — see licence.key_tier — unless the
         # answer is an add-on key's, which is always free (licence.answer_tier).
@@ -297,9 +297,13 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             # A key typed in is whatever the server says it is: a trialist who
             # buys (or goes lifetime on the same key) is no longer on a trial.
             license_is_trial=str(data.get("plan") or "") == "trial",
+            # Its plan: an add-on key ("addons") reads as one even with add-ons this PadSpan doesn't know.
+            license_plan=str(data.get("plan") or "")[:20],
             # An add-on key turns Forensics on only when it holds the Forensics add-on.
             **({"forensics_enabled": True} if _tier != "free" or "forensics" in _addons else {}),
-            license_home_status="",
+            # An add-on key whose add-ons are all newer than this PadSpan (the server's needs_update): kept, free, and
+            # the licence card says to update PadSpan; any other answer clears what this home was told before.
+            license_home_status=NEEDS_UPDATE if str(data.get("status") or "") == NEEDS_UPDATE else "",
             # A new free licence holds the report on; any other new key lets go,
             # and so does an add-on key kept aside for a trial (the owner chose this one).
             **({"report_locked_key": _lk_hash(key) if _free_new else "", "license_addons_kept": {}} if new_key else {}),
@@ -317,6 +321,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {
             "ok": True,
+            # needs_update: activated as an add-on key, and the panel says to update PadSpan (settings.js NEEDS_UPDATE).
+            **({"status": NEEDS_UPDATE} if str(data.get("status") or "") == NEEDS_UPDATE else {}),
             "expires_at": data.get("expires_at"),
             "days_left": data.get("days_left"),
             "settings": _get_settings(hass, connection),
@@ -390,7 +396,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             # The server issues trials as Pro (2026-10-27) and says so; a reply
             # with no tier reads as Pro, licence.py's own rule for a bare key.
             license_tier=answer_tier(data),
-            license_addons=[], license_addons_until={},
+            license_addons=[], license_addons_until={}, license_plan="trial",
             # An add-on key on this install is kept aside, and comes back when
             # the trial ends (update_check._revalidate_license).
             license_addons_kept=({k: st.data.get(k) for k in ADDON_KEY_FIELDS} if is_addon_key(st.data) else {}),

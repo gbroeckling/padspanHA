@@ -9,6 +9,8 @@ dass du etwas neu installierst:
 
 - genaues Platzieren im Atlas: Formen, Größen, Winkel, die Advanced-Steuerung von WLED, Automorph und
   Showcase ([Kapitel 15](15-the-atlas.md));
+- Power-Teams: sie anlegen und ändern, dem Tag folgen, Sleep und das Wecken
+  ([Kapitel 15](15-the-atlas.md#power-teams));
 - Live Aboard, das 3D-Haus, mit Furnish ([Kapitel 16](16-live-aboard.md),
   [Kapitel 17](17-furnish.md));
 - der Wandmodus ([Kapitel 18](18-wall-screens-and-kiosks.md));
@@ -90,10 +92,12 @@ zu drei Zuhause. **PadSpan Pro enthält sie alle.** Preise, und wo du eines kauf
 | Looks-Paket | Die Themen Graphit, Ozean, Dämmerung und Tag; im Atlas Showcase mit seinen Themen, der West Coast Forest und die Presets-Leiste |
 | Forensik | Die Aufzeichnung von Forensik |
 | Präsenz-Auswertungen | Stoßzeiten und Finden |
+| Erweiterte smarte Beleuchtung | Power-Teams: anlegen, ändern und entfernen, dem Tag folgen, Sleep, die Schlafenszeit, das Nachtlicht und das Wecken; im Atlas die Advanced-Steuerung von WLED, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, Leuchtenformen und das Festlegen der Art (mit Showcase im Thema Classic als Bühne). Ein Licht dort platzieren, wo es wirklich ist, bleibt bei Pro |
 
 Kostenlos auf jeder Installation, mit oder ohne sie: eine auslösende Alarmanlage (im Notfallknopf,
 ohne etwas zum Drücken, und im roten Banner), Auf- und Zuschließen auf der Karte und in der Karte
-eines Raums, Alert pulse, der Reiter Auswertungen und das 📍 Locate-Blinken eines Geräts.
+eines Raums, Alert pulse, der Reiter Auswertungen, das 📍 Locate-Blinken eines Geräts und ein schon
+angelegtes Power-Team als ein Licht (an, aus, dimmen, seine Stromquelle und jede Birne).
 
 - Deine Add-ons teilen sich einen Schlüssel: Kaufst du ein weiteres mit derselben E-Mail, kommt es
   zu diesem Schlüssel dazu. Trag ihn hier ein wie jeden Schlüssel; die Lizenzkarte zeigt jedes
@@ -103,6 +107,9 @@ eines Raums, Alert pulse, der Reiter Auswertungen und das 📍 Locate-Blinken ei
   wieder ein, wenn er endet.
 - Wo eine Funktion gesperrt ist, steht, was sie freischaltet: „PadSpan Pro oder das Add-on …“, mit
   dem Preis.
+- Ein Schlüssel nur mit Add-ons, die neuer sind als dein PadSpan, bleibt ein Add-on-Schlüssel, nie
+  Pro: Die Lizenzkarte sagt „Dieses Add-on braucht ein neueres PadSpan — aktualisiere PadSpan.“
+  Aktualisiere, und es funktioniert.
 
 ## Pro kostenlos bekommen, indem du es testest
 

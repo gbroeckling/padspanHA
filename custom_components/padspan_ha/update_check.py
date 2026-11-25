@@ -220,15 +220,18 @@ async def _keep_answer(st: Any, data: dict) -> None:
         from .licence_homes import keep_token, keep_warning  # noqa: PLC0415
         await keep_token(st, data)
         await keep_warning(st, data)
-        if st.data.get("license_home_status"):
-            await st.async_set(license_home_status="")
+        # A valid answer clears what this home was told, except needs_update (an add-on key whose add-ons are all
+        # newer than this PadSpan): that stays said on the licence card until PadSpan is updated.
+        _status = "needs_update" if str(data.get("status") or "") == "needs_update" else ""
+        if str(st.data.get("license_home_status") or "") != _status:
+            await st.async_set(license_home_status=_status)
         updates: dict = {}
         if expires and expires != str(st.data.get("forensics_license_expires") or ""):
             updates["forensics_license_expires"] = expires
         # A tier the server names is recorded; a server that does not name
         # one changes nothing (an absent field is a Pro key — licence.py). An
         # add-on key's answer is always free (licence.answer_tier).
-        if data.get("tier") or data.get("plan") == "addons":
+        if data.get("tier") or data.get("plan") == "addons" or _status:
             tier = answer_tier(data)
             if tier != str(st.data.get("license_tier") or ""):
                 updates["license_tier"] = tier
@@ -242,11 +245,15 @@ async def _keep_answer(st: Any, data: dict) -> None:
             if until != normalize_addons_until(st.data.get("license_addons_until")):
                 updates["license_addons_until"] = until
         # A trial key upgraded in place (bought, or the lifetime offer) stops
-        # reading as a trial the day the server says so.
+        # reading as a trial the day the server says so; and the plan is kept
+        # with the key (an add-on key reads as one by it: licence.key_tier).
         if data.get("plan"):
             is_trial = str(data.get("plan")) == "trial"
             if is_trial != bool(st.data.get("license_is_trial")):
                 updates["license_is_trial"] = is_trial
+            plan = str(data.get("plan"))[:20]
+            if plan != str(st.data.get("license_plan") or ""):
+                updates["license_plan"] = plan
         if updates:
             await st.async_set(**updates)
             _LOGGER.info("PadSpan licence revalidated — %s", ", ".join(f"{k}={v}" for k, v in updates.items()))
@@ -254,7 +261,8 @@ async def _keep_answer(st: Any, data: dict) -> None:
         # Over the key's homes (a copy of a home, or a sixth): said in Settings
         # (licence_homes.py), and then the same grace as any refusal.
         _hs = str(data.get("status") or "")
-        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed", "needs_all_reports") else ""
+        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed", "needs_all_reports",
+                             "needs_update") else ""
         if _hs != str(st.data.get("license_home_status") or ""):
             await st.async_set(license_home_status=_hs)
         # A home past the first two, after the 14 days the server gave once a
@@ -263,10 +271,11 @@ async def _keep_answer(st: Any, data: dict) -> None:
         if _hs == "needs_all_reports":
             from .licence_homes import keep_warning  # noqa: PLC0415
             await keep_warning(st, data)
-        # Not a refusal of the licence: a pause on new homes this month, or a
-        # third-to-fifth home whose report is off. Settings says which; the
-        # licence stays as it is.
-        if _hs in ("activation_rate", "needs_report"):
+        # Not a refusal of the licence: a pause on new homes this month, a
+        # third-to-fifth home whose report is off, or an add-on key whose
+        # add-ons are all newer than this PadSpan (needs_update: update
+        # PadSpan). Settings says which; the licence stays as it is, never Pro.
+        if _hs in _NOT_A_REFUSAL:
             # A renewal still moves the date on (never back).
             new_exp = _parse_utc(expires)
             old_exp = _parse_utc(str(st.data.get("forensics_license_expires") or ""))
@@ -302,9 +311,9 @@ async def _keep_answer(st: Any, data: dict) -> None:
             await st.async_set(forensics_license_expires=now.isoformat())
 
 
-# Answers that refuse nothing about the key itself (a pause on new homes, a home whose report is off): no reason to
-# give the trial key up.
-_NOT_A_REFUSAL = ("activation_rate", "needs_report")
+# Answers that refuse nothing about the key itself (a pause on new homes, a home whose report is off, an add-on key
+# newer than this PadSpan): nothing is revoked, and no reason to give a trial key up.
+_NOT_A_REFUSAL = ("activation_rate", "needs_report", "needs_update")
 
 
 async def _bring_back_kept_addons(hass: HomeAssistant, st: Any, data: dict | None) -> bool:

@@ -506,7 +506,8 @@ def test_the_settings_card_makes_saves_and_removes_a_team() -> None:
     assert not out["failures"], json.dumps(out["failures"][:6], indent=2, ensure_ascii=False)
     assert len(out["cases"]) >= 6
     settings = (views / "settings.js").read_text(encoding="utf-8")
-    assert 'if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));' in settings
+    assert 'if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") {' in settings
+    assert 'lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el, { lightingPrice: addonPrice("lighting"), addonsUrl: ADDONS_URL }));' in settings
     panel = (views.parent / "panel.js").read_text(encoding="utf-8")
     assert "wled_teams_get power_teams_get " in panel       # reading the teams is a read; saving them stays a write
 

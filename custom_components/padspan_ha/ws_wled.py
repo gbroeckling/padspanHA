@@ -59,17 +59,26 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, NOT_LOADED_MESSAGE, PRO_PASS_FROM_TS, refusal
 from .util import ha_device_config_entries
-from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
 WLED_DOMAIN = "wled"
 TIER = "bright"
-TIER_MSG = "The WLED Advanced tab needs a PadSpan Bright Pro or PadSpan Pro key."
+# WLED's Advanced tab and Exact look are light design: Advanced smart lighting's (2026-11-25, the owner), with Bright
+# and Pro as before.
+ADDON = "lighting"
+TIER_MSG = "The WLED Advanced tab needs PadSpan Bright Pro, PadSpan Pro or the Advanced smart lighting add-on."
 # Bright Pro is no longer sold from the end of December 15, 2026 (const.PRO_PASS_FROM_TS).
 # Chosen where it's sent, as `A if ... else B`, so the panel's translations find both.
-TIER_MSG_FROM_PASS = "The WLED Advanced tab needs a PadSpan Pro key."
+TIER_MSG_FROM_PASS = "The WLED Advanced tab needs PadSpan Pro or the Advanced smart lighting add-on."
+
+
+def _licensed(hass: HomeAssistant) -> bool:
+    """WLED's Advanced tab and Exact look here: a Bright or Pro key, or the Advanced smart lighting add-on
+    (licence.hass_addon_or_bright). The one gate both this module and wled_exact.py ask."""
+    from .licence import hass_addon_or_bright  # noqa: PLC0415
+    return hass_addon_or_bright(hass, ADDON)
 
 GET_TIMEOUT_S = 8
 POST_TIMEOUT_S = 12
@@ -493,7 +502,7 @@ _TARGET = {vol.Optional("entity_id"): str, vol.Optional("device_id"): str}
 
 async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
     """Tier + target resolution shared by every command. Sends the error."""
-    if not _tier_at_least(hass, TIER):
+    if not _licensed(hass):
         connection.send_error(msg["id"], "bright_required", TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS)
         return None
     tgt = _target(hass, msg)
@@ -514,7 +523,7 @@ async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
 @websocket_api.async_response
 async def ws_wled_devices(hass: HomeAssistant, connection, msg) -> None:
     """Every WLED device HA knows, with its light entities — for teaming."""
-    if not _tier_at_least(hass, TIER):
+    if not _licensed(hass):
         connection.send_error(msg["id"], "bright_required", TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS)
         return
     from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
@@ -1204,7 +1213,7 @@ async def ws_wled_teams_get(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
     from .const import DATA_SETTINGS  # noqa: PLC0415
-    if not _tier_at_least(hass, TIER):
+    if not _licensed(hass):
         connection.send_error(msg["id"], "bright_required", TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS)
         return
     st0 = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)

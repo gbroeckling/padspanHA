@@ -34,7 +34,7 @@ from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 
 _PKG = Path(licence.__file__).parent
 _VIEWS = _PKG / "www" / "padspan-ha" / "views"
-NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps")
+NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting")
 LATER = (datetime.now(timezone.utc) + timedelta(days=700)).strftime("%Y-%m-%d %H:%M:%S")
 KEY = {"forensics_license_key": "PSPAN-ADDO-NNNN-NNNN-0001", "license_tier": "free", "license_addons": ["audio"],
        "license_addons_until": {"audio": LATER}}
@@ -250,7 +250,7 @@ def test_every_place_a_licence_is_set_or_carried_has_the_add_ons() -> None:
     inv = _src("pro_invite.py")
     assert '"license_addons": normalize_addons(data.get("addons")),' in inv
     assert '"license_addons_until": normalize_addons_until(data.get("addons_until")),' in inv
-    assert '"license_addons", "license_addons_until", "license_addons_kept", "license_install_id"' in _src("ws_factory_reset.py"), \
+    assert '"license_addons", "license_addons_until", "license_addons_kept", "license_plan", "license_install_id"' in _src("ws_factory_reset.py"), \
         "a reset keeps them"
     assert '"license_tier", "license_addons", "license_addons_until", "license_addons_kept",' in _src("ws_backup.py"), \
         "a restore keeps the live ones"
@@ -291,7 +291,7 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
     lead = "Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:"
     every = ["Audio $6.45 CAD", "Alarm & security $6.45 CAD", "Wi-Fi coverage $6.45 CAD", "Climate map $8.65 CAD",
              "Time travel $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD", "Forensics $5.56 CAD",
-             "Presence insights $5.56 CAD"]
+             "Presence insights $5.56 CAD", "Advanced smart lighting $8.65 CAD"]
     # Black Friday (editions.js ADDON_HALF_FROM .. UNTIL): the card's "after" (December 1) and "pass" (December 16) are in
     # it, so each add-on is offered at half, rounded down to the cent, with its usual price beside it.
     half = {"$6.45": "$3.22", "$8.65": "$4.32", "$7.55": "$3.77", "$4.25": "$2.12", "$5.56": "$2.78"}

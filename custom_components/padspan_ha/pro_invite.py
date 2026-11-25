@@ -185,6 +185,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         "license_addons": normalize_addons(data.get("addons")),
         "license_addons_until": normalize_addons_until(data.get("addons_until")),
         "license_is_trial": False,
+        "license_plan": str(data.get("plan") or "")[:20],
         "forensics_enabled": True,
         "license_home_token": "", "license_homes_used": 0, "license_home_status": "",   # a new key: a fresh home on it
         "license_homes_warning": {},

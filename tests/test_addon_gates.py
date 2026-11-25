@@ -102,9 +102,14 @@ def test_the_looks_pack_draws_showcase_never_placement(gates) -> None:
     assert looks["placed"] == 0 and not any(looks[k] for k in placement), looks
     for name in ("bright", "pro"):
         assert host[name]["showcase"] and host[name]["placed"] == 1 and all(host[name][k] for k in placement), name
-    for name in ["free"] + [a for a in ADDONS if a != "looks"]:
+    for name in ["free"] + [a for a in ADDONS if a not in ("looks", "lighting")]:
         h = host[name]
         assert not h["showcase"] and not h["presets"] and h["placed"] == 0 and not any(h[k] for k in placement), name
+    # Advanced smart lighting (tests/test_addon_lighting.py): the design tools and Showcase as their stage, in
+    # Classic, with no Look presets; never placement.
+    light = host["lighting"]
+    assert light["showcase"] and not light["presets"] and light["theme"] == "classic" and light["placed"] == 0
+    assert all(light[k] for k in placement if k != "placeRow") and not light["placeRow"], light
 
 
 def test_the_four_themes_are_the_looks_pack(gates) -> None:

@@ -57,7 +57,13 @@ _RANK = {t: i for i, t in enumerate(TIERS)}
 # The add-ons this PadSpan knows. Sent with every validate (licence_homes.home_params);
 # views/editions.js ADDONS has their words and prices.
 ADDONS: tuple[str, ...] = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics",
-                           "insights", "maps")
+                           "insights", "maps", "lighting")
+# The plan the licence server names an add-on key's answers with. Stored with the key (license_plan) at activation
+# and on every check, so a key whose add-ons this PadSpan doesn't know yet still reads as an add-on key, never Pro.
+ADDON_PLAN = "addons"
+# The licence server's answer status for an add-on key whose add-ons are all newer than this PadSpan: kept as
+# license_home_status, said on the licence card ("This add-on needs a newer PadSpan — update PadSpan."), never Pro.
+NEEDS_UPDATE = "needs_update"
 # Add-ons not on sale yet (the owner, 2026-11-25): "maps" (Advanced map creation) goes on sale with the free 3D
 # house, the December 1 free-basics switch. PadSpan Pro includes it meanwhile; nothing offers it (views/editions.js
 # ADDONS on_sale: false says the same), and a feature that is free today and moves into it stays everyone's until it
@@ -113,6 +119,8 @@ def key_tier(settings: dict[str, Any] | None) -> str:
     d = settings or {}
     if not str(d.get("forensics_license_key") or "").strip():
         return "free"
+    if str(d.get("license_plan") or "") == ADDON_PLAN or str(d.get("license_home_status") or "") == NEEDS_UPDATE:
+        return "free"                                  # an add-on key, whatever else is stored
     tier = normalize_tier(d.get("license_tier"), default="")
     if tier:
         return tier
@@ -167,7 +175,9 @@ def answer_tier(data: Any) -> str:
     an answer that names add-ons but no known tier is never read as Pro. Any
     other answer: the tier it names, a missing or unknown one Pro (key_tier)."""
     d = data if isinstance(data, dict) else {}
-    if str(d.get("plan") or "") == "addons":
+    # needs_update: an add-on key whose add-ons are all newer than this PadSpan (the licence server's answer). Nothing
+    # about it is Pro, whatever else the answer carries.
+    if str(d.get("plan") or "") == ADDON_PLAN or str(d.get("status") or "") == NEEDS_UPDATE:
         return "free"
     tier = normalize_tier(d.get("tier"), default="")
     if tier:
@@ -181,14 +191,16 @@ def is_addon_key(settings: dict[str, Any] | None) -> bool:
     stays "a licence key is on this install")."""
     d = settings or {}
     return (bool(str(d.get("forensics_license_key") or "").strip()) and key_tier(d) == "free"
-            and bool(normalize_addons(d.get("license_addons")) or normalize_addons_until(d.get("license_addons_until"))))
+            and (str(d.get("license_plan") or "") == ADDON_PLAN   # the server said so: its add-ons may all be new to us
+                 or str(d.get("license_home_status") or "") == NEEDS_UPDATE   # likewise: update PadSpan to know them
+                 or bool(normalize_addons(d.get("license_addons")) or normalize_addons_until(d.get("license_addons_until")))))
 
 
 # An add-on key, as kept aside while a Pro trial runs on this install
 # (license_addons_kept): the trial key takes its place, and it comes back when
 # the trial ends (ws_forensics.ws_trial_start, update_check._revalidate_license).
 ADDON_KEY_FIELDS: tuple[str, ...] = ("forensics_license_key", "forensics_license_expires", "license_tier", "license_addons",
-                                     "license_addons_until", "license_home_token", "license_homes_used")
+                                     "license_addons_until", "license_plan", "license_home_token", "license_homes_used")
 
 
 def addon_allowed(settings: dict[str, Any] | None, key_active: bool, name: str, *,
@@ -229,6 +241,13 @@ def hass_addon_allowed(hass: Any, name: str) -> bool:
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     settings = (st.data if st else {}) or {}
     return addon_allowed(settings, bool(_pro_expiry_state(hass)["active"]), name)
+
+
+def hass_addon_or_bright(hass: Any, name: str) -> bool:
+    """Add-on `name` (PadSpan Pro has it), or a Bright key, which had it before the add-ons: a feature that was
+    Bright's or Pro's never leaves a Bright key (Alarm & security, Advanced smart lighting). views/lights_map.js
+    designUnlocked and lights_panel.js _alarmControls say the same in the panel."""
+    return hass_tier_at_least(hass, "bright") or hass_addon_allowed(hass, name)
 
 
 def hass_addon_gate(hass: Any, name: str) -> bool:

@@ -139,8 +139,9 @@ export function powerState(states, powerEid){
 }
 
 // ── the section ──────────────────────────────────────────────────────────────
-/** The team's part of the control card. o: {el, hass, toast, errorText, close, rerender, track(word)}. Live while the card is
- *  open (Home Assistant's state_changed for the team's own entities). Returns {node, stop}. */
+/** The team's part of the control card. o: {el, hass, toast, errorText, close, rerender, track(word), lightingPrice (the
+ *  Advanced smart lighting add-on's, editions.js), addonsUrl (where to get it; none on a wall)}. Live while the card is open (Home Assistant's state_changed for the
+ *  team's own entities). Returns {node, stop}. */
 export function teamSection(teamEid, o){
   const { el, hass } = o;
   const toast = o.toast || (() => {});
@@ -156,6 +157,9 @@ export function teamSection(teamEid, o){
   node.appendChild(live);
   let stored = null, wakeDefault = null, wakeMinutes = [1, 90], limits = {}, nextWake = null;
   let bedDefault = null, bedMinutes = [1, 120], nightDefault = null;
+  // Advanced smart lighting here (power_teams_get "lighting": PadSpan Pro, the add-on or a Bright key): the day, Sleep
+  // and the wake-up. Without it the team is one light, nothing more (the backend applies none of them).
+  let lighting = true;
   const cap = "font-size:11px;color:#94a3b8;margin:12px 0 5px;text-transform:uppercase;letter-spacing:.06em";
   const btn = (primary) => "padding:7px 10px;font-size:12px;font-weight:700;border-radius:9px;cursor:pointer;font-family:inherit;"
     + (primary ? "background:rgba(251,191,36,.14);color:#fbbf24;border:1px solid rgba(251,191,36,.5)"
@@ -175,7 +179,8 @@ export function teamSection(teamEid, o){
 
     // The day: follow it, or sleep. A brightness or colour chosen above stops the day leading until it is next turned
     // on, or until Follow the day is pressed; the wake-up's light stays until then too.
-    if (Array.isArray(a.effect_list) && a.effect_list.length) {
+    // Advanced smart lighting's: without it the light offers no effects (power_team.py), and the card none either.
+    if (lighting && Array.isArray(a.effect_list) && a.effect_list.length) {
       live.appendChild(el("div", { style: cap }, "The day's light"));
       const following = !!a.follows_the_day, sleeping = a.effect === "Sleep";
       const pick = (effect, word, on) => el("button", {
@@ -285,6 +290,7 @@ export function teamSection(teamEid, o){
     bedDefault = (r && r.bedtime_default) || null; bedMinutes = (r && r.bedtime_minutes) || bedMinutes;
     nightDefault = (r && r.night_default) || null;
     nextWake = (r && r.live && r.live[tid] && r.live[tid].next_wake) || null;    // [day, "HH:MM"]
+    lighting = !(r && r.lighting === false);
     return r;
   }
   async function save(change, word, done){
@@ -347,6 +353,7 @@ export function teamSection(teamEid, o){
   const nodes = {};
   const isOpen = (d) => !!d && (d.open === true || (d.getAttribute && d.getAttribute("open") !== null));
   function buildWake(){
+    if (!lighting) return null;
 
     // The morning alarm: on its days, a team that is off comes on at its dimmest and warmest `minutes` before the time
     // and fades to the brightness and colour by then. A team already on is left alone (someone is up).
@@ -392,7 +399,7 @@ export function teamSection(teamEid, o){
     return wake;
   }
   function buildBedtime(){
-    if (stored.adaptive === false) return null;
+    if (stored.adaptive === false || !lighting) return null;
     // Bedtime: on its days at its time, a lit team fades to Sleep (warming as it dims), then off or stays in Sleep.
     // Only with the day's curve (Sleep is one of its looks).
       const b = { ...(bedDefault || {}), ...(stored.bedtime || {}) };
@@ -421,7 +428,7 @@ export function teamSection(teamEid, o){
       return bed;
   }
   function buildNight(){
-    if (stored.adaptive === false) return null;
+    if (stored.adaptive === false || !lighting) return null;
       // The night light: switched on between these hours (the wall, a tap, an automation), it comes on in Sleep.
       const n = { ...(nightDefault || {}), ...(stored.night || {}) };
       const night = keepOpen(fold(n.on ? `Night light: ${n.from} to ${n.to}` : "Night light: off", "night"));
@@ -442,14 +449,16 @@ export function teamSection(teamEid, o){
       return night;
   }
   function buildAdvanced(){
-    if (!(stored.adaptive !== false || stored.power)) return null;
+    if (!lighting) return null;                          // changing a team is Advanced smart lighting's (its off too)
+    const day = stored.adaptive !== false;
+    if (!(day || stored.power)) return null;
     // The day's curve (adapted from Adaptive Lighting, with credit: THIRD_PARTY_NOTICES.md): its brightness and colour
     // at noon, at the horizon and at midnight, sleep's, and when this light's day starts and ends (the sun's sunrise
     // and sunset moved by minutes, or fixed times). And what a tap's off does.
-      const adv = keepOpen(fold("Advanced: the day's curve" + (stored.power ? " and the power" : ""), "advanced"));
+      const adv = keepOpen(fold(day ? "Advanced: the day's curve" + (stored.power ? " and the power" : "") : "Advanced: the power", "advanced"));
       const c = stored.curve || {};
       const inputs = {}, times = {};
-      if (stored.adaptive !== false) {
+      if (day) {
         for (const [key, words, unit, step] of CURVE_ROWS) {
           const [lo, hi] = limits[key] || (unit === "K" ? [1500, 9000] : unit === "min" ? [-180, 180] : [1, 100]);
           inputs[key] = numIn(c[key] ?? 0, lo, hi, step);
@@ -469,7 +478,7 @@ export function teamSection(teamEid, o){
           + "The limits keep the sun's own times but hold them in: a summer dawn at five need not light the room before half past six."));
       }
       let resumeSel = null;
-      if (stored.adaptive !== false) {
+      if (day) {
         const r = Number(stored.resume) || 0;
         const choices = [[0, "At the next turn-on"], [30, "After 30 min"], [60, "After 1 hour"], [120, "After 2 hours"], [240, "After 4 hours"], [480, "After 8 hours"]];
         if (!choices.some(([v]) => v === r)) choices.push([r, `After ${r} min`]);
@@ -508,7 +517,13 @@ export function teamSection(teamEid, o){
       const n = build();
       if (n) { nodes[k] = n; settings.appendChild(n); } else delete nodes[k];
     }
-    if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up, the bedtime, the night light and the curve."));
+    if (!lighting) settings.appendChild(el("div", { "data-team-lighting": "locked", style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.45" },
+      "Power teams are part of the Advanced smart lighting add-on" + (o.lightingPrice ? ` (${o.lightingPrice})` : "")
+        + ", with PadSpan Pro: following the day, Sleep, the bedtime, the night light, the wake-up and changing a team. Without it this team"
+        + " keeps switching as one light: on, off, dimming, its power and each bulb."));
+    if (!lighting && o.addonsUrl) settings.appendChild(el("a", { "data-team-lighting": "offer", href: o.addonsUrl, target: "_blank", rel: "noopener",
+      style: "display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#fbbf24" }, "Get Advanced smart lighting"));
+    else if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up, the bedtime, the night light and the curve."));
     settings.appendChild(say);
   }
   /** Draw one section again from what was saved, open if it was open. */

@@ -20,7 +20,7 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, addonAllowed } =
+const { tierAtLeast, addonAllowed, addonPrice, ADDONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
 // alone), the English with its {placeholders} filled.
@@ -126,39 +126,55 @@ export const lightingUnlocked = (tier) => tierAtLeast(tier, LIGHTING_TIER);
 // host.tier, and every add-on gate here asks this, the one way: PadSpan Pro
 // has them all (editions.js addonAllowed).
 export const hostAddon = (host, name) => addonAllowed({ tier: host && host.tier, addons_licensed: host && host.addons }, name);
+// The light design tools (the owner, 2026-11-25): WLED's Advanced tab, the
+// fixture shapes (and the W- and P-series strips), the type override,
+// Automorph, Scene, Ripple, Light spread, Fit room and Hide untouched. Bright
+// or Pro as before, or the Advanced smart lighting add-on. `who`: a host
+// ({tier, addons}), or a tier alone (no add-ons).
+export const designUnlocked = (who) => {
+  const w = who && typeof who === "object" ? who : { tier: who };
+  return lightingUnlocked(w.tier) || hostAddon(w, "lighting");
+};
 
 /**
- * The host as the tier sees it. Paid: the host untouched. Free: the fabric's
- * light positions withheld (every light clusters in its room), the
- * presentation modes off and their controls absent, the untouched filter off.
- * The Looks pack add-on (hostAddon "looks") keeps Showcase, its themes, the
- * West Coast Forest and the Look presets; placement and the tools that need
- * it (Fit room, Light spread, Automorph, Scene, Ripple, Hide untouched, the
- * type override) stay Bright or Pro.
+ * The host as the tier sees it. Bright or Pro: the host untouched. Below:
+ *   placement (Bright or Pro alone): the fabric's light positions withheld
+ *     (every light clusters in its room), the placement queue with them;
+ *   the light design tools (designUnlocked: Fit room, Light spread,
+ *     Automorph, Scene, Ripple, Hide untouched, the type override): only with
+ *     the Advanced smart lighting add-on;
+ *   Showcase: with the Looks pack, or as the stage Advanced smart lighting's
+ *     Fit room, Light spread, Scene and Ripple draw on; its themes, the West
+ *     Coast Forest and the Look presets are the Looks pack's alone (Classic
+ *     without it).
  * The host's own objects are never mutated — the model is shallow-copied
  * with a fresh, empty light_positions_m.
  */
 export function lightsHostForTier(host){
   if (lightingUnlocked(host.tier)) return host;
+  const looks = hostAddon(host, "looks"), design = hostAddon(host, "lighting");
   return {
     ...host,
     model: host.model ? { ...host.model, light_positions_m: {} } : host.model,
-    ...(hostAddon(host, "looks") ? {} : { showcase: false, onShowcase: null }),
-    fitRooms: false, onFitRooms: null,
-    hideUntouched: false, untouchedCount: 0, onHideUntouched: null,
-    onTypeOverride: null, typeOverrides: {},
-    isolux: false, onIsolux: null,
-    automorph: false, onAutomorph: null, automorphRoomPct: 0, onAutomorphRoomPct: null,
-    automorphHardness: 0, onAutomorphHardness: null,
-    automorphStyle: "glow", onAutomorphStyle: null,
-    automorphSubtlety: 0, onAutomorphSubtlety: null,
-    sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
-    rippleArmed: false, onRipple: null, onRippleFire: null,
     // Placement is paid, so the placement queue is too. And at free EVERY
     // light is unplaced by construction — collapsing the piles would turn
     // the free map into a row of "N unplaced" chips with no lights on it.
     onPlaceRow: null, placeQueue: null, collapseUnplaced: false,
-    hiddenEidsMap: host.hiddenEids,
+    ...(looks || design ? {} : { showcase: false, onShowcase: null }),
+    ...(looks ? {} : { showcaseTheme: "classic", onShowcaseTheme: null, showcasePresets: [],
+                       onSavePreset: null, onApplyPreset: null, onDeletePreset: null }),
+    ...(design ? {} : {
+      fitRooms: false, onFitRooms: null,
+      hideUntouched: false, untouchedCount: 0, onHideUntouched: null, hiddenEidsMap: host.hiddenEids,
+      onTypeOverride: null, typeOverrides: {},
+      isolux: false, onIsolux: null,
+      automorph: false, onAutomorph: null, automorphRoomPct: 0, onAutomorphRoomPct: null,
+      automorphHardness: 0, onAutomorphHardness: null,
+      automorphStyle: "glow", onAutomorphStyle: null,
+      automorphSubtlety: 0, onAutomorphSubtlety: null,
+      sceneName: null, onScene: null, onSceneAngle: null, onSceneApply: null,
+      rippleArmed: false, onRipple: null, onRippleFire: null,
+    }),
   };
 }
 
@@ -2205,11 +2221,12 @@ function _vacOptionsBox(host) {
 // fetch they share — so the sidebar and the builder can't drift (they have
 // before). `wled` is present only for a light of HA's WLED integration: it
 // turns on the card's Advanced tab (views/wled_advanced.js).
-export function controlApiFor(reg, eid, { tier, isAdmin } = {}){
+export function controlApiFor(reg, eid, { tier, addons, isAdmin } = {}){
   const platform = reg && reg.platformMap ? reg.platformMap[eid] : null;
   return {
     ip: (reg && reg.ipMap && reg.ipMap[eid]) || null,
-    wled: platform === "wled" ? { tier: tier || null, isAdmin: !!isAdmin } : null,
+    // addons: the install's add-ons (settings.addons_licensed): WLED's Advanced tab is Advanced smart lighting's too.
+    wled: platform === "wled" ? { tier: tier || null, addons: Array.isArray(addons) ? addons : [], isAdmin: !!isAdmin } : null,
   };
 }
 
@@ -2503,10 +2520,11 @@ export function openControlCard(hass, eid, api){
   }
 
   // ── WLED: Controls | Advanced ────────────────────────────────────────
-  // Advanced (Bright Pro / Pro) is the full WLED workbench — segments,
-  // effects from the device's own metadata, and more (wled_advanced.js),
-  // reached through PadSpan's backend, never the browser (ws_wled.py).
-  if (api && api.wled && lightingUnlocked(api.wled.tier)) {
+  // Advanced (Bright Pro, Pro or Advanced smart lighting: designUnlocked) is
+  // the full WLED workbench — segments, effects from the device's own
+  // metadata, and more (wled_advanced.js), reached through PadSpan's backend,
+  // never the browser (ws_wled.py).
+  if (api && api.wled && designUnlocked(api.wled)) {
     const controls = el("div");
     // Everything after the header moves into the Controls pane.
     for (const node of Array.from(box.children).slice(1)) { box.removeChild(node); controls.appendChild(node); }
@@ -2592,7 +2610,10 @@ export function openControlCard(hass, eid, api){
   }
 
   if (isTeam && TEAM) {
-    const sec = TEAM.teamSection(eid, { el, hass, toast, errorText, close, rerender, track: (w) => _track(hass, w) });
+    // lightingPrice: what the card says beside Advanced smart lighting where the install has none (editions.js), and
+    // where to get it (never on a wall: nothing there leaves the page).
+    const sec = TEAM.teamSection(eid, { el, hass, toast, errorText, close, rerender, track: (w) => _track(hass, w),
+                                        lightingPrice: addonPrice("lighting"), addonsUrl: api && api.kiosk ? "" : ADDONS_URL });
     teamStop = sec.stop;
     box.appendChild(sec.node);
   }
@@ -3301,8 +3322,12 @@ export function withoutZigbeeDuplicates(lights, settings, inUse){
   return { lights: lights.filter(l => ok.has(l.entity_id)), twins: { hidden: r.hidden, note: TW.hiddenNote(r.hidden, r.via), rows } };
 }
 export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false, reconnects = null, linkedCovers = null){
-  const paid = lightingUnlocked(tier);
-  const pro = tierAtLeast(tier, "pro");
+  // tier: the tier, or {tier, addons} (the install's add-ons): the W- and P-series strips and the fixture shapes are
+  // the light design tools (designUnlocked: Bright, Pro or Advanced smart lighting).
+  const paid = designUnlocked(tier);
+  // The type override: PadSpan Pro's, and Advanced smart lighting's (one of the light design tools); never Bright's.
+  const pro = tierAtLeast(tier && typeof tier === "object" ? tier.tier : tier, "pro")
+    || (!!tier && typeof tier === "object" && hostAddon(tier, "lighting"));
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
   // the map as ONE marker on the motion entity — the occupancy half never
   // gets its own row. The owner: every motion-class marker should look and act
@@ -3346,9 +3371,9 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // sufficient the moment a second binary_sensor family was admitted.
       device_class:  states[eid].attributes?.device_class || null,
       area_name:     areaMap[eid] || null,
-      // The user's word beats detection, at pro: forced class from
-      // settings.light_type_overrides. Never applies to a fan or a lock
-      // (the domain is the class) and never below pro.
+      // The user's word beats detection, at pro (or with Advanced smart
+      // lighting): forced class from settings.light_type_overrides. Never
+      // applies to a fan or a lock (the domain is the class).
       type_override: pro && !eid.startsWith("fan.") && !eid.startsWith("lock.") && !eid.startsWith("cover.") && typeOverrides ? (typeOverrides[eid] || null) : null,
       // The fan card's inputs, present only on fan.* entities.
       pct:           eid.startsWith("fan.") ? (Number.isFinite(Number(states[eid].attributes?.percentage)) ? Number(states[eid].attributes.percentage) : null) : null,

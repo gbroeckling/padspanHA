@@ -381,7 +381,7 @@ export function refreshHouseDevices(ctx, hs, onRegistry) {
   const typeOverrides = (settings.light_type_overrides && typeof settings.light_type_overrides === "object") ? settings.light_type_overrides : {};
   // The Atlas entity set comes from the live house; history fills its states.
   // Side-effect free: this is a replay, not the house now.
-  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap,
+  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, { tier: settings.tier, addons: settings.addons_licensed }, reg.platformMap,
     typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true, null, _linkedCovers(ctx));
   // A Zigbee device's duplicate copy is replayed once, as the Atlas shows it (lights_map.js withoutZigbeeDuplicates).
   const placed = model.light_positions_m || {}, linked = _linkedCovers(ctx);
@@ -612,7 +612,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   // Until history is in (or when it failed), no device states at all —
   // never today's states under a past timestamp.
   const states = devices && hs.timeline ? statesAt(hs.timeline, live, hs.eids, tMs) : {};
-  const lights = gatherLights(states, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs, true, null, _linkedCovers(ctx));
+  const lights = gatherLights(states, reg.areaMap, shapeOverrides, { tier: settings.tier, addons: settings.addons_licensed }, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs, true, null, _linkedCovers(ctx));
   const lightsByEid = {};
   for (const l of lights) lightsByEid[l.entity_id] = l;
   const hidden = new Set(Array.isArray(settings.lights_hidden) ? settings.lights_hidden : []);

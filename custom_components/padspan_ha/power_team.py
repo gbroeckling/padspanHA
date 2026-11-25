@@ -45,6 +45,17 @@ it (light.py) and everything goes through that:
           turned on (or its effect is set back to "Adaptive"); the effect
           "Sleep" is one fixed dim, warm setting
 
+Power teams are Advanced smart lighting's (2026-11-25, the owner): PadSpan Pro,
+the add-on, or a Bright key (io.licensed). Without it nobody makes, changes or
+removes a team (power_teams_set refuses), and a team already made keeps
+working as one light; the day (its curve), Sleep (the night light, bedtime,
+Sleep in N min) and the wake-up need it too. Without it a team is still one light
+(on, off, dimming, its power, each bulb, Try again) and nothing follows the day,
+sleeps or wakes: the curve is not applied and no wake-up or bedtime runs,
+whatever is stored. Lost while a wake-up or bedtime fades, the lights keep what
+they were last sent (a fade already sent runs out on the bulbs), nothing more is
+sent for it and nothing turns them off later; back, the day leads again by itself.
+
 The logic (Team) knows no Home Assistant: its `io` is handed in, so tests
 drive it with a fake clock. The glue at the bottom (async_setup_power_teams)
 is the only part that imports Home Assistant. Teams live in the settings
@@ -97,6 +108,15 @@ WAKE_MINUTES = (1, 90)
 WAKE_START = 3                   # of 255: where a wake-up starts, the dimmest a bulb shows steadily
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 EFFECT_ADAPTIVE, EFFECT_SLEEP = "Adaptive", "Sleep"
+# The day, Sleep and the wake-up are this add-on's (licence.ADDONS): PadSpan Pro, the add-on, or a Bright key.
+ADDON = "lighting"
+LIGHTING_CODE = "addon_required"
+LIGHTING_MESSAGE = ("Sleep and the day's light need PadSpan Pro or the Advanced smart lighting add-on. Enter a key in "
+                    "Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons")
+# Making, changing and removing a team: the add-on's too. A team already made keeps switching without it.
+TEAMS_MESSAGE = ("Making and changing power teams needs PadSpan Pro or the Advanced smart lighting add-on. The teams "
+                 "already made keep switching. Enter a key in Settings → Features → PadSpan licence, or get one at "
+                 "https://padspan.traks.ca/#addons")
 SIGNAL_TEAMS = "padspan_ha_power_teams"
 _ENTITY = re.compile(r"^(light|switch)\.[a-z0-9_]+$")
 _FALLBACK = {"brightness": 255, "kelvin": 2700}
@@ -312,11 +332,20 @@ class Team:
         self._off_at: float | None = None  # when a bedtime (or Sleep in N min) that ends off turns the team off
         self._dim_seen: tuple[int, float] | None = None
         self._rgb: dict[str, tuple] = {}   # each bulb's colour as it showed it after our last send (lights with no colour temperature to read)
+        self._licensed_seen: bool | None = None   # Advanced smart lighting as the last tick saw it (its light is written when it changes)
 
     # what Home Assistant shows
     @property
+    def licensed(self) -> bool:
+        """Advanced smart lighting here (PadSpan Pro, the add-on, or a Bright key): the day, Sleep and the wake-up.
+        An io that doesn't say (the tests' own, before the add-on) has it."""
+        fn = getattr(self.io, "licensed", None)
+        return True if fn is None else bool(fn())
+
+    @property
     def adaptive(self) -> bool:
-        return bool(self.cfg.get("adaptive"))
+        """Does the day lead this team? Its own switch (`adaptive`), and only with Advanced smart lighting."""
+        return bool(self.cfg.get("adaptive")) and self.licensed
 
     @property
     def powerless(self) -> bool:
@@ -442,6 +471,8 @@ class Team:
             await self._run(boot=not powered, fade=left if left > 1 else None)
             return
         self.waking, self._back_at, self._off_at = False, None, None
+        if effect in (EFFECT_SLEEP, EFFECT_ADAPTIVE) and not self.licensed:
+            effect = None                              # the day and Sleep are Advanced smart lighting's: a plain on
         if effect == EFFECT_SLEEP:
             self.sleep, self.manual = True, False
         elif effect == EFFECT_ADAPTIVE:
@@ -473,6 +504,8 @@ class Team:
         minutes to its brightness and colour, which it then keeps (as one chosen by hand) until turned off or set
         back to the day (or `back_after` minutes after its full light). A team already on is left alone, unless it was
         left in Sleep: then it fades up from there. True when it ran."""
+        if not self.licensed:
+            return False                               # the wake-up is Advanced smart lighting's
         lit = self.is_on
         if lit and not self.sleep:
             return False
@@ -483,8 +516,9 @@ class Team:
         if not lit:
             self.want = {"brightness": WAKE_START, "kelvin": c["sleep_kelvin"]}
             await self._run(boot=not self._powered())
-            if self.phase not in ("ready", "failed") or not self.manual or self.sleep or self.want.get("brightness") != WAKE_START:
-                return False                           # turned off, or switched or set by someone, while it started
+            if (self.phase not in ("ready", "failed") or not self.manual or self.sleep or self.want.get("brightness") != WAKE_START
+                    or not self.licensed):
+                return False                           # turned off, switched or set by someone, or the licence gone, while it started
         self.want = {"brightness": max(1, round(w["brightness"] * 255 / 100)), "kelvin": w["kelvin"]}
         self.waking = True
         fade = max(60.0, fade_s if fade_s is not None else w["minutes"] * 60.0)
@@ -732,8 +766,25 @@ class Team:
                 self.want.pop("hs", None)
             self.io.changed()
 
+    def licence_lost(self) -> None:
+        """Advanced smart lighting is gone: the lights stay as they are, steady. A fade already sent runs out on the
+        bulbs; the wake-up's hand-back, a bedtime's off and Sleep end here, and the wake-up's (or Sleep's) light is no
+        longer held as one chosen by hand, so the day leads again by itself once the licence is back (tick). A light
+        someone set by hand stays theirs, as it would with the licence."""
+        if self.sleep or self.waking or self._back_at is not None or self._off_at is not None:
+            if self.waking or self.sleep:
+                self.manual = False                    # the wake-up's (or Sleep's) light, not one chosen by hand
+            self.sleep, self.waking, self._back_at, self._off_at = False, False, None, None
+            self.io.changed()
+
     async def tick(self) -> None:
         """Every ADAPT_EVERY_S: the day moves what is wanted; a bulb that never answered is asked again."""
+        ok = self.licensed
+        if not ok:
+            self.licence_lost()
+        if ok != self._licensed_seen:
+            self._licensed_seen = ok
+            self.io.changed()                          # its light's effects (the day, Sleep) come and go with the licence
         fading = self.fading
         if self._was_fading and not fading:
             self.io.changed()                          # the fade has run: its light says so
@@ -849,8 +900,12 @@ class Manager:
             if cb:
                 cb()
         from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+        def licensed() -> bool:
+            from .licence import hass_addon_or_bright  # noqa: PLC0415
+            return hass_addon_or_bright(hass, ADDON)
         return SimpleNamespace(call=call, state=hass.states.get, sleep=asyncio.sleep, now=time.monotonic,
-                               target=self._target, changed=changed, local=dt_util.now)
+                               target=self._target, changed=changed, local=dt_util.now, licensed=licensed)
 
     def reload(self, stored: list[dict]) -> None:
         """The teams as the settings have them now: kept ones keep what they were doing."""
@@ -893,7 +948,7 @@ class Manager:
             local = dt_util.now()
             for t in list(self.teams.values()):
                 try:
-                    due = wake_due(t.cfg.get("wake") or {}, local)
+                    due = wake_due(t.cfg.get("wake") or {}, local) if t.licensed else None   # Advanced smart lighting's
                     if due and t.woke_day != due[0]:
                         t.woke_day = due[0]                # once a day, lit or not (lit: someone is up already)
                         hass.async_create_task(self._keep_woke())   # and across a restart: never woken twice
@@ -1015,9 +1070,11 @@ def _ws_commands() -> list:
         from homeassistant.util import dt as dt_util  # noqa: PLC0415
         local = dt_util.now()
         live = {tid: {"phase": t.phase, "missing": t.missing, "manual": t.manual, "sleep": t.sleep, "waking": t.waking,
-                      "next_wake": wake_next(t.cfg.get("wake") or {}, local)}
+                      "next_wake": wake_next(t.cfg.get("wake") or {}, local) if t.licensed else None}
                 for tid, t in (m.teams.items() if m else [])}
-        return {"teams": _stored(hass), "live": live, "defaults": dict(CURVE.DEFAULTS), "limits": {k: list(v) for k, v in CURVE.LIMITS.items()},
+        from .licence import hass_addon_or_bright  # noqa: PLC0415
+        # Advanced smart lighting here: the card and Settings offer the day, Sleep and the wake-up only then.
+        return {"teams": _stored(hass), "live": live, "lighting": hass_addon_or_bright(hass, ADDON), "defaults": dict(CURVE.DEFAULTS), "limits": {k: list(v) for k, v in CURVE.LIMITS.items()},
                 "wake_default": dict(WAKE_DEFAULT), "wake_minutes": list(WAKE_MINUTES),
                 "bedtime_default": dict(BEDTIME_DEFAULT), "bedtime_minutes": list(BEDTIME_MINUTES),
                 "night_default": dict(NIGHT_DEFAULT), "resume_max": RESUME_MAX_MIN}
@@ -1032,6 +1089,10 @@ def _ws_commands() -> list:
     @websocket_api.async_response
     async def ws_power_teams_set(hass: Any, connection: Any, msg: dict) -> None:
         from .const import DATA_SETTINGS  # noqa: PLC0415
+        from .licence import hass_addon_or_bright  # noqa: PLC0415
+        if not hass_addon_or_bright(hass, ADDON):
+            connection.send_error(msg["id"], LIGHTING_CODE, TEAMS_MESSAGE)
+            return
         teams = sanitize_teams(msg["teams"])
         if isinstance(teams, str):
             connection.send_error(msg["id"], "invalid", teams)
@@ -1061,6 +1122,9 @@ def _ws_commands() -> list:
         t = m.teams.get(tid) if m and tid else None
         if t is None:
             connection.send_error(msg["id"], "not_found", "That light is not a power team")
+            return
+        if not t.licensed:
+            connection.send_error(msg["id"], LIGHTING_CODE, LIGHTING_MESSAGE)
             return
         if not t.is_on:
             connection.send_result(msg["id"], {"ran": False})

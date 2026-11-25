@@ -659,6 +659,14 @@
    "de": "Busy Times und Locate"
   },
   {
+   "en": "Advanced smart lighting <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$8.65 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$4.32 CAD</span>",
+   "de": "Erweiterte smarte Beleuchtung <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
+  },
+  {
+   "en": "Power teams that follow the day, sleep and wake you, WLED control, Automorph, Scene, Ripple, Light spread, Fit room and fixture shapes",
+   "de": "Power-Teams, die dem Tag folgen, schlafen gehen und dich wecken, WLED-Steuerung, Automorph, Scene, Ripple, Light spread, Fit room und Leuchtenformen"
+  },
+  {
    "en": "PadSpan Bright",
    "de": "PadSpan Bright"
   },

@@ -72,6 +72,7 @@ trial or a tester's) never needs one. Prices in CAD:
 | Looks pack | $4.25 | Day and three more themes, Showcase and the forest |
 | Forensics | $5.56 | Which Bluetooth devices were near a scanner in any time window |
 | Presence insights | $5.56 | Busy Times and Locate |
+| Advanced smart lighting | $8.65 | Power teams that follow the day, sleep and wake you (making and changing a team too; one already made keeps switching without it), WLED control, Automorph, Scene, Ripple, Light spread, Fit room, Hide untouched, fixture shapes and the type override. Placement stays Pro's |
 | Advanced map creation (not on sale yet: it comes with the free 3D house) | $8.65 | AI plan reading, reading a photo, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan (free until it is on sale) |
 
 - Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Your add-ons share one

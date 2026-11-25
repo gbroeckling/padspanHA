@@ -110,6 +110,7 @@ export const ADDONS = Object.freeze([
   // Goes on sale with the free 3D house (the December 1 free-basics switch).
   { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,
     desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
+  { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Power teams that follow the day, sleep and wake you, WLED control, Automorph, Scene, Ripple, Light spread, Fit room and fixture shapes" },
 ]);
 /** Whether add-on `name` is sold now: a known add-on whose entry is not on_sale: false. */
 export function addonOnSale(name) {

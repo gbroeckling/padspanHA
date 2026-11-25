@@ -3,12 +3,13 @@
 [Contents](README.md)
 
 PadSpan HA is free, and the presence tracking stays free: rooms, floor plans, calibration, the
-history, the Home Assistant sensors and the alerts. So are power teams
-([chapter 15](15-the-atlas.md)). **PadSpan Pro** is an optional key that unlocks
+history, the Home Assistant sensors and the alerts. **PadSpan Pro** is an optional key that unlocks
 the paid parts on the same install, with nothing to reinstall:
 
 - exact placement on the Atlas: shapes, sizes, angles, WLED's Advanced controls, Automorph and
   Showcase ([chapter 15](15-the-atlas.md));
+- power teams: making and changing them, following the day, Sleep and the wake-up
+  ([chapter 15](15-the-atlas.md#power-teams));
 - Live Aboard, the 3D house, with Furnish ([chapter 16](16-live-aboard.md),
   [chapter 17](17-furnish.md));
 - wall mode ([chapter 18](18-wall-screens-and-kiosks.md));
@@ -81,16 +82,20 @@ on up to three homes. **PadSpan Pro includes them all.** Prices, and where to bu
 | Looks pack | The Graphite, Ocean, Dusk and Day themes; on the Atlas, Showcase with its themes, the West Coast Forest and the presets bar |
 | Forensics | Forensics recording |
 | Presence insights | Busy Times and Locate |
+| Advanced smart lighting | Power teams: making, changing and removing them, following the day, Sleep, the bedtime, the night light and the wake-up; on the Atlas, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, fixture shapes and the type override (with Showcase in its Classic theme as their stage). Placing a light where it really is stays Pro's |
 
 Free on every install, with or without them: an alarm going off (in the emergency button, with
 nothing to press, and in the red banner), locking and unlocking on the map and in a room's card,
-Alert pulse, the Insights tab and a device's 📍 Locate flash.
+Alert pulse, the Insights tab, a device's 📍 Locate flash, and a power team already made, as one
+light (on, off, dimming, its power and each bulb).
 
 - Your add-ons share one key: buy another with the same email and it joins that key. Enter it here
   like any key; the licence card lists each add-on with its date. An add-on key is not a Pro key.
 - Each add-on gets the same 14 days past its date that a key does.
 - The 90-day trial is still yours: it keeps the add-on key aside and puts it back when it ends.
 - Where a feature is locked, it says what unlocks it: "PadSpan Pro or the … add-on", with the price.
+- A key holding only add-ons newer than your PadSpan still reads as an add-on key, never as Pro: the
+  licence card says "This add-on needs a newer PadSpan — update PadSpan." Update, and it works.
 
 ## Get Pro free by testing it
 

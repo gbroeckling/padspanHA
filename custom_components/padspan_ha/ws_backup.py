@@ -594,7 +594,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             if _licence_rank(_live) >= _licence_rank(data):
                                 for _k in ("forensics_license_key", "forensics_license_expires",
                                            "license_tier", "license_addons", "license_addons_until", "license_addons_kept",
-                                           "license_is_trial",
+                                           "license_is_trial", "license_plan",
                                            # this home among the key's homes (licence_homes.py):
                                            # a restored token would look like a copy of it
                                            "license_home_token", "license_home_label",

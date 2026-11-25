@@ -94,8 +94,8 @@ ADDON_MESSAGE = ("The emergency lights test needs PadSpan Pro or the Alarm & sec
 def licensed(hass: HomeAssistant) -> bool:
     """Whether this install has the test: PadSpan Pro or the Alarm & security add-on, and a Bright key, which
     has had the alarm's controls all along (lights_panel.js _alarmControls; never demoted)."""
-    from .licence import hass_addon_allowed, hass_tier_at_least  # noqa: PLC0415 — licence reads ws_common, which reads a lot
-    return hass_tier_at_least(hass, "bright") or hass_addon_allowed(hass, ADDON)
+    from .licence import hass_addon_or_bright  # noqa: PLC0415 — licence reads ws_common, which reads a lot
+    return hass_addon_or_bright(hass, ADDON)
 
 
 # ── Which lights ─────────────────────────────────────────────────────────────

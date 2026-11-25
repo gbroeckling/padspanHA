@@ -102,8 +102,10 @@ def test_the_file_is_fetched_only_with_the_theme_on() -> None:
     assert "mountForest(svgStr);\n    mountWeather(svgStr);" in lm, "the trees first, the rain over them"
     mount = lm[lm.index("const mountForest = (svgStr) => {"):lm.index("const mountWeather = (svgStr) => {")]
     assert mount.index("if (!forestOn())") < mount.index("_forestLoad();")
-    # Below Bright, Showcase is off (lightsHostForTier) unless the Looks pack add-on keeps it, so the forest is too.
-    assert '...(hostAddon(host, "looks") ? {} : { showcase: false, onShowcase: null }),' in lm
+    # Below Bright, Showcase is off (lightsHostForTier) unless the Looks pack add-on keeps it, so the forest is too;
+    # Advanced smart lighting keeps Showcase as its tools' stage, in Classic only (never the forest).
+    assert '...(looks || design ? {} : { showcase: false, onShowcase: null }),' in lm
+    assert '...(looks ? {} : { showcaseTheme: "classic", onShowcaseTheme: null, showcasePresets: [],' in lm
 
 
 def test_the_ground_is_left_out_only_for_its_own_forest() -> None:

@@ -12,7 +12,7 @@ wenn du es nicht änderst, unter Einstellungen → Ortung → Räume und Zeiten 
 
 **Add-on.** Ein Teil von PadSpan Pro, einzeln gekauft für eine Installation ohne Pro: Audio, Alarm &
 Sicherheit, WLAN-Abdeckung, Klimakarte, Zeitreise, Urlaubsmodus & Voreinstellungen, Looks-Paket,
-Forensik oder Präsenz-Auswertungen. Eine Zahlung gilt 2 Jahre, auf bis zu drei Zuhause; PadSpan Pro
+Forensik, Präsenz-Auswertungen oder Erweiterte smarte Beleuchtung. Eine Zahlung gilt 2 Jahre, auf bis zu drei Zuhause; PadSpan Pro
 enthält sie alle. Siehe [Kapitel 25](25-padspan-pro.md#add-ons).
 
 **Administrator.** Ein Benutzer von Home Assistant mit Administratorrechten. Backups,
@@ -163,7 +163,8 @@ besser zu machen). Aus, bis du ihn einschaltest.
 des Objektverlaufs heraus (1 Tag, wenn du es nicht änderst); benannte bleiben.
 
 **Power-Team.** Ein Wanddimmer oder Schalter und die smarten Birnen, die er versorgt, zu einem Licht
-gemacht (Einstellungen → Atlas → Power teams).
+gemacht (Einstellungen → Atlas → Power teams). Eins anlegen und ändern, und dem Tag folgen, braucht
+PadSpan Pro oder das Add-on Erweiterte smarte Beleuchtung.
 
 **Private BLE Device.** Die Integration von Home Assistant, die einem Handy über seinen IRK folgt.
 PadSpan liest ihre Schlüssel; ein Schlüssel, den du dort einträgst, erreicht PadSpan innerhalb von

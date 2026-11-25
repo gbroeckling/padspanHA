@@ -1518,8 +1518,9 @@ def test_both_hosts_pass_the_tier():
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert "this.state._tier" in panel and "tier: this.state._tier" in panel
-    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects," in panel
-    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,\n    undefined, false, ctx.state._motionReconnects," in maps
+    # gatherLights gets the tier with the install's add-ons (Advanced smart lighting: lights_map.js designUnlocked).
+    assert "gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, { tier: this.state._tier, addons: this.state._addons }, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects," in panel
+    assert "gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, { tier, addons: ctx.state.settings?.addons_licensed }, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,\n    undefined, false, ctx.state._motionReconnects," in maps
     assert "\n    tier,\n" in maps
     for src, name in ((panel, "lights_panel.js"), (maps, "maps.js")):
         assert "LIGHTING_TIER" not in src, f"{name} re-derives the lighting gate; lights_map.js owns it"

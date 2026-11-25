@@ -7,7 +7,8 @@
 // the smart bulbs it feeds, run as one light. Here a team is made, changed
 // and removed; the whole list is saved at once (padspan_ha/power_teams_set,
 // an administrator's). Nothing is saved until Save is pressed. Imports
-// nothing but zigbee_twins.js: settings.js hands in its ctx and el.
+// nothing but zigbee_twins.js: settings.js hands in its ctx and el (and the
+// Advanced smart lighting add-on's price: the day's light is its).
 
 // The same Zigbee device in ZHA and Zigbee2MQTT (zigbee_twins.js): the lists leave the
 // duplicate copy out, unless a team has it. Optional: missing, every copy is offered.
@@ -35,7 +36,7 @@ export function choices(states){
   return out;
 }
 
-export function powerTeamsSection(ctx, el){
+export function powerTeamsSection(ctx, el, { lightingPrice = "", addonsUrl = "" } = {}){
   const box = el("div", { "data-focus-part": "power_teams", style: "margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a" });
   box.appendChild(el("div", { style: "font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px" }, "💡 Power teams"));
   box.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
@@ -49,6 +50,8 @@ export function powerTeamsSection(ctx, el){
   box.appendChild(note);
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   let teams = [], live = {}, defaults = {}, limits = {};
+  // Advanced smart lighting here (power_teams_get "lighting"): teams are made and changed only then (lockedBox).
+  let lighting = true;
   // Edits on this screen not saved yet, and the "Use the Zigbee2MQTT one" lines drawn now. The button saves at once
   // and reads the teams again, which would replace those edits: while there are any, it waits and says why.
   let dirty = false, twinLines = [];
@@ -149,9 +152,29 @@ export function powerTeamsSection(ctx, el){
       .then((r) => { take(r); say(TW.usedNow(((((ctx.hass && ctx.hass.states) || {})[use] || {}).attributes || {}).friendly_name || use)); },
             (e) => say(TW.useFailed(ctx.helpers && ctx.helpers.errorText ? ctx.helpers.errorText(e) : String((e && e.message) || e)), true));
   }
+  // Without Advanced smart lighting (PadSpan Pro, the add-on or a Bright key): the teams already made, as they are, and
+  // no way to make, change or remove one (power_teams_set refuses it). They keep switching as one light each.
+  function lockedBox(t){
+    const l = t.id ? live[t.id] : null;
+    return el("div", { "data-team": t.id || "", style: "border:1px solid #1e3a2a;border-radius:8px;padding:8px 10px;margin-top:6px;font-size:12px;color:#cbd5e1" }, [
+      el("div", { style: "font-weight:600;color:#e2e8f0" }, t.name || "A team"),
+      el("div", { style: "color:#94a3b8;margin-top:2px" }, (t.power ? `Power: ${t.power}. ` : "No power source. ") + `Bulbs: ${(t.bulbs || []).join(", ") || "none"}.`
+        + (l ? ` Now: ${PHASE[l.phase] || l.phase}.` : "")),
+    ]);
+  }
   function draw(){
     twinLines = [];
     while (body.firstChild) body.removeChild(body.firstChild);
+    if (!lighting) {
+      teams.forEach((t) => body.appendChild(lockedBox(t)));
+      body.appendChild(el("div", { "data-team-lighting": "locked", style: "font-size:11px;color:#94a3b8;margin-top:8px;line-height:1.5" },
+        "Power teams are part of the Advanced smart lighting add-on" + (lightingPrice ? ` (${lightingPrice})` : "")
+        + ", with PadSpan Pro: making, changing and removing a team, following the day, Sleep and the wake-up."
+        + (teams.length ? " The teams already made keep switching: on, off, dimming, the power and each bulb." : "")));
+      if (addonsUrl) body.appendChild(el("a", { "data-team-lighting": "offer", href: addonsUrl, target: "_blank", rel: "noopener",
+        style: "display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#fbbf24" }, "Get Advanced smart lighting"));
+      return;
+    }
     if (!teams.length) body.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "No team yet."));
     teams.forEach((t, i) => body.appendChild(teamBox(t, i)));
     if (!admin) { body.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:6px" }, "An administrator makes and changes teams.")); return; }
@@ -170,6 +193,7 @@ export function powerTeamsSection(ctx, el){
     dirty = false;                                  // what the teams are now, as read or as saved
     teams = JSON.parse(JSON.stringify((r && r.teams) || []));
     live = (r && r.live) || {}; defaults = (r && r.defaults) || {}; limits = (r && r.limits) || {};
+    lighting = !(r && r.lighting === false);
     draw();
   }
   // Read only when asked for: Settings draws this page often, and most houses have no team.

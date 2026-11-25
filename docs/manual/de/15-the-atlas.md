@@ -25,8 +25,11 @@ ihr Add-on.
 Ohne Pro schaltet ein Add-on einen Teil des Atlas frei ([Kapitel 25](25-padspan-pro.md#add-ons)):
 **Audio**; **Alarm & Sicherheit** (scharf und unscharf schalten im Notfallknopf, der Test der
 Notbeleuchtung und die Karte einer Tür mit ihrem Öffner und ihrem Schloss); **Klimakarte** (die
-Heatmap); **Urlaubsmodus & Voreinstellungen**; und das **Looks-Paket** (Showcase mit seinen Themen,
-der West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Platzieren bleibt bei Pro).
+Heatmap); **Urlaubsmodus & Voreinstellungen**; das **Looks-Paket** (Showcase mit seinen Themen,
+der West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Platzieren bleibt bei Pro);
+und **Erweiterte smarte Beleuchtung** (Power-Teams, die dem Tag folgen, schlafen gehen und dich
+wecken, die Advanced-Steuerung von WLED, Automorph, Fit room, Light spread, Scene, Ripple, Hide
+untouched, Leuchtenformen und das Festlegen der Art; Platzieren bleibt bei Pro).
 
 ## So kommst du hin
 
@@ -184,7 +187,16 @@ wird nicht benutzt.
 Smarte Farbbirnen in Fassungen, die an einem Wanddimmer oder Wandschalter hängen (zum Beispiel
 Zigbee-Birnen an einem Control4-Dimmer), werden dunkel, wenn jemand an der Wand ausschaltet, und
 kommen in der falschen Farbe zurück. Ein Power-Team macht den Dimmer und seine Birnen in Home
-Assistant zu einem Licht.
+Assistant zu einem Licht. Ein Team anlegen, ändern und entfernen, und dem Tag folgen, Sleep, die
+Schlafenszeit, das Nachtlicht und das Wecken, braucht PadSpan Pro (oder Bright Pro) oder das Add-on
+Erweiterte smarte Beleuchtung ([Kapitel 25](25-padspan-pro.md#add-ons)).
+
+**Ohne das Add-on** arbeitet ein schon angelegtes Team als ein Licht weiter: an, aus, dimmen, sein
+**Cut power** und **Power on**, jede Birne und **Try again**. Es folgt nicht dem Tag, geht nicht
+schlafen und weckt nicht, und niemand kann es ändern oder entfernen; die Einstellungen zeigen es, wie
+es ist, und bieten das Add-on an. Ein Wecken oder eine Schlafenszeit, die gerade blendet, wenn die
+Lizenz endet, bringt die schon an die Birnen geschickte Blende zu Ende, dann bleiben die Lichter, wie
+sie sind. Mit einem Schlüssel führt der Tag von selbst wieder.
 
 **Eins anlegen**: **Einstellungen → Atlas → Power teams**, **+ Add a team**. Gib ihm einen Namen
 („Schlafzimmerlicht“), wähl **Power from** (den Wanddimmer oder Wandschalter, oder **None: these
@@ -234,14 +246,16 @@ in**), mit:
   wird bis dahin voll hell. Ein Team, das schon an ist, bleibt, wie es ist. **Save the wake-up**;
 - **Advanced: the day's curve**.
 
-Ein Administrator ändert das Wecken und die Kurve. Die Sonnenkurve ist aus Adaptive Lighting
-übernommen.
+Ein Administrator ändert das Wecken und die Kurve (mit Pro oder dem Add-on Erweiterte smarte
+Beleuchtung). Die Sonnenkurve ist aus Adaptive Lighting übernommen.
 
 ## Showcase, Automorph und Presets (Pro)
 
 Showcase, seine Themen, der West Coast Forest und die Presets-Leiste gibt es auch mit dem Add-on
 Looks-Paket, auf der kostenlosen Karte; Whole house presets mit dem Add-on Urlaubsmodus &
-Voreinstellungen.
+Voreinstellungen. Automorph, Fit room, Light spread, Scene, Ripple und Hide untouched gibt es mit dem
+Add-on Erweiterte smarte Beleuchtung, mit Showcase im Thema Classic als Bühne (seine Themen, der Wald
+und die Presets-Leiste bleiben beim Looks-Paket).
 
 - **Showcase**: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
   zusammen). Wähl eines in der Werkzeugleiste des Atlas unter **Presentation**.

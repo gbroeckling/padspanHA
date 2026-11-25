@@ -27,6 +27,7 @@ const DEV = await import(pathToFileURL(V + "devices.js").href);
 const BUSY = await import(pathToFileURL(V + "busy_times.js").href);
 const LOC = await import(pathToFileURL(V + "locate.js").href);
 const AIW = await import(pathToFileURL(V + "ai_wizard.js").href);
+const TO = await import(pathToFileURL(V + "trial_offer.js").href);
 
 const out = {};
 const fail = [];
@@ -155,6 +156,45 @@ run("maps", () => {
                                            free: { tier: "free", maps: false }, trial: { tier: "free", maps: false, trial_offerable: true } })) {
     out.helper[k] = AIW.introBlock(info, build);
   }
+});
+
+// ── Advanced smart lighting: the light design tools apart from placement ──
+run("lighting", () => {
+  out.design = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => [k, LM.designUnlocked({ tier: s.tier, addons: s.addons_licensed })]));
+  out.designTier = [LM.designUnlocked("pro"), LM.designUnlocked("bright"), LM.designUnlocked("free"), LM.designUnlocked(null)];
+  // A WLED strip and a shape set by hand: a strip (its effects) and its shape only with the design tools.
+  const states = { "light.strip": { state: "on", attributes: { friendly_name: "Strip", effect_list: ["Solid", "Rainbow"] } },
+                   "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } };
+  out.gather = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => {
+    const ls = LM.gatherLights(states, { "light.strip": "Hall", "light.lamp": "Hall" }, { "light.lamp": "pendant" },
+      { tier: s.tier, addons: s.addons_licensed }, { "light.strip": "wled" });
+    const by = Object.fromEntries(ls.map(l => [l.entity_id, l]));
+    return [k, { strip: Array.isArray(by["light.strip"].effect_list), shape: by["light.lamp"].shape }];
+  }));
+  // The type override, as stored (settings.light_type_overrides): Pro's and Advanced smart lighting's, never Bright's.
+  out.typeOverride = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => {
+    const ls = LM.gatherLights(states, { "light.strip": "Hall", "light.lamp": "Hall" }, {}, { tier: s.tier, addons: s.addons_licensed },
+      {}, { "light.lamp": "plain" });
+    return [k, ls.find(l => l.entity_id === "light.lamp").type_override];
+  }));
+  // WLED's Advanced tab: controlApiFor hands the add-ons to the card.
+  out.wled = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => {
+    const api = LM.controlApiFor({ platformMap: { "light.strip": "wled" } }, "light.strip", { tier: s.tier, addons: s.addons_licensed });
+    return [k, LM.designUnlocked(api.wled)];
+  }));
+  // An add-on key whose add-ons are all newer than this PadSpan (the server's needs_update): never Pro.
+  const key = { tier: "free", pro_has_key: true, addon_key: true, pro_active: true, license_tier: "free", license_plan: "addons",
+                license_addons: [], license_addons_until: {}, addons_licensed: [], license_home_status: "needs_update",
+                forensics_license_expires: "2028-11-25 10:00:00" };
+  const card = SET.render(ctxFor(key, { _settingsTab: "features" }));
+  const t = card.textContent || "";
+  out.needsUpdate = { said: t.includes("This add-on needs a newer PadSpan — update PadSpan."), pro: t.includes("PadSpan Pro licensed") };
+  // A key the server called an add-on key (its plan) holding only add-ons this PadSpan doesn't know, no status: still
+  // an add-on key (the backend's addon_key), never Pro, the update asked for, and the Pro trial still offered.
+  const unknown = { ...key, license_home_status: "", license_addons: ["teleport"], license_addons_until: { teleport: "2028-11-25 10:00:00" } };
+  const t2 = SET.render(ctxFor(unknown, { _settingsTab: "features" })).textContent || "";
+  out.unknownAddons = { said: t2.includes("This add-on needs a newer PadSpan — update PadSpan."), pro: t2.includes("PadSpan Pro licensed"),
+                        buyPro: t2.includes("Buy PadSpan Pro"), trial: TO.trialOfferable(unknown) };
 });
 
 await flush();

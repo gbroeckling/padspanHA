@@ -10349,17 +10349,22 @@ function _lightsTab(ctx, maps, active) {
   // the light, as it does in the sidebar. Nothing stored is touched: enter a
   // key and every placement is back.
   const paid = _isPro(ctx);
-  if (!paid) { mapState._lightsDraftM = {}; mapState._selLight = null; mapState._lightsTransform = false; }
+  // The light design tools without placement (the Advanced smart lighting add-on): a light chosen in the list opens
+  // the inspector with its Shape; its size, angle and spot are its placement's (paid).
+  const design = paid || _addonAllowed(ctx.state.settings, "lighting");
+  if (!paid) { mapState._lightsDraftM = {}; mapState._lightsTransform = false; if (!design) mapState._selLight = null; }
   // Alarm & security: the door card and linking openers and locks (_alarmOk).
   const alarm = _alarmOk(ctx);
   // The type override is PRO specifically — not the bright-or-pro gate
   // _isPro answers. (_isPro's name predates the tier ladder; it means paid.)
   const proTier = String(tier || "").toLowerCase() === "pro";
+  // ... and Advanced smart lighting's, one of the light design tools (the owner, 2026-11-25).
+  const typeOk = proTier || _addonAllowed(ctx.state.settings, "lighting");
   const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
     ? ctx.state.settings.light_type_overrides : {};
   const linkedNow = new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
   const placedNow = { ...((ctx.state.model || {}).light_positions_m || {}), ...(mapState._lightsDraftM || {}) };
-  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
+  const gathered = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, { tier, addons: ctx.state.settings?.addons_licensed }, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
     undefined, false, ctx.state._motionReconnects, linkedNow);
   // The same Zigbee device twice: its duplicate copy is left out unless it is placed or linked (lights_map.js).
   const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gathered, ctx.state.settings, (eid) => !!placedNow[eid] || linkedNow.has(eid));
@@ -10453,10 +10458,13 @@ function _lightsTab(ctx, maps, active) {
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
-        "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips and Fit room "
-        + (_brightProOpen() ? "need PadSpan Bright Pro or PadSpan Pro. " : "need PadSpan Pro. ")
-        // Showcase is the Looks pack's too (lights_map.js lightsHostForTier).
-        + (_addonAllowed(ctx.state.settings, "looks") ? ""
+        "Placing each light where it really is, with its size and angle, "
+        + (_brightProOpen() ? "needs PadSpan Bright Pro or PadSpan Pro. " : "needs PadSpan Pro. ")
+        // The light design tools are Advanced smart lighting's too, Showcase the Looks pack's (lights_map.js lightsHostForTier).
+        + (_addonAllowed(ctx.state.settings, "lighting") ? ""
+          : "Fixture shapes, WLED strips, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ("
+            + _addonPrice("lighting") + "). ")
+        + (_addonAllowed(ctx.state.settings, "looks") || _addonAllowed(ctx.state.settings, "lighting") ? ""
           : "Showcase needs PadSpan Pro or the Looks pack add-on (" + _addonPrice("looks") + "). ")
         + "Already have a key? Enter it in " + _LIC_PATH + ". "),
       el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
@@ -10532,7 +10540,8 @@ function _lightsTab(ctx, maps, active) {
     toggle, toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
     openControls: (eid) => openControlCard(ctx.hass, eid, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms(),
       kiosk: !!ctx.state.kioskMode,   // a wall: no Details, nothing on it leaves the page
-      ...controlApiFor(ctx.state._lightsRegStore?.reg, eid, { tier: ctx.state.settings?.tier, isAdmin: !!ctx.hass?.user?.is_admin }) }),
+      ...controlApiFor(ctx.state._lightsRegStore?.reg, eid, { tier: ctx.state.settings?.tier, addons: ctx.state.settings?.addons_licensed,
+                                                               isAdmin: !!ctx.hass?.user?.is_admin }) }),
     openActivity: (eid) => openActivityCalendar(ctx.hass, eid),
     setMany: (eids, on) => setManyStates(ctx.hass, eids, on, { toast: (m, e) => ctx.toast(m, e), rerender: () => ctx.actions.renderRooms() }),
     doorLockMap: ctx.state._lightsRegStore?.reg?.doorLockMap || {},
@@ -11655,7 +11664,7 @@ function _lightsTab(ctx, maps, active) {
       // activity history instead of the read-only refusal — a free-tier row
       // click went straight to toggle() and never got that treatment.
       if (l.isMotion) { openActivityCalendar(ctx.hass, l.entity_id); return; }
-      if (!paid) { toggle(l.entity_id); return; }
+      if (!design) { toggle(l.entity_id); return; }
       selectLightForPlacement(l);
     },
     // The code column's own click (buildLightsTable's onSelectForPlacement):
@@ -11665,7 +11674,7 @@ function _lightsTab(ctx, maps, active) {
     // to the activity calendar, so before this existed there was no way at
     // all to re-select one for map placement (2026-09-07).
     onSelectForPlacement: (l) => {
-      if (!paid) { toggle(l.entity_id); return; }
+      if (!design) { toggle(l.entity_id); return; }
       selectLightForPlacement(l);
     },
     onToggleHidden: async (eid) => {
@@ -11679,9 +11688,10 @@ function _lightsTab(ctx, maps, active) {
       catch (e) { ctx.toast("Could not save hidden lights: " + ctx.helpers.errorText(e), true); }
       ctx.actions.renderRooms();
     },
-    // Pro only: force a light's class when detection got it wrong. Absent
-    // below pro, so the shared table renders no control there at all.
-    onTypeOverride: proTier ? async (eid, kind) => {
+    // Pro or Advanced smart lighting (typeOk): force a light's class when
+    // detection got it wrong. Absent otherwise, so the shared table renders
+    // no control there at all.
+    onTypeOverride: typeOk ? async (eid, kind) => {
       const next = { ...typeOverrides };
       if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
       try { await ctx.actions.settingsSet({ light_type_overrides: next }); }
@@ -11706,7 +11716,7 @@ function _lightsTab(ctx, maps, active) {
           source: "manual",
         };
       }
-      if (proTier && typeOverrides[eid]) {
+      if (typeOk && typeOverrides[eid]) {
         const next = { ...typeOverrides };
         delete next[eid];
         try { await ctx.actions.settingsSet({ light_type_overrides: next }); }
@@ -11797,7 +11807,7 @@ function _lightsTab(ctx, maps, active) {
                                       file: _heightsFile(ctx, mapState), shapes: shapeOverrides }) : null;
 
   // ── Selected-light inspector — the build tools for one light ────────────
-  const sel = paid && !preview ? mapState._selLight : null;
+  const sel = design && !preview ? mapState._selLight : null;
   if (sel && lightsByEid[sel.eid]) {
     const l = lightsByEid[sel.eid];
     // The light's placement, from the fabric: the unsaved draft first, then
@@ -11805,7 +11815,8 @@ function _lightsTab(ctx, maps, active) {
     // when light positions stopped living on maps — always null, so the whole
     // block behind it (colour, width, length, rotation, Auto position) never
     // rendered for ANY light and only the Shape chooser survived.
-    const entry = (mapState._lightsDraftM || {})[sel.eid]
+    // Without placement (Advanced smart lighting alone) no entry: the Shape chooser only.
+    const entry = !paid ? null : (mapState._lightsDraftM || {})[sel.eid]
       || ((ctx.state.model || {}).light_positions_m || {})[sel.eid]
       || null;
     // lv-atlascol-inspector: layout v2's ultrawide 3rd column (map | table |
@@ -11979,6 +11990,10 @@ function _lightsTab(ctx, maps, active) {
           ctx.actions.renderRooms();
         },
       }, "↺ Auto position"));
+    } else if (!paid) {
+      insp.appendChild(el("span", { class: "lv-hint" },
+        "Clustered in its room. Placing it where it really is, with its size and angle, "
+        + (_brightProOpen() ? "needs PadSpan Bright Pro or PadSpan Pro." : "needs PadSpan Pro.")));
     } else {
       // An outdoor room (shed, garden) is not on the floor stack, so there is
       // no clustered hex to drag — the pin is the way on, same as no room.

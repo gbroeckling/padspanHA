@@ -5839,6 +5839,23 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
             <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
           </form>
         </div>
+        <div data-addon="lighting" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Advanced smart lighting <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $8.65)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Power teams that follow the day, sleep and wake you, WLED control, Automorph, Scene, Ripple, Light spread, Fit room and fixture shapes</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Advanced smart lighting — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-lighting">
+            <input type="hidden" name="amount" value="8.65" data-half-amount="4.32">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
       </div>
       <script>(function(){var b=document.getElementById("addons");if(!b)return;var n=Date.now();
         if(n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until")))return;

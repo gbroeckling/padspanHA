@@ -114,6 +114,6 @@ def test_the_lights_gate_offers_a_way_forward() -> None:
     s = _read(_VIEWS / "maps.js")
     i = s.find("Free lighting map. ")
     assert i > 0, "the free-lighting notice is gone"
-    notice = s[i:i + 900]
+    notice = s[i:i + 1400]   # the add-ons' lines (Advanced smart lighting, the Looks pack) before the link
     assert "_LIC_PATH" in notice, "the notice does not say where to enter a key"
     assert "_LIC_BUY_URL" in notice, "the notice does not link to the purchase page"
