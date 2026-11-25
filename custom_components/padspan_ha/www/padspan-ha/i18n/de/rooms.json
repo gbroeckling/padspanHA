@@ -101,5 +101,46 @@
 "{n} rooms": {
 "one": "{n} Raum",
 "other": "{n} Räume"
+},
+"{n} s": "{n} s",
+"Failed to save: {error}": "Speichern fehlgeschlagen: {error}",
+"Saved": "Gespeichert",
+"Remove {name}": "{name} entfernen",
+"Remove": "Entfernen",
+"Now: {people}": "Jetzt: {people}",
+"Now: nobody": "Jetzt: niemand",
+"turned off by hand: stays off until everyone has left the room": "von Hand ausgeschaltet: bleibt aus, bis alle den Raum verlassen haben",
+"Add a light…": "Licht hinzufügen…",
+"Pick a light: a room is saved once it has one.": "Wähle ein Licht: Ein Raum wird gespeichert, sobald er eines hat.",
+"Off once empty for": "Aus, wenn leer seit",
+"Always": "Immer",
+"Only when the sun is down": "Nur wenn die Sonne untergegangen ist",
+"Only when a light sensor reads below": "Nur wenn ein Helligkeitssensor weniger misst als",
+"Choose a light sensor…": "Helligkeitssensor wählen…",
+"Turn on": "Einschalten",
+"Quiet hours (nothing turns on)": "Ruhezeiten (nichts wird eingeschaltet)",
+"Add a motion or occupancy sensor…": "Bewegungs- oder Präsenzsensor hinzufügen…",
+"Sensors": "Sensoren",
+"A motion or occupancy sensor in the room turns its lights on as soon as it sees someone PadSpan is moving into the room, without waiting for Room Change Delay.": "Ein Bewegungs- oder Präsenzsensor im Raum schaltet dessen Lichter ein, sobald er jemanden sieht, den PadSpan gerade in diesen Raum wechseln sieht, ohne auf die Verzögerung beim Raumwechsel zu warten.",
+"People": "Personen",
+"Everyone you have named counts, except guest tags. A tag that stays put (keys, a bag) keeps its room's lights on: untick it.": "Jedes Gerät, dem du einen Namen gegeben hast, zählt, außer Gast-Tags. Ein Tag, das liegen bleibt (Schlüssel, eine Tasche), hält die Lichter seines Raums an: Nimm dort den Haken weg.",
+"No named phones, watches or tags yet.": "Noch keine benannten Handys, Uhren oder Tags.",
+"guest tag": "Gast-Tag",
+"Lights follow people: on": "Licht folgt Personen: an",
+"Lights follow people: off": "Licht folgt Personen: aus",
+"Lights follow people": "Licht folgt Personen",
+"Turn room lights on and off as people move": "Raumlichter ein- und ausschalten, wenn Personen sich bewegen",
+"When someone with a named phone, watch or tag comes into a room, its lights go on. Once nobody has been in the room for the time you set, they go off. A light someone turns off by hand while they are in the room stays off until everyone has left and someone comes back. Off: nothing is switched.": "Kommt jemand mit einem benannten Handy, einer Uhr oder einem Tag in einen Raum, gehen dessen Lichter an. War so lange niemand im Raum, wie du einstellst, gehen sie aus. Ein Licht, das jemand im Raum von Hand ausschaltet, bleibt aus, bis alle gegangen sind und jemand wiederkommt. Aus: Es wird nichts geschaltet.",
+"No room yet.": "Noch kein Raum.",
+"Add a room…": "Raum hinzufügen…",
+"Blueprints for your own automations": "Blueprints für eigene Automationen",
+"Rather write your own?": "Lieber selbst schreiben?",
+"{n} min": {
+"one": "1 Min.",
+"other": "{n} Min."
+},
+"{n} hours": {
+"one": "1 Stunde",
+"other": "{n} Stunden"
 }
 }

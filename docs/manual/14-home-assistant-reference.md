@@ -459,6 +459,62 @@ may change in a later version.
 | `padspan/devices/<device>/distance` | The distance in metres. Not sent while away. |
 <!-- /generated:mqtt -->
 
+## Lights follow people
+
+PadSpan can switch room lights itself, with no automation to write. It is free, and off until you
+turn it on: Settings → Tracking → Home Assistant and integrations → **Lights follow people**, tick
+**Turn room lights on and off as people move**. Until then nothing is switched.
+
+- **When someone comes in**: when a person with a named phone, watch or tag comes into a room you
+  have set up, its lights go on. Only on coming in: a light someone turns off later is not turned
+  back on, and dusk falling while they sit there does not turn it on either.
+- **When the room is empty**: once nobody has been in the room for its off delay (2 minutes unless
+  you pick 30 seconds to an hour), its lights go off, once. Only a room someone tracked was in: a
+  light turned on in a room nobody tracked has been in is left on. Leaving the house counts as
+  leaving the room.
+- **A light turned off by hand stays off**: if someone turns the room's lights off while they are
+  in it (at the wall, in Home Assistant, or by another automation), PadSpan leaves them off until
+  everyone has left the room for a minute and someone comes back. A walk to the doorway and back is
+  not leaving.
+
+For each room, under **Add a room…**:
+
+- **Lights**: any lights and switches. A new room starts with the lights of the Home Assistant area
+  of the same name. A room is saved once it has a light.
+- **Off once empty for**: the off delay.
+- **Turn on**: always, only when the sun is down, or only when a light sensor reads below a level
+  you set (in lux). A sun or light sensor that can't be read counts as dark.
+- **Quiet hours**: a time range in which nothing is turned on (it may run past midnight). Lights
+  still go off when the room is empty.
+- **Sensors**: motion, occupancy or presence sensors in the room. A room change waits for Room
+  Change Delay (Settings → Tracking → Rooms and timing), 20 to 40 seconds, so the light would come
+  on late. When PadSpan's latest reading already puts someone in a room and that room's own sensor
+  sees movement, the lights go on at once. A new room starts with its area's motion sensors. A
+  sensor alone, with no tracked person, turns nothing on.
+
+**People**: everyone you have named counts, except guest tags ([chapter 7](07-tags-and-beacons.md#guest-tags)).
+Untick anyone who shouldn't switch lights, and tick a guest tag to let it. A tag that stays put
+(keys, a bag) keeps its room lit: untick it.
+
+What each room holds now (who is in it, and whether a light was turned off by hand) shows under
+the room. The opt-in usage report counts how often lights were switched and why not, never a room,
+a name or a light ([chapter 24](24-privacy.md#the-usage-report-opt-in)).
+
+### Blueprints, for your own automations
+
+Three Home Assistant blueprints do the same with Home Assistant's own automations, from PadSpan's
+area sensors. Import one, then make an automation from it under Settings → Automations & scenes →
+Blueprints.
+
+- [Room lights follow people](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgbroeckling%2FpadspanHA%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fpadspan_ha%2Froom_lights_follow_people.yaml): one room's lights on for the
+  first person in, off once nobody you chose has been in it for a while.
+- [Lights on in whichever room you walk into](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgbroeckling%2FpadspanHA%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fpadspan_ha%2Flights_on_in_whichever_room.yaml): one
+  automation for the whole house, by the area named as the room.
+- [Lights off when a room is empty](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgbroeckling%2FpadspanHA%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fpadspan_ha%2Froom_lights_off_when_empty.yaml): off once no phone and no
+  motion sensor has seen anyone for a while.
+
+They are in the repository under `blueprints/automation/padspan_ha/`.
+
 ## Three automations
 
 Each one is a whole automation: paste it into a new automation's **Edit in YAML**. The names are

@@ -88,6 +88,12 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     Yesterday at home's morning message: sent, sent with nothing to
         report, or failed, and which of its lines had something
         (YESTERDAY_HOME_EVENTS); never a name, a room or a time
+    Lights follow people (off by default): a day it ran, a room's lights
+        turned on as someone came in (and how often a motion sensor let it
+        happen at once), turned off once the room was empty, a light turned
+        off by hand and so left off, an entry that left the lights alone
+        (held, quiet hours, daylight), a switch that failed
+        (LIGHTS_FOLLOW_EVENTS); never a room, a name or a light
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -556,6 +562,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_forest",                           # the same theme's trees in Live Aboard
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "power_teams",                                  # Settings → Atlas → Power teams (power_team.py)
+    "lights_follow",                                # Settings → Tracking → Lights follow people (lights_follow.py)
     "power_team_card",                              # a power team on the map: its card (the dimmer and its bulbs as one)
     "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
@@ -1357,6 +1364,15 @@ ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN
 # refused (a wrong code, most often). Counts only, never a code, a mode or which alarm.
 ALARM_BUTTON_WORDS: tuple[str, ...] = ("shown", "arm", "disarm", "refused")
 ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALARM_BUTTON_WORDS)
+# Lights follow people (lights_follow.py, 2026-11-24, off by default): on_today once a day while it is on with a
+# room set; lit a room's lights turned on as someone came in, sensor_entry when a room's own motion or occupancy
+# sensor let that happen before Room Change Delay; off_empty turned off once the room was empty for its delay;
+# manual_hold a light turned off by hand with someone in the room (then left off), held an entry that left it off
+# for that reason; skip_quiet / skip_daylight an entry in quiet hours or while it was light; failed a light that did
+# not take the call. Counts only, never a room, a name or a light.
+LIGHTS_FOLLOW_WORDS: tuple[str, ...] = ("on_today", "lit", "sensor_entry", "off_empty", "manual_hold", "held",
+                                        "skip_quiet", "skip_daylight", "failed")
+LIGHTS_FOLLOW_EVENTS: frozenset[str] = frozenset(f"lights_follow:{w}" for w in LIGHTS_FOLLOW_WORDS)
 # The robot's Wi-Fi while it cleans (vacuum_moving.py, 2026-11-25, off by default): moving_on once a day while the
 # owner's switch is on and the robot linked; moving_read_1/_100/_1000 once a day as the day's kept readings reach
 # each; moving_skipped a reading not kept (its position too old, or no position or signal); moving_failed a read
@@ -1524,6 +1540,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "guest_tags_enabled": "guest_tags",
     # Yesterday at home's morning message (2026-11-25, off by default): on only.
     "yesterday_home_enabled": "yesterday_home",
+    # Lights follow people (2026-11-24, off by default): on only.
+    "lights_follow_enabled": "lights_follow",
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",
@@ -1837,7 +1855,7 @@ def event_allowed(name: str) -> bool:
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
-            or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS)
+            or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS or name in LIGHTS_FOLLOW_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

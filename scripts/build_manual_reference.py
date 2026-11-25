@@ -1287,7 +1287,7 @@ def _default_words(key: str) -> str:
 
 # The panel's text, for checking a label is really there.
 PLACE_FILES = {
-    "Settings": ("views/settings.js", "views/wall_card.js", "views/screens_card.js", "views/power_teams.js"),
+    "Settings": ("views/settings.js", "views/wall_card.js", "views/screens_card.js", "views/power_teams.js", "views/lights_follow.js"),
     "Manage": ("views/manage.js",),
     "Mapping": ("views/maps.js", "views/lights_map.js", "views/iso_lights.js"),
     "Atlas": ("lights_panel.js", "views/lights_map.js", "views/iso_lights.js"),
@@ -1378,6 +1378,9 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "fabric_origin_lon": (T + "Home Assistant and integrations", "GPS Bridge", "Origin longitude", "See Origin latitude."),
     "fabric_bearing_deg": (T + "Home Assistant and integrations", "GPS Bridge", "Bearing (°)", "Which way the layout's up points, in degrees clockwise from true north. Live Aboard's North is the same setting."),
     "padspan_automations": (T + "Home Assistant and integrations", "Automations", "", "Simple arrive and depart rules that turn a light, switch, scene or script on or off."),
+    "lights_follow_enabled": (T + "Home Assistant and integrations", "Lights follow people", "Turn room lights on and off as people move", "A room's lights go on when someone with a named phone, watch or tag comes in, and off once it has been empty for its delay. A light turned off by hand stays off until everyone has left."),
+    "lights_follow_rooms": (T + "Home Assistant and integrations", "Lights follow people", "Add a room…", "Each room's lights, how long it stays empty before they go off (2 minutes unless chosen), only when dark (the sun, or a light sensor below a level), quiet hours and motion or occupancy sensors that confirm an entry at once."),
+    "lights_follow_people": (T + "Home Assistant and integrations", "Lights follow people", "People", "Who is left out (or, for a guest tag, let in), by name. Everyone named counts but guest tags."),
     "tags_room_events_enabled": (T + "Home Assistant and integrations", "HA Tags Integration", "Room-change tag events", "A tag scan and a `padspan_room_change` event each time a followed device changes room."),
     "tags_nfc_identify_enabled": (T + "Home Assistant and integrations", "HA Tags Integration", "NFC tap-to-identify", "Scanning an NFC tag names the strongest unnamed Bluetooth signal in that phone's room."),
     "tags_phone_autolink_enabled": (T + "Home Assistant and integrations", "HA Tags Integration", "Phone auto-link on NFC scan", "A phone that scans any NFC tag is followed by its BLE Transmitter."),

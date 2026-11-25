@@ -2380,6 +2380,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # ── Yesterday at home: once a day at the chosen time; nothing while off ──
         self._maybe_yesterday_home()
+        # ── Lights follow people (lights_follow.py): returns at once while off ──
+        # This poll's room for each key goes too: a room's own motion or
+        # occupancy sensor may confirm an entry before Room Change Delay does.
+        try:
+            from .lights_follow import async_poll as _lights_follow_poll  # noqa: PLC0415
+            await _lights_follow_poll(self.hass, result, _cur_present, self._last_candidate)
+        except Exception as _lf_err:
+            _LOGGER.warning("Lights follow people (non-fatal): %s", _lf_err)
 
         # ── Adjacency co-visibility learning (Phase 1) ────────────────────────
         # In auto mode, when no map-derived adjacency exists, learn room
@@ -4795,21 +4803,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     and action in ("turn_on", "turn_off")
                     and parts[0] in ("light", "switch", "scene", "script")
                 ):
-                    svc_domain, _ = parts
                     try:
-                        # A power team's wall dimmer or bulb: switched as its team (power_team.py).
-                        from .power_team import team_light_of  # noqa: PLC0415
-                        _team = team_light_of(self.hass, entity_id)
-                        if _team != entity_id:
-                            entity_id, svc_domain = _team, "light"
-                        # A WLED light PadSpan runs: its remembered look (wled_exact.py).
-                        from .wled_exact import async_power, is_exact_entity  # noqa: PLC0415
-                        if svc_domain == "light" and is_exact_entity(self.hass, entity_id):
-                            await async_power(self.hass, entity_id, action == "turn_on", source="presence")
-                        else:
-                            await self.hass.services.async_call(
-                                svc_domain, action, {"entity_id": entity_id}
-                            )
+                        # A power team's wall dimmer or bulb is switched as its team, a WLED
+                        # light PadSpan runs with its remembered look (power_team.async_switch).
+                        from .power_team import async_switch  # noqa: PLC0415
+                        entity_id = await async_switch(self.hass, entity_id, action == "turn_on", source="presence")
+                        svc_domain = entity_id.split(".", 1)[0]
                         _LOGGER.info(
                             "PadSpan automation: %s %s → %s.%s(%s)",
                             trigger, device_label or device_key,

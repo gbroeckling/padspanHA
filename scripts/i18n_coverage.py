@@ -77,7 +77,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "training3": ("views/training.js#training3",),
     # German first (2026-11-23): Rooms, Traceback, the Atlas and the 3D house. Their nl/fr files are still empty,
     # so those screens stay English there (tests/test_panel_i18n.py _GERMAN_FIRST).
-    "rooms": ("views/rooms.js",),
+    "rooms": ("views/rooms.js", "views/lights_follow.js"),   # Lights follow people: set up room by room
     "traceback": ("views/traceback.js", "views/insights.js", "views/busy_times.js", "views/house_activity.js"),
     "atlas1": ("lights_panel.js", "views/alarm_panel.js", "views/atlas_aboard.js", "views/atlas_heatmap.js", "views/atlas_screen.js", "views/atlas_heights.js", "views/scene_row.js", "views/light_codes.js", "views/iso_lights.js"),
     "atlasmap": ("views/lights_map.js",),

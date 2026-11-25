@@ -70,9 +70,10 @@ ALLOWED: dict[tuple[str, str, str], tuple[str, str | None, str]] = {
     # ── Services: change a light/switch state or send a message, nothing else
     ("emergency_test.py", "_switch", "services.async_call"):
         (OWN, "domain not in _SWITCHABLE", "Emergency test: turn_on/off of lights/switches the user picked"),
-    ("presence_coordinator.py", "_run_automations", "services.async_call"):
-        (OWN, '("light", "switch", "scene", "script")',
-         "PadSpan arrive/depart rules: turn_on/off of the entity the user set in the rule"),
+    ("power_team.py", "async_switch", "services.async_call"):
+        (OWN, "domain not in _RULE_DOMAINS",
+         "PadSpan arrive/depart rules and Lights follow people (off by default): turn_on/off of a light, switch, "
+         "scene or script the user set in the rule or the room"),
     ("presence_coordinator.py", "async_send_follow_notify", "services.async_call"):
         (OWN, "follow_target_allowed(preferred)",
          "follow alerts: sends a notification through the notify service the user chose"),

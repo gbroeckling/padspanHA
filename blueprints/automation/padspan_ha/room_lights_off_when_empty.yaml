@@ -1,0 +1,63 @@
+blueprint:
+  name: PadSpan - lights off when a room is empty
+  description: >-
+    A room's lights go off once no phone, watch or tag you chose has been in
+    it, and its motion sensors (if any) have seen nobody, for the time you
+    set. Someone reading a book with their phone beside them keeps the light
+    on, where a motion sensor alone would turn it off. It only acts when the
+    room goes from in use to empty, so a light turned on in an empty room is
+    left alone.
+  domain: automation
+  source_url: https://github.com/gbroeckling/padspanHA/blob/main/blueprints/automation/padspan_ha/room_lights_off_when_empty.yaml
+  input:
+    people:
+      name: Area sensors
+      description: The area sensor of each phone, watch or tag that counts (sensor.<name>_area).
+      selector:
+        entity:
+          domain: sensor
+          multiple: true
+    room:
+      name: Room
+      description: The room's name exactly as the area sensors show it, capitals included.
+      selector:
+        text:
+    motion:
+      name: Motion or occupancy sensors (optional)
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+    lights:
+      name: Lights
+      selector:
+        target:
+          entity:
+            domain:
+              - light
+              - switch
+    off_delay:
+      name: Off once empty for
+      default:
+        minutes: 2
+      selector:
+        duration:
+
+mode: single
+
+trigger_variables:
+  people: !input people
+  room: !input room
+  motion: !input motion
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {{ people | map('states') | select('eq', room) | list | count == 0
+         and motion | select('is_state', 'on') | list | count == 0 }}
+    for: !input off_delay
+
+actions:
+  - action: homeassistant.turn_off
+    target: !input lights

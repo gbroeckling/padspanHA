@@ -953,6 +953,26 @@ def team_light_of(hass: Any, eid: str) -> str:
     return eid
 
 
+_RULE_DOMAINS = ("light", "switch", "scene", "script")
+
+
+async def async_switch(hass: Any, eid: str, on: bool, *, source: str) -> str:
+    """Switch `eid` on or off the way PadSpan's rules do (presence automations, Lights follow people): a team
+    member through its team (team_light_of), a WLED light PadSpan runs with its remembered look (wled_exact.py),
+    anything else by its own domain's turn_on / turn_off. Only a light, switch, scene or script: anything else is
+    refused here, at the one place the call is made, whatever was stored. Returns what was switched."""
+    target = team_light_of(hass, eid)
+    domain = target.split(".", 1)[0]
+    if domain not in _RULE_DOMAINS:
+        raise ValueError(f"not a light, switch, scene or script: {target}")
+    from .wled_exact import async_power, is_exact_entity  # noqa: PLC0415
+    if domain == "light" and is_exact_entity(hass, target):
+        await async_power(hass, target, on, source=source)
+    else:
+        await hass.services.async_call(domain, "turn_on" if on else "turn_off", {"entity_id": target})
+    return target
+
+
 def manager(hass: Any) -> Manager | None:
     return hass.data.get(DOMAIN, {}).get("power_team_manager")
 

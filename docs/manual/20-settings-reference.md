@@ -118,6 +118,9 @@ folding heading on that tab.
 | GPS Bridge: Origin longitude | not set | -180 to 180, or empty | See Origin latitude. | `fabric_origin_lon` |
 | GPS Bridge: Bearing (°) | 0 | 0 to 360 | Which way the layout's up points, in degrees clockwise from true north. Live Aboard's North is the same setting. | `fabric_bearing_deg` |
 | Automations | not set |  | Simple arrive and depart rules that turn a light, switch, scene or script on or off. | `padspan_automations` |
+| Lights follow people: Turn room lights on and off as people move | off | on or off | A room's lights go on when someone with a named phone, watch or tag comes in, and off once it has been empty for its delay. A light turned off by hand stays off until everyone has left. | `lights_follow_enabled` |
+| Lights follow people: Add a room… | empty |  | Each room's lights, how long it stays empty before they go off (2 minutes unless chosen), only when dark (the sun, or a light sensor below a level), quiet hours and motion or occupancy sensors that confirm an entry at once. | `lights_follow_rooms` |
+| Lights follow people: People | empty |  | Who is left out (or, for a guest tag, let in), by name. Everyone named counts but guest tags. | `lights_follow_people` |
 | HA Tags Integration: Room-change tag events | off | on or off | A tag scan and a `padspan_room_change` event each time a followed device changes room. | `tags_room_events_enabled` |
 | HA Tags Integration: NFC tap-to-identify | off | on or off | Scanning an NFC tag names the strongest unnamed Bluetooth signal in that phone's room. | `tags_nfc_identify_enabled` |
 | HA Tags Integration: Phone auto-link on NFC scan | off | on or off | A phone that scans any NFC tag is followed by its BLE Transmitter. | `tags_phone_autolink_enabled` |

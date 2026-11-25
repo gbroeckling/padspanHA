@@ -802,6 +802,9 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("yesterday_home_time"): str,             # "HH:MM"
         vol.Optional("yesterday_home_target"): str,           # a notify target, or "" for a Home Assistant notification
         vol.Optional("yesterday_home_lines"): _LIST,          # words from presence_coordinator.YESTERDAY_LINES
+        vol.Optional("lights_follow_enabled"): bool,          # lights_follow.py, off by default
+        vol.Optional("lights_follow_rooms"): _MAP,             # cleaned by lights_follow.clean_rooms
+        vol.Optional("lights_follow_people"): _MAP,            # cleaned by lights_follow.clean_people
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1370,6 +1373,15 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     _ystamp = yesterday_stamp_on(hass, {**st.data, **payload})
                     if _ystamp is not None:
                         payload["yesterday_home_sent_day"] = _ystamp
+        # Lights follow people (lights_follow.py; its switch is with the others
+        # below): what is kept of the rooms and people. Anything that is not a
+        # light, a sensor, a time or a known choice is dropped.
+        if "lights_follow_rooms" in msg or "lights_follow_people" in msg:
+            from .lights_follow import clean_people as _lf_people, clean_rooms as _lf_rooms  # noqa: PLC0415
+            if "lights_follow_rooms" in msg:
+                payload["lights_follow_rooms"] = _lf_rooms(msg["lights_follow_rooms"])
+            if "lights_follow_people" in msg:
+                payload["lights_follow_people"] = _lf_people(msg["lights_follow_people"])
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",
@@ -1526,7 +1538,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "roomplan_import_enabled", "vacuum_import_enabled",
                     "rssi_capture_enabled",
                     "phone_wizard_enabled", "iphone_irk_guide", "mac_rotation_bridging",
-                    "apple_auto_classify", "low_memory_mode", "optimize_for_scale"):
+                    "apple_auto_classify", "low_memory_mode", "optimize_for_scale", "lights_follow_enabled"):
             if key in msg:
                 payload[key] = bool(msg[key])
         if "license_tier_override" in msg:

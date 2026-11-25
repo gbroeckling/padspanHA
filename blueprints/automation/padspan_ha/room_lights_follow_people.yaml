@@ -1,0 +1,88 @@
+blueprint:
+  name: PadSpan - room lights follow people
+  description: >-
+    One room's lights go on when someone you choose walks in, and off once
+    nobody you chose has been in it for a while. Pick the area sensor of each
+    phone, watch or tag to follow (sensor.<name>_area, made when you name the
+    device in PadSpan). The lights go on only for the first one in, so a
+    light someone turned off by hand stays off while others come and go.
+    PadSpan has this built in too: Settings, Tracking, Home Assistant and
+    integrations, Lights follow people.
+  domain: automation
+  source_url: https://github.com/gbroeckling/padspanHA/blob/main/blueprints/automation/padspan_ha/room_lights_follow_people.yaml
+  input:
+    people:
+      name: Area sensors
+      description: The area sensor of each phone, watch or tag to follow.
+      selector:
+        entity:
+          domain: sensor
+          multiple: true
+    room:
+      name: Room
+      description: >-
+        The room's name exactly as the area sensors show it, capitals
+        included (look it up under Developer tools, States).
+      selector:
+        text:
+    lights:
+      name: Lights
+      selector:
+        target:
+          entity:
+            domain:
+              - light
+              - switch
+    off_delay:
+      name: Off once empty for
+      default:
+        minutes: 2
+      selector:
+        duration:
+    only_after_sunset:
+      name: Only after sunset
+      description: Turn the lights on only while the sun is below the horizon.
+      default: false
+      selector:
+        boolean:
+
+mode: queued
+max: 10
+
+variables:
+  people: !input people
+  room: !input room
+  only_after_sunset: !input only_after_sunset
+
+triggers:
+  - trigger: state
+    entity_id: !input people
+    to: !input room
+    id: entered
+  - trigger: state
+    entity_id: !input people
+    from: !input room
+    for: !input off_delay
+    id: empty
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: entered
+          # The first one in: someone already there may have turned the light off.
+          - condition: template
+            value_template: "{{ people | map('states') | select('eq', room) | list | count == 1 }}"
+          - condition: template
+            value_template: "{{ not only_after_sunset or is_state('sun.sun', 'below_horizon') }}"
+        sequence:
+          - action: homeassistant.turn_on
+            target: !input lights
+      - conditions:
+          - condition: trigger
+            id: empty
+          - condition: template
+            value_template: "{{ people | map('states') | select('eq', room) | list | count == 0 }}"
+        sequence:
+          - action: homeassistant.turn_off
+            target: !input lights

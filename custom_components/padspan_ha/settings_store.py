@@ -53,6 +53,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "yesterday_home_target": "",           # a notify target (the Follow picker's); "" = a Home Assistant notification
     "yesterday_home_lines": ["comings", "guests", "empty_rooms", "lights"],   # YESTERDAY_LINES, in that order
     "yesterday_home_sent_day": "",         # backend-only: the day ("YYYY-MM-DD") last told, so a restart never tells it twice
+    # Lights follow people (lights_follow.py): off until chosen in Settings; nothing runs while off.
+    "lights_follow_enabled": False,
+    "lights_follow_rooms": {},     # {room: {lights, off_delay_s, dark, lux_entity, lux_below, quiet, sensors}} — lights_follow.clean_rooms
+    "lights_follow_people": {},    # {name (lower case): counts} — a name not here counts, unless a guest tag
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
     # Enhanced security (ws_common.require_admin_if_enhanced): off = every
     # command as before; on = only an admin changes the home's shared setup.
