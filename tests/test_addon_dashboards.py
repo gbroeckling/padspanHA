@@ -126,15 +126,15 @@ def test_the_summary_adds_up_the_addons_section():
     # Demand without purchase: A now holds the alarm; B went Pro; C (a trial) still has no Presence insights.
     assert re.search(r"alarm +1 installs, 0 still without it \(emergency_test 2\)", text), text
     assert re.search(r"insights +2 installs, 1 still without it \(busy_times 2, locate 1\)", text), text
-    # Use: on it = an add-on key carrying it, or Pro; lighting is everyone's.
+    # Use: on it = an add-on key carrying it, or Pro (Advanced smart lighting is an add-on on sale, like the rest).
     assert re.search(r"\n    alarm +2 +1  50%\n", text), text
     assert re.search(r"\n    maps +1 +1  100%\n", text), text
-    assert re.search(r"\n    lighting +3 +1  33%  not sold yet", text), text
+    assert re.search(r"\n    lighting +1 +1  100%\n", text), text
     assert re.search(r"emergency_test -> alarm +1  holding alarm 1, on Pro 0", text), text
-    assert re.search(r"power_teams -> lighting +1  not sold yet", text), text
+    assert re.search(r"power_teams -> lighting +1  holding lighting 0, on Pro 1", text), text
     assert re.search(r"lidar -> maps +1  holding maps 0, on Pro 1", text), text
     assert "alarm: alarm panels 1 (2), garage openers 1 (1), emergency lights 1 (4); any of them 1 installs, 1 already on it" in text
-    assert "lighting: WLED devices 1 (3), power teams 1 (2); any of them 1 installs, not sold yet" in text
+    assert "lighting: WLED devices 1 (3), power teams 1 (2); any of them 1 installs, 1 already on it" in text
     assert "maps: robot vacuums 1 (1), plans by source: picture 1, Valetudo 1; any of them 2 installs, 1 already on it" in text
     assert "audio: control4 1 (22 players); any of them 1 installs, 1 already on it" in text
     assert "Control4: 2 installs" in text and "the local token override on 1" in text
