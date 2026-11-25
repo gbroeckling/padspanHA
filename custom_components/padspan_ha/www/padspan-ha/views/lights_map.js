@@ -355,13 +355,21 @@ export function readoutOf(hass, eid){
 // a browser warning), on top of the card or sheet it came from. Resolves true
 // for Unlock, false for Cancel, a tap beside the box or Escape.
 export function confirmUnlock(name){
+  return confirmAsk(t("Unlock {name}?", { name }), t("Unlock"));
+}
+// The same box for any switch that must not go on one stray press: the
+// question, the button that does it, Cancel. The alarm on the emergency button
+// (alarm_panel.js) asks here too, with a field for the panel's code when it
+// wants one (code: "number" or "text"): then it resolves the code typed, and
+// its button does nothing until there is one. The code is never kept.
+export function confirmAsk(question, yesLabel, { code = null } = {}){
   return new Promise((resolve) => {
     const el = _mkEl;
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;inset:0;background:rgba(3,8,5,.62);z-index:10002;"
       + "display:flex;align-items:center;justify-content:center;"
       + "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)";
-    let done = false, release = () => {};
+    let done = false, release = () => {}, field = null;
     const onKey = (e) => { if (e && e.key === "Escape") finish(false); };
     const finish = (ok) => {
       if (done) return;
@@ -369,15 +377,30 @@ export function confirmUnlock(name){
       document.removeEventListener("keydown", onKey, true);
       overlay.remove();
       release();
+      if (field) field.value = "";
       resolve(ok);
     };
+    const yes = () => {
+      if (!field) { finish(true); return; }
+      const typed = String(field.value || "");
+      if (!typed) { try { field.focus(); } catch (_) { /* no focus to give */ } return; }
+      finish(typed);
+    };
     overlay.addEventListener("click", e => { if (e.target === overlay) finish(false); });
-    const box = el("div", { role: "alertdialog", "aria-label": t("Unlock {name}?", { name }), style:
+    const box = el("div", { role: "alertdialog", "aria-label": question, style:
       "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
       + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
       + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
       + "box-shadow:0 20px 60px rgba(0,0,0,.65)" });
-    box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:14px" }, t("Unlock {name}?", { name })));
+    box.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:14px" }, question));
+    if (code) {
+      field = el("input", { type: "password", autocomplete: "off", "aria-label": t("Code"), placeholder: t("Code"),
+        inputmode: code === "number" ? "numeric" : "text",
+        style: "box-sizing:border-box;width:100%;margin-bottom:12px;padding:9px 10px;font-size:15px;border-radius:10px;"
+          + "background:#0a140e;color:#e2e8f0;border:1px solid rgba(120,190,155,.3)",
+        onkeydown: (e) => { if (e && e.key === "Enter") { e.preventDefault(); yes(); } } });
+      box.appendChild(field);
+    }
     const no = el("button", {
       style: "padding:9px 14px;font-size:13px;border-radius:10px;cursor:pointer;"
         + "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.18);color:#94a3b8",
@@ -387,17 +410,18 @@ export function confirmUnlock(name){
       el("button", {
         style: "flex:1;padding:9px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
           + "background:#2d6a4f;color:#e2e8f0;border:1px solid #52b788",
-        onclick: (e) => { e.stopPropagation(); finish(true); },
-      }, t("Unlock")),
+        onclick: (e) => { e.stopPropagation(); yes(); },
+      }, yesLabel),
       no,
     ]));
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     // Escape is Cancel (dialog_keys.js; without it, the listener here).
-    if (KEYS) release = _holdKeys(box, { close: () => finish(false), modal: true, focus: no });
+    if (KEYS) release = _holdKeys(box, { close: () => finish(false), modal: true, focus: field || no });
     else document.addEventListener("keydown", onKey, true);
-    // Enter on a keyboard must not unlock by itself: Cancel has the focus.
-    try { no.focus(); } catch (_) { /* no focus to give */ }
+    // Enter on a keyboard must not say yes by itself: Cancel has the focus,
+    // or the code field, where Enter says yes only once a code is typed.
+    try { (field || no).focus(); } catch (_) { /* no focus to give */ }
   });
 }
 

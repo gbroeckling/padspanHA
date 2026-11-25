@@ -82,6 +82,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     robot vacuum room location runs: started, how each ended, undone, and
         the points a run added in buckets (ROBOT_RUN_EVENTS); never the
         robot's address, a room or a name
+    the alarm on the Atlas's emergency button: its controls shown, an arm,
+        a disarm, one Home Assistant refused (ALARM_BUTTON_EVENTS); never a
+        code, a mode or which alarm
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -582,6 +585,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "vacuum_import",                                # the Mapping tab's "Import from a robot vacuum"
     "robovac_card",                                 # the robot vacuum's card: a hold on it, on the Atlas or in 3D
     "robovac_findings",                             # its Find mistakes card: receivers the runs say are misplaced
+    "alarm_panel",                                  # the house's alarm on the Atlas's emergency button, and in the banner
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
     "atlas_heights",                                # Mapping's Height row and Heights list (Live Aboard's heights)
@@ -1324,6 +1328,11 @@ ROBOT_RUN_WORDS: tuple[str, ...] = ("started", "finished", "stopped", "failed", 
                                     # how the owner chose to use the robot's points (vacuum_use.py), once per run
                                     "use_full", "use_fill", "use_none")
 ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN_WORDS)
+# The house's alarm on the Atlas's emergency button (views/alarm_panel.js, 2026-11-24): its controls shown (once per
+# page load, Bright or Pro, a house with an alarm_control_panel), an arm or a disarm Home Assistant took, and one it
+# refused (a wrong code, most often). Counts only, never a code, a mode or which alarm.
+ALARM_BUTTON_WORDS: tuple[str, ...] = ("shown", "arm", "disarm", "refused")
+ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALARM_BUTTON_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
 WIZARD_DRAW_WORDS: tuple[str, ...] = ("name", "no_room", "kept")
@@ -1794,7 +1803,7 @@ def event_allowed(name: str) -> bool:
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
-            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS)
+            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

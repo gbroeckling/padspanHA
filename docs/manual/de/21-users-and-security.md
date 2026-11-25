@@ -9,7 +9,8 @@ PadSpan nutzt die eigenen Benutzer von Home Assistant. Es gibt keine PadSpan-Kon
 ## Wer PadSpan öffnen kann
 
 Jeder Benutzer von Home Assistant kann PadSpan und den Atlas in der Seitenleiste öffnen und alles
-darauf sehen. Haushaltsmitglieder können immer die Lichter, den Notbeleuchtungstest und die
+darauf sehen. Haushaltsmitglieder können immer die Lichter, den Notbeleuchtungstest, die Alarmanlage am
+Notfallknopf (soweit ihre Home-Assistant-Anmeldung die Alarmanlage bedienen kann) und die
 Testbenachrichtigung von Folgen nutzen, das Design ändern und die Auswahl ändern, die in ihrem
 eigenen Browser gespeichert ist (Karte oder 3D, was der Atlas zeigt, Einfach oder Erweitert).
 

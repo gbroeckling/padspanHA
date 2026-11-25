@@ -162,6 +162,14 @@ import(`./views/status_dot.js?b=${BUILD_ID}`)
   .then(m => { STATUS_DOT = m; })
   .catch(err => console.warn("PadSpan: status_dot module failed to load", err));
 
+// The house's alarm (views/alarm_panel.js): an alarm going off is a row in the
+// emergency banner, on every tab and every tier. Until it lands, or if it
+// never does, the banner has the latches alone.
+let ALARM = null;
+import(`./views/alarm_panel.js?b=${BUILD_ID}`)
+  .then(m => { ALARM = m; })
+  .catch(err => console.warn("PadSpan: alarm_panel module failed to load", err));
+
 // One name per device, on the server's word (views/device_name.js). Used here by
 // the device window; until it lands, the window reads the fields itself.
 let DEVICE_NAME = null;
@@ -3593,16 +3601,21 @@ class PadSpanHaApp extends HTMLElement {
     const listEl = this.$("#emergencyBannerList");
     const mobilePill = this.$("#mobileEmergencyPill");
     if(!banner || !countEl || !listEl) return;
+    // The house's alarms going off (alarm_panel.js triggeredAlarms), the real
+    // house's in Sample mode too, as the latches are: a row each, no Reset
+    // (the alarm's own Disarm is on the Atlas's emergency button).
+    const alarms = ALARM ? ALARM.triggeredAlarms((this._realHass || this._hass)?.states || {}) : [];
+    const n = active.length + alarms.length;
 
-    if(!active.length){
+    if(!n){
       banner.classList.add("hidden");
       if(mobilePill) mobilePill.classList.add("hidden");
       this._emergencyListSig = "";
       return;
     }
     banner.classList.remove("hidden");
-    countEl.textContent = tn(active.length, "{n} active", "{n} active");
-    if(mobilePill){ mobilePill.classList.remove("hidden"); mobilePill.textContent = `🚨 ${active.length}`; }
+    countEl.textContent = tn(n, "{n} active", "{n} active");
+    if(mobilePill){ mobilePill.classList.remove("hidden"); mobilePill.textContent = `🚨 ${n}`; }
 
     listEl.className = "emergency-banner-list";
     // Rebuilt only when the set of alarms changes: this runs on every poll,
@@ -3611,10 +3624,20 @@ class PadSpanHaApp extends HTMLElement {
     // The latches are the real house's in Sample mode too: so are their names.
     const realStates = (this._realHass || this._hass)?.states;
     const sample = this.state.dataMode !== "live";
-    const _sig = (sample ? "sample|" : "") + active.map(([eid]) => eid + "=" + (realStates?.[eid]?.attributes?.friendly_name || "")).sort().join("|");
+    const _sig = (sample ? "sample|" : "") + active.map(([eid]) => eid + "=" + (realStates?.[eid]?.attributes?.friendly_name || "")).sort().join("|")
+      + (alarms.length ? "|alarm|" + alarms.map(a => a.eid + "=" + a.text).join("|") : "");
     if(this._emergencyListSig === _sig && listEl.childElementCount) return;
     this._emergencyListSig = _sig;
     listEl.innerHTML = "";
+    for(const a of alarms){
+      const row = document.createElement("div");
+      row.className = "emergency-banner-row";
+      row.setAttribute("data-alarm", a.eid);
+      const nameEl = document.createElement("span");
+      nameEl.className = "name"; nameEl.title = a.text; nameEl.textContent = a.text;
+      row.appendChild(nameEl);
+      listEl.appendChild(row);
+    }
     for(const [eid] of active){
       const name = realStates?.[eid]?.attributes?.friendly_name || eid;
       const row = document.createElement("div");

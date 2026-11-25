@@ -627,7 +627,8 @@ def test_the_button_can_be_hidden_in_settings():
     lp = (root / "www" / "padspan-ha" / "lights_panel.js").read_text(encoding="utf-8")
     assert ("if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = "
             "s.atlas_emergency_button === false;") in lp
-    assert "if(this.state._emergButtonHidden && !(s.test && s.test.active)) return null;" in lp
+    # Hidden, the test's button goes; the house's alarm beside it stays (alone: null without one, as before).
+    assert "if(this.state._emergButtonHidden && !(s.test && s.test.active)) return alone;" in lp
 
 
 def test_the_settings_card_saves_each_switch_by_its_own_rule():
