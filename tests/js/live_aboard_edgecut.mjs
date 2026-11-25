@@ -304,7 +304,7 @@ await tryCase("list: ticked in the ⋯ list it frames, and Views ▾ shows it ti
     on.edgecut.on && on.edgecut.holds && near(on.cam.radius, framed.cam.radius, 1e-6) && line.on === true
     && !off.edgecut.on && near(off.cam.radius, off.screen.fitR, 1e-3), { on: on.cam, line, off: off.cam });
 });
-await tryCase("other: the whole house, a saved view or an angle turns it off and does what it always did", async () => {
+await tryCase("other: the whole house or a saved view turns it off; an angle or Fit keeps it, framed from there", async () => {
   const on = async () => { await pickInViews(b => b.hasAttribute("data-la3d-edgecut")); await flown(); return S().edgecut.on; };
   const a = await on();
   await pickInViews(b => b.textContent === "Whole house"); await flown();
@@ -314,13 +314,25 @@ await tryCase("other: the whole house, a saved view or an angle turns it off and
   await pickInViews(x => x.textContent === "Den corner"); await flown();
   const saved = S();
   const c = await on();
-  click(qa("button").find(x => x.textContent === "Top")); await settle();
+  // The owner, 2026-11-24: moved, then Fit, and "it seems to completely forget it's in edgecut mode". An angle and Fit
+  // keep it on: framed from the new angle; Fit is Edgecut's own frame.
+  click(qa("button").find(x => x.textContent === "Top")); await settle(); await flown();
   const top = S();
+  const cv = q("canvas");
+  for (let i = 0; i < 3; i++) cv.dispatchEvent({ type: "wheel", clientX: 500, clientY: 300, deltaY: 160, deltaMode: 0, stopPropagation() {}, preventDefault() {} });
+  await settle();
+  const moved = S();
+  click(qa("button").find(x => x.textContent === "Fit")); await settle(); await flown();
+  const fit = S();
   store.delete("views_edge-a");
-  check("other: the whole house, a saved view or an angle turns it off and does what it always did",
+  await pickInViews(x => x.textContent === "Whole house"); await flown();   // off again, for the cases after
+  check("other: the whole house or a saved view turns it off; an angle or Fit keeps it, framed from there",
     a && b && c && !whole.edgecut.on && whole.screen.floors.all && near(whole.cam.radius, whole.screen.fitR, 1e-3) && !saved.edgecut.on
-    && near(saved.cam.radius, 9, 1e-6) && near(saved.cam.target, [2, 0, 6], 1e-6) && !top.edgecut.on && top.cam.phi < 0.01 && !("edgecut" in pref("edge-a")),
-    { whole: whole.cam, saved: saved.cam, top: top.cam });
+    && near(saved.cam.radius, 9, 1e-6) && near(saved.cam.target, [2, 0, 6], 1e-6)
+    && top.edgecut.on && top.edgecut.holds && top.cam.phi < 0.01 && top.cam.radius < top.screen.fitR * 0.95
+    && !moved.edgecut.holds && fit.edgecut.on && fit.edgecut.holds && near(fit.cam.radius, top.cam.radius, 1e-3) && near(fit.cam.phi, top.cam.phi, 1e-9)
+    && !S().edgecut.on && !("edgecut" in pref("edge-a")),
+    { whole: whole.cam, saved: saved.cam, top: top.cam, moved: moved.cam, fit: fit.cam });
   steps().go(0); await settle();                               // the main floor again
 });
 await tryCase("top: straight down (the angle the person chose) it fills the view edge to edge, and a step farther it doesn't", async () => {

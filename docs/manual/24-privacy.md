@@ -47,7 +47,9 @@ beside the question; either answer ends the asking. Turning it on or off needs a
 
 When it is on, PadSpan sends at most once a day a small report (a hard cap of 32 KB) of **counts,
 versions and flags**: how many receivers, floors, rooms and placed devices; which feature switches are
-on; how many times each screen and tool was used; how hard the machine works; the class of machine
+on; how many times each screen and tool was used; how many minutes the busiest single display showed
+PadSpan, all day and from 07:00 to 23:00 (never which display: its random ID stays in Home Assistant
+and is forgotten after each report); how hard the machine works; the class of machine
 (memory band, processor kind, board family); errors by PadSpan file name. It carries a random install
 ID so installs are counted, not requests.
 

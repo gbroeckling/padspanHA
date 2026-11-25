@@ -67,6 +67,11 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         screen untouched or in use, or is an ordinary window; whether a
         wall screen's reload after an update landed on the new build; and
         whether a ?view= link stayed on its view (SCREEN_EVENTS)
+    how much of the day the house's busiest single screen showed PadSpan:
+        its minutes, all hours and 07:00-23:00 in Home Assistant's time
+        zone, beside the window's length in minutes for both (env.top_screen).
+        Each screen's minutes are added up by the browser's random screen
+        id, which stays in Home Assistant and is forgotten with the window
     power teams (smart bulbs fed by a wall dimmer or switch, run as one
         light): how many, whether they have a wall control and of which
         kind and integration, how they turn off, whether they follow the day
@@ -1871,6 +1876,114 @@ def note_screen(hass: HomeAssistant, screen: str, event: str = "client_screen_se
     return True
 
 
+# How much of the day the house's busiest single screen showed PadSpan (the
+# owner, 2026-11-22: "get it so people want it up on one screen all the
+# time"; one display at 90% or better is a dashboard adopted fully). The
+# once-a-minute client_fps heartbeat carries its screen's id; each id's
+# minutes are tallied for the window, all hours and 07:00-23:00 in Home
+# Assistant's time zone, and kept with the window's counters on disk. The
+# report gets only the busiest screen's minutes and the window's length
+# (env.top_screen), never an id; the ids are forgotten with the window.
+_DATA_SCREEN_MIN = "telemetry_screen_min"              # id -> [minutes, minutes 07-23]
+_DATA_SCREEN_MIN_TAKEN = "telemetry_screen_min_taken"
+_DATA_WINDOW_START = "telemetry_window_start"          # when this window began (epoch s)
+_DATA_WINDOW_START_TAKEN = "telemetry_window_start_taken"
+_DATA_SCREEN_BEAT = "_telemetry_screen_beat"           # id -> its last counted heartbeat
+SCREEN_BEAT_MIN_S = 50          # faster than this: a second window in the same browser
+_SCREEN_MIN_MAX = 50            # screens tallied per window
+TOP_SCREEN_KEYS: tuple[str, ...] = ("min", "window_min", "min_7_23", "window_min_7_23")
+_ID_RE = re.compile(r"[0-9a-f]{16}")
+
+
+def _ha_tz(hass: HomeAssistant) -> Any:
+    """Home Assistant's time zone, or UTC without one."""
+    from zoneinfo import ZoneInfo  # noqa: PLC0415
+    try:
+        return ZoneInfo(getattr(getattr(hass, "config", None), "time_zone", None) or "UTC")
+    except (KeyError, ValueError, TypeError):      # no zone by that name (ZoneInfoNotFoundError is a KeyError): UTC
+        return timezone.utc
+
+
+def _in_7_23(ts: float, tz: Any) -> bool:
+    return 7 <= datetime.fromtimestamp(ts, tz).hour < 23
+
+
+def minutes_7_23(start: float, end: float, tz: Any) -> int:
+    """Whole minutes between `start` and `end` that fall from 07:00 to 23:00
+    local time in `tz` (each local day's own, so a change of clocks is kept)."""
+    if end <= start:
+        return 0
+    total = 0.0
+    d = datetime.fromtimestamp(start, tz).date()
+    last = datetime.fromtimestamp(end, tz).date()
+    while d <= last:
+        lo = max(start, datetime(d.year, d.month, d.day, 7, tzinfo=tz).timestamp())
+        hi = min(end, datetime(d.year, d.month, d.day, 23, tzinfo=tz).timestamp())
+        total += max(0.0, hi - lo)
+        d += timedelta(days=1)
+    return int(total // 60)
+
+
+def _window_start(hass: HomeAssistant) -> float:
+    dom = hass.data.setdefault(DOMAIN, {})
+    start = dom.get(_DATA_WINDOW_START)
+    if not isinstance(start, (int, float)) or isinstance(start, bool):
+        start = dom[_DATA_WINDOW_START] = time.time()
+    return float(start)
+
+
+def note_screen_minute(hass: HomeAssistant, screen: str, now: float | None = None) -> bool:
+    """One heartbeat from this screen: one minute of PadSpan on it, unless
+    the screen's last counted one was under SCREEN_BEAT_MIN_S ago. Whether
+    it counted."""
+    if not isinstance(screen, str) or not _ID_RE.fullmatch(screen):
+        return False
+    now = time.time() if now is None else float(now)
+    dom = hass.data.setdefault(DOMAIN, {})
+    _window_start(hass)
+    beats: dict[str, float] = dom.setdefault(_DATA_SCREEN_BEAT, {})
+    last = beats.get(screen)
+    if last is not None and 0 <= now - last < SCREEN_BEAT_MIN_S:
+        return False
+    tally: dict[str, list[int]] = dom.setdefault(_DATA_SCREEN_MIN, {})
+    if screen not in tally:
+        if len(tally) >= _SCREEN_MIN_MAX:
+            return False
+        tally[screen] = [0, 0]
+    beats[screen] = now
+    tally[screen][0] += 1
+    if _in_7_23(now, _ha_tz(hass)):
+        tally[screen][1] += 1
+    return True
+
+
+def _merge_screen_min(into: dict[str, list[int]], more: Any) -> dict[str, list[int]]:
+    """`into` plus `more`'s minutes per screen (a saved file's: checked)."""
+    out = {k: list(v) for k, v in into.items()}
+    for sid, v in (more if isinstance(more, dict) else {}).items():
+        if (not isinstance(sid, str) or not _ID_RE.fullmatch(sid) or not isinstance(v, list) or len(v) != 2
+                or not all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in v)):
+            continue
+        if sid not in out:
+            if len(out) >= _SCREEN_MIN_MAX:
+                continue
+            out[sid] = [0, 0]
+        out[sid] = [out[sid][0] + v[0], out[sid][1] + v[1]]
+    return out
+
+
+def top_screen(tally: Any, start: Any, end: float, tz: Any) -> dict[str, int] | None:
+    """env.top_screen: the busiest screen's minutes, all hours and 07-23,
+    each capped at the window's length, and the window's length for both."""
+    if not isinstance(start, (int, float)) or isinstance(start, bool):
+        return None
+    window = max(0, int((end - start) // 60))
+    window_day = minutes_7_23(float(start), end, tz)
+    rows = list((tally or {}).values()) if isinstance(tally, dict) else []
+    return {"min": min(window, max((r[0] for r in rows), default=0)), "window_min": window,
+            "min_7_23": min(window_day, max((r[1] for r in rows), default=0)), "window_min_7_23": window_day}
+
+
 # The window's counters on disk too (0.38.177): they lived only in memory, so
 # a restart before the day's report took them with it. A house restarted four
 # times on the day its calibration points went to zero, and its report could
@@ -1911,7 +2024,12 @@ def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
         st = _counters_store(hass)
 
         def _snap() -> dict:
-            return {"counters": dict(dom.get(_DATA_COUNTERS) or {})}
+            out: dict[str, Any] = {"counters": dict(dom.get(_DATA_COUNTERS) or {})}
+            if dom.get(_DATA_SCREEN_MIN):
+                out["screen_min"] = {k: list(v) for k, v in dom[_DATA_SCREEN_MIN].items()}
+            if isinstance(dom.get(_DATA_WINDOW_START), (int, float)):
+                out["window_start"] = dom[_DATA_WINDOW_START]
+            return out
         if now:
             hass.async_create_task(st.async_save(_snap()))
             return
@@ -1958,6 +2076,13 @@ async def async_restore_counters(hass: HomeAssistant) -> None:
         return
     if enabled(hass):
         dom[_DATA_COUNTERS] = merge_saved_counters(dom.get(_DATA_COUNTERS) or {}, saved)
+        # Each screen's minutes and when the window began, from before the restart.
+        if isinstance(saved, dict):
+            dom[_DATA_SCREEN_MIN] = _merge_screen_min(dom.get(_DATA_SCREEN_MIN) or {}, saved.get("screen_min"))
+            st0 = saved.get("window_start")
+            if isinstance(st0, (int, float)) and not isinstance(st0, bool) and 0 < st0 <= time.time():
+                dom[_DATA_WINDOW_START] = min(float(st0), _window_start(hass))
+        _window_start(hass)
     _persist_counters(hass, now=True)
 
 
@@ -1970,6 +2095,11 @@ def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     dom[_DATA_SCREENS] = set()
     dom[_DATA_SCREEN_WORDS_TAKEN] = dom.get(_DATA_SCREEN_WORDS) or {}
     dom[_DATA_SCREEN_WORDS] = {}
+    dom[_DATA_SCREEN_MIN_TAKEN] = dom.get(_DATA_SCREEN_MIN) or {}
+    dom[_DATA_WINDOW_START_TAKEN] = _window_start(hass)
+    dom[_DATA_SCREEN_MIN] = {}
+    dom[_DATA_SCREEN_BEAT] = {}
+    dom[_DATA_WINDOW_START] = time.time()
     _persist_counters(hass, now=True)
     return out
 
@@ -2020,9 +2150,14 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
     counters = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_COUNTERS, {})
     for k, v in usage.items():
         counters[k] = int(counters.get(k, 0)) + int(v)
+    dom = hass.data[DOMAIN]
+    # Each screen's minutes, and the window starts where the taken one did.
+    dom[_DATA_SCREEN_MIN] = _merge_screen_min(dom.pop(_DATA_SCREEN_MIN_TAKEN, None) or {}, dom.get(_DATA_SCREEN_MIN))
+    _taken_start = dom.pop(_DATA_WINDOW_START_TAKEN, None)
+    if isinstance(_taken_start, (int, float)):
+        dom[_DATA_WINDOW_START] = min(float(_taken_start), _window_start(hass))
     _persist_counters(hass, now=True)
     # The screens it counted go back with their counts, so they aren't counted again.
-    dom = hass.data[DOMAIN]
     dom.setdefault(_DATA_SCREENS, set()).update(dom.pop(_DATA_SCREENS_TAKEN, None) or set())
     # The screens' lists too: the taken ones first, then any new, five at most.
     merged = dict(dom.pop(_DATA_SCREEN_WORDS_TAKEN, None) or {})
@@ -3094,6 +3229,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _screens = _screens_listed(dom.get(_DATA_SCREEN_WORDS_TAKEN if consume else _DATA_SCREEN_WORDS))
     if _screens:
         env["screens"] = _screens
+    _top = top_screen(dom.get(_DATA_SCREEN_MIN_TAKEN if consume else _DATA_SCREEN_MIN),
+                      dom.get(_DATA_WINDOW_START_TAKEN) if consume else _window_start(hass), time.time(), _ha_tz(hass))
+    if _top is not None:
+        env["top_screen"] = _top
     # WARNING+ log lines by module since the last report — the "what broke"
     # signal for the parts of the code the developer cannot exercise.
     errors: dict[str, int] = {}
@@ -3298,6 +3437,12 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
                 or (k in POWER_TEAM_WORDS and isinstance(v, dict) and all(w in POWER_TEAM_WORDS[k] and _count(n) for w, n in v.items()))
                 for k, v in pt.items()):
             raise ValueError("env.power_teams not in the vocabulary")
+    if isinstance(env, dict) and "top_screen" in env:
+        ts = env["top_screen"]
+        if (not isinstance(ts, dict) or set(ts) != set(TOP_SCREEN_KEYS)
+                or not all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in ts.values())
+                or ts["min"] > ts["window_min"] or ts["min_7_23"] > ts["window_min_7_23"]):
+            raise ValueError("env.top_screen is not four minute counts")
     if isinstance(env, dict) and "screens" in env:
         scr = env["screens"]
         if (not isinstance(scr, list) or len(scr) > SCREENS_LISTED
@@ -3544,6 +3689,9 @@ def reset_windows(hass: HomeAssistant) -> None:
     hass.data.setdefault(DOMAIN, {})[_DATA_COUNTERS] = {}
     hass.data[DOMAIN][_DATA_SCREENS] = set()
     hass.data[DOMAIN][_DATA_SCREEN_WORDS] = {}
+    hass.data[DOMAIN][_DATA_SCREEN_MIN] = {}
+    hass.data[DOMAIN][_DATA_SCREEN_BEAT] = {}
+    hass.data[DOMAIN][_DATA_WINDOW_START] = time.time()
     _persist_counters(hass, now=True)
     _quiet_errors.mark_reported()
     try:

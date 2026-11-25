@@ -282,7 +282,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # trips six of them while the report is built (it has no areas, no maps);
     # a real house sends only the ones that fire, 20 at most, and on a day
     # too full they are the first thing left out.
-    assert len(text) < 4880
+    # Raised 4880 -> 4970 (2026-11-24) for env.top_screen (~82 bytes): how
+    # many minutes the house's busiest single screen showed PadSpan, all day
+    # and 07:00-23:00, beside the window's length (the owner, 2026-11-22:
+    # one display at 90% or better is a dashboard adopted fully).
+    assert len(text) < 4970
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1137,8 +1141,11 @@ def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
     # A day with room for them all sends all ten. (Without the log counts:
     # with them, this day sat 12 bytes under the cap, and the theme flags
     # took those. 2026-10-22: nor the Find My counts — the Overview's set-up
-    # words, in every report, took the rest; such a full day sends nine.)
+    # words, in every report, took the rest; such a full day sends nine.
+    # 2026-11-24: env.top_screen, in every report, is ~80 bytes more, so the
+    # room is made by that much here.)
     monkeypatch.setattr(ws_common, "_log_handler", SimpleNamespace(counts={}))
+    monkeypatch.setattr(T, "_MAX_BYTES", 8192 + 100)
     h2 = _findmy_house()
     h2.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"]
     assert len(T.build_payload(h2)["presets"]) == 10
@@ -1836,6 +1843,45 @@ def test_screens_are_listed_only_from_two_up_and_never_by_id():
     T.note_screen_word(h, b, "overview_shown:house")
     T.reset_windows(h)
     assert "screens" not in T.build_payload(h)["env"]
+
+
+def test_the_report_says_only_the_busiest_screen_s_minutes_and_never_an_id(monkeypatch):
+    """env.top_screen (2026-11-22, the owner: one display at 90% or better is
+    a dashboard adopted fully): the busiest single screen's minutes, all
+    hours and 07:00-23:00, beside the window's length for both. In the
+    Preview as it goes, never a screen id, and only these four counts."""
+    import time as _time
+    from custom_components.padspan_ha import ws_telemetry
+    h = _hass()
+    a, b = "0123456789abcdef", "fedcba9876543210"
+    h.data[DOMAIN][T._DATA_WINDOW_START] = _time.time() - 600 * 60
+    h.data[DOMAIN][T._DATA_SCREEN_MIN] = {a: [540, 300], b: [200, 200]}
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    top = p["env"]["top_screen"]
+    assert set(top) == set(T.TOP_SCREEN_KEYS)
+    assert top["min"] == 540 and top["window_min"] in (600, 601)
+    assert top["min_7_23"] == min(300, top["window_min_7_23"]) and top["window_min_7_23"] <= top["window_min"]
+    assert a not in json.dumps(p) and b not in json.dumps(p)
+    # Capped at the window: two windows in one browser can't make it more.
+    h.data[DOMAIN][T._DATA_SCREEN_MIN] = {a: [5000, 5000]}
+    top = T.build_payload(h)["env"]["top_screen"]
+    assert top["min"] == top["window_min"] and top["min_7_23"] == top["window_min_7_23"]
+    # The Preview shows it as it would go.
+    for name in ("ensure_snapshot", "ensure_hw", "ensure_plan_ai"):
+        async def _nothing(_h):
+            return None
+        monkeypatch.setattr(ws_telemetry, name, _nothing)
+    sent = []
+    _run(ws_telemetry.ws_telemetry_preview(h, SimpleNamespace(send_result=lambda i, r: sent.append(r)), {"id": 1}))
+    assert sent[0]["payload"]["env"]["top_screen"] == top and sent[0]["problem"] == ""
+    # The gate takes only the four counts, none over its window.
+    for bad in ({**top, "screen": a}, {**top, "min": top["window_min"] + 1}, {**top, "min_7_23": True},
+                {k: v for k, v in top.items() if k != "min"}, {**top, "window_min": "1440"}, [1, 2, 3, 4]):
+        q = json.loads(json.dumps(p))
+        q["env"]["top_screen"] = bad
+        with pytest.raises(ValueError):
+            T.assert_shareable(q)
 
 
 def test_vacation_mode_reaches_the_report_only_where_it_was_used():

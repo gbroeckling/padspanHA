@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Turn the telemetry JSONL files into the answers the reports exist for.
 
-    python telemetry_summary.py /path/to/telemetry [--days 30]
+    python telemetry_summary.py /path/to/telemetry [--days 30] [--exclude-install-id ID]
 
 Prints: installs by version / edition / tier / HA; environment distributions
 (scanners, floors, rooms, lights, IRKs, integrations); which features are on
 in how many installs; which tabs and tools are used and how much; how well
 the Apple Find My (AirTag) tools follow tags, where they run; power teams and
-every house's colour bulbs by brand (Hue and the rest); load and
+every house's colour bulbs by brand (Hue and the rest); how many houses keep
+one screen on PadSpan 90% of the day or more; load and
 hardware (installs by board / CPUs / RAM, and per class how hard Home
 Assistant works and how many installs max out — Raspberry Pi classes
 first); health signals (crypto ok, callback alive, IRKs resolving anywhere,
@@ -792,10 +793,64 @@ def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[st
     return out
 
 
+# One screen up all day (2026-11-22, the owner: "get it so people want it up on one screen all the time"; one display at
+# 90% or better is a dashboard adopted fully). env.top_screen of each install's latest report: the busiest single
+# screen's minutes against the report's window, all hours and 07:00-23:00 in the house's time zone. A window under
+# 12 hours (8 of them 07-23: a "Send a report now", a report just after the opt-in) is too short to tell and is left
+# out. Older builds send no env.top_screen: their client_fps minutes, summed over all the house's screens, are set
+# against a 24-hour day (16 hours for 07-23, though they are minutes of all hours), so three screens up 30% each read
+# as one up 90%; those are marked summed. --exclude-install-id leaves a house out (the owner's own).
+_SCREEN_UP = 0.9
+_SCREEN_MIN_WINDOW = {"all": 720, "7_23": 480}
+_SUMMED_DAY = {"all": 1440, "7_23": 960}
+
+
+def screen_up_section(latest: dict[str, dict], exclude: set[str]) -> list[str]:
+    out = ["One screen up all day (env.top_screen: the busiest single screen's minutes; latest report per install)"]
+    counted = {k: [0, 0, 0] for k in ("all", "7_23")}           # up 90%+, of, too short
+    summed = {k: [0, 0] for k in ("all", "7_23")}
+    left_out = 0
+    for iid, r in latest.items():
+        if iid in exclude:
+            left_out += 1
+            continue
+        top = (r.get("env") or {}).get("top_screen")
+        if isinstance(top, dict):
+            for k, (m, w) in (("all", ("min", "window_min")), ("7_23", ("min_7_23", "window_min_7_23"))):
+                mins, window = _num(top.get(m)), _num(top.get(w))
+                if mins is None or window is None:
+                    continue
+                if window < _SCREEN_MIN_WINDOW[k]:
+                    counted[k][2] += 1
+                    continue
+                counted[k][1] += 1
+                if mins >= _SCREEN_UP * window:
+                    counted[k][0] += 1
+            continue
+        fps = sum(int(_num(v) or 0) for k, v in (r.get("usage") or {}).items() if str(k).startswith("client_fps:"))
+        for k in summed:
+            summed[k][1] += 1
+            if fps >= _SCREEN_UP * _SUMMED_DAY[k]:
+                summed[k][0] += 1
+    for k, label in (("all", "whole day"), ("7_23", "07:00-23:00")):
+        up, of, short = counted[k]
+        out.append(f"  {'houses with one screen up 90%+, ' + label:<44} {up:>5}  / {of}"
+                   f"  ({short} with a window too short to tell)")
+    for k, label in (("all", "whole day"), ("7_23", "07:00-23:00")):
+        up, of = summed[k]
+        out.append(f"  {'older builds, summed: 90%+, ' + label:<44} {up:>5}  / {of}"
+                   f"  (all screens' client_fps minutes added up, against {_SUMMED_DAY[k] // 60} h)")
+    if exclude:
+        out.append(f"  left out: {left_out} of {len(exclude)} excluded install ids")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
     ap.add_argument("--days", type=int, default=30)
+    ap.add_argument("--exclude-install-id", action="append", default=[], metavar="ID",
+                    help="leave this install out of the one-screen line (the owner's own house); may be repeated")
     a = ap.parse_args()
     rows, reports = load(Path(a.dir), a.days)
     if not rows:
@@ -832,6 +887,9 @@ def main() -> int:
         print(line)
     print()
     for line in power_teams_section(latest, reports):
+        print(line)
+    print()
+    for line in screen_up_section(latest, set(a.exclude_install_id)):
         print(line)
     print()
 

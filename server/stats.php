@@ -28,6 +28,9 @@ $DIR   = $PRIV . '/padspan-telemetry';
 $PINGS = $PRIV . '/padspan-pings.log';
 $KEYS  = $PRIV . '/padspan-dev-keys';
 $CACHE = $PRIV . '/padspan-stats-cache.json';
+// Optional: install ids (one per line) left out of the one-screen count
+// below, such as the owner's own house. No file: nothing left out.
+$OWN   = $PRIV . '/padspan-own-installs';
 $CACHE_S = 600;
 $WINDOW_DAYS = 30;      // distributions and per-day series
 $ACTIVE_DAYS = 7;       // "active" = reported within this many days
@@ -220,6 +223,22 @@ $integrations = array(); $features = array(); $flags = array(); $scanner_kinds =
 // words (env.screens: "screen:atlas_3d", screens counted, not installs), how
 // many screens a house lists, and Pro screen switches on below Pro.
 $overview = array();
+// One screen up all day (env.top_screen, 2026-11-22: "get it so people want
+// it up on one screen all the time"): houses whose busiest single screen
+// showed PadSpan 90% or more of the report's window, all hours and 07:00-23:00;
+// a window under 12 h (8 h of 07-23) is too short to tell. Older builds send
+// no env.top_screen: their client_fps minutes, summed over every screen of
+// the house, against 24 h (16 h), marked summed. Houses in $OWN left out.
+$own = array();
+if (is_readable($OWN)) {
+    foreach (file($OWN, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        $line = trim($line);
+        if ($line !== '' && $line[0] !== '#') { $own[$line] = true; }
+    }
+}
+$screen_up = array('all' => array('up' => 0, 'of' => 0, 'short' => 0), '7_23' => array('up' => 0, 'of' => 0, 'short' => 0),
+                   'summed' => array('all' => array('up' => 0, 'of' => 0), '7_23' => array('up' => 0, 'of' => 0)),
+                   'left_out' => 0);
 // The AI Task chosen for photos (env.ai.task, 0.38.187): local, cloud,
 // unknown or unready, from each install's latest report where it chose one.
 $ai = array();
@@ -332,6 +351,25 @@ foreach ($latest as $id => $r) {
     if (count($scr)) {
         incr($overview, 'screens_listed:' . count($scr));
         foreach ($scr as $one) { if (is_array($one)) { foreach ($one as $w) { if (is_string($w)) { incr($overview, "screen:$w"); } } } }
+    }
+    if (isset($own[$id])) { $screen_up['left_out']++; }
+    elseif (isset($e['top_screen']) && is_array($e['top_screen'])) {
+        $ts = $e['top_screen'];
+        foreach (array('all' => array('min', 'window_min', 720), '7_23' => array('min_7_23', 'window_min_7_23', 480)) as $k => $f) {
+            if (!isset($ts[$f[0]], $ts[$f[1]]) || !is_numeric($ts[$f[0]]) || !is_numeric($ts[$f[1]])) { continue; }
+            if ($ts[$f[1]] < $f[2]) { $screen_up[$k]['short']++; continue; }
+            $screen_up[$k]['of']++;
+            if ($ts[$f[0]] >= 0.9 * $ts[$f[1]]) { $screen_up[$k]['up']++; }
+        }
+    } else {
+        $fps = 0;
+        foreach (as_map(isset($r['usage']) ? $r['usage'] : null) as $ev => $n) {
+            if (strpos((string)$ev, 'client_fps:') === 0) { $fps += (int)$n; }
+        }
+        foreach (array('all' => 1440, '7_23' => 960) as $k => $day) {
+            $screen_up['summed'][$k]['of']++;
+            if ($fps >= 0.9 * $day) { $screen_up['summed'][$k]['up']++; }
+        }
     }
     $ft = as_map(isset($r['features']) ? $r['features'] : null);
     $tier = isset($r['tier']) ? $r['tier'] : '';
@@ -524,6 +562,7 @@ $out = array(
     'scan_mode_installs' => $scan_mode_installs,
     'features' => $features,
     'overview' => $overview,
+    'screen_up' => $screen_up,
     'ai' => $ai,
     'stairs' => $stairs,
     'fixes' => $fixes,

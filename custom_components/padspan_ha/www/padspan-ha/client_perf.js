@@ -20,7 +20,9 @@
 // <view> is "sim" when the 3D house is drawing (a three.js canvas covering a
 // good part of the screen), else what the caller says ("atlas" or "other").
 // The fps event is also the panel's heartbeat: the backend counts Home
-// Assistant's load by the view on screen from it (perf_sampler.note_view).
+// Assistant's load by the view on screen from it (perf_sampler.note_view),
+// and, with the screen's id, how many minutes each screen showed PadSpan
+// (telemetry.note_screen_minute: the report says the busiest one's only).
 // Buckets from fixed lists only — telemetry.CLIENT_* holds the same lists
 // (tests/test_telemetry.py keeps them equal). Nothing is measured while the
 // report is off, the page is hidden or the panel is not in the document.
@@ -88,7 +90,8 @@ export function screenWords(win){
 }
 
 /** A random id for this browser's screen, kept in localStorage; it goes only
- *  to Home Assistant, which counts it and never stores or reports it. */
+ *  to Home Assistant, which counts it, keeps it only until the report's
+ *  window ends, and never reports it. */
 export function screenId(store){
   try {
     let id = store.getItem("padspan_screen_id");
@@ -183,7 +186,9 @@ export function startClientPerf({ root, viewClass, enabled, send, states }){
       if (stopped || !enabled() || !visible()) return;
       let view = simOnScreen(root, window) ? "sim" : viewClass();
       if (!CLIENT_VIEWS.includes(view)) view = "other";
-      send(`client_fps:${view}:${fpsBucket(fps)}`);
+      // With the screen's id: Home Assistant adds up each screen's minutes,
+      // and the report says only the busiest screen's (env.top_screen).
+      send(`client_fps:${view}:${fpsBucket(fps)}`, sid ? { screen: sid } : undefined);
       const heap = performance && performance.memory && performance.memory.usedJSHeapSize;
       if (heap > 0) send(`client_heap:${view}:${heapBucket(heap)}`);
     } catch (_e) {
