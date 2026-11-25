@@ -309,9 +309,13 @@ The **Training Hub** inside PadSpan has 16 animated walkthroughs covering every 
 
 ## Development
 
-PadSpan HA is built by [Garry Broeckling](https://github.com/gbroeckling) — a 30+ year veteran of coding and scripting who has never claimed to be a fast typist. All architecture, product decisions, testing, and releases are human-directed. Implementation is AI-assisted using [Claude](https://claude.ai) by Anthropic, which accelerates the write–test–ship cycle considerably. Think of it as one developer with strong opinions and a very patient pair-programming partner.
+I designed my house to be automated from the start, and I wanted more from it than "home" or "away." I wanted to see which room everyone was in, on a plan of the house, with the lights and doors on it too. Nothing out there did all of that, so I built it.
 
-The result: a solo project that ships features at a pace that would normally require a team — without compromising on quality, security, or code review.
+Bluetooth presence is a radio problem, and radio is what I know best. I'm a ham, and I've built wireless and radio networks for a living.
+
+I built PadSpan with the assistance of AI coding tools, mostly Claude. PadSpan is my design. I decide what it does and how it works, I test it in my own house, and I sign off on every release. I use good tools, and I'm the one who answers for what ships.
+
+-- [Garry Broeckling](https://github.com/gbroeckling)
 
 How changes are tested and released: [How PadSpan is built and checked](./docs/HOW_PADSPAN_IS_BUILT.md).
 
