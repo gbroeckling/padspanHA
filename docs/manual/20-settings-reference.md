@@ -279,8 +279,8 @@ Settings PadSpan keeps for a control on another screen. Each is saved when you u
 | Mapping → Atlas builder | Vacation Mode: Longest on | 0 | 0 (off), or 15 to 720 | Minutes a light it turned on stays on at most. | `vacation_mode_max_on_min` |
 | Mapping → Atlas builder | Vacation Mode: Most lights on at once | 0 | 0 (off), or 1 to 50 | Lights on at once, at most. | `vacation_mode_max_lights` |
 | Mapping → Atlas builder | Vacation Mode: Evening lights | empty |  | Up to 10 lights held on through the evenings they were really on. | `vacation_mode_anchors` |
-| Atlas → a room's sheet | Room controls: Match rooms | empty |  | Which media players are in which room, in each room's order (the first is the one the map's speaker follows). An administrator's. | `room_audio_matches` |
-| Atlas → a room's sheet | Room controls: Include Home Assistant speakers (Music Assistant, ESPHome, Cast, TVs) | off | on or off | Offers every media player with a volume, not only the whole-house systems'. Off unless ticked. | `room_audio_ha_speakers` |
+| Atlas → a room's sheet | Audio: Match rooms | empty |  | Which media players are in which room, in each room's order (the first is the one the map's speaker follows). An administrator's. | `room_audio_matches` |
+| Atlas → a room's sheet | Audio: Include Home Assistant speakers (Music Assistant, ESPHome, Cast, TVs) | off | on or off | Offers every media player with a volume, not only the whole-house systems'. Off unless ticked. | `room_audio_ha_speakers` |
 | Mapping → Atlas builder | Atlas builder | empty |  | Each light's marker shape. | `light_shapes` |
 | Mapping → Atlas builder | Atlas builder | empty |  | Pro: a light forced to be drawn as WLED, a partition or plain. | `light_type_overrides` |
 | Mapping → Atlas builder | Atlas builder | not set | a list | Lights hidden from the Atlas. | `lights_hidden` |

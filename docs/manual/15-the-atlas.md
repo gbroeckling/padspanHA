@@ -98,11 +98,13 @@ placed light, and one for each Whole house preset whose lit lights are all on on
 when all its lights are already on, a tap turns them off. **+ New scene** and ✎ open Home
 Assistant's own scene editor, for an administrator, and never on a wall screen.
 
-## Room controls
+## Audio
 
-Tick **Room controls** in the map's **⋯** (Show on this screen, in the rail beside the map) and each
-room's sheet gains its music, shades and thermostat. It is off until a screen ticks it, and each
-screen (a phone, a wall) has its own tick. Off, the map and the sheets are exactly as before.
+Tick **Audio** in the map's **⋯** (Show on this screen, in the rail beside the map, and in the 3D
+view's own ⋯) and each room's sheet (in 3D, its panel) gains its music, shades and thermostat. It is
+off until a screen ticks it, and each screen (a phone, a wall) has its own tick. Off, the map and the
+sheets are exactly as before. **Set up ›** on the same line opens the matching card (below) right
+there over the map, ticked or not, for an administrator, on a wall screen too.
 
 - **On the map**: a small speaker beside a room's name while one of its players is on, struck
   through while the room's first player is muted. Nothing while they are all off, and no other new
@@ -113,7 +115,8 @@ screen (a phone, a wall) has its own tick. Off, the map and the sheets are exact
   as before, and:
   - **Audio**: a row for each player, named by its system ("Control4 · Great Room", "Denon · Zone
     2"), with whether it is on, off or muted, **Mute**, **−**, the level, **+** and ⏻ (that player
-    off). What a player can't do is left out or greyed: a player that is off shows its level as —.
+    off), these five always on one line. What a player can't do is left out or greyed: a player that
+    is off shows its level as —.
   - the room's lights, as before;
   - **Shades**: one row for all the room's covers, **Open**, **Stop** and **Close** for all of them
     at once, and how far open they are. Garage doors, gates and doors stay on their door's card.
@@ -125,8 +128,8 @@ screen (a phone, a wall) has its own tick. Off, the map and the sheets are exact
   system's zone is in, so an administrator matches them once. **Match rooms** at the end of the
   Audio part (**Match Control4 to HA** where Control4 is the only system) opens a card with every
   player, by system, and a room for each, or **Not on the map**. The first time, it guesses from the
-  player's Home Assistant area, else from its name. Ticking **Room controls** with nothing matched
-  opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
+  player's Home Assistant area, else from its name. **Set up ›** on the **Audio** line in **⋯** opens
+  it too, and ticking **Audio** with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
   ▼ set their order, and the first is the one the map's speaker follows. Someone who isn't an
   administrator sees the button greyed.
 - **Which players**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,

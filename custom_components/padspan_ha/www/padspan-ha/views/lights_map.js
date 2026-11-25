@@ -4190,6 +4190,9 @@ export function buildLightsMapCard(hostIn){
   // Room controls (⋯ list, per screen, off unless ticked; room_controls.js through host.roomControls, the Atlas tab's):
   // a speaker beside the name of a room whose player is on, and the room sheet's audio, shades and climate.
   const roomControlsOn = () => DISPLAY && !!host.roomControls && flatShow("room_controls") === true;
+  // The ⋯ list's Audio line, offered where the host hands Audio: its Set up › opens the matching card over the map
+  // (live_aboard_show.js goShow "audio_setup"), for an administrator (setup null for anyone else: no link).
+  const audioSetup = () => (host.roomControls ? { setup: host.roomControls.canMatch() ? () => host.roomControls.openMatch() : null } : null);
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
@@ -4339,6 +4342,8 @@ export function buildLightsMapCard(hostIn){
           goTo: typeof h3.goTo === "function" ? h3.goTo : null, kiosk: h3.kiosk === true,
           // The scene row on its bottom bar (scene_row.js): the same tiles and taps as under the flat map.
           scenes: scenesNow(),
+          // Audio's line in this view's ⋯ list, and its Set up › (the matching card over the map), where the host hands Audio.
+          audio: audioSetup(),
           onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
@@ -5686,7 +5691,7 @@ export function buildLightsMapCard(hostIn){
         // Review 2026-11-11: its buttons go where the 3D look's go (live_aboard_show.js goShow), shown only where they
         // can; a line is offered only where it can do something (lights to tap, floors to fade), as the 3D list's are.
         const sc = () => (sceneRow && host.scenes ? scenesNow() : null), hp = host.house3d || {};
-        const canGo = (where) => (where === "scene_new" || hp.admin === true) && M.canGoTo(where, hp.goTo, sc());
+        const canGo = (where) => (where === "scene_new" || where === "audio_setup" || hp.admin === true) && M.canGoTo(where, hp.goTo, sc(), audioSetup());
         const tapLights = () => Object.keys((host.model && host.model.light_positions_m) || {}).some(eid => isTapLight(eid, (host.lightsByEid || {})[eid]));
         return M.createShowMenu({ root: mapCard, button: more, guard: (fn) => fn,
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
@@ -5701,7 +5706,7 @@ export function buildLightsMapCard(hostIn){
               return out;
             },
             canGo,
-            go: (where) => { if (canGo(where)) M.goShow(where, hp.goTo, sc()); },
+            go: (where) => { if (canGo(where)) M.goShow(where, hp.goTo, sc(), audioSetup()); },
             count: (name) => {
               const tell = h3 && typeof h3.telemetry === "function" ? h3.telemetry : host.scenes && host.scenes.telemetry;
               try { if (typeof tell === "function") tell(name); } catch (_) { /* the report is never the error */ }

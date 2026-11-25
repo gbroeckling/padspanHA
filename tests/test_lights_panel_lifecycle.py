@@ -295,3 +295,8 @@ def test_room_controls_through_the_panel(result) -> None:
     assert r["onSvc"] == ["media_player.volume_up:media_player.c4_kitchen"], r
     assert r["onSent"] == ["room_controls:on", "room_controls:up"], r
     assert r["nonAdmin"] == {"svc": ["media_player.volume_up:media_player.c4_kitchen"], "matchDisabled": True}, r
+    # Audio is allowed in one place (lights_panel.js _audioAllowed: Pro today); below it nothing of it shows.
+    assert r["pro"] == {"allowed": True} and r["belowPro"] == {"allowed": False, "icon": False, "audio": False}, r
+    panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert panel.count('String(this.state._tier||"").toLowerCase()==="pro"; }') == 1
+    assert "this._audioAllowed() && !!this.state._atlasLayoutV2" in panel and "roomControls: this._audioAllowed() ? this._roomCtl() : null," in panel

@@ -476,6 +476,8 @@
 "Walk: push the stick the way you want to go": "Gehen: Schieb den Stick in die Richtung, in die du gehen willst",
 "Stick to walk · drag to look": "Stick zum Gehen · Ziehen zum Umschauen",
 "W A S D or ↑ ↓ to walk · ← → to turn · drag to look · Shift to hurry · Esc to stop": "W A S D oder ↑ ↓ zum Gehen · ← → zum Drehen · Ziehen zum Umschauen · Umschalt für schneller · Esc zum Beenden",
-"Room controls": "Raumsteuerung",
-"Volume, mute and off for the room's players, and its shades and thermostat, in the room's sheet; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player des Raums sowie seine Beschattung und sein Thermostat im Raumblatt; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist"
+"Audio": "Audio",
+"Volume, mute and off for each room's players in the room's panel, with its shades and thermostat; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, mit seiner Beschattung und seinem Thermostat; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist",
+"Set up": "Einrichten",
+"Audio's setup: which player is in which room": "Audio einrichten: welcher Player in welchem Raum steht"
 }

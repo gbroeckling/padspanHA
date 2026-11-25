@@ -125,7 +125,7 @@ const LBE = Object.fromEntries(LM.gatherLights(STATES, {}, {}, "pro", {}, {}, {}
 // ── the host: the sidebar's, with its settings ──────────────────────────────
 const SENT = [];
 let SCAN = null;                 // a scanned plan's furniture, beside the file (house3d_get's scan_pieces)
-const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [] };
+const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null };
 const store = new Map();
 const prefs = { get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, String(v)) };
 const host = document.createElement("padspan-lights-app");
@@ -145,7 +145,7 @@ const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden:
   people: H.settings && H.settings.atlas_3d_people ? { snapshot: () => SNAP } : null,
   tags: H.settings && H.settings.atlas_3d_tags ? { snapshot: () => SNAP } : null,
   settings3d: H.settings, admin: H.admin, saveSetting: async (k, v) => { H.saved.push([k, v]); return true; },
-  goTo: (t) => H.went.push(t) });
+  goTo: (t) => H.went.push(t), audio: H.audio });
 let slot = null;
 function poll(){
   const c = document.createElement("div"), stage = document.createElement("div");
@@ -187,8 +187,9 @@ await tryCase("button: ⋯ beside the compass, clear of it, and the list opens g
   const groups = qa(".la3d-sgrp").map(g => g.getAttribute("aria-label"));
   const keys = qa(".la3d-srow").map(r => r.getAttribute("data-show"));
   const alarm = tick("alarms");
-  // This host hands in no scenes (Mapping's, say): no Scene row line (tests/js/scene_row.mjs has the sidebar's).
-  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && it.key !== "scenes").map(it => it.key);
+  // This host hands in no scenes (Mapping's, say): no Scene row line (tests/js/scene_row.mjs has the sidebar's); nor
+  // Audio, so no Audio line (its own case below).
+  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && it.key !== "scenes" && it.key !== "room_controls").map(it => it.key);
   check("button: ⋯ beside the compass, clear of it, and the list opens grouped with the alarms ticked and greyed",
     b && compass && b.parentNode === compass.parentNode && b.textContent === "⋯" && b.getAttribute("aria-expanded") === "true"
     && S().show.menu.open && groups.length === SHOW.SHOW_GROUPS.length && want.every(k => keys.includes(k)) && !keys.includes("scenes")
@@ -550,6 +551,40 @@ await tryCase("scan furniture: off unless a screen ticks it; ticked, the scan's 
   SCAN = null; slot = a;
   check(name, listed && !off.includes("scan_m_0") && on.includes("scan_m_0") && off.every(i => on.includes(i)) && on.length === off.length + 1
     && !on.includes("scan_m_1") && pref.scan_furniture === true && !back.includes("scan_m_0") && SHOW.SHOW_ITEMS.find(i => i.key === "scan_furniture").dflt === false, { off, on, back, pref });
+});
+
+// ── Audio (the owner, 2026-11-25: "In the pulldown where you have room controls, that should say audio!!! And the
+// setup card for audio should be accessible there"; his wall shows this look) ─────────────────────────────────────────
+await tryCase("setup: Audio is listed where the host hands it, says Audio, and its Set up › opens the matching card, ticked or not", async () => {
+  const name = "setup: Audio is listed where the host hands it, says Audio, and its Set up › opens the matching card, ticked or not";
+  const opened = [];
+  const listOpen = async () => { if (S().show.menu.open) { click(more()); await settle(); } click(more()); await settle(); };
+  H.audio = null; poll(); await settle(); await listOpen();
+  const none = !row("room_controls");
+  // An administrator: the line, its words, and Set up › whatever the tick; the list closes, nothing is ticked by it.
+  H.audio = { setup: () => opened.push("card") }; poll(); await settle(); await listOpen();
+  const r = row("room_controls"), words = r && r.querySelector(".la3d-sname").textContent, link = r && r.querySelector(".la3d-slink");
+  const said = [words, link && link.textContent, link && link.getAttribute("data-go"), ticked("room_controls")];
+  click(link); await settle();
+  const closed = !S().show.menu.open;
+  await listOpen(); await toggle("room_controls");
+  click(row("room_controls").querySelector(".la3d-slink")); await settle();
+  const tickedNow = JSON.parse(store.get("show_show-a") || "{}").room_controls === true;
+  // A wall's list (no way to Settings or Mapping) still has it: the card opens over the view, no page is left.
+  const wasGo = H.admin; H.admin = false;
+  const p1 = { ...P(), goTo: null, kiosk: true };
+  const c = document.createElement("div"), stage = document.createElement("div"); c.appendChild(stage);
+  shadow.children.find(n => n.className === "content").replaceChildren(c);
+  slot.attach(stage, p1); await settle(); await listOpen();
+  const wall = !!(row("room_controls") && row("room_controls").querySelector(".la3d-slink"));
+  H.admin = wasGo;
+  // Someone the host hands no setup (not an administrator): the line, no link.
+  H.audio = { setup: null }; poll(); await settle(); await listOpen();
+  const plain = !!row("room_controls") && !row("room_controls").querySelector(".la3d-slink");
+  if (S().show.menu.open) { click(more()); await settle(); }
+  store.delete("show_show-a"); H.audio = null; poll(); await settle();
+  check(name, none && JSON.stringify(said) === JSON.stringify(["Audio", "Set up ›", "audio_setup", false]) && closed && tickedNow
+    && JSON.stringify(opened) === JSON.stringify(["card", "card"]) && wall && plain, { none, said, closed, tickedNow, opened, wall, plain });
 });
 
 LA.releaseLiveAboardSlot("show-a");

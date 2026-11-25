@@ -146,7 +146,7 @@ await tryCase("lines: only what the flat Map honours, opened counted as the flat
 await tryCase("lines: Room controls listed where the host hands them, off unless ticked; ticked, the speaker beside the room's name", async () => {
   kept.clear();
   const heard = [], looks = { Kitchen: "on" };
-  const rc = { looks: () => looks, switched: (on) => heard.push(on), sheet: () => null, openMatch() {} };
+  const rc = { looks: () => looks, switched: (on) => heard.push(on), sheet: () => null, openMatch() {}, canMatch: () => true };
   const plain = card(newView(), { slot: "flat-rc0" });
   const k = card(newView(), { slot: "flat-rc", roomControls: rc });
   const was = k.stage.innerHTML;
@@ -160,6 +160,32 @@ await tryCase("lines: Room controls listed where the host hands them, off unless
     listed.includes("room_controls") && !without.includes("room_controls") && off === "false" && was === plain.stage.innerHTML
     && !was.includes("lroom-audio") && (on.match(/class="lroom-audio"/g) || []).length === 1 && /data-room="Kitchen"[^>]*>[\s\S]*?lroom-audio-hit/.test(on)
     && JSON.stringify(heard) === "[true,false]" && k.stage.innerHTML === was, { listed, without, off, heard });
+});
+// Audio (the owner, 2026-11-25: "In the pulldown where you have room controls, that should say audio!!! And the setup
+// card for audio should be accessible there"): the line says Audio; its Set up › opens the matching card over the map,
+// ticked or not, and closes the list; someone who may not match rooms gets no link; the tick is untouched by it.
+await tryCase("lines: Audio says Audio, its Set up › opens the matching card ticked or not, an administrator's", async () => {
+  kept.clear();
+  const opened = [];
+  const rc = (admin) => ({ looks: () => ({}), switched() {}, sheet: () => null, openMatch: () => opened.push(admin), canMatch: () => admin });
+  const k = card(newView(), { slot: "flat-au", roomControls: rc(true) });
+  await openList(k);
+  const row = k.c._all().find(n => n.getAttribute && n.getAttribute("data-show") === "room_controls");
+  const name = row && row.querySelector(".la3d-sname");
+  const link = row && row.querySelector(".la3d-slink");
+  const words = [name && name.textContent, link && link.textContent, link && link.getAttribute("data-go")];
+  click(link);
+  const afterUnticked = opened.slice(), closed = !k.c._all().some(n => n.getAttribute && n.getAttribute("data-la3d-show") !== null);
+  await openList(k); click(tickOf(k, "room_controls"));
+  const ticked = tickOf(k, "room_controls").getAttribute("aria-checked");
+  click(k.c._all().find(n => n.getAttribute && n.getAttribute("data-show") === "room_controls").querySelector(".la3d-slink"));
+  const n = card(newView(), { slot: "flat-au2", roomControls: rc(false) });
+  await openList(n);
+  const nrow = n.c._all().find(x => x.getAttribute && x.getAttribute("data-show") === "room_controls");
+  check("lines: Audio says Audio, its Set up › opens the matching card ticked or not, an administrator's",
+    JSON.stringify(words) === JSON.stringify(["Audio", "Set up ›", "audio_setup"]) && JSON.stringify(afterUnticked) === "[true]" && closed
+    && ticked === "true" && JSON.stringify(opened) === "[true,true]" && !!nrow && !nrow.querySelector(".la3d-slink"),
+    { words, afterUnticked, closed, ticked, opened, nonAdminRow: !!nrow });
 });
 await tryCase("taps: never touched as ever; unticked here a tap on a light switches nothing; ticked again it switches", async () => {
   kept.clear();

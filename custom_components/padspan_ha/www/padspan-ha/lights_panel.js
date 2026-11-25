@@ -976,9 +976,12 @@ class PadSpanLightsApp extends HTMLElement {
   _kiosk(){ try { return new URLSearchParams(location.search).get("kiosk")==="1"; } catch (_) { return false; } }
 
   _isAdmin(){ return !!(this._hass && this._hass.user && this._hass.user.is_admin); }
-  // Room controls on this screen: the ⋯ list's "Room controls" ticked where the map has that list (Pro's display layout).
+  // Whether this install has Audio (views/room_controls.js: the ⋯ list's "Audio" line, its "Set up ›", a room sheet's
+  // Audio part): the ONE place it is decided. Pro includes everything.
+  _audioAllowed(){ return String(this.state._tier||"").toLowerCase()==="pro"; }
+  // Audio on this screen: the ⋯ list's "Audio" (key room_controls) ticked where the map has that list (Pro's display layout).
   _roomControlsOn(){
-    return !!ROOMCTL && String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","room_controls")===true;
+    return !!ROOMCTL && this._audioAllowed() && !!this.state._atlasLayoutV2 && screenShowLine("atlas","room_controls")===true;
   }
   // This page's room controls (views/room_controls.js), made once: functions only, read when used.
   _roomCtl(){
@@ -1203,8 +1206,9 @@ class PadSpanLightsApp extends HTMLElement {
       // builder's own proTier, not the bright-or-pro `paid` above.
       layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
       displayMode: true,
-      // Room controls (views/room_controls.js): offered in the ⋯ list, drawn only while ticked there.
-      roomControls: this._roomCtl(),
+      // Audio (views/room_controls.js), where this install has it: offered in the ⋯ list (with its Set up ›), drawn
+      // only while ticked there.
+      roomControls: this._audioAllowed() ? this._roomCtl() : null,
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
       // The wall's own shape, as it is hung (a turned wall is tall): what its

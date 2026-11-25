@@ -772,9 +772,9 @@ if (Cls) {
   const tree = (n) => (n ? { tag: n.localName, style: n.style ? n.style.cssText : "", text: n._text || "", a: n.attributes, kids: (n.children || []).map(tree) } : null);
   const C4 = { "media_player.c4_kitchen": ST("media_player.c4_kitchen", "on", { friendly_name: "Kitchen", volume_level: 0.4, is_volume_muted: false, supported_features: 4 | 8 | 256 | 1024 }) };
   const settings = { ...BASE, atlas_layout_v2: true, telemetry_enabled: true, pro_has_key: true, room_audio_matches: { kitchen: ["media_player.c4_kitchen"] }, room_audio_ha_speakers: false };
-  const open = async ({ admin = true, ticked = false, without = false } = {}) => {
+  const open = async ({ admin = true, ticked = false, without = false, tier = "pro" } = {}) => {
     if (ticked) localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ room_controls: true })); else localStorage.removeItem("padspan_la3d_show_atlas");
-    const hass = makeHass({ settings, admin, extraStates: C4 });
+    const hass = makeHass({ settings: { ...settings, tier }, admin, extraStates: C4 });
     hass.entities = Object.fromEntries([...ENTITY_REG.map(e => [e.entity_id, e]), ["media_player.c4_kitchen", { entity_id: "media_player.c4_kitchen", platform: "control4", area_id: "kitchen" }]]);
     hass.areas = Object.fromEntries(AREAS.map(a => [a.area_id, a]));
     const real = hass.callWS, sent = [], svc = [];
@@ -821,6 +821,16 @@ if (Cls) {
     if (up2) { up2.click(); await flush(); }
     const mb = a2 && a2._all().find(n => n.localName === "button" && n.attributes["data-room-match"] !== undefined);
     roomCtl.nonAdmin = { svc: p.svc.slice(), matchDisabled: !!(mb && mb.disabled) };
+    p.done();
+    // Audio is decided in one place (_audioAllowed, Pro today): below it, ticked or not, no speaker, no Audio in the
+    // sheet, and the map is handed no Audio at all (so the ⋯ list offers neither the line nor its Set up ›).
+    p = await open({ ticked: true, tier: "bright" });
+    const bs = p.sheet();
+    roomCtl.belowPro = { allowed: p.el._audioAllowed(), icon: p.svg().includes("lroom-audio"),
+      audio: !!bs._all().find(n => n.attributes && n.attributes["data-room-controls"] === "audio") };
+    p.done();
+    p = await open({ ticked: true });
+    roomCtl.pro = { allowed: p.el._audioAllowed() };
     p.done();
     localStorage.removeItem("padspan_la3d_show_atlas");
   } catch (e) { fail("room controls", "lifecycle", e); }

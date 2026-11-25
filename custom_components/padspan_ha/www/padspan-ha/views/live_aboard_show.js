@@ -109,9 +109,12 @@ export const SHOW_ITEMS = [
   // flat Map, lights_map.js and atlas_fit.edgeZoom; the 3D look, live_aboard_edgecut.js, and its Views ▾). Lights and
   // buttons out at an edge are cut with it. Per screen, off unless ticked.
   { key: "edgecut", group: "house", get words() { return t("Edgecut"); }, get hint() { return t("The rooms fill the screen edge to edge: the house's outer edges, and on a stack of floors the top and bottom ones, run off the screen"); }, flat: true, dflt: false },
-  // Room controls (room_controls.js; the owner, 2026-11-25): on the flat Map a speaker beside the name of a room whose
-  // player is on, and the room's sheet gains its audio, shades and climate. Per screen, off unless ticked.
-  { key: "room_controls", group: "house", get words() { return t("Room controls"); }, get hint() { return t("Volume, mute and off for the room's players, and its shades and thermostat, in the room's sheet; a speaker beside a room's name while a player there is on"); }, flat: true, dflt: false },
+  // Audio (room_controls.js; the owner, 2026-11-25: "In the pulldown where you have room controls, that should say
+  // audio!!! And the setup card for audio should be accessible there"; the key stays room_controls, so the ticks kept
+  // and the report go on): on the flat Map a speaker beside the name of a room whose player is on, and the room's
+  // sheet or panel gains its audio, shades and climate. Per screen, off unless ticked. Its Set up › opens the
+  // matching card over the map, ticked or not (audio_setup, an administrator's).
+  { key: "room_controls", group: "house", get words() { return t("Audio"); }, get hint() { return t("Volume, mute and off for each room's players in the room's panel, with its shades and thermostat; a speaker beside a room's name while a player there is on"); }, link: "audio_setup", flat: true, dflt: false },
   // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
   // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).
   { key: "glass_walls", group: "house", get words() { return t("Glass walls"); }, get hint() { return t("The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)"); }, dflt: false },
@@ -141,6 +144,8 @@ export const LINK_WORDS = {
   atlas: ["Settings", "Settings → Atlas"],
   // Home Assistant's own scene editor (scene_row.js SCENE_PLACE), not a PadSpan page.
   scene_new: ["Home Assistant", "Home Assistant → Settings → Automations & scenes → Scenes"],
+  // Audio's matching card (room_controls.js openMatch), opened over the map: no page is left.
+  audio_setup: ["Set up", "Audio's setup: which player is in which room"],
 };
 // The same in the panel's language: linkWords(key) is [the screen, the way there] (LINK_WORDS stays the English one).
 const LINK_T = {
@@ -154,6 +159,7 @@ const LINK_T = {
   showcase: () => [t("Mapping"), t("Mapping → Atlas builder → Showcase options")],
   atlas: () => [t("Settings"), t("Settings → Atlas")],
   scene_new: () => ["Home Assistant", t("Home Assistant → Settings → Automations & scenes → Scenes")],
+  audio_setup: () => [t("Set up"), t("Audio's setup: which player is in which room")],
 };
 const linkWords = (key) => (LINK_T[key] ? LINK_T[key]() : LINK_WORDS[key]);
 /** Where each is, for the host's goTo({view, tab, part}): the panel's own
@@ -166,15 +172,18 @@ export const GO_TO = {
   atlas: { view: "settings", tab: "atlas" },
 };
 /** Where a line, a "Set it up" or "Settings → Atlas ›" goes, from either look (one way, review 2026-11-11): a new
- *  scene through the scene row's own way to Home Assistant (scenes.add), else the host's goTo to GO_TO's place.
- *  False where there is no way (the list shows no button for it: canGoTo). */
-export function goShow(where, goTo, scenes){
-  if (!canGoTo(where, goTo, scenes)) return false;
+ *  scene through the scene row's own way to Home Assistant (scenes.add); Audio's Set up to its matching card over the
+ *  map (audio.setup, the host's: an administrator's, a wall's too, since no page is left); else the host's goTo to
+ *  GO_TO's place. False where there is no way (the list shows no button for it: canGoTo). */
+export function goShow(where, goTo, scenes, audio = null){
+  if (!canGoTo(where, goTo, scenes, audio)) return false;
   if (where === "scene_new") { scenes.add("show"); return true; }
+  if (where === "audio_setup") { audio.setup(); return true; }
   try { goTo({ ...GO_TO[where], where: String(where) }); return true; } catch (_) { return false; }
 }
 /** Whether goShow has a way to `where`. */
-export function canGoTo(where, goTo, scenes){
+export function canGoTo(where, goTo, scenes, audio = null){
+  if (where === "audio_setup") return !!(audio && typeof audio.setup === "function");
   return where === "scene_new" ? !!(scenes && typeof scenes.add === "function") : typeof goTo === "function" && !!GO_TO[where];
 }
 

@@ -716,7 +716,7 @@ const W_SHOW_LINE = {
   motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", doors: "doors", windows: "windows",
   covers: "garage doors and gates", locks: "locks", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
   trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", scan_furniture: "furniture from scans", stairs: "stairs",
-  room_names: "room names", room_outlines: "room outlines", room_row: "room chips along the top", floor_outlines: "floor outlines", other_floors: "other floors, faded", edgecut: "Edgecut", room_controls: "room controls", glass_walls: "glass walls", roof: "the roof",
+  room_names: "room names", room_outlines: "room outlines", room_row: "room chips along the top", floor_outlines: "floor outlines", other_floors: "other floors, faded", edgecut: "Edgecut", room_controls: "audio", glass_walls: "glass walls", roof: "the roof",
   rain: "rain and snow", theme: "theme colours", forest: "forest trees",
 };
 const W_EVENT = {

@@ -6432,6 +6432,8 @@ function createSlot(slotKey){
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_taps" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "light_buttons" || mapOnly);
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_switch" || mapOnly);
+    // Audio only where the host hands it (the Atlas tab, where this install has Audio), as on the flat Map.
+    for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_controls" || !!(houseP && houseP.audio));
     // Edgecut on a display screen only (the Atlas tab and its walls), as on the flat Map: the builder edits the whole house.
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "edgecut" || mapOnly);
     // The room chips' row only where it can show: a wide screen, not a wall (there it is always Rooms ▾).
@@ -6520,7 +6522,7 @@ function createSlot(slotKey){
   /** The host's way to Settings or Mapping (p.goTo(where)); false where it has none.
    *  A new scene: the scene row's own way to Home Assistant's editor. */
   function showGo(where){
-    return SHOW.goShow(where, houseP && houseP.goTo, where === "scene_new" ? scenesOf(houseP) : null);   // the flat Map's ⋯ goes the same way
+    return SHOW.goShow(where, houseP && houseP.goTo, where === "scene_new" ? scenesOf(houseP) : null, houseP && houseP.audio);   // the flat Map's ⋯ goes the same way
   }
   function makeShowMenu(){
     return SHOW.createShowMenu({
@@ -6530,8 +6532,10 @@ function createSlot(slotKey){
       toggle: (key) => toggleShow(key),
       setup: (r) => showSetup(r.key, r.setup),
       go: (where) => showGo(where),
-      // Settings and Mapping are an administrator's: anyone else gets no links (each line says who sets it up).
-      canGo: () => !!(houseP && typeof houseP.goTo === "function" && houseP.admin === true),
+      // Settings and Mapping are an administrator's: anyone else gets no links (each line says who sets it up). Audio's
+      // Set up opens its card over the view (an administrator's too: the host hands no setup to anyone else), a wall's too.
+      canGo: (where) => (where === "audio_setup" ? SHOW.canGoTo(where, null, null, houseP && houseP.audio)
+        : !!(houseP && typeof houseP.goTo === "function" && houseP.admin === true)),
       reset: () => resetShow(),
       opened: () => { showSend("house3d_show:opened"); layCover(); },   // drawn now: the banner cut round it
       seen: (groups) => { for (const g of groups) for (const r of g.rows) if (r.setup && !r.setup.perm) showSend(`house3d_show:setup_seen:${r.key}`, true); },

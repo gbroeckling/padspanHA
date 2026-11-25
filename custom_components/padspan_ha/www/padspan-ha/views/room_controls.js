@@ -9,10 +9,15 @@
 // Assistant matchup; room off; Crestron and the other whole-house systems; Home
 // Assistant's own speakers, off by default; two volume controls in one room,
 // "like in my house, denon and control4 at the same time"; no clutter on the
-// maps).
+// maps; then "In the pulldown where you have room controls, that should say
+// audio!!! And the setup card for audio should be accessible there"). Its words
+// say Audio; its keys stay room_controls (the ⋯ line, the report) and
+// room_audio_* (the settings), so the ticks kept and the report go on.
 //
-//   the switch  the ⋯ list's "Room controls" line (live_aboard_show.js, per
-//               screen, off unless ticked). Off, nothing here is read or drawn.
+//   the switch  the ⋯ list's "Audio" line (live_aboard_show.js, per screen,
+//               off unless ticked). Off, nothing here is read or drawn. Its
+//               "Set up ›" opens the matching card (openMatch) over the map, in
+//               the flat Map's list and the 3D look's, ticked or not.
 //   the map     a small speaker beside a room's name while one of the room's
 //               players is on (slashed while the room's first player is muted);
 //               nothing while they are all off (looks, iso_lights.js). A tap on
@@ -147,6 +152,9 @@ const S = {
   section: "padding:6px 2px 8px;border-bottom:1px solid rgba(120,190,155,.12);margin-bottom:6px",
   head: "font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:2px 0 2px",
   row: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0",
+  // A player's Mute, −, level, + and ⏻ stay on one line: a narrow panel (the 3D room panel on a wall) wraps them under
+  // its name as one, never two of them on a second line.
+  ctl: "display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:nowrap",
   name: "flex:1 1 140px;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis",
   sys: "color:#94a3b8;font-weight:600",
   chip: (on) => "display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;"
@@ -172,7 +180,8 @@ const mk = (tag, style, text) => { const n = document.createElement(tag); if (st
  *   save(patch)   writes those two (settings_set); resolves when Home Assistant kept them
  *   admin()       an administrator: may match rooms
  *   toast(m, err), errorText(e), count(word) (the report's room_controls:<word>), redraw() (the open sheet and the map)
- * Returns { looks, sheet, switched, openMatch } — functions only (the map card's signature keeps none of its data).
+ * Returns { looks, sheet, switched, openMatch, canMatch } — functions only (the map card's signature keeps none of its
+ * data). canMatch(): may this person open the matching card (an administrator).
  */
 export function createRoomControls(o){
   const opt = new Map();   // eid -> {level?, muted?, target?, until}: what a press shows until Home Assistant says
@@ -248,8 +257,10 @@ export function createRoomControls(o){
       else b.addEventListener("click", (e) => { if (e && e.stopPropagation) e.stopPropagation(); run(); });
       return b;
     };
+    const ctl = mk("span", S.ctl);
+    row.appendChild(ctl);
     if (has(s, VOLUME_MUTE)) {
-      row.appendChild(btn(muted ? t("Unmute") : t("Mute"), muted ? t("Unmute {name}", { name: p.name }) : t("Mute {name}", { name: p.name }), () => {
+      ctl.appendChild(btn(muted ? t("Unmute") : t("Mute"), muted ? t("Unmute {name}", { name: p.name }) : t("Mute {name}", { name: p.name }), () => {
         opt.set(p.eid, { ...(optOf(p.eid) || {}), muted: !muted, until: Date.now() + OPTIMISTIC_MS });
         call("media_player", "volume_mute", { entity_id: p.eid, is_volume_muted: !muted }, "mute", p.name, () => opt.delete(p.eid));
       }, na));
@@ -260,12 +271,12 @@ export function createRoomControls(o){
       if (lvl !== null) opt.set(p.eid, { ...(optOf(p.eid) || {}), level: Math.max(0, Math.min(1, lvl + dir * step)), until: Date.now() + OPTIMISTIC_MS });
       call("media_player", dir > 0 ? "volume_up" : "volume_down", { entity_id: p.eid }, dir > 0 ? "up" : "down", p.name, () => opt.delete(p.eid));
     };
-    row.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
+    ctl.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
     const lv = mk("span", S.level, lvl === null ? "—" : String(Math.round(lvl * 100)));
     lv.setAttribute("data-level", "");
-    row.appendChild(lv);
-    row.appendChild(btn("+", t("{name} volume up", { name: p.name }), nudge(1), na || !steps));
-    if (has(s, TURN_OFF)) row.appendChild(btn("⏻", t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
+    ctl.appendChild(lv);
+    ctl.appendChild(btn("+", t("{name} volume up", { name: p.name }), nudge(1), na || !steps));
+    if (has(s, TURN_OFF)) ctl.appendChild(btn("⏻", t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
     return row;
   }
   const systemsPresent = () => [...new Set(audioPlayers(H(), haOn()).map(p => p.platform))];
@@ -440,7 +451,7 @@ export function createRoomControls(o){
       box.appendChild(lab);
       if (!players.length) {
         box.appendChild(mk("div", S.note + ";font-size:12px;padding:8px 0",
-          t("No players found. Room controls know Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha and Anthem players in Home Assistant.")));
+          t("No players found. Audio knows Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha and Anthem players in Home Assistant.")));
       }
       if (!rooms.length) box.appendChild(mk("div", S.note + ";font-size:12px;padding:4px 0", t("No room on the map is a Home Assistant area yet.")));
       let group = null;
@@ -502,5 +513,5 @@ export function createRoomControls(o){
     return card;
   }
 
-  return { looks, sheet, switched, openMatch, close: () => { if (card) card.close(); } };
+  return { looks, sheet, switched, openMatch, canMatch: () => !!o.admin(), close: () => { if (card) card.close(); } };
 }

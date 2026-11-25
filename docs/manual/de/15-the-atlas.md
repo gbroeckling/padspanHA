@@ -108,12 +108,14 @@ kleine Karte der Etage und zeigt, welche Lichter die Szene benutzt. Ein Tippen s
 alle ihre Lichter schon an, schaltet ein Tippen sie aus. **+ New scene** und ✎ öffnen den
 Szenen-Editor von Home Assistant, für einen Administrator, und nie auf einem Wandbildschirm.
 
-## Raumsteuerung
+## Audio
 
-Hak im **⋯** der Karte (Show on this screen, in der Leiste neben der Karte) **Raumsteuerung** an, und
-das Blatt jedes Raums bekommt seine Musik, seine Beschattung und sein Thermostat. Ab Werk ist es aus,
-bis ein Bildschirm es anhakt, und jeder Bildschirm (ein Handy, eine Wand) hat seinen eigenen Haken.
-Aus sind die Karte und die Blätter genau wie vorher.
+Hak im **⋯** der Karte (Show on this screen, in der Leiste neben der Karte, und im eigenen ⋯ der
+3D-Ansicht) **Audio** an, und das Blatt jedes Raums (in 3D sein Feld) bekommt seine Musik, seine
+Beschattung und sein Thermostat. Ab Werk ist es aus, bis ein Bildschirm es anhakt, und jeder
+Bildschirm (ein Handy, eine Wand) hat seinen eigenen Haken. Aus sind die Karte und die Blätter genau
+wie vorher. **Einrichten ›** in derselben Zeile öffnet die Zuordnungskarte (unten) gleich dort über
+der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbildschirm.
 
 - **Auf der Karte**: ein kleiner Lautsprecher neben dem Namen eines Raums, solange einer seiner
   Player an ist, durchgestrichen, solange der erste Player des Raums stumm ist. Nichts, solange alle
@@ -125,8 +127,8 @@ Aus sind die Karte und die Blätter genau wie vorher.
   etwas an ist. Dann die Szenen wie bisher, und:
   - **Audio**: eine Zeile für jeden Player, mit seinem System benannt („Control4 · Great Room“,
     „Denon · Zone 2“), ob er an, aus oder stumm ist, **Stumm**, **−**, die Lautstärke, **+** und ⏻
-    (dieser Player aus). Was ein Player nicht kann, fehlt oder ist grau: Ein ausgeschalteter Player
-    zeigt seine Lautstärke als —.
+    (dieser Player aus), diese fünf immer in einer Zeile. Was ein Player nicht kann, fehlt oder ist
+    grau: Ein ausgeschalteter Player zeigt seine Lautstärke als —.
   - die Lichter des Raums wie bisher;
   - **Beschattung**: eine Zeile für alle Abdeckungen des Raums, **Öffnen**, **Stopp** und
     **Schließen** für alle zugleich, und wie weit sie offen sind. Garagentore, Tore und Türen bleiben
@@ -141,7 +143,8 @@ Aus sind die Karte und die Blätter genau wie vorher.
   am Ende des Audio-Teils (**Control4 mit HA abgleichen**, wo Control4 das einzige System ist)
   öffnet eine Karte mit jedem Player, nach System, und einem Raum für jeden, oder **Nicht auf der
   Karte**. Beim ersten Mal rät sie nach dem Bereich des Players in Home Assistant, sonst nach seinem
-  Namen. **Raumsteuerung** anzuhaken, solange nichts zugeordnet ist, öffnet sie sofort. Mehrere
+  Namen. **Einrichten ›** in der Zeile **Audio** im **⋯** öffnet sie auch, und **Audio** anzuhaken,
+  solange nichts zugeordnet ist, öffnet sie sofort. Mehrere
   Player können sich einen Raum teilen (etwa eine Control4-Zone und eine Denon-Zone): ▲ und ▼ legen
   ihre Reihenfolge fest, und dem ersten folgt der Lautsprecher auf der Karte. Wer kein Administrator
   ist, sieht den Knopf grau.

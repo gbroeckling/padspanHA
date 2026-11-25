@@ -251,6 +251,11 @@ await tryCase("audio", async () => {
   check("audio", label(rows[0]) === "Denon · Zone 2" && label(rows[1]) === "Control4 · Great Room", [label(rows[0]), label(rows[1])]);
   check("audio", words(rows[1]).join() === "Mute,−,+,⏻" && all(rows[1]).find(n => n.attributes["data-level"] !== undefined).textContent === "35", words(rows[1]));
   check("audio", rows[1].children[1].textContent === "On", rows[1].children[1].textContent);
+  // Mute, −, level, + and ⏻ in one group that never wraps (the 3D room panel on a wall put the last three on a second
+  // line): a narrow panel moves the group under the name as one line.
+  const ctl = rows[1].children[2];
+  check("audio", rows[1].children.length === 3 && /flex-wrap:nowrap/.test(ctl.style.cssText) && /flex:0 0 auto/.test(ctl.style.cssText)
+    && words(ctl).join() === "Mute,−,+,⏻" && ctl.children.some(n => n.attributes["data-level"] !== undefined), ctl && ctl.style.cssText);
   const one = async (b) => { const n = h.calls.length; await press(b); return h.calls.slice(n); };
   const c4 = () => rowOf(section(sheetNow(), "audio"), "media_player.c4_great_room");
   let got = await one(byAria(c4(), "Great Room volume up"));
@@ -415,6 +420,8 @@ await tryCase("non-admin", async () => {
   const a = section(sheetNow(), "audio");
   const mb = btn(a, b => b.attributes["data-room-match"] !== undefined);
   check("non-admin", mb && mb.disabled && all(a).some(n => n._text === "An administrator matches the players to the rooms."), mb && mb.disabled);
+  // The ⋯ line's Set up › is offered by this (lights_map.js audioSetup): an administrator's only.
+  check("non-admin", r.rc.canMatch() === false && controls(house()).rc.canMatch() === true, "canMatch is not the administrator's");
   // The controls themselves are for everyone, as the lights are.
   await press(byAria(rowOf(a, "media_player.c4_great_room"), "Great Room volume up"));
   check("non-admin", h.calls.length === 1, h.calls);
