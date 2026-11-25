@@ -308,7 +308,7 @@ def test_the_settings_payload_says_which_add_ons() -> None:
 def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
     """"PadSpan Pro or the … add-on", the price from editions.js (addonPrice / ADDONS), never hard-coded."""
     st = _src("views/settings.js")
-    assert 't("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: a.price });' in st
+    assert 't("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: addonPrice(a.name) });' in st
     for rel in ("views/busy_times.js", "views/locate.js"):
         assert 't("{feature} needs PadSpan Pro or the {addon} add-on ({price})",' in _src(rel), rel
         assert 'price: addonPrice("insights")' in _src(rel), rel

@@ -73,7 +73,7 @@ const run = (name, fn) => { try { fn(); } catch (e) { fail.push(`${name}: ${e &&
 run("addonAllowed", () => {
   out.allowed = {};
   for (const [k, s] of Object.entries(INSTALLS)) out.allowed[k] = ED.ADDONS.map(a => a.name).filter(n => ED.addonAllowed(s, n));
-  out.prices = Object.fromEntries(ED.ADDONS.map(a => [a.name, ED.addonPrice(a.name)]));
+  out.prices = Object.fromEntries(ED.ADDONS.map(a => [a.name, ED.addonPrice(a.name, Date.parse("2026-11-01T00:00:00Z"))]));
   out.noPrice = ED.addonPrice("nope");
   out.insightsWords = ED.ADDONS.find(a => a.name === "insights").words;
 });
@@ -122,7 +122,7 @@ run("devices", () => {
     const root = DEV.render(ctx);
     const text = root.textContent || "";
     const kinds = all(root).filter(n => n.localName === "option").map(n => n.value || n.getAttribute("value"));
-    out.openers[k] = { refused: text.includes("Door Openers needs PadSpan Pro or the Alarm & security add-on ($6.45 CAD)"),
+    out.openers[k] = { refused: text.includes(`Door Openers needs PadSpan Pro or the Alarm & security add-on (${ED.addonPrice("alarm")})`),
       relayLight: kinds.includes("relay_light"), opener: kinds.includes("momentary_opener"), lock: kinds.includes("momentary_lock") };
   }
 });
@@ -133,7 +133,7 @@ run("insights", () => {
   for (const [k, s] of Object.entries(INSTALLS)) {
     const b = BUSY.render(ctxFor(s));
     const l = LOC.render(ctxFor(s, { followAddr: "AA:TAG" }));
-    const gate = (n) => (n.textContent || "").includes("needs PadSpan Pro or the Presence insights add-on ($5.56 CAD)");
+    const gate = (n) => (n.textContent || "").includes(`needs PadSpan Pro or the Presence insights add-on (${ED.addonPrice("insights")})`);
     out.insights[k] = { busyGate: gate(b), locateGate: gate(l) };
   }
 });

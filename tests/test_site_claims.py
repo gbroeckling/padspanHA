@@ -404,3 +404,50 @@ def test_anchors_land_below_the_sticky_nav(html: str) -> None:
     assert re.search(r"(?:^|\n)section\[id\]\{scroll-margin-top:\d+px\}", css), "desktop"
     phone = re.search(r"@media\(max-width:640px\)\{[^\n]*section\[id\]\{scroll-margin-top:(\d+)px\}", css)
     assert phone and int(phone.group(1)) >= 80, "a phone's two-row nav covers the section heading"
+
+
+def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html: str) -> None:
+    """Every add-on on sale is HALF price, rounded down to the cent, from ADDON_HALF_FROM until ADDON_HALF_UNTIL
+    (editions.js; the owner, 2026-11-25). The site's #addons box switches its shown price and each PayPal form's amount
+    at the same two moments by itself (the visitor's clock; the licence server checks the payment's date), and says
+    "Half off until January 1" while it runs. The panel's addonPrice is run before, during and after the sale and the
+    page's normal and half amounts must be its answers."""
+    import json
+    import shutil
+    import subprocess
+    from pathlib import Path
+    views = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views"
+    ed = (views / "editions.js").read_text(encoding="utf-8")
+    start = re.search(r'ADDON_HALF_FROM = "([^"]+)"', ed).group(1)
+    until = re.search(r'ADDON_HALF_UNTIL = "([^"]+)"', ed).group(1)
+    assert (start, until) == ("2026-11-27T08:00:00Z", "2027-01-02T08:00:00Z")
+    box = html[html.index('<div class="ed" id="addons"'):]
+    box = box[:box.index('<div class="ed">')]
+    assert f'data-half-from="{start}" data-half-until="{until}"' in box, "the site switches at other moments than the panel"
+    assert "Black Friday: every add-on is half off until January 1." in box
+    assert 'input[data-half-amount]' in box and 'e.value=e.getAttribute("data-half-amount")' in box
+    assert 'n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until"))' in box
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    run = ("const E = await import(" + json.dumps((views / "editions.js").as_uri()) + ");"
+           "const at = {before: Date.parse('2026-11-27T07:59:59Z'), first: Date.parse('2026-11-27T08:00:00Z'),"
+           " last: Date.parse('2027-01-02T07:59:59Z'), after: Date.parse('2027-01-02T08:00:00Z')};"
+           "const out = {}; for (const [k, t] of Object.entries(at)) out[k] = Object.fromEntries(E.ADDONS.map(a => [a.name, E.addonPrice(a.name, t)]));"
+           "console.log(JSON.stringify(out));")
+    r = subprocess.run([node, "--input-type=module", "-e", run], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip().splitlines()[-1])
+    assert got["before"] == got["after"] and got["first"] == got["last"]
+    for name, price in got["before"].items():
+        row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S)
+        if name == "maps":
+            assert row is None and got["first"][name] == price, "not on sale: no box, and never half off"
+            continue
+        row = row.group(0)
+        normal, sale = price[1:-4], got["first"][name][1:-4]
+        assert float(sale) == int(round(float(normal) * 100) // 2) / 100, (name, normal, sale)
+        assert f'name="amount" value="{normal}" data-half-amount="{sale}"' in row, name
+        assert f'data-addon-price="normal" style="color:var(--mut);font-weight:600">${normal} CAD</span>' in row, name
+        assert f'data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">${sale} CAD</span>' in row, name
+        assert f"Half off until January 1 (normally ${normal})" in row, name

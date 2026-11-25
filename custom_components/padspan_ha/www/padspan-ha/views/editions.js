@@ -127,11 +127,42 @@ export function addonAllowed(settings, name) {
 export function addonGate(settings, name) {
   return !addonOnSale(name) || addonAllowed(settings, name);
 }
-/** An add-on's price as the site sells it ("$8.65 CAD"), "" for no such add-on: what a refusal says beside the
- *  add-on's name ("PadSpan Pro or the Climate map add-on ($8.65 CAD)"), never written out there. */
-export function addonPrice(name) {
+// Black Friday (the owner, 2026-11-25): every add-on on sale at HALF its price, rounded down to the cent, from
+// ADDON_HALF_FROM (Friday November 27, 2026, 00:00 Pacific) until ADDON_HALF_UNTIL (the end of January 1, 2027,
+// Pacific). Every price an add-on is quoted at comes from addonPrice / addonPriceParts, so the panel switches by
+// itself at the two moments; the site's #addons forms switch at the same two (tests/test_site_claims.py pins them),
+// and the licence server takes the half price by the payment's date.
+export const ADDON_HALF_FROM = "2026-11-27T08:00:00Z";
+export const ADDON_HALF_UNTIL = "2027-01-02T08:00:00Z";
+export function addonHalfOff(now = Date.now()) {
+  return now >= Date.parse(ADDON_HALF_FROM) && now < Date.parse(ADDON_HALF_UNTIL);
+}
+/** Half of a price ("$6.45 CAD"), rounded down to the cent: "$3.22 CAD". */
+export function halfPrice(price) {
+  const cents = Math.round(Number(String(price).replace(/[^\d.]/g, "")) * 100);
+  return `$${(Math.floor(cents / 2) / 100).toFixed(2)} CAD`;
+}
+/** What add-on `name` costs at `now`: { price ("$3.22 CAD" in the sale, else "$6.45 CAD"), normal ("$6.45"), half
+ *  (true in the sale) }, or null for no such add-on. One that isn't on sale yet is never half off. */
+export function addonPriceParts(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
-  return a ? a.price : "";
+  if (!a) return null;
+  const half = addonHalfOff(now) && a.on_sale !== false;
+  return { price: half ? halfPrice(a.price) : a.price, normal: a.price.replace(/ CAD$/, ""), half };
+}
+/** An add-on's price now, as the site sells it ("$8.65 CAD"; "$4.32 CAD" in the sale), "" for no such add-on: what a
+ *  refusal says beside the add-on's name ("PadSpan Pro or the Climate map add-on ($8.65 CAD)"), never written out
+ *  there. */
+export function addonPrice(name, now = Date.now()) {
+  const p = addonPriceParts(name, now);
+  return p ? p.price : "";
+}
+/** The price in full, in English: "$3.22 CAD — half off until January 1 (normally $6.45)" in the sale, the price
+ *  otherwise. settings.js says the same in the panel's language (addonPriceSaid). */
+export function addonPriceWords(name, now = Date.now()) {
+  const p = addonPriceParts(name, now);
+  if (!p) return "";
+  return p.half ? `${p.price} — half off until January 1 (normally ${p.normal})` : p.price;
 }
 /** Whether this install's key is an add-on key (not a Pro key), lapsed or
  *  not: the backend's own answer (settings.addon_key, licence.is_addon_key).

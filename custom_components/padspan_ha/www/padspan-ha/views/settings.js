@@ -18,7 +18,7 @@
  */
 const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, brightProOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
-        ADDONS, ADDONS_URL, addonAllowed, addonKey } =
+        ADDONS, ADDONS_URL, addonAllowed, addonKey, addonPrice, addonPriceParts } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
 // leaves the rest of Settings as it is.
@@ -3468,7 +3468,14 @@ const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words
 // panel's language with its price (editions.js ADDONS).
 function proOrAddon(name){
   const a = ADDONS.find(x => x.name === name);
-  return t("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: a.price });
+  return t("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: addonPrice(a.name) });
+}
+// An add-on's price as the licence card offers it, in the panel's language (editions.js addonPriceWords):
+// "$3.22 CAD — half off until January 1 (normally $6.45)" in the Black Friday sale, the price otherwise.
+function addonPriceSaid(name){
+  const p = addonPriceParts(name);
+  if (!p) return "";
+  return p.half ? t("{price} — half off until January 1 (normally {normal})", { price: p.price, normal: p.normal }) : p.price;
 }
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
@@ -3682,7 +3689,7 @@ function _settingsLicence(ctx, el){
     const list = el("div", { style: "display:flex;flex-wrap:wrap;gap:2px 14px" });
     for (const a of addonOffer) {
       list.appendChild(el("a", { href: ADDONS_URL, target: "_blank", rel: "noopener", "data-addon": a.name,
-        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + a.price));
+        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + addonPriceSaid(a.name)));
     }
     offer.appendChild(list);
     card.appendChild(offer);

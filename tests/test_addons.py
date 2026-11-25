@@ -292,17 +292,25 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
     every = ["Audio $6.45 CAD", "Alarm & security $6.45 CAD", "Wi-Fi coverage $6.45 CAD", "Climate map $8.65 CAD",
              "Time travel $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD", "Forensics $5.56 CAD",
              "Presence insights $5.56 CAD"]
+    # Black Friday (editions.js ADDON_HALF_FROM .. UNTIL): the card's "after" (December 1) and "pass" (December 16) are in
+    # it, so each add-on is offered at half, rounded down to the cent, with its usual price beside it.
+    half = {"$6.45": "$3.22", "$8.65": "$4.32", "$7.55": "$3.77", "$4.25": "$2.12", "$5.56": "$2.78"}
+
+    def on_sale(item: str) -> str:
+        words, price = item.rsplit(" ", 2)[0], item.rsplit(" ", 2)[1]
+        return f"{words} {half[price]} CAD — half off until January 1 (normally {price})"
     for day in ("during", "after", "pass"):
         a = out[f"addons_{day}"]
         assert a["status"].startswith("✓ PadSpan add-ons: Audio until 2028-11-25 · Climate map "), a
         assert "Pro" not in a["status"] and a["buy"].startswith("Buy PadSpan Pro"), a
-        assert a["offer"]["lead"] == lead and [i["text"] for i in a["offer"]["items"]] == every[1:], "all but the one it has"
+        now = every if day == "during" else [on_sale(i) for i in every]
+        assert a["offer"]["lead"] == lead and [i["text"] for i in a["offer"]["items"]] == now[1:], ("all but the one it has", day)
         assert {i["href"] for i in a["offer"]["items"]} == {"https://padspan.traks.ca/#addons"}
         lapsed = out[f"addons_lapsed_{day}"]
         assert lapsed["status"].startswith("⚠ Your PadSpan add-ons ended on 2026-10-01.") and "Pro" not in lapsed["status"]
-        assert lapsed["buy"].startswith("Buy PadSpan Pro") and [i["text"] for i in lapsed["offer"]["items"]] == every
+        assert lapsed["buy"].startswith("Buy PadSpan Pro") and [i["text"] for i in lapsed["offer"]["items"]] == now
         for kind in ("nokey", "lapsed"):
-            assert out[f"{kind}_{day}"]["offer"]["lead"] == lead and [i["text"] for i in out[f"{kind}_{day}"]["offer"]["items"]] == every
+            assert out[f"{kind}_{day}"]["offer"]["lead"] == lead and [i["text"] for i in out[f"{kind}_{day}"]["offer"]["items"]] == now
         for kind in ("annual", "lifetime"):
             assert out[f"{kind}_{day}"]["offer"] is None and out[f"{kind}_{day}"]["buy"] is None, kind
     assert "Climate map ended on 2026-11-01" in out["addons_pass"]["status"]

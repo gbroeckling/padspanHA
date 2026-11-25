@@ -5680,20 +5680,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       </ul>
       <a class="btn primary" href="#pro" style="margin-top:auto">Get Pro</a>
     </div>
-    <div class="ed" id="addons" style="grid-column:1/-1;scroll-margin-top:88px">
+    <div class="ed" id="addons" data-half-from="2026-11-27T08:00:00Z" data-half-until="2027-01-02T08:00:00Z" style="grid-column:1/-1;scroll-margin-top:88px">
       <h3>Add-ons</h3>
       <div class="sub">For PadSpan HA without Pro · one feature each</div>
+      <p data-addon-price="half" style="display:none;font-size:15px;color:var(--acc2);font-weight:800;margin:0 0 8px">Black Friday: every add-on is half off until January 1.</p>
       <p style="font-size:14px;color:#c4d6c9;margin:0 0 12px">Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
         <div id="audio" data-addon="audio" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Audio <span style="color:var(--mut);font-weight:600">$6.45 CAD</span></div>
+          <div style="font-weight:800">Audio <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Volume, mute and off for each room's players on the map</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Audio — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-audio">
-            <input type="hidden" name="amount" value="6.45">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5702,14 +5704,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="alarm" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Alarm &amp; security <span style="color:var(--mut);font-weight:600">$6.45 CAD</span></div>
+          <div style="font-weight:800">Alarm &amp; security <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Alarm &amp; security — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-alarm">
-            <input type="hidden" name="amount" value="6.45">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5718,14 +5721,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="wifi" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Wi-Fi coverage <span style="color:var(--mut);font-weight:600">$6.45 CAD</span></div>
+          <div style="font-weight:800">Wi-Fi coverage <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The UniFi Wi-Fi coverage map</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Wi-Fi coverage — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-wifi">
-            <input type="hidden" name="amount" value="6.45">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5734,14 +5738,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="climate" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Climate map <span style="color:var(--mut);font-weight:600">$8.65 CAD</span></div>
+          <div style="font-weight:800">Climate map <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $8.65)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The Heatmap: rooms by temperature, humidity and CO₂</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Climate map — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-climate">
-            <input type="hidden" name="amount" value="8.65">
+            <input type="hidden" name="amount" value="8.65" data-half-amount="4.32">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5750,14 +5755,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="timetravel" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Time travel <span style="color:var(--mut);font-weight:600">$7.55 CAD</span></div>
+          <div style="font-weight:800">Time travel <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$7.55 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.77 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $7.55)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The day replayed on the Atlas map (Playback on the Atlas)</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Time travel — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-timetravel">
-            <input type="hidden" name="amount" value="7.55">
+            <input type="hidden" name="amount" value="7.55" data-half-amount="3.77">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5766,14 +5772,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="vacation" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Vacation Mode &amp; presets <span style="color:var(--mut);font-weight:600">$4.25 CAD</span></div>
+          <div style="font-weight:800">Vacation Mode &amp; presets <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $4.25)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Vacation Mode and Whole House Presets</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Vacation Mode &amp; presets — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-vacation">
-            <input type="hidden" name="amount" value="4.25">
+            <input type="hidden" name="amount" value="4.25" data-half-amount="2.12">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5782,14 +5789,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="looks" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Looks pack <span style="color:var(--mut);font-weight:600">$4.25 CAD</span></div>
+          <div style="font-weight:800">Looks pack <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $4.25)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Day and three more themes, Showcase and the forest</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Looks pack — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-looks">
-            <input type="hidden" name="amount" value="4.25">
+            <input type="hidden" name="amount" value="4.25" data-half-amount="2.12">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5798,14 +5806,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="forensics" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Forensics <span style="color:var(--mut);font-weight:600">$5.56 CAD</span></div>
+          <div style="font-weight:800">Forensics <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $5.56)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Which Bluetooth devices were near a scanner in any time window</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Forensics — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-forensics">
-            <input type="hidden" name="amount" value="5.56">
+            <input type="hidden" name="amount" value="5.56" data-half-amount="2.78">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5814,14 +5823,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
         <div data-addon="insights" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Presence insights <span style="color:var(--mut);font-weight:600">$5.56 CAD</span></div>
+          <div style="font-weight:800">Presence insights <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $5.56)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Busy Times and Locate</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
             <input type="hidden" name="business" value="garry@bcmail.net">
             <input type="hidden" name="item_name" value="PadSpan add-on: Presence insights — 2 years">
             <input type="hidden" name="item_number" value="padspan-addon-insights">
-            <input type="hidden" name="amount" value="5.56">
+            <input type="hidden" name="amount" value="5.56" data-half-amount="2.78">
             <input type="hidden" name="currency_code" value="CAD">
             <input type="hidden" name="no_shipping" value="1">
             <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -5830,6 +5840,11 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           </form>
         </div>
       </div>
+      <script>(function(){var b=document.getElementById("addons");if(!b)return;var n=Date.now();
+        if(n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until")))return;
+        b.querySelectorAll('[data-addon-price="normal"]').forEach(function(e){e.style.display="none";});
+        b.querySelectorAll('[data-addon-price="half"]').forEach(function(e){e.style.display="";});
+        b.querySelectorAll("input[data-half-amount]").forEach(function(e){e.value=e.getAttribute("data-half-amount");});})();</script>
     </div>
     <div class="ed">
       <h3>PadSpan Bright</h3>
