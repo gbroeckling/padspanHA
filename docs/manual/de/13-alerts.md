@@ -118,7 +118,7 @@ allein in dieser Ecke. Ein Haus ohne Alarmzentrale sieht nichts Neues.
 
 - Neben dem Knopf der Zustand der Alarmanlage in Worten: **Unscharf**, **Scharf (zu Hause)**,
   **Scharf (abwesend)**, **Scharf (Nacht)**, **Scharf (Urlaub)**, **Scharf (benutzerdefiniert)**,
-  **Wird scharf geschaltet**, **Verzögerung läuft**, **Wird unscharf geschaltet** oder
+  **Wird scharf geschaltet**, **Ausstehend**, **Wird unscharf geschaltet** oder
   **Ausgelöst**. Bei mehreren Alarmanlagen zeigt er den dringendsten Zustand und wie viele es sind
   (**×2**); halte den Zeiger darauf, dann siehst du jede.
 - Drück darauf für die Karte der Alarmanlage. Solange sie unscharf ist: **Scharf schalten (zu
