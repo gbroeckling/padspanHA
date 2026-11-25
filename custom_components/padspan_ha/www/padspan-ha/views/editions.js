@@ -82,6 +82,27 @@ export function proLifetimeWords(now = Date.now()) {
 }
 // Lifetime is on sale until PRO_PASS_FROM, then never again.
 export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
+// The Audio add-on (the owner, 2026-11-25): volume, mute and off for each
+// room's players on the map, for an install without Pro. Like NeonPlan's Sound
+// & Cinema add-on, 30% cheaper: one payment covers AUDIO_ADDON_TERM, no
+// subscription, up to three homes, entered in the licence card. Its key reads
+// tier "free" with "audio" in license_addons; PadSpan Pro includes it. Pinned to
+// the site's PayPal form (#audio) by tests/test_site_claims.py.
+export const AUDIO_ADDON_PRICE = "$6.45 CAD";
+export const AUDIO_ADDON_TERM = "2 years";
+export const AUDIO_BUY_URL = "https://padspan.traks.ca/#audio";
+/** Whether the Audio add-on's controls may be used: Pro, or the backend's
+ *  own answer for the key (settings.audio_licensed, licence.audio_allowed). */
+export function audioAllowed(settings) {
+  const s = settings || {};
+  return currentTier(s) === "pro" || s.audio_licensed === true;
+}
+/** Whether this install's key is an Audio add-on key (not a Pro key), lapsed or not. */
+export function audioKey(settings) {
+  const s = settings || {};
+  return s.pro_has_key === true && String(s.license_tier || "").toLowerCase() === "free"
+    && Array.isArray(s.license_addons) && s.license_addons.includes("audio");
+}
 // "Pro for life ends Dec 15", the one Overview card about it (panel.js
 // _launchPriceCard; the owner, 2026-11-24). It took the place of the launch
 // price's card, with its own flag, so an administrator who saw that one sees
@@ -135,12 +156,14 @@ export const WHATSNEW_URL = "https://padspan.traks.ca/?hl=en#whatsnew";
 //   lapsed  -> what stopped (Forensics stops recording; what it recorded
 //              stays searchable), and that nothing was lost.
 //
+// An Audio add-on key is not a Pro licence: it is pitched as free, lapsed or not.
+//
 // Pure on purpose: it takes the settings payload and returns text, so the rule
 // can be tested without a browser (tests/js/pro_pitch.mjs).
 export function proPitch(settings) {
   const st = settings || {};
   const tier = String(st.tier || "free").toLowerCase();
-  const hasKey = !!st.pro_has_key;
+  const hasKey = !!st.pro_has_key && !audioKey(st);
   const lapsed = st.pro_active === false;
 
   if (hasKey && lapsed) {

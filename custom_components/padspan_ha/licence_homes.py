@@ -29,6 +29,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_SETTINGS, DOMAIN, VERSION
+from .licence import ADDONS
 from .quiet_errors import note as _quiet_error
 
 LICENCE_URL = "https://traks.ca/license/"
@@ -57,11 +58,13 @@ async def machine_id(hass: HomeAssistant) -> str:
 
 def home_params(settings: dict[str, Any] | None) -> dict[str, str]:
     """What a validate call adds for the homes: the token, the version, the
-    name, and whether this home's usage report is on."""
+    name, whether this home's usage report is on, and the add-ons this PadSpan
+    knows (licence.ADDONS): the licence server answers an add-on key only to a
+    PadSpan that says it knows the add-on, as older ones read any key as Pro."""
     d = settings or {}
     return {"t": "1", "token": str(d.get("license_home_token") or ""), "version": VERSION,
             "label": str(d.get("license_home_label") or "")[:60],
-            "report": "1" if d.get("telemetry_enabled") else "0"}
+            "report": "1" if d.get("telemetry_enabled") else "0", "addons": ",".join(ADDONS)}
 
 
 async def keep_token(st: Any, data: dict[str, Any]) -> None:

@@ -187,5 +187,13 @@
 "Deleted forensics data for {n} addresses": {
 "one": "Données Forensique supprimées pour {n} adresse",
 "other": "Données Forensique supprimées pour {n} adresses"
-}
+},
+"The PadSpan Audio add-on ended on {date}. Volume, mute and off for the players on the map are locked until you renew; nothing you set up is lost.": "Le module Audio de PadSpan a expiré le {date}. Le volume, la sourdine et l’arrêt des lecteurs sur la carte sont verrouillés jusqu’au renouvellement ; rien de ce que vous avez configuré n’est perdu.",
+"The PadSpan Audio add-on ended on {date}. The players' controls on the map keep working for {n} more days; renew to keep them.": {
+"one": "Le module Audio de PadSpan a expiré le {date}. Les commandes des lecteurs sur la carte fonctionnent encore {n} jour ; renouvelez pour les garder.",
+"other": "Le module Audio de PadSpan a expiré le {date}. Les commandes des lecteurs sur la carte fonctionnent encore {n} jours ; renouvelez pour les garder."
+},
+"PadSpan Audio add-on · until {date}": "Module Audio de PadSpan · jusqu’au {date}",
+"Audio add-on — volume, mute and off for each room's players on the map: {price} once, covers 2 years. PadSpan Pro includes it.": "Module Audio — volume, sourdine et arrêt des lecteurs de chaque pièce sur la carte : {price} une seule fois, valable 2 ans. PadSpan Pro l’inclut.",
+"The Audio add-on covers up to three homes (three Home Assistants). A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.": "Le module Audio couvre jusqu’à trois maisons (trois Home Assistant). Un Home Assistant réinstallé ou remplacé prend la place d’une maison qui ne s’est pas manifestée depuis 14 jours, et une maison silencieuse depuis 45 jours libère sa place d’elle-même."
 }

@@ -32,7 +32,9 @@ class _St:
 
 def test_a_check_says_which_home_it_is():
     p = LH.home_params({"license_home_token": "a" * 32, "license_home_label": "Cabin"})
-    assert p == {"t": "1", "token": "a" * 32, "version": VERSION, "label": "Cabin", "report": "0"}
+    # addons: the add-ons this PadSpan knows; the licence server answers an
+    # Audio add-on key only to a PadSpan that says it knows "audio".
+    assert p == {"t": "1", "token": "a" * 32, "version": VERSION, "label": "Cabin", "report": "0", "addons": "audio"}
     assert LH.home_params(None)["token"] == "", "a home without a token yet asks for one"
     for k in ("license_home_token", "license_home_label", "license_home_status"):
         assert DEFAULT_SETTINGS[k] == ""

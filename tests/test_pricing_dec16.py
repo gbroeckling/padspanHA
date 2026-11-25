@@ -137,11 +137,12 @@ def test_before_the_switch_the_page_reads_as_today(site: str) -> None:
 
 def test_after_the_switch_the_page_sells_the_pass_and_the_year_only(site: str) -> None:
     """What the page holds once the script has run: no lifetime, no Bright Pro,
-    no upgrade; the year at $49 and two years at $85."""
+    no upgrade; the year at $49 and two years at $85 (and the Audio add-on,
+    sold before and after the switch)."""
     after = _without(site, "data-until-pass")
     forms = re.findall(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", after, re.S)
     skus = sorted(re.search(r'name="item_number" value="([^"]+)"', f).group(1) for f in forms)
-    assert skus == ["padspan-pro-2year", "padspan-pro-annual"], skus
+    assert skus == ["padspan-audio-addon", "padspan-pro-2year", "padspan-pro-annual"], skus
     assert 'name="amount" value="85.00"' in next(f for f in forms if "padspan-pro-2year" in f)
     sales = after[after.index('id="lights"'):after.index('id="donate"')]
     assert "Bright Pro" not in sales and "for life" not in sales and "$12" not in sales, \

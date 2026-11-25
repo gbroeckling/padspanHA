@@ -175,13 +175,14 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"ok": False,
             "message": str(why or "The invite could not be claimed.")})
         return
-    from .licence import normalize_tier  # noqa: PLC0415
+    from .licence import normalize_addons, normalize_tier  # noqa: PLC0415
     from .telemetry import heard_ask_due  # noqa: PLC0415
     await st.async_set(**{
         **heard_ask_due(st.data),     # a free year claimed: the one optional question, if never asked
         "forensics_license_key": str(data.get("key") or ""),
         "forensics_license_expires": str(data.get("expires_at") or ""),
         "license_tier": normalize_tier(data.get("tier"), default="pro"),
+        "license_addons": normalize_addons(data.get("addons")),
         "license_is_trial": False,
         "forensics_enabled": True,
         "license_home_token": "", "license_homes_used": 0, "license_home_status": "",   # a new key: a fresh home on it

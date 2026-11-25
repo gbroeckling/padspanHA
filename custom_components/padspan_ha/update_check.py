@@ -205,7 +205,7 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         return
     expires = str(data.get("expires_at") or "").strip()
     if data.get("valid"):
-        from .licence import normalize_tier  # noqa: PLC0415
+        from .licence import normalize_addons, normalize_tier  # noqa: PLC0415
         from .licence_homes import keep_token, keep_warning  # noqa: PLC0415
         await keep_token(st, data)
         await keep_warning(st, data)
@@ -220,6 +220,12 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
             tier = normalize_tier(data.get("tier"), default="pro")
             if tier != str(st.data.get("license_tier") or ""):
                 updates["license_tier"] = tier
+            # The add-ons come with the tier: an answer that names the tier
+            # names them too, none when it names none (the backup's bare
+            # "valid" names neither and changes neither).
+            addons = normalize_addons(data.get("addons"))
+            if addons != normalize_addons(st.data.get("license_addons")):
+                updates["license_addons"] = addons
         # A trial key upgraded in place (bought, or the lifetime offer) stops
         # reading as a trial the day the server says so.
         if data.get("plan"):

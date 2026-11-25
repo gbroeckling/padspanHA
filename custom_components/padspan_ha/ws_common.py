@@ -203,7 +203,7 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
         return {"data_mode": "sample"}
     out = dict(st.data)
     state = _pro_expiry_state(hass)
-    from .licence import edition as _edition, effective_tier as _eff  # noqa: PLC0415
+    from .licence import audio_allowed as _audio, edition as _edition, effective_tier as _eff  # noqa: PLC0415
     from .build_info import TIER_FLOOR as _floor  # noqa: PLC0415
     out["forensics_license_key"] = ""          # never leaves the backend
     out["license_home_token"] = ""             # nor this home's token (licence_homes.py)
@@ -243,6 +243,8 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     # The tier model (licence.py): the frontend reads these and never
     # re-implements the ladder.
     out["tier"] = _eff(st.data, bool(state["active"]))
+    # The Audio add-on: Pro, or an active key that carries it (licence.audio_allowed).
+    out["audio_licensed"] = _audio(st.data, bool(state["active"]))
     out["tier_floor"] = _floor
     out["edition"] = _edition()
     # The same Zigbee device in two integrations (zigbee_twins.py): which copy

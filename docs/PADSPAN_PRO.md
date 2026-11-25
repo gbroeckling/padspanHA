@@ -55,6 +55,22 @@ One key covers up to five Home Assistants (a cabin, a parent's house, a test ins
 **Show this key's homes** on the licence card lists them, lets you name this one and remove one you
 no longer use. If a home isn't counted, the licence card says why.
 
+## The Audio add-on
+
+For an install without Pro: **volume, mute and off for each room's players on the map**, for
+$6.45 CAD, one payment that covers 2 years. No subscription; buy it again with the same email and
+two more years are added to the same key. **PadSpan Pro includes it**, so a Pro key (a year, two
+years, lifetime, a trial or a tester's) never needs it.
+
+- It's a key of its own: buy it at [padspan.traks.ca/#audio](https://padspan.traks.ca/#audio) and
+  enter it like any key, here. The licence card then says **PadSpan Audio add-on · until** its date.
+  It is not a Pro key and unlocks nothing else.
+- It needs a PadSpan that knows the add-on; an older one says to update PadSpan when the key is
+  entered.
+- One key covers up to three homes. The usage-report rule above is for Pro keys only.
+- Updates are included, and it keeps working when the internet is down, like any key.
+- Buying Pro later with the same email makes the same key Pro, from that day.
+
 ## Get Pro free by testing it
 
 **Become a tester** (on the licence card, or under **Settings → Tracking → Help improve PadSpan**)

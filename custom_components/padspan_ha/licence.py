@@ -32,6 +32,14 @@ it. tests/test_licence_tiers.py pins it.
 
 The gate governs EDITING only, as it always has: data a user created stays
 readable and exportable when a licence lapses.
+
+ADD-ONS sit beside the ladder, not on it (the owner, 2026-11-25). The Audio
+add-on is sold to installs without Pro: its key resolves to `free` and carries
+"audio" (license_addons, from the server's `addons`). Pro includes every
+add-on. The licence server answers an audio key only to a PadSpan that says it
+knows add-ons (licence_homes.home_params), because an older one would read any
+valid key as Pro; and here a key that carries an add-on but names no tier reads
+`free`, never `pro`. audio_allowed() is the one rule.
 """
 
 from __future__ import annotations
@@ -43,6 +51,17 @@ from .const import DATA_SETTINGS, DOMAIN
 
 TIERS: tuple[str, ...] = ("free", "bright", "pro")
 _RANK = {t: i for i, t in enumerate(TIERS)}
+# The add-ons this PadSpan knows. Sent with every validate (licence_homes.home_params).
+ADDONS: tuple[str, ...] = ("audio",)
+
+
+def normalize_addons(value: Any) -> list[str]:
+    """The add-ons a server answer (or the store) names: known ones only, in
+    ADDONS order. Anything that is not a list of them is none."""
+    if not isinstance(value, (list, tuple)):
+        return []
+    got = {v.strip().lower() for v in value if isinstance(v, str)}
+    return [a for a in ADDONS if a in got]
 
 
 def normalize_tier(value: Any, default: str = "free") -> str:
@@ -65,12 +84,16 @@ def key_tier(settings: dict[str, Any] | None) -> str:
     No key → free. A key with a `license_tier` the server told us → that.
     A key with NO tier field → `pro`: every key issued before the field
     existed is a Pro key. This default is the demotion guard and must not
-    change.
+    change. A key that carries an add-on is never one of those: with no tier
+    it reads `free`, so an add-on key can never become Pro here.
     """
     d = settings or {}
     if not str(d.get("forensics_license_key") or "").strip():
         return "free"
-    return normalize_tier(d.get("license_tier"), default="pro")
+    tier = normalize_tier(d.get("license_tier"), default="")
+    if tier:
+        return tier
+    return "free" if normalize_addons(d.get("license_addons")) else "pro"
 
 
 def effective_tier(settings: dict[str, Any] | None, key_active: bool, *,
@@ -111,3 +134,23 @@ def hass_tier(hass: Any) -> str:
 
 def hass_tier_at_least(hass: Any, want: str) -> bool:
     return tier_at_least(hass_tier(hass), want)
+
+
+def audio_allowed(settings: dict[str, Any] | None, key_active: bool, *,
+                  floor: str | None = None) -> bool:
+    """Whether the Audio add-on's controls may be used: the Pro tier (Pro
+    includes every add-on), or an active key that carries "audio". The panel
+    reads it as settings.audio_licensed (ws_common._get_settings)."""
+    d = settings or {}
+    if tier_at_least(effective_tier(d, key_active, floor=floor), "pro"):
+        return True
+    return (bool(key_active) and bool(str(d.get("forensics_license_key") or "").strip())
+            and "audio" in normalize_addons(d.get("license_addons")))
+
+
+def hass_audio_allowed(hass: Any) -> bool:
+    """audio_allowed from a running Home Assistant — the one call sites use."""
+    from .ws_common import _pro_expiry_state  # noqa: PLC0415
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    settings = (st.data if st else {}) or {}
+    return audio_allowed(settings, bool(_pro_expiry_state(hass)["active"]))
