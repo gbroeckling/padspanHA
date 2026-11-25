@@ -74,7 +74,7 @@ to turn it on or off.</p>
   <tr><th>What</th><th>Where it shows</th><th>Turn it on</th></tr>
   <tr><td>A device changes room, arrives home or leaves</td><td>Your phone or email</td><td>Follow → <b>Movement Alerts</b></td></tr>
   <tr><td>A leak, smoke, gas or carbon monoxide alarm</td><td>A red banner on every PadSpan screen; the room rings red on the Atlas</td><td>Always on</td></tr>
-  <tr><td>Your house alarm going off (Home Assistant's alarm panel)</td><td>The same red banner on every PadSpan screen, and beside the Atlas's emergency button</td><td>Always on, in every edition</td></tr>
+  <tr><td>Your house alarm going off (Home Assistant's alarm panel)</td><td>The same red banner on every PadSpan screen, and on the Atlas's emergency button</td><td>Always on, in every edition</td></tr>
   <tr><td>The same alarm, and when it clears</td><td>Your Follow alert targets (your phone or email)</td><td>On by default: <b>Settings → Atlas → Atlas — Mapped Light Control → Notify when a leak, smoke, gas or CO alarm goes off</b></td></tr>
   <tr><td>A door left open, or a window open in the rain</td><td>The room rings amber on the Atlas; a banner on a wall screen</td><td><b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b></td></tr>
   <tr><td>Vacation Mode ends or is turned off</td><td>A Home Assistant notification, and your Follow alert targets</td><td>Always, while Vacation Mode is used</td></tr>
@@ -171,26 +171,34 @@ it clears.</li>
 running, also use a Home Assistant automation on the sensor itself.</p>
 <h2 id="your-house-alarm-on-the-emergency-button">Your house alarm on the emergency button</h2>
 <p>If Home Assistant has an alarm panel (an <code>alarm_control_panel</code> entity: Alarmo, or your alarm
-system's own integration), PadSpan shows it beside the Atlas's round red <b>Test emergency lighting</b>
-button, at the top right of the map. A house with no emergency lights gets the alarm alone in that
-corner. A house with no alarm panel sees nothing new.</p>
+system's own integration), PadSpan puts it inside the Atlas's round emergency button, at the top
+right of the map. The button changes with what your house has:</p>
+<ul>
+<li><b>Emergency lights, no alarm</b>: the red <b>Test emergency lighting</b> button, as before.</li>
+<li><b>An alarm, no emergency lights</b>: the alarm's own button, a plain ring around its shield.</li>
+<li><b>Both</b>: the red emergency ring with the alarm's shield as its centre. Pressing the centre or the
+ring opens the button's card, the alarm on top and the emergency lights below. The lighting test
+then starts from <b>Start test</b> in the card, so a hand going for the alarm never starts it.</li>
+<li><b>Neither</b>: no button.</li>
+</ul>
 <p><b>When it goes off</b>, in every edition, free too:</p>
 <ul>
 <li>A row in the red banner on every PadSpan screen: "Alarm going off: House · Back door". On a phone,
 the 🚨 pill in the top bar counts it.</li>
-<li>A red line beside the emergency button on the Atlas, saying the same.</li>
+<li>The shield in the emergency button turns red and pulses; its card says the same.</li>
 <li>The sensor that set it off is named when the alarm says which one (Alarmo does). Otherwise only
 the alarm is named.</li>
 </ul>
 <p><b>Its state, arming and disarming</b> (PadSpan Bright and PadSpan Pro):</p>
 <ul>
-<li>Beside the button, the alarm's state in words: <b>Disarmed</b>, <b>Armed home</b>, <b>Armed away</b>,
-<b>Armed night</b>, <b>Armed vacation</b>, <b>Armed custom bypass</b>, <b>Arming</b>, <b>Pending</b>,
-<b>Disarming</b> or <b>Triggered</b>. With several alarms it shows the most pressing state and how many
-there are (<b>×2</b>); hold the pointer on it for each one.</li>
-<li>Press it for the alarm's card. While an alarm is disarmed: <b>Arm home</b>, <b>Arm away</b>, <b>Arm
-night</b>, <b>Arm vacation</b> and <b>Arm custom bypass</b>, only the ones that alarm supports. While it
-is armed, arming, pending or going off: <b>Disarm</b>.</li>
+<li>The shield in the button shows the alarm's state by its colour: grey disarmed, blue armed, amber
+pending, red going off. Hold the pointer on it for the state in words: <b>Disarmed</b>, <b>Armed
+home</b>, <b>Armed away</b>, <b>Armed night</b>, <b>Armed vacation</b>, <b>Armed custom bypass</b>, <b>Arming</b>,
+<b>Pending</b>, <b>Disarming</b> or <b>Triggered</b>. With several alarms it shows the most pressing state,
+and the pointer shows each one.</li>
+<li>Press the button for its card, the alarm on top. While an alarm is disarmed: <b>Arm home</b>, <b>Arm
+away</b>, <b>Arm night</b>, <b>Arm vacation</b> and <b>Arm custom bypass</b>, only the ones that alarm
+supports. While it is armed, arming, pending or going off: <b>Disarm</b>.</li>
 <li><b>Every arm and disarm asks first</b> ("Arm away: House?", "Disarm House?"), so one stray press does
 nothing. When the alarm wants a code, the question has a field for it (numbers only when the code
 is a number). The button does nothing until a code is typed. PadSpan never keeps the code.</li>
@@ -199,7 +207,8 @@ refused: Invalid alarm code provided"). The alarm stays as it was.</li>
 <li><b>Who can</b>: anyone whose Home Assistant login can use the alarm, as with unlocking a door from the
 Atlas, on wall screens too. Nothing on the card leads off the page.</li>
 <li>Hiding the Test emergency lighting button (Settings → Atlas → Atlas — Mapped Light Control →
-<b>Show the Test emergency lighting button on the Atlas</b>) hides the test only; the alarm stays.</li>
+<b>Show the Test emergency lighting button on the Atlas</b>) hides the test only; the alarm's button
+stays.</li>
 </ul>
 <h2 id="alert-pulse-atlas">Alert pulse (Atlas)</h2>
 <p>Off until you turn it on: <b>Settings → Atlas → Atlas — Mapped Light Control → Alert pulse</b>. It saves
