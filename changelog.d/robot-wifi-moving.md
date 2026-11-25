@@ -1,4 +1,0 @@
-# Wi-Fi while the robot cleans
-
-### New
-- **The robot vacuum can collect Wi-Fi while it cleans.** A new switch on the robot's card, **Collect Wi-Fi while it cleans**, off until you turn it on. While the robot is cleaning or driving on its own and its live position is on, PadSpan reads the robot's Wi-Fi signal and where it is about every 5 seconds. It only reads, never tells the robot to do anything, and reads nothing while the robot is docked or on a room location run. Readings taken on the move count a tenth of the ones from a run's stops, and the last 5,000 are kept separately, so they never push a stop's reading out. On the Wi-Fi coverage screen they show as faint squares under the robot's diamonds, and **While it cleaned** hides them. Other integrations reading the robot's Wi-Fi now get each reading's kind (stop or moving) and weight.
