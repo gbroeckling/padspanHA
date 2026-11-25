@@ -129,5 +129,15 @@
 "Saved: alarms send a notification from now on.": "Enregistré : les alarmes envoient désormais une notification.",
 "Saved: alarms send no notification from now on.": "Enregistré : les alarmes n’envoient plus de notification.",
 "Audio": "Audio",
-"A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Audio in its ⋯ list instead. Off: none.": "Un haut-parleur à côté du nom d’une pièce tant qu’un de ses lecteurs est allumé, et « Audio » dans la carte de la pièce : volume, sourdine et arrêt, et « Match rooms » pour un administrateur. Pour toute la maison sur la disposition classique ; sur la nouvelle disposition (« ▦ New layout »), chaque écran coche plutôt « Audio » dans sa liste ⋯. Désactivé : rien de tout cela."
+"A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Audio in its ⋯ list instead. Off: none.": "Un haut-parleur à côté du nom d’une pièce tant qu’un de ses lecteurs est allumé, et « Audio » dans la carte de la pièce : volume, sourdine et arrêt, et « Match rooms » pour un administrateur. Pour toute la maison sur la disposition classique ; sur la nouvelle disposition (« ▦ New layout »), chaque écran coche plutôt « Audio » dans sa liste ⋯. Désactivé : rien de tout cela.",
+"Could not do that: {why}": "Impossible : {why}",
+"Reload sent to {n} screens": "Rechargement envoyé à {n} écrans",
+"Shown on {n} screens": "Affiché sur {n} écrans",
+"as {u}": "en tant que {u}",
+"open {d}": "ouvert depuis {d}",
+"{n} days": "{n} jours",
+"{n} h": "{n} h",
+"{n} min": "{n} min",
+"{n} open now": "{n} ouverts maintenant",
+"{n} s": "{n} s"
 }

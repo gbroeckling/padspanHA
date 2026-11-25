@@ -129,5 +129,15 @@
 "Saved: alarms send a notification from now on.": "Opgeslagen: alarmen sturen vanaf nu een melding.",
 "Saved: alarms send no notification from now on.": "Opgeslagen: alarmen sturen vanaf nu geen melding.",
 "Audio": "Audio",
-"A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Audio in its ⋯ list instead. Off: none.": "Een luidspreker naast de naam van een kamer zolang een van de spelers aanstaat, en “Audio” in de kaart van de kamer: volume, dempen en uit, en “Match rooms” voor een beheerder. Voor het hele huis op de klassieke indeling; op de nieuwe indeling (“▦ New layout”) vinkt elk scherm in plaats daarvan “Audio” aan in zijn ⋯-lijst. Uit: niets daarvan."
+"A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Audio in its ⋯ list instead. Off: none.": "Een luidspreker naast de naam van een kamer zolang een van de spelers aanstaat, en “Audio” in de kaart van de kamer: volume, dempen en uit, en “Match rooms” voor een beheerder. Voor het hele huis op de klassieke indeling; op de nieuwe indeling (“▦ New layout”) vinkt elk scherm in plaats daarvan “Audio” aan in zijn ⋯-lijst. Uit: niets daarvan.",
+"Could not do that: {why}": "Dat lukte niet: {why}",
+"Reload sent to {n} screens": "Herladen naar {n} schermen gestuurd",
+"Shown on {n} screens": "Getoond op {n} schermen",
+"as {u}": "als {u}",
+"open {d}": "{d} open",
+"{n} days": "{n} dagen",
+"{n} h": "{n} u",
+"{n} min": "{n} min",
+"{n} open now": "{n} nu open",
+"{n} s": "{n} s"
 }

@@ -7,7 +7,10 @@
 // Off by default. Saves straight to the wire like wall_card.js, so Settings
 // isn't rebuilt under the list.
 
-const t = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`)) : s);
+// Its words in the panel's language (i18n.js, the "atlas" catalogue, as the rest of Settings → Atlas); English if that
+// can't load. It had a stand-in that only filled {placeholders}, so the card stayed English in every language.
+const _fill = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`)) : s);
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`).catch(() => ({ t: _fill }));
 
 function ago(s){
   s = Math.max(0, Math.round(Number(s) || 0));
