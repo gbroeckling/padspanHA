@@ -269,8 +269,10 @@ def _fml() -> dict:
 def _zip(name: str, data: bytes) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("images/plan.png", b"\x89PNG not really")
-        z.writestr(name, data)
+        # A fixed time in each entry: the bytes (and so the test ids xdist compares between its workers) are the
+        # same however long collection takes.
+        for entry, body in (("images/plan.png", b"\x89PNG not really"), (name, data)):
+            z.writestr(zipfile.ZipInfo(entry, date_time=(2026, 1, 1, 0, 0, 0)), body, compress_type=zipfile.ZIP_DEFLATED)
     return buf.getvalue()
 
 
