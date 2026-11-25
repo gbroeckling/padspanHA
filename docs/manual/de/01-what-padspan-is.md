@@ -47,19 +47,21 @@ neu installieren, nichts neu einrichten.
 
 | Edition | Schlüssel | Was es ist |
 |---|:---:|---|
-| **PadSpan HA** | keiner | Anwesenheit pro Raum, Grundrisse, Kalibrierung, Bewegungsverlauf und die Sensoren für deine Automationen. Kostenlos. |
-| **PadSpan Pro** | `pro` | Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandbildschirm, Whole house presets und Vacation Mode, Forensik, Busy Times, Finden und die Designs Graphit, Ozean, Dämmerung und Tag. |
-| **Add-ons** | `free`, mit Add-ons | Je ein Teil von Pro, für eine Installation ohne Pro: Audio, Alarm & Sicherheit, WLAN-Abdeckung, Klimakarte, Zeitreise, Urlaubsmodus & Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen. Jedes gilt 2 Jahre, auf bis zu drei Zuhause ([Kapitel 25](25-padspan-pro.md#add-ons)). |
+| **PadSpan HA** | keiner | Anwesenheit pro Raum, Grundrisse, Kalibrierung, Bewegungsverlauf und die Sensoren für deine Automationen, ab dem 1. Dezember 2026 auch das genaue Platzieren von Lichtern und Geräten im Atlas, der einfache Wandbildschirm und das 3D-Haus (Live Aboard). Kostenlos. |
+| **PadSpan Pro** | `pro` | Alles oben, dazu: im Atlas Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase und Fit room; im 3D-Haus Furnish, Personen, der 3D-Editor und die Kamerafahrten zu Ereignissen; am Wandbildschirm Nachtdimmung, Einbrennschutz, Etagen nacheinander und das Aufwecken per Bewegung in Fully Kiosk; Whole house presets und Vacation Mode, Forensik, Busy Times, Finden, die Designs Graphit, Ozean, Dämmerung und Tag, und jedes Add-on. Bis zum 1. Dezember 2026 gehören auch das genaue Platzieren, der Wandbildschirm und das 3D-Haus zu Pro. |
+| **Add-ons** | `free`, mit Add-ons | Je ein Teil von Pro, für eine Installation ohne Pro: Audio, Alarm & Sicherheit, WLAN-Abdeckung, Klimakarte, Zeitreise, Urlaubsmodus & Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen, ab dem 1. Dezember 2026 auch Erweiterte Kartenerstellung und Saugroboter. Jedes gilt 2 Jahre, auf bis zu drei Zuhause ([Kapitel 25](25-padspan-pro.md#add-ons)). |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | keiner | Ein eigener, leichterer Download aus demselben Code: nur der Atlas, für ein Haus, das seine Lichter auf einer Karte will und keine Anwesenheitserkennung. |
 | **PadSpan Bright Pro** | `bright` | Brights volle Atlas-Werkzeuge (Platzieren, Formen, WLED, Automorph, Showcase), auf einer Bright-Installation. Verkauft bis zum 15. Dezember 2026. |
 
 Ein PadSpan-Pro-Schlüssel schaltet auch Brights Werkzeuge frei, wenn du stattdessen Bright
 installierst.
 
-Wenn ein Schlüssel abläuft, wird nichts gelöscht, was du eingerichtet hast. Die Platzierung der
-Lichter ist dann schreibgeschützt, Forensik hört auf aufzuzeichnen (was es aufgezeichnet hat, bleibt
-für seine Aufbewahrungszeit), und das 3D-Haus, der Wandbildschirm, Finden und Busy Times schalten
-sich ab. Wenn du verlängerst, kommt alles so zurück, wie du es verlassen hast.
+Wenn ein Schlüssel abläuft, wird nichts gelöscht, was du eingerichtet hast. Platzierte Lichter
+behalten ihren Platz und erscheinen als einfache Markierung, Forensik hört auf aufzuzeichnen (was es
+aufgezeichnet hat, bleibt für seine Aufbewahrungszeit), und Furnish, die Extras des Wandbildschirms,
+Finden und Busy Times schalten sich ab. (Bis zum 1. Dezember 2026 ist die Platzierung dann
+schreibgeschützt, und das 3D-Haus und der Wandbildschirm schalten sich ab.) Wenn du verlängerst,
+kommt alles so zurück, wie du es verlassen hast.
 
 ### Der kostenlose Testzeitraum
 
@@ -116,7 +118,7 @@ gut, und viele nutzen sie. Hier steht, was jedes kann, nach ihren eigenen Dokume
 | Hardware | ESPHome-Bluetooth-Proxys, Shelly Gen2+, das eigene Bluetooth von HA oder ein USB-Adapter, oder ESPresense über MQTT, sobald eingeschaltet | ESPHome-Bluetooth-Proxys, Shelly Gen2+, USB-Adapter | Eigene Firmware auf ESP32-Knoten |
 | Grundriss nötig? | Nein: Räume kommen aus dem HA-Bereich jedes Empfängers; die Karte ist optional | Nein | Für Räume nicht; die Karte von Companion braucht deine Räume als Koordinaten |
 | Karte deines Zuhauses | Ja, Räume auf deinen Grundriss gezeichnet | Nein | Ja, in Companion |
-| 3D-Ansicht über mehrere Etagen | Ja (das volle 3D-Haus, Live Aboard, ist Pro) | Nein (es hat einen Etagensensor) | Ja, in Companion |
+| 3D-Ansicht über mehrere Etagen | Ja (das 3D-Haus, Live Aboard, ist ab dem 1. Dezember 2026 kostenlos, vorher Pro) | Nein (es hat einen Etagensensor) | Ja, in Companion |
 | Position zwischen Empfängern | Ja, mit 3 oder mehr Empfängern auf einem Grundriss mit Maßstab | Nein | Ja, in Companion |
 | Kalibrierung | Fingerabdrücke beim Rundgang und eine Signalanpassung pro Empfänger | Geführt: global, pro Proxy und pro Gerät | Von Hand an jedem Knoten; automatisch in Companion |
 | iPhones und Apple Watches (IRK) | Ja, über Private BLE Device oder irk-capture, mit einer Einrichtungsanleitung | Ja, über Private BLE Device | Ja, auf der Webseite des Knotens eingetragen |

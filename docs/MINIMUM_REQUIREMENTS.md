@@ -60,7 +60,7 @@ The card in Settings lists the same limits, and asks before it turns on.
 |---|---|
 | **The panel** | Any current browser: Chrome, Edge, Safari or Firefox, on a computer, tablet or phone. |
 | **The Atlas** | The same. A wall tablet that runs Home Assistant's dashboards smoothly runs the Atlas. |
-| **Live Aboard (the 3D house, Pro)** | A browser with **WebGL 2**. Without it, or on a graphics chip too slow to keep up, PadSpan shows the flat Atlas instead, and says so. |
+| **Live Aboard (the 3D house)** | A browser with **WebGL 2**. Without it, or on a graphics chip too slow to keep up, PadSpan shows the flat Atlas instead, and says so. |
 
 How smoothly each kind of screen runs the Atlas and Live Aboard is being measured now, from installs that opted in to the usage report: frame rate and browser memory by view, grouped by the device's memory and CPU class. This section will give device guidance once there is enough of it.
 

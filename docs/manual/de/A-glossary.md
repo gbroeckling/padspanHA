@@ -12,8 +12,8 @@ wenn du es nicht änderst, unter Einstellungen → Ortung → Räume und Zeiten 
 
 **Add-on.** Ein Teil von PadSpan Pro, einzeln gekauft für eine Installation ohne Pro: Audio, Alarm &
 Sicherheit, WLAN-Abdeckung, Klimakarte, Zeitreise, Urlaubsmodus & Voreinstellungen, Looks-Paket,
-Forensik oder Präsenz-Auswertungen. Eine Zahlung gilt 2 Jahre, auf bis zu drei Zuhause; PadSpan Pro
-enthält sie alle. Siehe [Kapitel 25](25-padspan-pro.md#add-ons).
+Forensik, Präsenz-Auswertungen und ab dem 1. Dezember 2026 Erweiterte Kartenerstellung oder
+Saugroboter. Eine Zahlung gilt 2 Jahre, auf bis zu drei Zuhause; PadSpan Pro enthält sie alle. Siehe [Kapitel 25](25-padspan-pro.md#add-ons).
 
 **Administrator.** Ein Benutzer von Home Assistant mit Administratorrechten. Backups,
 Wiederherstellungen, ein Factory Reset, die Schlüssel von Handys, das Hochladen von Grundrissen und
@@ -138,8 +138,8 @@ Abstimmung über mehrere Abfragen gewinnen (festgelegt durch Verzögerung beim R
 Gerät dorthin wechselt, damit ein einzelner lauter Messwert es nicht verschiebt. In Zustand werden
 Empfänger daran gemessen („Übereinstimmung“).
 
-**Live Aboard.** Der Atlas in 3D (Pro, experimentell, aus, bis du es einschaltest), mit **Furnish** für
-Möbel, Geräte und Personen.
+**Live Aboard.** Der Atlas in 3D, ab dem 1. Dezember 2026 kostenlos (vorher Pro und experimentell),
+mit **Furnish** (Pro) für Möbel, Geräte und Personen.
 
 **Live und Beispiel.** Live ist dein eigenes Haus; Beispiel ist ein fertiges Beispielhaus zum Umsehen
 (**Ein fertiges Haus ansehen**, und **Zu meinem Haus** geht zurück).
@@ -169,10 +169,11 @@ gemacht (Einstellungen → Atlas → Power teams).
 PadSpan liest ihre Schlüssel; ein Schlüssel, den du dort einträgst, erreicht PadSpan innerhalb von
 fünf Minuten.
 
-**Pro und die Stufen.** PadSpan HA ist ohne Schlüssel kostenlos. Die **Stufe** eines Schlüssels sagt,
-was er freischaltet: `pro` (PadSpan Pro: alles in PadSpan HA, etwa das Platzieren im Atlas, Live
-Aboard, den Wandmodus, Vacation Mode, Forensik, Busy Times und Finden) oder `bright` (Bright Pro: die
-ganzen Werkzeuge des Atlas). Kostenlos < Bright < Pro, jede mit allem der vorigen. Es gibt einen
+**Pro und die Stufen.** PadSpan HA ist ohne Schlüssel kostenlos (ab dem 1. Dezember 2026 mit dem
+genauen Platzieren im Atlas, dem einfachen Wandbildschirm und dem 3D-Haus). Die **Stufe** eines
+Schlüssels sagt, was er freischaltet: `pro` (PadSpan Pro: alles in PadSpan HA, etwa die Formen der
+Leuchten, Furnish, die Extras des Wandbildschirms, Vacation Mode, Forensik, Busy Times und Finden)
+oder `bright` (Bright Pro: die ganzen Werkzeuge des Atlas). Kostenlos < Bright < Pro, jede mit allem der vorigen. Es gibt einen
 einmaligen kostenlosen **Testzeitraum** von 90 Tagen, unter Einstellungen → Funktionen → PadSpan
 licence.
 

@@ -41,17 +41,19 @@ again.
 
 | Edition | Key | What it is |
 |---|:---:|---|
-| **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations. Free. |
-| **PadSpan Pro** | `pro` | Everything above, plus: exact placement on the Atlas (each light's shape, size and angle, WLED, Automorph, Showcase), Live Aboard (your house in 3D, experimental) with Furnish, the wall screen, Whole house presets and Vacation Mode, Forensics, Busy Times, Locate, and the Graphite, Ocean, Dusk and Day themes. |
-| **Add-ons** | `free`, with add-ons | One part of Pro each, for an install without it: Audio, Alarm & security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics and Presence insights. Each covers 2 years, on up to three homes ([chapter 25](25-padspan-pro.md#add-ons)). |
+| **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations, and, from December 1, 2026, exact placement of lights and devices on the Atlas, the plain wall screen and the 3D house (Live Aboard). Free. |
+| **PadSpan Pro** | `pro` | Everything above, plus: on the Atlas each light's shape, size and angle, WLED, Automorph, Showcase and Fit room; in the 3D house Furnish, people, the 3D editor and the director; the wall screen's night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake; Whole house presets and Vacation Mode, Forensics, Busy Times, Locate, the Graphite, Ocean, Dusk and Day themes, and every add-on. Until December 1, 2026, exact placement, the wall screen and the 3D house are Pro's too. |
+| **Add-ons** | `free`, with add-ons | One part of Pro each, for an install without it: Audio, Alarm & security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics and Presence insights, and, from December 1, 2026, Advanced map creation and Robot vacuum. Each covers 2 years, on up to three homes ([chapter 25](25-padspan-pro.md#add-ons)). |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter download made from the same code: only the Atlas, for a house that wants its lights on a map and no presence tracking. |
 | **PadSpan Bright Pro** | `bright` | Bright's full Atlas tools (placement, shapes, WLED, Automorph, Showcase), on a Bright install. Sold until December 15, 2026. |
 
 A PadSpan Pro key also unlocks Bright's tools, if you install Bright instead.
 
-When a key runs out, nothing you set up is deleted. Light placement goes read-only, Forensics stops
-recording (what it recorded stays for its retention time), and the 3D house, the wall screen, Locate
-and Busy Times switch off. It all comes back as you left it when you renew.
+When a key runs out, nothing you set up is deleted. Placed lights keep their places and draw as
+plain markers, Forensics stops recording (what it recorded stays for its retention time), and
+Furnish, the wall screen's extras, Locate and Busy Times switch off. (Until December 1, 2026,
+placement goes read-only and the 3D house and the wall screen switch off.) It all comes back as you
+left it when you renew.
 
 ### The free trial
 
@@ -102,7 +104,7 @@ good, and lots of people run them. This is what each does, from their own docume
 | Hardware | ESPHome Bluetooth proxies, Shelly Gen2+, HA's own Bluetooth or a USB adapter, or ESPresense over MQTT once switched on | ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters | Its own firmware on ESP32 nodes |
 | Floor plan needed? | No: rooms come from each receiver's HA area; the map is optional | No | No for rooms; Companion's map needs your rooms as coordinates |
 | Map of your home | Yes, rooms drawn on your floor plan | No | Yes, in Companion |
-| Multi-floor 3D view | Yes (the full 3D house, Live Aboard, is Pro) | No (it has a floor sensor) | Yes, in Companion |
+| Multi-floor 3D view | Yes (the 3D house, Live Aboard, is free from December 1, 2026; Pro before) | No (it has a floor sensor) | Yes, in Companion |
 | Position between receivers | Yes, with 3 or more receivers placed on a plan with a scale | No | Yes, in Companion |
 | Calibration | Walk-around fingerprints and a per-receiver signal fit | Guided: global, per proxy and per device | By hand on each node; automatic in Companion |
 | iPhones and Apple Watches (IRK) | Yes, through Private BLE Device or irk-capture, with a setup guide | Yes, through Private BLE Device | Yes, enrolled on the node's web page |

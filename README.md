@@ -19,7 +19,7 @@ PadSpan is an eminently intuitive control panel that gives you real mastery of y
 - **Your floor plan.** Scan your rooms with an iPhone, start from your robot vacuum's map (experimental), or draw them, with split levels, room heights and lofts as they really are. Pro adds the house in 3D. [See it](https://padspan.traks.ca/demo/?page=atlas3d)
 - **Every light in its place.** Free: every light on the map in its room, and a wall dimmer with its smart bulbs working as one light. Pro: each light exactly where it hangs, in its real shape. [See it](https://padspan.traks.ca/demo/?page=atlas)
 
-**Free and open source (GPL-3.0).** PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, plus Live Aboard (your house in 3D, like looking into a house in The Sims) and Furnish. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md#try-it-free-for-90-days)).
+**Free and open source (GPL-3.0).** From December 1, 2026, exact placement on the Atlas (the touchscreen map of the whole house), the plain wall screen and Live Aboard (your house in 3D, like looking into a house in The Sims) are free too. PadSpan Pro adds fixture shapes and Showcase, Furnish, people in 3D and the 3D editor. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md#try-it-free-for-90-days)).
 
 🎁 **PadSpan Pro free:** testers get two years of Pro (one year if they join from December 16) while the anonymous usage report stays on ([how](./docs/PADSPAN_PRO.md#get-pro-free-by-testing-it)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
 
@@ -162,7 +162,7 @@ Formerly "Lights" — renamed because it outgrew the name. One isometric map of 
 - A **hover HUD** names what's under the cursor (or a touch hold) with every stacked marker as a clickable row; **Alt+click** cycles the stack when several devices sit on top of each other
 - Full touch support — pinch-zoom, drag and tap are tuned for a wall panel or phone, not just a mouse
 
-See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) for the 3D house (Pro). Placement, Automorph and Showcase are PadSpan Pro (or [PadSpan Bright Pro](https://github.com/gbroeckling/padspanBright), sold until December 15, 2026) features — see [Editions](#editions) below; a free install still gets floors, rooms and a tap-to-toggle marker per light.
+See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) for the 3D house. Shapes, Automorph and Showcase are PadSpan Pro (or [PadSpan Bright Pro](https://github.com/gbroeckling/padspanBright), sold until December 15, 2026) features — see [Editions](#editions) below; a free install gets floors, rooms and a tap-to-toggle marker per light, and from December 1, 2026 places each one exactly too.
 
 ### UI & Experience
 - **Live Tracker mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
@@ -198,7 +198,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 | Hardware | ESPHome Bluetooth proxies, Shelly Gen2+, HA's own Bluetooth or a USB adapter, or ESPresense over MQTT once switched on | ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters | Its own firmware on ESP32 nodes |
 | Floor plan needed? | No: rooms come from each scanner's HA area; the map is optional | No | No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator) |
 | Map of your home | ✅ draw rooms on your floor plan | — | ✅ Companion |
-| Multi-floor 3D view | ✅ (the full 3D house, Live Aboard, is Pro) | — (has a Floor sensor) | ✅ Companion |
+| Multi-floor 3D view | ✅ (the 3D house, Live Aboard: free from December 1, 2026; its editor and Furnish are Pro) | — (has a Floor sensor) | ✅ Companion |
 | Position between scanners | ✅ with 3+ scanners placed on a measured plan | — | ✅ Companion (X/Y/Z) |
 | Calibration | Walk-around fingerprints and per-scanner signal fit | Guided: global, per proxy and per device | Manual on each node; automatic in Companion |
 | Signal smoothing | Kalman filter plus a room vote | Averaging, a speed limit on moving away, and area hysteresis | Filtering on the node, Kalman on position (Companion) |
@@ -226,8 +226,8 @@ nothing to reconfigure.
 
 | Edition | Key | What it is |
 |---------|:---:|------------|
-| **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations. Free forever. |
-| **PadSpan Pro** | `pro` | Every gated feature in PadSpan HA — Atlas device placement (shape, size, angle, WLED, Automorph, Showcase), Live Aboard (the 3D house, experimental) with Furnish, wall mode, Whole House Presets and Vacation Mode, Forensics, Busy Times, Locate, and anything gated later. |
+| **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations, and from December 1, 2026 exact placement, the plain wall screen and the 3D house (Live Aboard). Free forever. |
+| **PadSpan Pro** | `pro` | Every gated feature in PadSpan HA and every add-on — Atlas device looks (shape, size, angle, WLED, Automorph, Showcase), Live Aboard's editor, Furnish and people in 3D, the wall screen's night dimming and more, Whole House Presets and Vacation Mode, Forensics, Busy Times, Locate, and anything gated later. Until December 1, 2026 it also covers placement, Live Aboard and the wall screen. |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter HACS listing generated from this same source — just the Atlas device map, for anyone who wants light control without the BLE presence tracking. |
 | **PadSpan Bright Pro** | `bright` | Bright's full Atlas toolset (placement, shapes, WLED, Automorph, Showcase), priced separately from PadSpan Pro, and sold until December 15, 2026. |
 

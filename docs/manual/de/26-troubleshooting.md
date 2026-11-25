@@ -207,8 +207,9 @@ flache Karte, und der Knopf **🏠** sagt, warum; tipp ihn an, um es noch einmal
   die 3D-Ansicht nicht darstellen. Versuch **Quality** auf Low (Einstellungen → Atlas → Live Aboard),
   einen anderen Browser oder ein anderes Gerät. Ein Wandtablet schafft vielleicht nur den flachen
   Atlas.
-- **Gar kein 3D-Schalter**: Live Aboard ist eine Pro-Funktion, und es ist aus, solange **Show Live
-  Aboard on the Atlas** unter Einstellungen → Atlas nicht angehakt ist.
+- **Gar kein 3D-Schalter**: Live Aboard ist aus, solange **Show Live Aboard on the Atlas** unter
+  Einstellungen → Atlas nicht angehakt ist (bis zum 1. Dezember 2026 ist es außerdem eine
+  Pro-Funktion).
 - **Ein Gerät schwebt an der falschen Stelle**: Setz seine Höhe in Live Aboard unter Edit → Heights,
   oder verschieb es auf der Karte.
 - **Die Temperatur eines Raums zeigt „–°“**: Sein Sensor hat sich seit über einer Stunde nicht

@@ -103,7 +103,7 @@ steps, and [Which Bluetooth tag works?](https://padspan.traks.ca/guides/bluetoot
 |---|---|
 | **The panel** | Any current browser: Chrome, Edge, Safari or Firefox, on a computer, tablet or phone, or the Home Assistant app. |
 | **The Atlas** | The same. A wall tablet that runs Home Assistant's dashboards smoothly runs the Atlas. |
-| **Live Aboard** (the 3D house, Pro) | A browser with **WebGL 2**. Without it, or on a graphics chip too slow for it, PadSpan shows the flat Atlas instead, and says so. |
+| **Live Aboard** (the 3D house) | A browser with **WebGL 2**. Without it, or on a graphics chip too slow for it, PadSpan shows the flat Atlas instead, and says so. |
 
 ## A floor plan (optional)
 

@@ -10,10 +10,12 @@ für Leuchten heißt immer noch **Lights**.
 
 ## Kostenlos und Pro
 
-- **Kostenlos**: Etagen, Räume und eine Markierung pro Licht. Tipp auf eine Markierung oder ihre
-  Zeile, um es zu schalten.
-- **PadSpan Pro**: echte Platzierung, Formen und Größen, Sensoren, Automorph, Showcase, die
-  Advanced-Steuerung für WLED, Whole house presets, Vacation Mode und Öffner aus Relais.
+- **Kostenlos**: Etagen, Räume und jedes Licht und Gerät da platziert, wo es wirklich ist, als
+  einfache Markierung. Tipp auf eine Markierung oder ihre Zeile, um es zu schalten. Bis zum
+  1. Dezember 2026 ist das Platzieren Pro vorbehalten, und die kostenlose Karte zeigt eine
+  Markierung pro Licht in seinem Raum.
+- **PadSpan Pro**: Formen, Größen und Winkel, Fit room, Automorph, Showcase, die Advanced-Steuerung
+  für WLED, Whole house presets, Vacation Mode und Öffner aus Relais.
 
 **Einstellungen → Funktionen → PadSpan-Lizenz** hat einen einmaligen kostenlosen Testzeitraum von
 90 Tagen ([Kapitel 25](25-padspan-pro.md)). PadSpan Bright ist derselbe Atlas für sich allein, ohne
@@ -25,8 +27,9 @@ ihr Add-on.
 Ohne Pro schaltet ein Add-on einen Teil des Atlas frei ([Kapitel 25](25-padspan-pro.md#add-ons)):
 **Audio**; **Alarm & Sicherheit** (scharf und unscharf schalten im Notfallknopf, der Test der
 Notbeleuchtung und die Karte einer Tür mit ihrem Öffner und ihrem Schloss); **Klimakarte** (die
-Heatmap); **Urlaubsmodus & Voreinstellungen**; und das **Looks-Paket** (Showcase mit seinen Themen,
-der West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Platzieren bleibt bei Pro).
+Heatmap); **Urlaubsmodus & Voreinstellungen**; das **Looks-Paket** (Showcase mit seinen Themen, der
+West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Formen bleiben bei Pro); und ab
+dem 1. Dezember 2026 **Saugroboter** (der Roboter auf der Karte und in 3D, mit seiner Karte).
 
 ## So kommst du hin
 
@@ -38,14 +41,16 @@ der West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Platzie
 
 Die Karte braucht zuerst deine Grundrisse und Räume: [Kapitel 9](09-setup-the-map.md).
 
-## Geräte platzieren (Pro)
+## Geräte platzieren
 
 1. Such das Gerät in **Karten → Atlas-Editor** in der Zeilenliste. **Queue all unplaced** reiht
    mehrere auf einmal ein.
 2. Zieh seinen pulsierenden Pin auf die Etage, oder wähl **+ Place** und tipp auf die Stelle der
    Karte, an die es gehört.
-3. Stell im Inspektor seine Form, Größe und seinen Winkel ein: Ein Licht kann eine Pendelleuchte,
-   eine Wandleuchte, ein Streifen oder ein Kronleuchter sein, in echten Zentimetern.
+3. Stell mit PadSpan Pro im Inspektor seine Form, Größe und seinen Winkel ein: Ein Licht kann eine
+   Pendelleuchte, eine Wandleuchte, ein Streifen oder ein Kronleuchter sein, in echten Zentimetern.
+   Ohne Pro erscheint es als einfache Markierung, und eine Form, die es schon hat, bleibt erhalten,
+   bis wieder ein Schlüssel da ist.
 
 Lichter, Ventilatoren, Schlösser sowie Bewegungs-, Temperatur-, Feuchtigkeits-, Luftqualitäts- und
 Wassermelder werden alle auf dieselbe Art platziert.

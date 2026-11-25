@@ -316,10 +316,12 @@ the list, the rougher the plan.
    lights on. Choose its floor, pick the file, and PadSpan draws the plan to scale, with nothing to
    measure. You still say where each room is. **Guide me step by step** shows the same steps one
    screen at a time, made for the phone, and gives you an address to send to whoever does the scan.
+   From December 1, 2026, a plan from a scan needs PadSpan Pro or the Advanced map creation add-on.
 4. **Use your robot vacuum's map.** A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
    Turn on **Settings → Features → Experimental Features → Robot Vacuum Import**, then use
    **Mapping → Layout → 🤖 Import from a robot vacuum**, and **Add as a new map**. It becomes a floor plan with
-   its rooms; rooms you already have are kept.
+   its rooms; rooms you already have are kept. From December 1, 2026, it needs PadSpan Pro or the
+   Robot vacuum add-on.
 5. **Draw it yourself and photograph it.** On plain paper, the outside walls first, then the walls
    between rooms, with a gap for each door. Write the length of one long wall across and one down.
    Photograph it from straight above. **I have my sketch: upload it** ticks "my own sketch" on the
@@ -335,7 +337,8 @@ Two more ways, in Advanced, on **Mapping → Layout**:
   scale.
 - **Sweet Home 3D.** **📐 Import floorplan (.sh3d)** reads the rooms from a Sweet Home 3D file, as a
   candidate for this floor to check and edit before you commit it. With **RoomPlan Import** on in
-  Settings → Features, the same button reads a room scan.
+  Settings → Features, the same button reads a room scan (from December 1, 2026, with PadSpan Pro or
+  the Advanced map creation add-on).
 
 [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) and
 [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/)
@@ -347,6 +350,13 @@ A robot that runs Valetudo, with its map imported that way, can also help PadSpa
 It is optional, and nothing happens until you start a run. Stick a fixed-address Bluetooth beacon
 (iBeacon or Eddystone) on top of the robot, away from its laser turret. Not an AirTag or a Tile:
 their addresses keep changing. PadSpan never hears the robot itself, only the beacon on it.
+
+From December 1, 2026, the robot's features (its map as a floor plan, the robot on the Atlas and in
+the 3D house with its card, room location runs, **Find mistakes**, and Wi-Fi while it cleans) need
+PadSpan Pro or the Robot vacuum add-on ([chapter 25](25-padspan-pro.md#add-ons)); a Bright Pro key
+keeps them. Without one, the robot is not drawn, and the import and **Start a run** say what they
+need. Nothing stored is deleted: the link, the map and earlier runs stay, **Stop** and **Undo this
+run** always work, and it all comes back with a key.
 
 The robot shows on the Atlas and in the 3D house while its live position is on and Robot Vacuum
 Import is turned on, whether people and tags are shown there or not. Press and hold it to open its

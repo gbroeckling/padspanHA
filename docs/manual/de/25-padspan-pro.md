@@ -3,19 +3,27 @@
 [Inhalt](README.md)
 
 PadSpan HA ist kostenlos, und die Anwesenheitserkennung bleibt kostenlos: Räume, Grundrisse,
-Kalibrierung, der Verlauf, die Sensoren in Home Assistant und die Alarme. **PadSpan Pro** ist ein
-freiwilliger Schlüssel, der die kostenpflichtigen Teile auf derselben Installation freischaltet, ohne
-dass du etwas neu installierst:
+Kalibrierung, der Verlauf, die Sensoren in Home Assistant und die Alarme. Ab dem 1. Dezember 2026
+auch das genaue Platzieren von Lichtern und Geräten im Atlas, der einfache Wandbildschirm im
+Vollbild und die Grundfunktionen des 3D-Hauses (Live Aboard). **PadSpan Pro** ist ein freiwilliger
+Schlüssel, der die kostenpflichtigen Teile auf derselben Installation freischaltet, ohne dass du
+etwas neu installierst:
 
-- genaues Platzieren im Atlas: Formen, Größen, Winkel, die Advanced-Steuerung von WLED, Automorph und
+- im Atlas: Formen, Größen und Winkel, Fit room, die Advanced-Steuerung von WLED, Automorph und
   Showcase ([Kapitel 15](15-the-atlas.md));
-- Live Aboard, das 3D-Haus, mit Furnish ([Kapitel 16](16-live-aboard.md),
-  [Kapitel 17](17-furnish.md));
-- der Wandmodus ([Kapitel 18](18-wall-screens-and-kiosks.md));
+- in Live Aboard, dem 3D-Haus: Furnish, Personenfiguren, der 3D-Editor, die Kamerafahrten zu
+  Ereignissen und die Bibliothek ([Kapitel 16](16-live-aboard.md), [Kapitel 17](17-furnish.md));
+- am Wandbildschirm: Nachtdimmung, Einbrennschutz, Etagen nacheinander und das Aufwecken per
+  Bewegung in Fully Kiosk ([Kapitel 18](18-wall-screens-and-kiosks.md));
 - Whole house presets und der Urlaubsmodus;
 - Forensik, Busy Times und Finden ([Kapitel 12](12-the-screens.md));
 - die KI-Funktionen ([Kapitel 19](19-ai-features.md));
+- ab dem 1. Dezember 2026 die Funktionen für den Saugroboter
+  ([Kapitel 9](09-setup-the-map.md#raumortung-mit-dem-roboter));
 - alles, was später hinter Pro kommt.
+
+Bis zum 1. Dezember 2026 gehören auch das genaue Platzieren, der Wandmodus und das ganze 3D-Haus zu
+Pro.
 
 Ein PadSpan-Pro-Schlüssel schaltet auch die Werkzeuge von PadSpan Bright frei. Preise und wo du
 einen Schlüssel kaufst: [padspan.traks.ca](https://padspan.traks.ca). Ohne Pro schaltet ein Add-on
@@ -90,6 +98,15 @@ zu drei Zuhause. **PadSpan Pro enthält sie alle.** Preise, und wo du eines kauf
 | Looks-Paket | Die Themen Graphit, Ozean, Dämmerung und Tag; im Atlas Showcase mit seinen Themen, der West Coast Forest und die Presets-Leiste |
 | Forensik | Die Aufzeichnung von Forensik |
 | Präsenz-Auswertungen | Stoßzeiten und Finden |
+| Erweiterte Kartenerstellung (ab dem 1. Dezember 2026) | Das Lesen von Plänen mit KI ([Kapitel 19](19-ai-features.md)), die Türen, Fenster, Möbel und Treppen eines LiDAR-Scans im 3D-Haus und Grundrisse aus einem LiDAR-Scan |
+| Saugroboter (ab dem 1. Dezember 2026) | Die Karte deines Saugroboters als Grundriss (**🤖 Import from a robot vacuum** und in der Einrichtung **Die Karte deines Saugroboters nutzen**), der Roboter im Atlas und in 3D mit seiner Karte, die Raumortungsfahrten, **Fehler finden** und das WLAN beim Saugen ([Kapitel 9](09-setup-the-map.md#raumortung-mit-dem-roboter)) |
+
+Erweiterte Kartenerstellung und Saugroboter gibt es ab dem 1. Dezember 2026 zu kaufen. Ein Grundriss
+aus einem LiDAR-Scan und die Funktionen für den Saugroboter sind bis dahin kostenlos; danach brauchen
+sie PadSpan Pro oder ihr Add-on (ein Bright-Pro-Schlüssel behält die für den Saugroboter). Wer eines
+der beiden hat, zahlt für das andere 30 % weniger: Kauf es über die Lizenzkarte, die zur Zahlung zu
+diesem Preis führt, und bezahle mit der E-Mail-Adresse, an die der Schlüssel ging. Es gilt der
+bessere Preis: dieser Rabatt oder ein Sonderangebot, nie beides.
 
 Kostenlos auf jeder Installation, mit oder ohne sie: eine auslösende Alarmanlage (im Notfallknopf,
 ohne etwas zum Drücken, und im roten Banner), Auf- und Zuschließen auf der Karte und in der Karte

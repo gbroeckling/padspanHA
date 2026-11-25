@@ -87,7 +87,7 @@ key can be emailed to you; **No thanks** sends the token alone.
 
 ## The shared furniture library
 
-Live Aboard (Pro) can swap furniture with other PadSpan homes. It is off by default and only an
+With Pro, Live Aboard swaps furniture with other PadSpan homes. It is off by default and only an
 administrator can turn it on (**Settings → Atlas → Live Aboard → Shared library**). While it is on,
 Home Assistant sends a request only when someone uses it: a search (the words and filters), a look at
 one piece (its library ID), a report (the piece and a reason), a share (the piece's shape, sizes,

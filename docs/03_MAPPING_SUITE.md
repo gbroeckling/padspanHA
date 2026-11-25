@@ -40,8 +40,8 @@ scanner's own floor, never absolute), mark lost/disabled, resync from HA.
 
 **Barriers** — RF attenuation walls in metres, with a material and a dB value.
 
-**Lights (Atlas)** — placement is a PadSpan Pro feature; shapes and codes
-render from the fabric. Motion, temperature, humidity, air-quality, flood, lock and
+**Lights (Atlas)** — placement is free from December 1, 2026 (`licence.placement_tier`;
+Bright Pro or Pro before), shapes stay Bright Pro or Pro; shapes and codes render from the fabric. Motion, temperature, humidity, air-quality, flood, lock and
 door/window classes share the same placement path and fabric storage as
 lights — see `views/lights_map.js` and [ATLAS_GUIDE.md](ATLAS_GUIDE.md) for
 the user-facing surface. Automorph and Showcase (`lights_automorph_*`,

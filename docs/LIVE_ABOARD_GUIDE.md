@@ -4,7 +4,9 @@ Live Aboard is the Atlas in 3D: your floors, rooms, walls, doors, windows, light
 little house you can turn, zoom and tap, the way you'd look into a house in The Sims. It's built
 from the map you already drew, so there's nothing new to set up before you see it.
 
-It's **experimental** and still changing. If something looks wrong in your house, please say so.
+From December 1, 2026, it's free, with no key; until then it comes with PadSpan Pro and is
+**experimental**. Furnish, people figures, the 3D editor (Edit), the setup wizard, the director and
+the shared library stay PadSpan Pro's. If something looks wrong in your house, please say so.
 
 - [Turning it on](#turning-it-on)
 - [Getting around](#getting-around)
@@ -18,24 +20,23 @@ It's **experimental** and still changing. If something looks wrong in your house
 
 ## Turning it on
 
-Live Aboard comes with PadSpan Pro.
-
 1. Go to **Settings → Atlas**, find **💡 Atlas — Mapped Light Control**.
 2. Under **🏠 Live Aboard**, turn on **Show Live Aboard on the Atlas**. It saves right away, no
-   restart.
+   restart. From December 1, 2026, a new install starts with it on, and an install with no key has
+   it turned on once by itself; each screen still opens on the flat map until 3D is picked there.
 3. Open the Atlas. In the sidebar, tap **🏠** on the left rail to switch between the flat map and
    Live Aboard. In Mapping → Atlas builder, use the **Map | Live Aboard** switch beside the zoom.
 
 The same card has a few more choices:
 
-- **Rain and snow:** falls outside the house when your weather says so (the same weather the
-  Atlas uses).
+- **Rain and snow** (PadSpan Pro)**:** falls outside the house when your weather says so (the same
+  weather the Atlas uses).
 - **Look:** the same colours as the Atlas, Live Aboard's own, or **Studio**: Live Aboard's own colours
   on a stage under a sky that follows the sun, with soft light and shadows (a lighter version on Low).
   A screen can pick its own in **Views ▾ → Look** (see below).
 - **Back to home view:** on the sidebar, how long it waits untouched before it flies back to its
   home view (Off, 30 s, 1 min, 5 min).
-- **Show people** and **Show tags & scanners:** on the map and in Live Aboard.
+- **Show people** and **Show tags & scanners** (PadSpan Pro)**:** on the map and in Live Aboard.
 
 **Set it up step by step:** the **✨ Set it up step by step** button on that card (or **🏠 Set up
 Live Aboard** at the top of Mapping → Atlas builder) opens a wizard that builds the whole house with you:

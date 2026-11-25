@@ -69,9 +69,10 @@ Knopf **Neu laden**.
 - die Bedienelemente über der Karte blenden sich 30 Sekunden nach der letzten Berührung aus und
   kommen mit der nächsten zurück.
 
-Der Wandmodus braucht das neue Layout des Atlas, das mit der Leiste (PadSpan Pro:
-**Karten → Atlas-Editor → ▦ New layout**). Mit dem klassischen Layout lässt `?kiosk=1` nur die
-Kopfzeile weg.
+Ab dem 1. Dezember 2026 ist der einfache Wandmodus kostenlos, ohne Schlüssel; bis dahin gehört er
+zu PadSpan Pro. Mit PadSpan Pro braucht er das neue Layout des Atlas, das mit der Leiste
+(**Karten → Atlas-Editor → ▦ New layout**); mit dem klassischen Layout lässt `?kiosk=1` nur die
+Kopfzeile weg. Ohne PadSpan Pro zeichnet eine Wand immer die Karte des neuen Layouts.
 
 **Die Karte den Bildschirm füllen lassen**: **⛶** (unten rechts) schaltet sie auf Vollbild. Zoom
 weiter hinein als das ganze Haus, und die Leisten gehen zur Seite; **☰** oder **Escape** holt sie
@@ -99,6 +100,9 @@ zurück. Tipp doppelt auf einen Raum, um auf ihn zu zoomen.
   Nachtdimmung die Helligkeit des Bildschirms selbst herunter, und mit Fullys **Motion Detection**
   weckt jemand, der herantritt, einen schlafenden Bildschirm. Dafür braucht es
   **Enable JavaScript Interface** in Fullys Advanced Web Settings.
+
+**Dim at night**, **Protect against burn-in**, **Show each floor** und **On Fully Kiosk tablets**
+brauchen PadSpan Pro.
 
 Die Vorschau der Karte zeigt einen 4K-Bildschirm maßstabsgetreu, mit der Höhe der Schrift in
 Zentimetern. Wände übernehmen eine Änderung innerhalb einer halben Minute.

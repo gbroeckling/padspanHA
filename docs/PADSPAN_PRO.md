@@ -1,9 +1,13 @@
 # PadSpan Pro: trial, keys, testers and invites
 
-PadSpan HA is free, and the presence tracking stays free. **PadSpan Pro** unlocks the paid parts on
-the same install: placing lights and devices exactly on the Atlas (shapes, sizes, WLED, Automorph,
-Showcase), the 3D house (Live Aboard) with Furnish, wall mode, Whole house presets and Vacation Mode,
-Forensics, Busy Times and Locate, and the AI features. See
+PadSpan HA is free, and the presence tracking stays free. From December 1, 2026, so are placing
+lights and devices exactly on the Atlas, the plain wall screen and the 3D house's basics (Live
+Aboard). **PadSpan Pro** unlocks the paid parts on the same install: on the Atlas, fixture shapes,
+sizes and angles, WLED, Automorph, Showcase and Fit room; in the 3D house, Furnish, people figures,
+the 3D editor and the director; on a wall, night dimming, the burn-in shift, floors in turn and
+Fully Kiosk motion wake; Whole house presets and Vacation Mode, Forensics, Busy Times and Locate,
+the AI features, and every add-on. Until December 1, 2026, placement, wall mode and the whole 3D
+house are Pro's too. See
 [Editions](../README.md#editions) for exactly what each tier unlocks.
 
 Everything below is in **Settings → Features → PadSpan licence** unless it says otherwise. Starting
@@ -72,7 +76,8 @@ trial or a tester's) never needs one. Prices in CAD:
 | Looks pack | $4.25 | Day and three more themes, Showcase and the forest |
 | Forensics | $5.56 | Which Bluetooth devices were near a scanner in any time window |
 | Presence insights | $5.56 | Busy Times and Locate |
-| Advanced map creation (not on sale yet: it comes with the free 3D house) | $8.65 | AI plan reading, reading a photo, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan (free until it is on sale) |
+| Advanced map creation (on sale from December 1, 2026) | $8.65 | AI plan reading, reading a photo, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan (free until it is on sale) |
+| Robot vacuum (on sale from December 1, 2026) | $6.45 | Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D with its card, room location runs, the mistake finder and Wi-Fi while it cleans (free until it is on sale; a Bright Pro key keeps them) |
 
 - Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Your add-ons share one
   key of their own: buy another with the same email and it joins that key; buy one again and it runs
@@ -80,6 +85,10 @@ trial or a tester's) never needs one. Prices in CAD:
   its date. An add-on key is not a Pro key and unlocks nothing else.
 - It needs a PadSpan that knows add-ons; an older one says to update PadSpan when the key is entered.
 - One key covers up to three homes. The usage-report rule above is for Pro keys only.
+- Whoever holds Advanced map creation or Robot vacuum pays 30% less for the other ($6.05 for
+  Advanced map creation, $4.51 for Robot vacuum). Buy it from the licence card, which links to the
+  payment at that price, and pay with the email the key was sent to. The better of that and any
+  sale applies, never both.
 - Updates are included, and it keeps working when the internet is down, like any key; each add-on
   gets the same 14 days past its date that a key does.
 - You can still try Pro: the 90-day trial keeps your add-on key aside and puts it back by itself when

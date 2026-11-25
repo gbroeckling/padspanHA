@@ -99,7 +99,9 @@ auf den anderen Bildschirmen. Es ändert, was gezeigt wird, nicht, was verfolgt 
 
 Andere Karten kommen und gehen: **Erste Schritte**, solange die Einrichtung nicht fertig ist,
 **Genauigkeit verbessern** mit einem letzten Tipp oder zwei, sobald sie es ist, der Pro-Testzeitraum,
-was sich nach einem Update geändert hat, und **Ortungsdiagnose** (zugeklappt) für den Support. Mit
+was sich nach einem Update geändert hat, **Das 3D-Haus ist jetzt kostenlos** (ab dem 1. Dezember
+2026, einmal, für einen Administrator, nie auf einem Wandbildschirm) und **Ortungsdiagnose**
+(zugeklappt) für den Support. Mit
 PadSpan Pro setzt **Einstellungen → Atlas → Den Atlas als Übersicht zeigen** stattdessen den Atlas
 hierher.
 

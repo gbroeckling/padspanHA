@@ -96,7 +96,7 @@ werden kann; **No thanks** schickt nur das Token.
 
 ## Die gemeinsame Möbelbibliothek
 
-Live Aboard (Pro) kann Möbel mit anderen Häusern mit PadSpan tauschen. Ab Werk ist das aus, und nur
+Mit Pro kann Live Aboard Möbel mit anderen Häusern mit PadSpan tauschen. Ab Werk ist das aus, und nur
 ein Administrator kann es einschalten (**Einstellungen → Atlas → Live Aboard → Shared library**).
 Solange es an ist, schickt Home Assistant nur dann eine Anfrage, wenn jemand es benutzt: eine Suche
 (die Wörter und Filter), der Blick auf ein Stück (seine Bibliotheks-ID), eine Meldung (das Stück und

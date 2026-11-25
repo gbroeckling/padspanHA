@@ -9,8 +9,9 @@ alles andere funktionieren ohne.
 
 ## Was es kann
 
-Alle diese Funktionen brauchen PadSpan Pro, und jedes Lesen geschieht nur, wenn jemand es startet,
-nie nach Zeitplan.
+Alle diese Funktionen brauchen PadSpan Pro oder, ab dem 1. Dezember 2026, das Add-on Erweiterte
+Kartenerstellung ([Kapitel 25](25-padspan-pro.md#add-ons)); Furnish und **Edit** in Live Aboard
+bleiben bei PadSpan Pro. Jedes Lesen geschieht nur, wenn jemand es startet, nie nach Zeitplan.
 
 | Funktion | Was gelesen wird | Wo | Schalter in Einstellungen → KI |
 |---|---|---|---|

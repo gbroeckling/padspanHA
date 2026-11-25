@@ -228,7 +228,7 @@ Household members can still view everything, use the lights and the emergency li
 
 ## What's Next?
 
-- **Atlas** — Lights, fans, sensors, locks and doors on the same map: free installs get a tap-to-toggle marker per light, and placing devices where they really are is PadSpan Pro — see the [Atlas Guide](ATLAS_GUIDE.md)
+- **Atlas** — Lights, fans, sensors, locks and doors on the same map: from December 1, 2026, placing devices where they really are is free (PadSpan Pro before), and fixture shapes, sizes and angles are PadSpan Pro — see the [Atlas Guide](ATLAS_GUIDE.md)
 - **Calibration** — Open **Calibration** in the menu and select **Guided calibration** for better room accuracy; the Training Hub's **Calibrate for Accuracy** walkthrough shows how
 - **Basic vs Advanced** — The mode button in the top bar switches between Basic, Advanced and Development
 - **Training Hub** — 16 animated walkthroughs covering every feature

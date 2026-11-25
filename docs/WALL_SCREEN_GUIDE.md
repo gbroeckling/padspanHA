@@ -46,8 +46,10 @@ shown on a wall, since nobody is there to tap it. Home Assistant's own sidebar i
 browser only, so the map has the whole screen; **Show HA** on the Atlas page (without `?kiosk=1`)
 brings it back.
 
-Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas builder →
-▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.
+From December 1, 2026, the plain wall mode is free, with no key; until then it is PadSpan Pro's.
+With PadSpan Pro it needs the Atlas's new layout, the one with the rail (**Mapping → Atlas builder →
+▦ New layout**); with the classic layout, `?kiosk=1` only drops the header. Without PadSpan Pro, a
+wall always draws the new layout's map.
 
 ### Sizing a wall for its room
 
@@ -81,6 +83,9 @@ Two more options in **Settings → Atlas → 📺 Wall screens**, both off until
   and its brightness comes back at sunrise. With Fully's **Motion Detection** on, someone walking
   up turns a sleeping screen back on. Needs **Enable JavaScript Interface** in Fully's Advanced
   Web Settings.
+
+**Dim at night**, **Protect against burn-in**, **Show each floor** and **On Fully Kiosk tablets** need
+PadSpan Pro.
 
 ## Making the map fill the screen
 
