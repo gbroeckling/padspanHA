@@ -8,7 +8,8 @@ may do in PadSpan follows from whether their Home Assistant user is an **adminis
 ## Who can open PadSpan
 
 Every Home Assistant user can open PadSpan and the sidebar Atlas, and see everything on them.
-Household members can always use the lights, the emergency lighting test and Follow's test
+Household members can always use the lights, the emergency lighting test, the house alarm on the
+emergency button (as far as their Home Assistant login can use the alarm) and Follow's test
 notification, change the theme, and change the choices kept in their own browser (Map or 3D, what the
 Atlas shows, Basic or Advanced).
 

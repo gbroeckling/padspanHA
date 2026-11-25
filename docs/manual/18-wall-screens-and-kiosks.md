@@ -138,4 +138,7 @@ shows only what the slim update carries. More in [chapter 23](23-performance-and
 - On an old or slow tablet, leave Live Aboard on **Low** quality.
 - The **Test emergency lighting** button sits at the top right of the Atlas. On a screen anyone can
   tap, hide it ([chapter 15](15-the-atlas.md#emergency-lighting-test)).
+- Your house alarm beside it works on a wall screen as anywhere (PadSpan Bright and Pro): every arm
+  and disarm asks first, with the code when the alarm wants one, and nothing on its card leaves the
+  page ([chapter 13](13-alerts.md#your-house-alarm-on-the-emergency-button)).
 - Who can change what from a shared screen: [chapter 21](21-users-and-security.md).

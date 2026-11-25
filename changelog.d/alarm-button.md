@@ -1,0 +1,6 @@
+# Your house alarm on the emergency button
+
+### New
+- **Your house alarm on the Atlas's emergency button (PadSpan Bright and Pro).** If Home Assistant has an alarm panel (Alarmo, or your alarm system's own integration), its state now sits beside the round red emergency button at the top right of the Atlas: Disarmed, Armed away, Armed home, Armed night, Pending, Triggered and the rest. Press it to arm or disarm, with only the modes your alarm supports. Every arm and disarm asks first, and asks for the code when the alarm wants one; PadSpan never keeps the code. A wrong code is refused by Home Assistant, and PadSpan says so in Home Assistant's own words. It works on wall screens and for every household member who can use the alarm in Home Assistant, as unlocking a door does. A house with no alarm panel sees no change.
+- **An alarm going off shows in the red emergency banner, on every screen and every edition.** The same banner a leak, smoke, gas or CO alarm raises, naming what set it off when the alarm says (Alarmo does): "Alarm going off: House · Back door". On the free edition the Atlas shows the alarm only while it is going off, with nothing to press.
+- **The opt-in usage report counts it**: the alarm's controls shown, an arm, a disarm, one Home Assistant refused. Counts only, never a code or which alarm.

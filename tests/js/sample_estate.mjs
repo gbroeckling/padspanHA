@@ -116,6 +116,8 @@ const __importHouse = () => { houseImports++; return failImport ? Promise.reject
 const { t: _t, tn: _tn } = panelT(src);
 const browser = (store) => new Function("SAMPLE_SNAPSHOT", "__importHouse", "localStorage", "t", "tn", `
 const BUILD_ID = "t", APP_VERSION = "0.0.0";
+// panel.js's alarm module (views/alarm_panel.js), not loaded here: the emergency banner has the latches alone.
+let ALARM = null;
 let _mapImageUrls = {};
 ${KIND}
 return class Panel {

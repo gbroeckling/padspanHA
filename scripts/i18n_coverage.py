@@ -79,7 +79,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     # so those screens stay English there (tests/test_panel_i18n.py _GERMAN_FIRST).
     "rooms": ("views/rooms.js",),
     "traceback": ("views/traceback.js", "views/insights.js", "views/busy_times.js", "views/house_activity.js"),
-    "atlas1": ("lights_panel.js", "views/atlas_aboard.js", "views/atlas_heatmap.js", "views/atlas_screen.js", "views/atlas_heights.js", "views/scene_row.js", "views/light_codes.js", "views/iso_lights.js"),
+    "atlas1": ("lights_panel.js", "views/alarm_panel.js", "views/atlas_aboard.js", "views/atlas_heatmap.js", "views/atlas_screen.js", "views/atlas_heights.js", "views/scene_row.js", "views/light_codes.js", "views/iso_lights.js"),
     "atlasmap": ("views/lights_map.js",),
     "atlasmap2": ("views/lights_map.js#atlasmap2",),
     "aboard": ("views/live_aboard.js",),

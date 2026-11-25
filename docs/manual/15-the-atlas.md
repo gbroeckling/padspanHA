@@ -221,6 +221,10 @@ else WLED lights named "emergency".
   won't switch those lights off under it.
 - To hide the button on a screen anyone can tap: **Settings → Atlas → Atlas — Mapped Light Control →
   Show the Test emergency lighting button on the Atlas**.
+- **Your house alarm** sits beside the button when Home Assistant has an alarm panel: its state,
+  and on PadSpan Bright and Pro a press to arm or disarm it, always after a question (and the code
+  when the alarm wants one). An alarm going off shows there on every edition. See
+  [chapter 13](13-alerts.md#your-house-alarm-on-the-emergency-button).
 
 ## WLED: Advanced and Exact look (Pro or Bright Pro)
 

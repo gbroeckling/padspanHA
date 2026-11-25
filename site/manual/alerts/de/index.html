@@ -75,6 +75,7 @@ wie du es ein- oder ausschaltest.</p>
   <tr><th>Was</th><th>Wo es erscheint</th><th>Einschalten</th></tr>
   <tr><td>Ein Gerät wechselt den Raum, kommt nach Hause oder geht</td><td>Dein Handy oder deine E-Mail</td><td>Folgen → <b>Bewegungsalarme</b></td></tr>
   <tr><td>Ein Alarm wegen eines Wasserlecks, Rauch, Gas oder Kohlenmonoxid</td><td>Ein rotes Banner auf jedem PadSpan-Bildschirm; der Raum bekommt im Atlas einen roten Ring</td><td>Immer an</td></tr>
+  <tr><td>Deine Alarmanlage löst aus (die Alarmzentrale in Home Assistant)</td><td>Dasselbe rote Banner auf jedem PadSpan-Bildschirm, und neben dem Notfallknopf im Atlas</td><td>Immer an, in jeder Ausgabe</td></tr>
   <tr><td>Eine offen gelassene Tür, oder ein offenes Fenster im Regen</td><td>Der Raum bekommt im Atlas einen gelben Ring; ein Banner auf einem Wandbildschirm</td><td><b>Einstellungen → Atlas → Atlas — Mapped Light Control → Alert pulse</b></td></tr>
   <tr><td>Der Urlaubsmodus endet oder wird ausgeschaltet</td><td>Eine Home-Assistant-Benachrichtigung, und die Alarmziele aus Folgen</td><td>Immer, solange der Urlaubsmodus genutzt wird</td></tr>
   <tr><td>Ein Gast kommt, geht oder betritt einen Raum, den er nicht betreten soll</td><td>Dein Handy oder eine Home-Assistant-Benachrichtigung</td><td>Wenn du einen Gast-Tag verleihst</td></tr>
@@ -157,6 +158,43 @@ Banner kommt wieder, wenn er das nächste Mal in Alarm geht.</p>
 mit <b>Zu meinem Haus</b> statt Zurücksetzen.</p>
 <p><b>PadSpan schickt einen Wasser- oder Rauchalarm nicht an dein Handy.</b> Nimm dafür eine
 Home-Assistant-Automation direkt auf dem Sensor: Sie hängt nicht von PadSpan ab.</p>
+<h2 id="deine-alarmanlage-am-notfallknopf">Deine Alarmanlage am Notfallknopf</h2>
+<p>Hat Home Assistant eine Alarmzentrale (eine Entität <code>alarm_control_panel</code>: Alarmo oder die eigene
+Integration deiner Alarmanlage), zeigt PadSpan sie neben dem runden roten Knopf <b>Test emergency
+lighting</b> im Atlas, oben rechts auf der Karte. Ein Haus ohne Notlichter bekommt die Alarmanlage
+allein in dieser Ecke. Ein Haus ohne Alarmzentrale sieht nichts Neues.</p>
+<p><b>Wenn sie auslöst</b>, in jeder Ausgabe, auch in der kostenlosen:</p>
+<ul>
+<li>Eine Zeile im roten Banner auf jedem PadSpan-Bildschirm: „Alarm ausgelöst: Haus · Hintertür“. Auf
+einem Handy zählt die 🚨-Pille in der oberen Leiste sie mit.</li>
+<li>Eine rote Zeile neben dem Notfallknopf im Atlas, mit denselben Worten.</li>
+<li>Der Sensor, der sie ausgelöst hat, wird genannt, wenn die Alarmanlage sagt, welcher es war
+(Alarmo tut das). Sonst wird nur die Alarmanlage genannt.</li>
+</ul>
+<p><b>Ihr Zustand, scharf und unscharf schalten</b> (PadSpan Bright und PadSpan Pro):</p>
+<ul>
+<li>Neben dem Knopf der Zustand der Alarmanlage in Worten: <b>Unscharf</b>, <b>Scharf (zu Hause)</b>,
+<b>Scharf (abwesend)</b>, <b>Scharf (Nacht)</b>, <b>Scharf (Urlaub)</b>, <b>Scharf (benutzerdefiniert)</b>,
+<b>Wird scharf geschaltet</b>, <b>Verzögerung läuft</b>, <b>Wird unscharf geschaltet</b> oder
+<b>Ausgelöst</b>. Bei mehreren Alarmanlagen zeigt er den dringendsten Zustand und wie viele es sind
+(<b>×2</b>); halte den Zeiger darauf, dann siehst du jede.</li>
+<li>Drück darauf für die Karte der Alarmanlage. Solange sie unscharf ist: <b>Scharf schalten (zu
+Hause)</b>, <b>(abwesend)</b>, <b>(Nacht)</b>, <b>(Urlaub)</b> und <b>(benutzerdefiniert)</b>, nur die, die
+diese Alarmanlage kann. Solange sie scharf ist, scharf geschaltet wird, verzögert oder ausgelöst
+hat: <b>Unscharf schalten</b>.</li>
+<li><b>Jedes Scharf- und Unscharfschalten fragt zuerst</b> („Scharf schalten (abwesend): Haus?“, „Haus
+unscharf schalten?“), damit ein versehentliches Drücken nichts tut. Will die Alarmanlage einen
+Code, hat die Frage ein Feld dafür (nur Ziffern, wenn der Code eine Zahl ist). Der Knopf tut
+nichts, bis ein Code eingetippt ist. PadSpan behält den Code nie.</li>
+<li><b>Ein falscher Code</b>: Home Assistant lehnt ab, und PadSpan sagt, was Home Assistant gesagt hat
+(„Haus hat abgelehnt: …“). Die Alarmanlage bleibt, wie sie war.</li>
+<li><b>Wer darf</b>: jeder, dessen Home-Assistant-Anmeldung die Alarmanlage bedienen kann, wie beim
+Aufschließen einer Tür im Atlas, auch auf Wandbildschirmen. Nichts auf der Karte führt von der
+Seite weg.</li>
+<li>Den Knopf Test emergency lighting auszublenden (Einstellungen → Atlas → Atlas — Mapped Light
+Control → <b>Show the Test emergency lighting button on the Atlas</b>) blendet nur den Test aus; die
+Alarmanlage bleibt.</li>
+</ul>
 <h2 id="alert-pulse-atlas">Alert pulse (Atlas)</h2>
 <p>Aus, bis du es einschaltest: <b>Einstellungen → Atlas → Atlas — Mapped Light Control → Alert pulse</b>.
 Es wird gespeichert, sobald du es anhakst.</p>

@@ -220,5 +220,38 @@
 "Home Assistant → Settings → Automations & scenes → Scenes": "Home Assistant → Einstellungen → Automatisierungen & Szenen → Szenen",
 "An administrator makes scenes in Home Assistant.": "Ein Administrator legt Szenen in Home Assistant an.",
 "Make a new scene in Home Assistant's scene editor": "Eine neue Szene im Szeneneditor von Home Assistant anlegen",
-"in Home Assistant": "in Home Assistant"
+"in Home Assistant": "in Home Assistant",
+"Arm home": "Scharf schalten (zu Hause)",
+"Arm away": "Scharf schalten (abwesend)",
+"Arm night": "Scharf schalten (Nacht)",
+"Arm vacation": "Scharf schalten (Urlaub)",
+"Arm custom bypass": "Scharf schalten (benutzerdefiniert)",
+"Disarmed": "Unscharf",
+"Armed home": "Scharf (zu Hause)",
+"Armed away": "Scharf (abwesend)",
+"Armed night": "Scharf (Nacht)",
+"Armed vacation": "Scharf (Urlaub)",
+"Armed custom bypass": "Scharf (benutzerdefiniert)",
+"Pending": "Verzögerung läuft",
+"Arming": "Wird scharf geschaltet",
+"Disarming": "Wird unscharf geschaltet",
+"Triggered": "Ausgelöst",
+"Unknown": "Unbekannt",
+"Disarm": "Unscharf schalten",
+"Alarm going off: {name} · {sensors}": "Alarm ausgelöst: {name} · {sensors}",
+"Alarm going off: {name}": "Alarm ausgelöst: {name}",
+"{action}: {name}?": "{action}: {name}?",
+"Disarm {name}?": "{name} unscharf schalten?",
+"{name} refused: {why}": "{name} hat abgelehnt: {why}",
+"Set off by {sensors}": "Ausgelöst durch {sensors}",
+"Sending…": "Wird gesendet…",
+"Each one asks first, with the alarm's code when it has one.": "Jede Schaltung fragt zuerst nach, mit dem Code der Alarmanlage, wenn sie einen hat.",
+"{n} alarms: {state}": {
+"one": "Alarmanlage: {state}",
+"other": "{n} Alarmanlagen: {state}"
+},
+"Alarms": {
+"one": "Alarmanlage",
+"other": "Alarmanlagen"
+}
 }

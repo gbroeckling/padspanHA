@@ -36,8 +36,12 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates } =
+        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates, confirmAsk } =
   await import(`./views/lights_map.js${STAMP}`);
+// The house's alarm on the emergency button (views/alarm_panel.js). Optional:
+// without it the button is as it was.
+const ALARM = await import(`./views/alarm_panel.js${STAMP}`)
+  .catch(err => { console.warn("PadSpan: alarm_panel failed to load", err); return null; });
 // Escape, Tab and the focus for the emergency card and the page drawn again
 // (views/dialog_keys.js). Optional: without it they work as they did.
 const KEYS = await import(`./views/dialog_keys.js${STAMP}`)
@@ -642,11 +646,16 @@ class PadSpanLightsApp extends HTMLElement {
   // marking it as the list.
   _emergencyOverlay(){
     const s = this.state._emerg;
-    if(!s || !s.available) return null;
+    // The house's alarm (_alarmChip): beside the dial, or in its place on a
+    // house with no emergency lights. No alarm panel: nothing, as before.
+    const alarm = this._alarmChip();
+    const alone = alarm ? el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg"},[alarm])]) : null;
+    if(!s || !s.available) return alone;
     // Settings → UI Structure → "Show the Test emergency lighting button".
     // Hidden only while idle: a test running (started here or elsewhere)
-    // always shows, so it can be seen and ended.
-    if(this.state._emergButtonHidden && !(s.test && s.test.active)) return null;
+    // always shows, so it can be seen and ended. The alarm is not the test:
+    // it stays.
+    if(this.state._emergButtonHidden && !(s.test && s.test.active)) return alone;
     const active = !!(s.test && s.test.active);
     const busy = !!this._emergBusy;
     const name = {};
@@ -695,8 +704,44 @@ class PadSpanLightsApp extends HTMLElement {
         : t("Turn off every emergency light, including the ones that were already on"),
       onclick: ()=>this._emergencyForceOff(),
     }, armed ? t("Tap again") : t("Force off")));
+    if(alarm) kids.push(alarm);
     return el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg" + (busy ? " busy" : ""),
       "aria-busy": busy ? "true" : null},kids)]);
+  }
+
+  // ── The house's alarm on the emergency button (views/alarm_panel.js) ──────
+  // Its state on Bright and Pro, and the card that arms and disarms it. On
+  // the free tier only an alarm going off, said: a safety alert is free.
+  // Read from this page's hass at every draw (the 5 s poll), never stored.
+  _alarmControls(){ return ["bright","pro"].includes(String(this.state._tier||"").toLowerCase()); }
+  _alarmChip(){
+    if(!ALARM) return null;
+    const states = (this._hass && this._hass.states) || {};
+    const panels = ALARM.alarmPanels(states);
+    const controls = this._alarmControls();
+    const chip = ALARM.alarmChip({ el, panels, states, controls, onOpen: ()=>this._openAlarmCard() });
+    if(chip && controls && !this._alarmShownSaid){ this._alarmShownSaid = true; this._alarmCount("shown"); }
+    return chip;
+  }
+  // The opt-in report: alarm_button:shown / arm / disarm / refused, counts
+  // only (telemetry.py ALARM_BUTTON_EVENTS), never a code or a name.
+  _alarmCount(word){
+    if(!this.state._telemetryOn || !this._hass) return;
+    Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:"alarm_button:" + word })).catch(()=>{});
+  }
+  _openAlarmCard(){
+    if(this._alarmCard || !ALARM || !this._alarmControls()) return;
+    this._alarmCard = ALARM.openAlarmCard({
+      el,
+      states: ()=>(this._hass && this._hass.states) || {},
+      call: (service, data)=>this._hass.callService(ALARM.DOMAIN, service, data),
+      ask: confirmAsk,
+      toast: (m, e)=>this._toast(m, e),
+      errorText: (e)=>this._errorText(e),
+      count: (w)=>this._alarmCount(w),
+      keys: KEYS,
+      onClose: ()=>{ this._alarmCard = null; },
+    });
   }
 
   // The card behind the ring: every emergency light, its state and tags, a
@@ -948,6 +993,7 @@ class PadSpanLightsApp extends HTMLElement {
     layChildren(root, parts);
     if(back && !KEYS.deepActive()){ back.root=$c; KEYS.refocus(back); }
     if(this._emergCard) this._emergCard.refresh();
+    if(this._alarmCard) this._alarmCard.refresh();
   }
 
   _tipText(){
@@ -1915,6 +1961,7 @@ class PadSpanLightsApp extends HTMLElement {
     this._reconnectsStop = null; this._reconnectsConn = null;
     if(this._screen) this._screen.leave();
     if(this._emergCard) this._emergCard.close();
+    if(this._alarmCard) this._alarmCard.close();
     clearTimeout(this._emergArmTimer);
   }
 }

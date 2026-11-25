@@ -243,5 +243,6 @@
 "Tripped in {n} hours this week.": {
 "one": "Diese Woche in 1 Stunde ausgelöst.",
 "other": "Diese Woche in {n} Stunden ausgelöst."
-}
+},
+"Code": "Code"
 }

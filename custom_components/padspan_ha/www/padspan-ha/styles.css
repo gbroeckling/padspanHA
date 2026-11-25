@@ -1509,6 +1509,23 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 @keyframes lv-emerg-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.lv-emerg.busy .lv-emerg-btn::after{animation:none;border-color:#fff}}
 .lv-emerg-label-ic{display:none}
+/* The house's alarm beside the dial (views/alarm_panel.js): its state in
+   words, a button on Bright and Pro that opens its card; on the free tier
+   only while it is going off, and nothing to press. Triggered breathes red
+   as the wall's alert bar does. */
+.lv-alarm{all:unset;box-sizing:border-box;height:32px;padding:0 12px;border-radius:999px;display:inline-flex;
+  align-items:center;gap:6px;white-space:nowrap;max-width:260px;font-size:12px;font-weight:700;
+  color:#e2e8f0;background:rgba(10,20,14,.92);border:1px solid rgba(120,190,155,.4);box-shadow:0 4px 14px rgba(0,0,0,.5)}
+button.lv-alarm{cursor:pointer}
+button.lv-alarm:hover{filter:brightness(1.15)}
+.lv-alarm-ic{display:inline-flex;flex:none}
+.lv-alarm-tx{overflow:hidden;text-overflow:ellipsis}
+.lv-alarm-n{font-size:10px;opacity:.75}
+.lv-alarm-armed{color:#dbeafe;background:rgba(12,24,48,.92);border-color:rgba(96,165,250,.6)}
+.lv-alarm-pending{color:#111827;background:#fbbf24;border-color:#fde68a}
+.lv-alarm-off{color:rgba(226,240,232,.55);border-style:dashed}
+.lv-alarm-triggered{color:#fff;background:#b91c1c;border-color:#fecaca;animation:lv-alert-breathe 2.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.lv-alarm-triggered{animation:none}}
 /* A narrow map (a phone): the running label shrinks to a stop icon, so the
    row (dial, label, Force off) stays clear of the 44 px rail. Closer to the
    corner, but full size: the ring band, the centre and Force off keep the
@@ -1518,6 +1535,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   .lv-emerg-label.on .lv-emerg-label-tx{display:none}
   .lv-emerg-label.on .lv-emerg-label-ic{display:inline-flex}
   .lv-emerg{right:8px;top:8px}
+  .lv-alarm{max-width:150px}
 }
 
 /* The builder's own columns (2026-09-21: "get it done" — the rest of
