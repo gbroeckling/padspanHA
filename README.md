@@ -10,6 +10,8 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 [![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in **Settings → Marketplace** (Home Assistant 2026.11 and newer) or in HACS (older versions). Or search either one for PadSpan.
 
+PadSpan is an eminently intuitive control panel that gives you real mastery of your residence. Make it as simple or as complex as you need, and keep what you use most a tap away. Once it's a familiar part of your routine, you'll feel confident you have your space in the palm of your hand.
+
 **What do you want PadSpan for?**
 
 - **The whole house on one screen.** Every light, door, lock, alarm and sensor on a plan of your home, each in its room. Tap a light, see what's open, and a leak or smoke alarm turns its room red on every screen until someone resets it. Put it on a wall tablet with the free kiosk link. Needs only Home Assistant 2024.8 or newer. [See it](https://padspan.traks.ca/demo/?page=atlas)
