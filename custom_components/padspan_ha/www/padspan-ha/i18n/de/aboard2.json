@@ -347,7 +347,6 @@
 "Dock": "Zur Station",
 "Open in Home Assistant": "In Home Assistant öffnen",
 "Room location": "Raumortung",
-"The robot drives to spots in each room and stands still while PadSpan listens to the tag on it. Each spot is added to calibration at once. Calibration is backed up before every run, and a run can be undone.": "Der Roboter fährt in jedem Raum Stellen an und steht dort still, während PadSpan dem Tag auf ihm zuhört. Jede Stelle kommt sofort in die Kalibrierung. Vor jeder Fahrt wird die Kalibrierung gesichert, und eine Fahrt lässt sich rückgängig machen.",
 "The robot's address: {url}": "Adresse des Roboters: {url}",
 "The robot's address": "Adresse des Roboters",
 "Valetudo user (only if its login is on)": "Valetudo-Benutzer (nur wenn die Anmeldung an ist)",
@@ -390,7 +389,6 @@
 "Where the robot's runs say each receiver is, from the tag's readings at the spots the robot stood on. Nothing is moved here.": "Wo jeder Empfänger laut den Fahrten des Roboters steht, aus den Messwerten des Tags an den Stellen, an denen der Roboter stand. Hier wird nichts verschoben.",
 "no room": "keinem Raum",
 "No room location run has added points yet. Start one on the robot's card first.": "Noch keine Raumortungsfahrt hat Punkte hinzugefügt. Starte zuerst eine auf der Karte des Roboters.",
-"Placed on floor {placed}, yet it hears the robot strongly on floor {here} ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.": "Auf Etage {placed} platziert, hört den Roboter aber stark auf Etage {here} ({strong} Stellen, bis zu {dbm} dBm). Vielleicht steht er auf der falschen Etage.",
 "On that floor the readings put it in {room}.": "Auf dieser Etage verorten ihn die Messwerte in {room}.",
 "Placed in {placed}. The readings put it in {found}, {d} m away.": "Platziert in {placed}. Die Messwerte verorten ihn in {found}, {d} m entfernt.",
 "How sure: {n} spots; the readings fit {before} dB off where it is placed, {after} dB off there.": "Wie sicher: {n} Stellen; die Messwerte weichen am platzierten Ort um {before} dB ab, dort um {after} dB.",
@@ -423,5 +421,36 @@
 "Access point: {ap}": "Access-Point: {ap}",
 "{ap} hears the robot at {dbm} dBm": "{ap} empfängt den Roboter mit {dbm} dBm",
 "None on this floor at {band} GHz: the robot's readings are at {bands} GHz.": "Keine auf dieser Etage bei {band} GHz: die Messungen des Roboters liegen bei {bands} GHz.",
-"Diamonds: the robot vacuum's own Wi-Fi where it stood on its room location runs. Taken at floor height, they read weaker than at hand height, so they are kept apart from the coverage colours. Point at one for what the access point heard from it.": "Rauten: das eigene WLAN des Saugroboters dort, wo er bei seinen Raumortungsfahrten stand. In Bodenhöhe gemessen, sind sie schwächer als in Handhöhe, darum bleiben sie getrennt von den Abdeckungsfarben. Zeige auf eine, um zu sehen, was der Access-Point von ihm empfangen hat."
+"Diamonds: the robot vacuum's own Wi-Fi where it stood on its room location runs. Taken at floor height, they read weaker than at hand height, so they are kept apart from the coverage colours. Point at one for what the access point heard from it.": "Rauten: das eigene WLAN des Saugroboters dort, wo er bei seinen Raumortungsfahrten stand. In Bodenhöhe gemessen, sind sie schwächer als in Handhöhe, darum bleiben sie getrennt von den Abdeckungsfarben. Zeige auf eine, um zu sehen, was der Access-Point von ihm empfangen hat.",
+"ended: someone or a Valetudo timer took the robot over": "beendet: jemand oder ein Valetudo-Zeitplan hat den Roboter übernommen",
+"Choose how the robot's points are used first.": "Wähle zuerst, wie die Punkte des Roboters genutzt werden.",
+"The robot's map has changed since it was imported: import it again.": "Die Karte des Roboters hat sich seit dem Import geändert: importiere sie neu.",
+"The robot's map shows no dock: let it find its dock, then import its map again.": "Die Karte des Roboters zeigt keine Station: lass ihn seine Station finden und importiere seine Karte dann neu.",
+"Count them like your own": "Wie deine eigenen zählen",
+"Every spot goes into calibration, at full weight.": "Jede Stelle kommt in die Kalibrierung, mit vollem Gewicht.",
+"Fill gaps, count them less": "Lücken füllen, weniger zählen",
+"Only in rooms where you have fewer than 3 points of your own, and at half weight.": "Nur in Räumen, in denen du weniger als 3 eigene Punkte hast, und mit halbem Gewicht.",
+"Find mistakes and Wi-Fi only": "Nur Fehler finden und WLAN",
+"Nothing goes into calibration; the readings are kept for Find mistakes and the Wi-Fi map.": "Nichts kommt in die Kalibrierung; die Messwerte bleiben für Fehler finden und die WLAN-Karte.",
+"The robot drives to spots in each room and stands still while PadSpan listens to the tag on it. Each spot is used the way you choose below. Calibration is backed up before every run, and a run can be undone.": "Der Roboter fährt in jedem Raum Stellen an und steht dort still, während PadSpan dem Tag auf ihm zuhört. Jede Stelle wird so genutzt, wie du es unten wählst. Vor jeder Fahrt wird die Kalibrierung gesichert, und eine Fahrt lässt sich rückgängig machen.",
+"How its points are used": "Wie seine Punkte genutzt werden",
+"Choose one before the first run.": "Wähle eins vor der ersten Fahrt.",
+"Earlier runs, by this choice: {add} points would be added, {remove} taken out, {reweight} counted differently. Nothing changes unless you apply it.": "Frühere Fahrten nach dieser Wahl: {add} Punkte kämen hinzu, {remove} fielen weg, {reweight} zählten anders. Nichts ändert sich, solange du es nicht anwendest.",
+"Apply to earlier runs": "Auf frühere Fahrten anwenden",
+"Apply this choice to the earlier runs? Calibration is backed up first, and you can undo it here.": "Diese Wahl auf die früheren Fahrten anwenden? Die Kalibrierung wird zuerst gesichert, und du kannst es hier rückgängig machen.",
+"Earlier runs changed: {added} points added, {removed} taken out.": "Frühere Fahrten geändert: {added} Punkte hinzugefügt, {removed} herausgenommen.",
+"Leave them as they are": "So lassen, wie sie sind",
+"Earlier runs were changed: {added} points added, {removed} taken out.": "Frühere Fahrten wurden geändert: {added} Punkte hinzugefügt, {removed} herausgenommen.",
+"Undo this change": "Diese Änderung rückgängig machen",
+"A Valetudo timer starts the robot at {time} UTC: the run ends there if it is still going.": "Ein Valetudo-Zeitplan startet den Roboter um {time} UTC: läuft die Fahrt dann noch, endet sie dort.",
+"On your own test spots: rooms right {before} % before this run, {after} % after; typical error {eb} m, then {ea} m.": "An deinen eigenen Teststellen: Räume richtig {before} % vor dieser Fahrt, {after} % danach; typischer Fehler {eb} m, dann {ea} m.",
+"{n} runs from before this choice existed stay as they are.": {
+"one": "1 Fahrt von vor dieser Wahl bleibt, wie sie ist.",
+"other": "{n} Fahrten von vor dieser Wahl bleiben, wie sie sind."
+},
+"{n} spots kept for Find mistakes only.": {
+"one": "1 Stelle nur für Fehler finden behalten.",
+"other": "{n} Stellen nur für Fehler finden behalten."
+},
+"Placed on floor {placed}, yet it hears the robot on floor {here} about as strongly as the receivers placed there ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.": "Auf Etage {placed} platziert, hört den Roboter aber auf Etage {here} etwa so stark wie die dort platzierten Empfänger ({strong} Stellen, bis zu {dbm} dBm). Vielleicht steht er auf der falschen Etage."
 }

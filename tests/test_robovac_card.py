@@ -33,7 +33,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "wall", "not-admin", "findings", "german"])
+@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "choice", "wall", "not-admin", "findings", "german"])
 def test_robovac_card(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -77,7 +77,8 @@ def test_the_card_calls_only_the_backend_never_the_robot():
     assert "fetch(" not in src and "XMLHttpRequest" not in src and "/api/v2" not in src
     calls = set(__import__("re").findall(r'call\("([a-z_]+)"', src))
     assert calls == {"vacuum_robot_status", "vacuum_robot_control", "vacuum_robot_set", "vacuum_link_set",
-                     "vacuum_run_start", "vacuum_run_stop", "vacuum_run_undo"}
+                     "vacuum_run_start", "vacuum_run_stop", "vacuum_run_undo",
+                     "vacuum_robot_use_set", "vacuum_robot_use_apply"}           # the owner's choice (2026-11-24)
 
 
 def test_the_robot_is_drawn_whenever_its_link_is_on():

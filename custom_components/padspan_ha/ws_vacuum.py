@@ -38,6 +38,7 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_CALIBRATION, DATA_FABRIC, DATA_MAPS, DATA_MODEL, DEFAULT_FLOOR_ID, DOMAIN, NOT_LOADED_MESSAGE
 from . import vacuum_import as vi
 from . import vacuum_run as vr
+from . import vacuum_use as vu
 from .quiet_errors import note as _quiet_error
 from .util import AddressRefused
 from .ws_common import id_text
@@ -332,6 +333,19 @@ async def ws_vacuum_cal_pending_reject(hass: HomeAssistant, connection, msg) -> 
 # the answer (state.error), not as a failed command, so the card still shows
 # what is set up and what is missing. A refusal's code is what the card words.
 
+def _use_change(hass: HomeAssistant, vs: vi.VacuumStore) -> dict | None:
+    robot = vs.data.get("robot") or {}
+    use = vu.use_of(vs)
+    if use is None or robot.get("use_left") == use:
+        return None
+    dom = hass.data.get(DOMAIN, {})
+    cal, fab = dom.get(DATA_CALIBRATION), dom.get(DATA_FABRIC)
+    if not cal:
+        return None
+    plan = vu.plan_change(vs.data.get("runs") or [], cal.list_points(), fab.rooms_flat() if fab else {}, use)
+    return plan if (plan["add"] or plan["remove"] or plan["reweight"]) else None
+
+
 async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) -> dict:
     eng = vr.engine(hass, vs)
     await eng.async_settle()
@@ -339,12 +353,16 @@ async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) ->
     base = vr.robot_base(vs)
     tag = str((vs.data.get("walker") or {}).get("tag") or "")
     out: dict = {
-        "robot": {"url": base, "auth": bool(vs.basic_auth())},
+        "robot": {"url": base, "auth": bool(vs.basic_auth()),
+                  # How the robot's points are used (vacuum_use.py): None until the owner picks.
+                  "use": vu.use_of(vs), "applied": (vs.data.get("robot") or {}).get("applied")},
         "link": {"map": bool(lk and lk.get("map_id")), "valetudo": bool(lk and lk.get("format") == "valetudo"),
                  "on": vs.link_on(), "vacuum_entity": (lk or {}).get("vacuum_entity") or ""},
         "tag": {"address": tag, **vr.tag_heard(hass, tag)},
         "state": None,
         "run": vr.run_for_client(eng.current) if eng.current and eng.running else None,
+        # A choice changed since the earlier runs were made: what applying it to them would do.
+        "use_change": _use_change(hass, vs),
         # The last run and every run whose points can still be undone, newest first.
         "runs": [vr.run_for_client(r) for r in vr.runs_for_card(vs.data.get("runs") or [])],
         "live": vi.live_position(hass),
@@ -488,6 +506,70 @@ async def ws_vacuum_run_undo(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "removed": removed})
 
 
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_robot_use_set",
+    vol.Required("use"): vol.In(vu.USES),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_robot_use_set(hass: HomeAssistant, connection, msg) -> None:
+    """How the robot's points are used from now on. Earlier runs are not touched:
+    the answer says what applying it to them would do (vacuum_robot_use_apply)."""
+    vs = await _store(hass)
+    robot = vs.data.setdefault("robot", {})
+    if not robot.get("use"):
+        robot["use_left"] = msg["use"]                # the first pick: nothing earlier to change
+    robot["use"] = msg["use"]
+    await vs.async_save()
+    connection.send_result(msg["id"], await _robot_status(hass, vs, False))
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacuum_robot_use_apply",
+    vol.Optional("leave", default=False): bool,
+    vol.Optional("undo", default=False): bool,
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_vacuum_robot_use_apply(hass: HomeAssistant, connection, msg) -> None:
+    """Apply the choice to the earlier runs (their points out and back in by it, one
+    step after a backup), or leave them as they are, or undo the last apply (the
+    choice before it, applied the same way)."""
+    vs = await _store(hass)
+    robot = vs.data.setdefault("robot", {})
+    use = vu.use_of(vs)
+    if msg.get("leave"):
+        robot["use_left"] = use
+        await vs.async_save()
+        connection.send_result(msg["id"], await _robot_status(hass, vs, False))
+        return
+    dom = hass.data.get(DOMAIN, {})
+    cal, fab = dom.get(DATA_CALIBRATION), dom.get(DATA_FABRIC)
+    was = robot.get("applied") if msg.get("undo") else None
+    target = was.get("from") if isinstance(was, dict) else use
+    from .const import CALIBRATION_STORE_KEY  # noqa: PLC0415
+    from .ws_backup import _auto_backup  # noqa: PLC0415
+    try:
+        if not cal:
+            raise vr.RunRefused("not_ready", "PadSpan is still loading")
+        if vr.engine(hass, vs).running:
+            raise vr.RunRefused("busy", "Stop the run first")
+        if target not in vu.USES:
+            raise vr.RunRefused("no_use", "Choose how the robot's points are used first")
+        backup_id = await _auto_backup(hass, "Before the robot's points were used another way", [CALIBRATION_STORE_KEY],
+                                       slot="robot_run", slot_keep=3)
+        if not backup_id:
+            raise vr.RunRefused("backup_failed", "Calibration could not be backed up, so nothing was changed")
+    except vr.RunRefused as exc:
+        connection.send_error(msg["id"], exc.code, str(exc))
+        return
+    done = await vu.async_apply(cal, vs.data.get("runs") or [], fab.rooms_flat() if fab else {}, target, vr.TAG_Z_M, vr.DWELL_S)
+    robot["applied"] = None if msg.get("undo") else {"from": robot.get("use_left"), "to": target, "backup_id": backup_id, **done}
+    robot["use"] = robot["use_left"] = target
+    await vs.async_save()
+    connection.send_result(msg["id"], {**await _robot_status(hass, vs, False), "done": done})
+
+
 _FINDINGS_KEPT = "vacuum_findings_kept"     # (what they were worked out from, the findings)
 
 
@@ -506,6 +588,8 @@ async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
     pts, pos, rooms = cal.list_points(), mdl.scanner_positions_m() or {}, fab.rooms_flat() if fab else {}
+    # And the stops kept in the runs' records, not in calibration (the owner's choice, vacuum_use.py).
+    pts = pts + vu.stops_as_points((await _store(hass)).data.get("runs") or [], {str(p.get("id")) for p in pts})
     key = await hass.async_add_executor_job(cache_key, pts, pos, rooms)
     kept = dom.get(_FINDINGS_KEPT)
     if kept and kept[0] == key:
@@ -530,5 +614,5 @@ HANDLERS = (
     ws_vacuum_cal_pending_list, ws_vacuum_cal_pending_accept, ws_vacuum_cal_pending_reject,
     ws_vacuum_robot_status, ws_vacuum_robot_set, ws_vacuum_robot_control,
     ws_vacuum_run_start, ws_vacuum_run_stop, ws_vacuum_run_undo,
-    ws_vacuum_findings, ws_robot_wifi_readings,
+    ws_vacuum_findings, ws_robot_wifi_readings, ws_vacuum_robot_use_set, ws_vacuum_robot_use_apply,
 )

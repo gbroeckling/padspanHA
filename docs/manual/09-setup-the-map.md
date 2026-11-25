@@ -302,13 +302,30 @@ battery, with **Start**, **Pause** and **Dock**. Only an administrator can use i
 Under **Room location** the card lists what a run needs: the robot's address (and its Valetudo user
 and password, if its login is on), its map from Valetudo, and the beacon on the robot, with whether
 PadSpan hears it now. **Start a run** sends the robot to spots about 1.5 m apart in every room, or
-in the one you pick, each at least 40 cm from the walls. At each spot it stands still for about 20
-seconds while PadSpan listens to the beacon (a little longer if too few receivers heard it, and the
-spot is skipped if still too few did), and the spot goes into calibration at once. Calibration is
-backed up before every run. **Stop** ends the run and sends the robot back to its dock; so does the
-end of the run, a problem, or two hours. If the robot heads back to its dock on its own, or its
-battery drops below 20 %, the run ends there and PadSpan sends it nothing more; below 20 % a run
-does not start. **Undo this run** takes out exactly the points that run added, and none of your
+in the one you pick, each at least 40 cm from the walls, and never in a no-go area or by a virtual
+wall or an obstacle on the robot's map. At each spot it stands still for about 20 seconds while
+PadSpan listens to the beacon, every packet each receiver hears (a little longer if too few
+receivers heard it, and the spot is skipped if still too few did). If the robot moved during the
+stop, the spot is dropped; one it cannot reach is skipped. Calibration is backed up before every
+run, and a run does not start if the robot's map has changed since it was imported (its dock
+moved): import it again then. If a Valetudo timer is due to start the robot within two hours, the
+card says so.
+
+Before the first run you choose how the robot's points are used; nothing is picked for you, and you
+can change it any time:
+
+- **Count them like your own**: every spot goes into calibration, at full weight.
+- **Fill gaps, count them less**: only in rooms where you have fewer than 3 points of your own,
+  and at half weight.
+- **Find mistakes and Wi-Fi only**: nothing goes into calibration.
+
+Every spot's readings are kept with its run either way. When you change the choice, the card says
+what it would change for earlier runs and lets you apply it (in one step, after a backup, and
+undoable) or leave them as they are. After each run the card shows how your own test spots scored
+before and after it. **Stop** ends the run and sends the robot back to its dock; so does the
+end of the run, a problem, or two hours. If the robot heads back to its dock on its own, someone
+or a Valetudo timer takes it over (cleaning, driving it, pausing it), or its battery drops below
+20 %, the run ends there and PadSpan sends it nothing more; below 20 % a run does not start. **Undo this run** takes out exactly the points that run added, and none of your
 own; every earlier run whose points are still there is listed on the card with its own **Undo**. A
 run that was going when Home Assistant restarted, or when PadSpan was reloaded or a backup restored,
 is over (the robot is sent home); its points stay, and can still be undone.
@@ -318,7 +335,8 @@ Only a run's Undo removes them: the beacons' own clean-ups never touch them.
 
 **Find mistakes** on the card opens a card of its own. From the points the runs already stored (no
 extra driving), it works out where each receiver really is, and lists the ones that look placed in
-the wrong spot, or on the wrong floor, with how sure it is and a link to that receiver's placement.
+the wrong spot, or on the wrong floor (one placed upstairs that hears the robot downstairs about as
+strongly as the receivers there do), with how sure it is and a link to that receiver's placement.
 A receiver needs to be heard at six spots or more, spread over 3 m and lying round it, so a run of
 one room says nothing about a receiver in the next; the others are listed as not enough readings.
 It never moves anything.

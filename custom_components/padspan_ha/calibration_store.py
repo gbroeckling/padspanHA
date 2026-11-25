@@ -398,6 +398,10 @@ class CalibrationStore:
         }
         if point_quality:
             clean["quality"] = point_quality
+        # Where the tag was, above its floor, when that is not where a person carries
+        # one: a robot's tag rides at ~0.1 m (vacuum_run.py). The path-loss fits use it.
+        if isinstance(point.get("device_height_m"), (int, float)) and math.isfinite(point["device_height_m"]):
+            clean["device_height_m"] = round(max(0.0, min(3.0, float(point["device_height_m"]))), 2)
         # Beacon Tune marks its own points, so a hard relocation can replace
         # them without touching points collected by carrying the same device.
         if point.get("source") == BEACON_TUNE_SOURCE:
@@ -838,7 +842,7 @@ class CalibrationStore:
         a distance measured in fractions of a photo is not a distance.
         Requires ≥3 data points.
         """
-        data: list[tuple[float, float]] = []
+        data: list[tuple[float, float, float]] = []      # (log10 d, rssi, the point's weight)
         pts = self.data.get("points", [])
         units = "m"
 
@@ -880,34 +884,40 @@ class CalibrationStore:
                     # datum — guessing ground for an upstairs point injects
                     # metres of false vertical range into the fit.
                     _pt_base = _floor_bases.get(str(pt.get("floor_id") or ""))
+                    # A point's own tag height where it has one (a robot's, 0.1 m), else the carry height.
+                    _h = pt.get("device_height_m")
+                    _h = float(_h) if isinstance(_h, (int, float)) else _dev_h
                     if _sz_abs is not None and _pt_base is not None:
-                        d_sq += (_sz_abs - (_pt_base + _dev_h)) ** 2
+                        d_sq += (_sz_abs - (_pt_base + _h)) ** 2
                     d = math.sqrt(d_sq)
                     if d < 0.3:   # too close — likely at scanner position itself
                         continue
-                    data.append((math.log10(d), reading["mean_rssi"]))
+                    data.append((math.log10(d), reading["mean_rssi"], float(pt.get("weight") or 1.0)))
         if len(data) < 3:
             return None
 
-        # OLS: RSSI = a + b*log10(d)  where b = -10*n, a = RSSI_1m
+        # Weighted OLS: RSSI = a + b*log10(d)  where b = -10*n, a = RSSI_1m. Each row
+        # weighs what its point does (1 for every point but a robot's the owner chose
+        # to count less, vacuum_use.py): with every weight 1, plain least squares.
         n_pts = len(data)
-        sum_x = sum(d[0] for d in data)
-        sum_y = sum(d[1] for d in data)
-        sum_xx = sum(d[0] ** 2 for d in data)
-        sum_xy = sum(d[0] * d[1] for d in data)
+        sw = sum(d[2] for d in data)
+        sum_x = sum(d[2] * d[0] for d in data)
+        sum_y = sum(d[2] * d[1] for d in data)
+        sum_xx = sum(d[2] * d[0] ** 2 for d in data)
+        sum_xy = sum(d[2] * d[0] * d[1] for d in data)
 
-        denom = n_pts * sum_xx - sum_x ** 2
+        denom = sw * sum_xx - sum_x ** 2
         if abs(denom) < 1e-10:
             return None
 
-        b = (n_pts * sum_xy - sum_x * sum_y) / denom
-        a = (sum_y - b * sum_x) / n_pts
+        b = (sw * sum_xy - sum_x * sum_y) / denom
+        a = (sum_y - b * sum_x) / sw
         n_exp = max(0.5, min(8.0, -b / 10.0))
 
         # R²
-        y_mean = sum_y / n_pts
-        ss_tot = sum((d[1] - y_mean) ** 2 for d in data)
-        ss_res = sum((d[1] - (a + b * d[0])) ** 2 for d in data)
+        y_mean = sum_y / sw
+        ss_tot = sum(d[2] * (d[1] - y_mean) ** 2 for d in data)
+        ss_res = sum(d[2] * (d[1] - (a + b * d[0])) ** 2 for d in data)
         r_sq = 1.0 - (ss_res / ss_tot) if ss_tot > 1e-10 else 0.0
 
         return {

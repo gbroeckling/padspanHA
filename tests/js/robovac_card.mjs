@@ -51,7 +51,7 @@ const FINDINGS = {
   thin: [{ source: "g", name: "Garage", spots: 3, why: "few" }, { source: "o", name: "Office", spots: 8, why: "around" }],
 };
 const READY = {
-  robot: { url: "http://192.168.1.50", auth: false },
+  robot: { url: "http://192.168.1.50", auth: false, use: "full", applied: null },
   link: { map: true, valetudo: true, on: true, vacuum_entity: "" },
   tag: { address: "AA:BB:CC:DD:EE:FF", receivers: 3, age_s: 1 },
   state: { status: "docked", battery: 87, charging: true },
@@ -153,6 +153,37 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   const text = sheet().textContent;
   check("auth", text.includes("(HTTP 401)") && text.includes("Valetudo user name and password"), text);
   check("auth", all(sheet(), "input").some(i => i.type === "password") && btn("Start a run").disabled, "login boxes, no run");
+  RC.closeRobovacCard();
+}
+
+// How the robot's points are used: three choices, none made for the owner; Start waits for one.
+{
+  const { hass } = await open({ ...READY, robot: { ...READY.robot, use: null } });
+  let text = sheet().textContent;
+  check("choice", text.includes("Count them like your own") && text.includes("Fill gaps, count them less")
+    && text.includes("Find mistakes and Wi-Fi only") && text.includes("Choose one before the first run."), text);
+  check("choice", btn("Start a run").disabled === true, "Start waits for a pick");
+  await press(btn("Fill gaps, count them less"));
+  check("choice", hass.sent.some(m => m.type === "padspan_ha/vacuum_robot_use_set" && m.use === "fill"), hass.sent);
+  RC.closeRobovacCard();
+  // Changed later: what it would do to earlier runs, applied or left; once applied, undoable.
+  const { hass: h2 } = await open({ ...READY, robot: { ...READY.robot, use: "none" }, use_change: { add: 0, remove: 12, reweight: 0, old_runs: 1 } });
+  text = sheet().textContent;
+  check("choice", text.includes("Earlier runs, by this choice: 0 points would be added, 12 taken out, 0 counted differently.")
+    && text.includes("1 run from before this choice existed stays as it is."), text);
+  globalThis.confirm = () => true;
+  await press(btn("Apply to earlier runs"));
+  await press(btn("Leave them as they are"));
+  check("choice", h2.sent.filter(m => m.type === "padspan_ha/vacuum_robot_use_apply").map(m => !!m.leave).join() === "false,true", h2.sent);
+  RC.closeRobovacCard();
+  const { hass: h3 } = await open({ ...READY, robot: { ...READY.robot, applied: { from: "full", to: "none", added: 0, removed: 12 } } });
+  await press(btn("Undo this change"));
+  check("choice", h3.sent.some(m => m.type === "padspan_ha/vacuum_robot_use_apply" && m.undo === true), h3.sent);
+  RC.closeRobovacCard();
+  // Each run's measured effect on the owner's own test spots, beside its Undo.
+  await open({ ...READY, runs: [{ id: "rr_9", started: "2026-11-24T18:02:11+00:00", state: "finished", added: 5, skipped: 0, points_kept: 5, undone: false,
+    accuracy: { before: { knn: { rooms_right_pc: 80, median_error_m: 1.4 } }, after: { knn: { rooms_right_pc: 86, median_error_m: 1.1 } } } }] });
+  check("choice", sheet().textContent.includes("On your own test spots: rooms right 80 % before this run, 86 % after; typical error 1.4 m, then 1.1 m."), sheet().textContent);
   RC.closeRobovacCard();
 }
 

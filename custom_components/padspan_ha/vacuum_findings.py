@@ -24,8 +24,10 @@ the best spot fits clearly better (its residual at most BETTER of the placed
 spot's and BETTER_DB lower), lies more than FAR_M from where it is placed or in
 another room, and is itself among the robot's spots (QUADRANTS round it too,
 never a guess past their edge). A receiver placed on another floor that hears
-the robot at STRONG_DBM or more at STRONG_SPOTS spots may be on the wrong floor;
-a floor left empty is unknown, never "another". Otherwise: "not enough
+the robot about as strongly as the receivers placed on the robot's floor do, at
+the same spots (within SIMILAR_DB of the strongest of them, at STRONG_SPOTS
+spots: research, 2026-11-24, in place of a fixed dBm), may be on the wrong
+floor; a floor left empty is unknown, never "another". Otherwise: "not enough
 readings", never a verdict.
 """
 
@@ -47,7 +49,7 @@ COARSE_KEEP = 3
 BETTER = 0.65                # the best cell's residual at most this share of the placed spot's (~35 % lower)
 BETTER_DB = 2.0              # and at least this many dB lower (a good fit is not "beaten" by noise)
 FAR_M = 2.5
-STRONG_DBM = -60.0
+SIMILAR_DB = 6.0             # "about as strongly": this close to the robot's floor's strongest receiver
 STRONG_SPOTS = 3
 N_RANGE = (1.0, 6.0)         # the path-loss exponent a real house has
 D_MIN_M = 0.3                # nearer than this, the model says nothing more
@@ -137,16 +139,26 @@ def find_mistakes(points: list[dict], positions: dict[str, dict], rooms: dict | 
     rooms = rooms or {}
     robot = [p for p in points if isinstance(p, dict) and is_robot_point(p.get("label"))
              and isinstance(p.get("x_m"), (int, float)) and isinstance(p.get("y_m"), (int, float))]
-    heard: dict[str, list[tuple[str, float, float, float]]] = {}       # source -> [(floor, x, y, rssi)]
+    heard: dict[str, list[tuple[str, float, float, float, int]]] = {}       # source -> [(floor, x, y, rssi, spot)]
     names: dict[str, str] = {}
-    for p in robot:
+    at_spot: dict[int, list[tuple[str, float]]] = {}                          # spot -> [(source, rssi)]
+    for k, p in enumerate(robot):
         for r in p.get("scanner_readings") or []:
             v = _rssi(r) if isinstance(r, dict) else None
             src = str(r.get("source") or "") if isinstance(r, dict) else ""
             if v is None or not src:
                 continue
-            heard.setdefault(src, []).append((str(p.get("floor_id") or ""), float(p["x_m"]), float(p["y_m"]), v))
+            heard.setdefault(src, []).append((str(p.get("floor_id") or ""), float(p["x_m"]), float(p["y_m"]), v, k))
+            at_spot.setdefault(k, []).append((src, v))
             names.setdefault(src, str(r.get("name") or src))
+    # Per spot, the strongest receiver placed on the robot's own floor there.
+    floor_of = {s: str((positions.get(s) or {}).get("floor_id") or "") for s in heard}
+    same_best: dict[int, float] = {}
+    for k, rows in at_spot.items():
+        fl = str(robot[k].get("floor_id") or "")
+        vals = [v for s, v in rows if floor_of.get(s) == fl and fl]
+        if vals:
+            same_best[k] = max(vals)
     floors = sorted({str(p.get("floor_id") or "") for p in robot})
     boxes: dict[str, tuple] = {}
     findings, fine, thin = [], [], []
@@ -159,7 +171,8 @@ def find_mistakes(points: list[dict], positions: dict[str, dict], rooms: dict | 
         name = names.get(src) or src
         placed = {"x_m": round(px, 2), "y_m": round(py, 2), "floor_id": pf, "room": room_at(rooms, pf, px, py)}
         for fl in floors:
-            spots = [(x, y, v) for f, x, y, v in heard[src] if f == fl]
+            spots = [(x, y, v) for f, x, y, v, _k in heard[src] if f == fl]
+            keys = [k for f, _x, _y, _v, k in heard[src] if f == fl]
             if not spots:
                 continue
             if fl not in boxes:
@@ -178,8 +191,8 @@ def find_mistakes(points: list[dict], positions: dict[str, dict], rooms: dict | 
                         "room": room_at(rooms, fl, best[0], best[1])}
 
             if pf and fl and pf != fl:
-                # Placed on another floor, yet heard strongly here: it may be on the wrong floor.
-                strong = sum(1 for v in rssi if v >= STRONG_DBM)
+                # Placed on another floor, yet heard here about as strongly as this floor's own receivers.
+                strong = sum(1 for k, v in zip(keys, rssi) if k in same_best and v >= same_best[k] - SIMILAR_DB)
                 if strong >= STRONG_SPOTS:
                     best = _search(at, rooms, fl, box, has_rooms) if enough else None
                     findings.append({"source": src, "name": name, "kind": "other_floor", "placed": placed,

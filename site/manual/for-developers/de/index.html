@@ -190,7 +190,7 @@ Anfrage ablehnen. Das sind die eigenen Befehle des Panels, keine stabile öffent
 Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dienste und Ereignisse aus
 <a href="/manual/home-assistant-reference/de/">Kapitel 14</a>. Mehr: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md">Websocket API</a>.</p>
 <p>Die folgende Tabelle ist englisch: Sie entsteht direkt aus PadSpans Code.</p>
-<p>280 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
+<p>282 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Command</th><th>Fields</th><th>Administrator</th><th>Module</th><th>What it does (its handler's first sentence, or a line written for this table)</th></tr>
@@ -451,6 +451,8 @@ Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dien
   <tr><td><code>padspan_ha/vacuum_robot_control</code></td><td><code>action</code></td><td>always</td><td><code>ws_vacuum.py</code></td><td>Start, Pause or Dock, through Valetudo's BasicControlCapability (not while a run goes).</td></tr>
   <tr><td><code>padspan_ha/vacuum_robot_set</code></td><td><code>url</code> (optional), <code>user</code> (optional), <code>password</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>The robot's Valetudo address, and its user and password when Valetudo asks for them.</td></tr>
   <tr><td><code>padspan_ha/vacuum_robot_status</code></td><td><code>rooms</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>The robovac card: the robot as its Valetudo reports it, what a run needs, the last runs.</td></tr>
+  <tr><td><code>padspan_ha/vacuum_robot_use_apply</code></td><td><code>leave</code> (optional), <code>undo</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Apply the choice to the earlier runs (their points out and back in by it, one step after a backup), or leave them as they are, or undo the…</td></tr>
+  <tr><td><code>padspan_ha/vacuum_robot_use_set</code></td><td><code>use</code></td><td>always</td><td><code>ws_vacuum.py</code></td><td>How the robot's points are used from now on.</td></tr>
   <tr><td><code>padspan_ha/vacuum_run_start</code></td><td><code>room</code> (optional)</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Start a room location run (every room, or one): calibration is backed up first.</td></tr>
   <tr><td><code>padspan_ha/vacuum_run_stop</code></td><td>–</td><td>always</td><td><code>ws_vacuum.py</code></td><td>Stop the run going: the robot is sent home, the points so far stay.</td></tr>
   <tr><td><code>padspan_ha/vacuum_run_undo</code></td><td><code>run_id</code></td><td>always</td><td><code>ws_vacuum.py</code></td><td>Remove exactly one run's points from calibration.</td></tr>

@@ -1309,7 +1309,15 @@ ROBOT_RUN_WORDS: tuple[str, ...] = ("started", "finished", "stopped", "failed", 
                                     "wifi_read",
                                     # how else a run ends: the robot went home on its own, its battery ran low,
                                     # PadSpan itself was unloaded or restored under it
-                                    "robot_home", "low_battery", "interrupted")
+                                    "robot_home", "low_battery", "interrupted",
+                                    # someone or a Valetudo timer took the robot over (cleaning, by hand, paused)
+                                    "taken_over",
+                                    # each receiver's samples of the tag at one stop, and how they were heard
+                                    # (every packet, or polling the scanners: vacuum_sampler.py)
+                                    "rx_samples_0_2", "rx_samples_3_9", "rx_samples_10_29", "rx_samples_30_plus",
+                                    "sampled_every", "sampled_poll",
+                                    # how the owner chose to use the robot's points (vacuum_use.py), once per run
+                                    "use_full", "use_fill", "use_none")
 ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.

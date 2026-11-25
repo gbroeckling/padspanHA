@@ -75,7 +75,7 @@ export function openFindings(api){
       const box = mk("div", "margin-top:12px;padding:10px;border:1px solid rgba(251,191,36,.35);border-radius:10px");
       box.appendChild(mk("div", "font-weight:700;font-size:14px", f.name || f.source));
       if (f.kind === "other_floor") {
-        box.appendChild(mk("div", C.warn, t("Placed on floor {placed}, yet it hears the robot strongly on floor {here} ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.",
+        box.appendChild(mk("div", C.warn, t("Placed on floor {placed}, yet it hears the robot on floor {here} about as strongly as the receivers placed there ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.",
           { placed: f.placed.floor_id, here: f.found.floor_id, strong: f.strong, dbm: f.strongest_dbm })));
         if (f.found.room) box.appendChild(mk("div", "font-size:12px", t("On that floor the readings put it in {room}.", { room: f.found.room })));
       } else {

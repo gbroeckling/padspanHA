@@ -411,7 +411,7 @@ def test_snapshot_only_carries_the_vacuum_when_linked():
 def test_every_vacuum_command_is_admin_only():
     src = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
     cmds = re.findall(r'"type": "padspan_ha/([a-z_]+)"', src)
-    assert len(cmds) == len(wsv.HANDLERS) == 15
+    assert len(cmds) == len(wsv.HANDLERS) == 17
     for chunk in src.split("@websocket_api.websocket_command(")[1:]:
         head = chunk[:chunk.index("async def")]
         assert "@websocket_api.require_admin" in head

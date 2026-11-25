@@ -157,37 +157,42 @@ class SpatialSite:
         use = {src for src in self.fit_sources
                if self.positions.get(src) and src not in excluded}
         terms: dict[str, dict[int, tuple[float, float]]] = {src: {} for src in use}
-        dz_sq: dict[tuple[str, str], float] = {}   # (receiver, floor) height term
+        dz_sq: dict[tuple[str, str, float], float] = {}   # (receiver, floor, tag height) height term
         log10 = math.log10
         for j, p in enumerate(points):
             if is_walk_point(p):    # at the room's middle, not where it was heard
                 continue
             fl = str(p.get("floor_id") or "")
             px, py = float(p["x_m"]), float(p["y_m"])
+            # The point's own tag height and weight, as CalibrationStore.fit_path_loss reads them.
+            h = float(p["device_height_m"]) if isinstance(p.get("device_height_m"), (int, float)) else self.dev_h
+            w = float(p.get("weight") or 1.0)
             for r in p.get("scanner_readings", []):
                 src = r.get("source")
                 if src not in use:
                     continue
                 pos = self.positions[src]
-                dz = dz_sq.get((src, fl))
+                dz = dz_sq.get((src, fl, h))
                 if dz is None:
                     sz = self.abs_z.get(src)
                     base = self.floor_bases.get(fl)
-                    dz = (sz - (base + self.dev_h)) ** 2                         if sz is not None and base is not None else 0.0
-                    dz_sq[(src, fl)] = dz
+                    dz = (sz - (base + h)) ** 2                         if sz is not None and base is not None else 0.0
+                    dz_sq[(src, fl, h)] = dz
                 d_sq = (px - pos[0]) ** 2 + (py - pos[1]) ** 2 + dz
                 if d_sq < 0.09:     # under 0.3 m
                     continue
-                terms[src][j] = (0.5 * log10(d_sq), float(r["mean_rssi"]))
+                terms[src][j] = (0.5 * log10(d_sq), float(r["mean_rssi"]), w)
         out = {}
         for src, per in terms.items():
-            sums = [0, 0.0, 0.0, 0.0, 0.0]
-            for lx, ry in per.values():
+            # (rows, weight sum, Σwx, Σwy, Σwxx, Σwxy); every weight 1: the plain sums.
+            sums = [0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            for lx, ry, w in per.values():
                 sums[0] += 1
-                sums[1] += lx
-                sums[2] += ry
-                sums[3] += lx * lx
-                sums[4] += lx * ry
+                sums[1] += w
+                sums[2] += w * lx
+                sums[3] += w * ry
+                sums[4] += w * lx * lx
+                sums[5] += w * lx * ry
             out[src] = (per, sums)
         return out
 
@@ -199,16 +204,17 @@ class SpatialSite:
         costs its held-out points, not every point."""
         fits: dict[str, tuple[float, float]] = {}
         for src, (per, sums) in terms.items():
-            n, sx, sy, sxx, sxy = sums
+            rows, n, sx, sy, sxx, sxy = sums
             for j in out_idx:
                 v = per.get(j)
                 if v is not None:
-                    n -= 1
-                    sx -= v[0]
-                    sy -= v[1]
-                    sxx -= v[0] * v[0]
-                    sxy -= v[0] * v[1]
-            if n < 5:
+                    rows -= 1
+                    n -= v[2]
+                    sx -= v[2] * v[0]
+                    sy -= v[2] * v[1]
+                    sxx -= v[2] * v[0] * v[0]
+                    sxy -= v[2] * v[0] * v[1]
+            if rows < 5 or n <= 1e-9:
                 continue
             den = n * sxx - sx ** 2
             if abs(den) < 1e-10:

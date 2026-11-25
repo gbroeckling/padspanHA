@@ -160,6 +160,8 @@ class _Valetudo:
             return None
         if path == vr.CONTROL_PATH:
             return None
+        if path == vr.TIMERS_PATH:
+            return getattr(self, "timers", {})
         if path == vr.WIFI_PATH:
             if self.wifi is None:
                 raise vr.RobotError("refused", "The robot answered HTTP 404")
@@ -222,7 +224,7 @@ def fast(monkeypatch):
         monkeypatch.setattr(vr, k, v)
 
 
-def _house_with(monkeypatch, valetudo, *, readings=None, backup="bk_1", events=None):
+def _house_with(monkeypatch, valetudo, *, readings=None, backup="bk_1", events=None, use="full"):
     cal = _Cal([OWNER_POINT])
     h = SimpleNamespace(data={DOMAIN: {DATA_CALIBRATION: cal}})
     h.states = SimpleNamespace(get=lambda eid: None)
@@ -240,8 +242,9 @@ def _house_with(monkeypatch, valetudo, *, readings=None, backup="bk_1", events=N
     vs.live = vs.preview = vs._last_spot = vs._unsub = None
     vs.data["link"] = {"enabled": False, "map_id": "m1", "floor_id": "main", "read": "url",
                        "ref": "http://192.168.1.50/api/v2/robot/state/map", "format": "valetudo",
-                       "to_m": [0.01, 0, 0, 0, 0.01, 0]}
+                       "to_m": [0.01, 0, 0, 0, 0.01, 0], "dock": {"x_m": 7.5, "y_m": 3.5}}   # the map's charger
     vs.data["walker"] = {"enabled": False, "tag": "AA:BB:CC:DD:EE:FF"}
+    vs.data["robot"]["use"] = use
     h.data[DOMAIN][vi.DATA_VACUUM] = vs
     events = events if events is not None else []
 
@@ -472,7 +475,7 @@ def test_status_reads_the_robot_from_valetudo_and_hides_the_login(monkeypatch, f
     conn = asyncio.run(_ws(wsv.ws_vacuum_robot_status, h, rooms=True))
     r = conn.result
     assert r["state"]["status"] == "idle" and r["state"]["battery"] == 87 and r["state"]["charging"] is False
-    assert r["robot"] == {"url": "http://192.168.1.50", "auth": True}            # the link's address, reused
+    assert r["robot"] == {"url": "http://192.168.1.50", "auth": True, "use": "full", "applied": None}   # the link's address, reused
     assert r["rooms"] == ["Kitchen", "Hall", "Closet", "Pantry"]
     assert r["link"]["valetudo"] is True and r["tag"]["address"] == "AA:BB:CC:DD:EE:FF"
     assert "s3cret" not in repr(r) and "robotuser" not in repr(r)
@@ -612,7 +615,10 @@ def test_the_report_counts_runs_and_nothing_else():
     assert not T.event_allowed("robot_run:Kitchen") and not T.event_allowed("robot_run:http://192.168.1.50")
     # Only the engine's own words: two fixed ones, how the run ended, and the points bucket.
     src = (CC / "vacuum_run.py").read_text(encoding="utf-8")
-    assert set(re.findall(r'self\._bump\(("[a-z_]+"|\w+)', src)) == {'"started"', '"undone"', '"wifi_read"', "why", "_points_bucket"}
+    # (and the samples bucket, and two f-strings over closed lists: the sampler's way, the choice)
+    assert set(re.findall(r'self\._bump\(("[a-z_]+"|\w+)', src)) == {'"started"', '"undone"', '"wifi_read"', "why", "_points_bucket",
+                                                                         "samples_bucket", "f"}
+    assert 'self._bump(f"sampled_{self._sampled}")' in src and "self._bump(f\"use_{run['use']}\")" in src
 
 
 def test_the_login_is_kept_where_no_backup_reaches():
@@ -709,7 +715,8 @@ def test_each_spot_keeps_the_robots_wifi_for_other_integrations(monkeypatch, fas
     assert r["version"] == 1 and r["robot_ip"] == "192.168.1.50" and run["wifi"] == len(spots)
     assert len(r["readings"]) == len(spots)
     first = r["readings"][0]
-    assert set(first) == {"run_id", "ts", "x_m", "y_m", "floor_id", "room", "signal", "bssid", "frequency", "state"}
+    assert set(first) == {"run_id", "ts", "ts_start", "ts_end", "x_m", "y_m", "floor_id", "room", "signal", "bssid", "frequency", "state"}
+    assert first["ts_start"] <= first["ts"] <= first["ts_end"]
     assert (first["run_id"], first["floor_id"], first["room"], first["frequency"], first["state"]) == (run["id"], "main", "Kitchen", "5ghz", "connected")
     assert (first["x_m"], first["y_m"]) == (round(spots[0]["x"] / 100, 3), round(spots[0]["y"] / 100, 3))
     assert first["signal"] == round(-40 - spots[0]["x"] / 100) and first["bssid"] == "aa:bb:cc:00:11:22"
@@ -812,9 +819,10 @@ def test_too_few_spots_are_not_judged():
 
 def test_a_receiver_on_another_floor_that_hears_the_robot_strongly():
     from custom_components.padspan_ha import vacuum_findings as vf
-    pts = _robot_points({"upstairs": (3.0, 3.0, "main"), "attic": (3.0, 3.0, "upper")})
+    pts = _robot_points({"upstairs": (3.0, 3.0, "main"), "attic": (3.0, 3.0, "upper"), "kitchen": (2.0, 2.0, "main")})
     placed = {"upstairs": {"x_m": 3.0, "y_m": 3.0, "floor_id": "upper"},               # truly here, placed upstairs
-              "attic": {"x_m": 3.0, "y_m": 3.0, "floor_id": "upper"}}                  # truly upstairs: faint here
+              "attic": {"x_m": 3.0, "y_m": 3.0, "floor_id": "upper"},                  # truly upstairs: faint here
+              "kitchen": {"x_m": 2.0, "y_m": 2.0, "z_m": 1.0, "floor_id": "main"}}     # the floor's own: the yardstick
     out = vf.find_mistakes(pts, placed, ROOMS)
     assert [f["source"] for f in out["findings"]] == ["upstairs"]
     f = out["findings"][0]
@@ -1030,7 +1038,7 @@ def test_findings_are_kept_until_the_points_change(monkeypatch):
     monkeypatch.setattr(vf, "find_mistakes", counted)
     cal = SimpleNamespace(list_points=lambda: list(pts))
     mdl = SimpleNamespace(scanner_positions_m=lambda: {"x": {"x_m": 3.0, "y_m": 3.0, "floor_id": "main"}})
-    h = SimpleNamespace(data={DOMAIN: {DATA_CALIBRATION: cal, DATA_MODEL: mdl}})
+    h = SimpleNamespace(data={DOMAIN: {DATA_CALIBRATION: cal, DATA_MODEL: mdl, vi.DATA_VACUUM: SimpleNamespace(data={"runs": []})}})
 
     async def _exec(fn, *a):
         return fn(*a)
@@ -1060,3 +1068,270 @@ def test_robot_points_are_never_held_out_test_spots():
     loop = src[src.index("    for i, p in enumerate(pts):\n        # A room walk is training data only"):]
     loop = loop[:loop.index("spots.append(i)")]
     assert "if _is_robot(p):\n            continue" in loop
+
+
+# ── phase 3 (2026-11-24): the owner's choice, and the research fixes ───────
+
+def test_no_run_starts_before_the_owner_picks_how_points_are_used(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob, use=None)
+    conn, _ = asyncio.run(_start_and_wait(h))
+    assert conn.error[0] == "no_use" and rob.log == [] and vs.data["runs"] == []
+    r = asyncio.run(_ws(wsv.ws_vacuum_robot_use_set, h, use="fill")).result
+    assert r["robot"]["use"] == "fill" and r["use_change"] is None          # the first pick changes nothing earlier
+
+
+def test_fill_gaps_adds_half_weight_points_only_where_the_owner_has_few(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob, use="fill")
+    cal.points += [{"id": f"own{i}", "label": "By the sink", "room": "Kitchen", "x_m": 1, "y_m": 1} for i in range(3)]
+    asyncio.run(_start_and_wait(h))
+    run = vs.data["runs"][-1]
+    added = [p for p in cal.added]
+    assert added and {p["room"] for p in added} == {"Hall", "Pantry"}       # the Kitchen has 3 of the owner's own
+    assert all(p["weight"] == 0.5 and p["device_height_m"] == 0.1 for p in added)
+    kitchen = [s for s in run["stops"] if s["room"] == "Kitchen"]
+    assert kitchen and all(s["point_id"] is None for s in kitchen) and run["kept"] == len(kitchen)
+
+
+def test_find_mistakes_and_wifi_only_adds_nothing_and_keeps_every_stop(monkeypatch, fast):
+    rob = _Valetudo(wifi=_wifi_status)
+    h, vs, cal, _ = _house_with(monkeypatch, rob, use="none")
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    run = vs.data["runs"][-1]
+    assert cal.added == [] and run["added"] == 0 and run["kept"] == len(run["stops"]) > 0
+    assert len(vs.data["wifi"]["readings"]) == len(run["stops"])
+    from custom_components.padspan_ha import vacuum_use as vu
+    pts = vu.stops_as_points(vs.data["runs"], set())
+    assert len(pts) == len(run["stops"]) and all(p["label"].startswith(f"[robot] {run['id']} ") for p in pts)
+    assert all(isinstance(r["mean_rssi"], float) for p in pts for r in p["scanner_readings"])
+
+
+def test_a_changed_choice_says_what_it_would_do_and_applies_as_one_undoable_step(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob, use="full")
+    vs.data["robot"]["use_left"] = "full"
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    n = len(cal.added)
+    r = asyncio.run(_ws(wsv.ws_vacuum_robot_use_set, h, use="none")).result
+    assert r["use_change"] == {"add": 0, "remove": n, "reweight": 0, "old_runs": 0}
+    assert len([p for p in cal.points if p["label"].startswith("[robot]")]) == n   # nothing changed yet
+    done = asyncio.run(_ws(wsv.ws_vacuum_robot_use_apply, h)).result
+    assert done["done"] == {"added": 0, "removed": n} and not [p for p in cal.points if p["label"].startswith("[robot]")]
+    assert OWNER_POINT in cal.points and done["robot"]["applied"]["from"] == "full"
+    back = asyncio.run(_ws(wsv.ws_vacuum_robot_use_apply, h, undo=True)).result
+    assert back["robot"]["use"] == "full" and back["done"]["added"] == n
+    assert len([p for p in cal.points if p["label"].startswith("[robot]")]) == n and OWNER_POINT in cal.points
+    left = asyncio.run(_ws(wsv.ws_vacuum_robot_use_set, h, use="fill")).result
+    assert left["use_change"] is not None
+    assert asyncio.run(_ws(wsv.ws_vacuum_robot_use_apply, h, leave=True)).result["use_change"] is None
+
+
+def test_each_run_measures_its_effect_on_the_owners_own_test_spots(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    scores = iter([{"knn": {"rooms_right_pc": 80, "median_error_m": 1.4, "spots": 12}},
+                   {"knn": {"rooms_right_pc": 86, "median_error_m": 1.1, "spots": 12}}])
+    h.data[DOMAIN]["presence_coordinator"] = SimpleNamespace(async_heldout=AsyncMock(side_effect=lambda age: next(scores)))
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    acc = vs.data["runs"][-1]["accuracy"]
+    assert acc["before"]["knn"]["rooms_right_pc"] == 80 and acc["after"]["knn"]["rooms_right_pc"] == 86
+
+
+def test_the_sampler_counts_every_packet_where_home_assistant_can(monkeypatch):
+    import sys
+    from custom_components.padspan_ha.vacuum_sampler import StopSampler, samples_bucket
+    got = {}
+
+    def reg(hass, cb, address):
+        got["cb"], got["address"] = cb, address
+        return lambda: got.update(gone=True)
+    import homeassistant.components as hac
+    fake = SimpleNamespace(async_register_advertisement_callback=reg)
+    monkeypatch.setitem(sys.modules, "homeassistant.components.bluetooth", fake)
+    monkeypatch.setattr(hac, "bluetooth", fake, raising=False)
+    s = StopSampler(SimpleNamespace(), "aa:bb:cc:dd:ee:ff")
+    s.start()
+    assert s.mode == "every" and got["address"] == "AA:BB:CC:DD:EE:FF"
+    for _ in range(25):                                                   # identical packets: each one counted
+        got["cb"](SimpleNamespace(source="scanner_a", rssi=-61))
+    s.stop()
+    assert got.get("gone") and len(s.samples["scanner_a"]) == 25
+    merged = s.merged([{"source": "scanner_a", "rssi_samples": [-60.0] * 3}, {"source": "scanner_b", "rssi_samples": [-70.0] * 4}])
+    assert {r["source"]: len(r["rssi_samples"]) for r in merged} == {"scanner_a": 25, "scanner_b": 4}
+    assert [samples_bucket(n) for n in (1, 5, 20, 40)] == ["rx_samples_0_2", "rx_samples_3_9", "rx_samples_10_29", "rx_samples_30_plus"]
+
+
+def test_the_sampler_polls_the_scanners_on_older_home_assistant(monkeypatch):
+    import sys
+    from custom_components.padspan_ha.vacuum_sampler import StopSampler
+    import homeassistant.components as hac
+    fake_bt = SimpleNamespace()                                           # no every-packet callback
+    monkeypatch.setitem(sys.modules, "homeassistant.components.bluetooth", fake_bt)
+    monkeypatch.setattr(hac, "bluetooth", fake_bt, raising=False)
+    tick = {"t": 100.0}
+    sc = SimpleNamespace(source="scanner_a",
+                         discovered_devices_and_advertisement_data={"AA:BB:CC:DD:EE:FF": (object(), SimpleNamespace(rssi=-58))},
+                         discovered_device_timestamps={})
+    manager = SimpleNamespace(async_current_scanners=lambda: [sc])
+    monkeypatch.setitem(sys.modules, "habluetooth", SimpleNamespace(get_manager=lambda: manager))
+    s = StopSampler(SimpleNamespace(), "AA:BB:CC:DD:EE:FF")
+    s.start()
+    assert s.mode == "poll"
+    for t in (100.0, 100.0, 101.2, 101.2, 102.3):                         # a time seen again is the same packet
+        sc.discovered_device_timestamps["AA:BB:CC:DD:EE:FF"] = t
+        s.poll()
+    assert s.samples == {"scanner_a": [-58.0, -58.0, -58.0]}
+    del tick
+
+
+def test_a_robot_that_moved_during_the_stop_keeps_no_point(monkeypatch, fast):
+    def wifi(rob):
+        rob.drift = True                     # read during the stop: after it, the robot is 20 cm off
+        return _wifi_status(rob)
+    rob = _Valetudo(wifi=wifi)
+    real = rob.call
+
+    async def nudged(hass, base, method, path, body=None, auth=None):
+        if path == vr.MAP_PATH and getattr(rob, "drift", False) and rob.target:
+            rob.target, rob.drift = (rob.target[0] + 20.0, rob.target[1]), False
+        return await real(hass, base, method, path, body, auth)
+    rob.call = nudged
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Pantry"))
+    run = vs.data["runs"][-1]
+    assert run["added"] == 0 and run["skipped"] == 1 and cal.added == []
+
+
+@pytest.mark.parametrize("status", ["cleaning", "manual_control", "paused"])
+def test_someone_else_taking_the_robot_ends_the_run_sending_nothing(monkeypatch, fast, status):
+    rob = _Valetudo(status_after=(2, status))
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h))
+    run = vs.data["runs"][-1]
+    assert run["state"] == "taken_over" and rob.sent(vr.CONTROL_PATH) == [] and rob.gotos == 2
+
+
+def test_a_spot_it_cannot_reach_is_skipped_on_a_transient_error(monkeypatch, fast):
+    rob = _Valetudo()
+    real = rob.call
+
+    async def first_unreachable(hass, base, method, path, body=None, auth=None):
+        out = await real(hass, base, method, path, body, auth)
+        if path == vr.ATTRS_PATH and rob.gotos == 1:
+            return [{"__class": "StatusStateAttribute", "value": "error", "flag": "none",
+                     "error": {"severity": {"kind": "transient", "level": "warning"}, "subsystem": "navigation",
+                               "message": "Cannot reach target"}},
+                    {"__class": "BatteryStateAttribute", "level": 80, "flag": "discharging"}]
+        return out
+    rob.call = first_unreachable
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Kitchen"))
+    run = vs.data["runs"][-1]
+    assert run["state"] == "finished" and run["skipped"] == 1 and run["added"] == run["spots"] - 1
+
+
+def test_a_permanent_error_still_ends_the_run(monkeypatch, fast):
+    rob = _Valetudo(status_error_at=2)
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h))
+    assert vs.data["runs"][-1]["state"] == "failed"
+
+
+def test_a_robot_settled_near_its_target_in_the_room_is_at_its_stop(monkeypatch, fast):
+    rob = _Valetudo()
+    real = rob.call
+
+    async def short(hass, base, method, path, body=None, auth=None):
+        if path == vr.GOTO_PATH:
+            body = {"action": "goto", "coordinates": {"x": body["coordinates"]["x"] - 50, "y": body["coordinates"]["y"]}}
+            out = await real(hass, base, method, path, body, auth)
+            rob.wanted = True
+            return out
+        return await real(hass, base, method, path, body, auth)
+    rob.call = short                                                          # it always stops 50 cm short
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    h.data[DOMAIN]["fabric"] = SimpleNamespace(rooms_flat=lambda: {
+        "Pantry": {"type": "poly", "floor_id": "main", "points_m": [[1.0, 4.1], [2.2, 4.1], [2.2, 5.1], [1.0, 5.1]]}})
+    from custom_components.padspan_ha.const import DATA_FABRIC
+    h.data[DOMAIN][DATA_FABRIC] = h.data[DOMAIN].pop("fabric")
+    monkeypatch.setattr(vr, "GOTO_TIMEOUT_S", 5.0)
+    asyncio.run(_start_and_wait(h, "Pantry"))
+    run = vs.data["runs"][-1]
+    assert run["added"] == 1 and run["skipped"] == 0
+
+
+def test_a_map_made_again_since_the_import_is_refused(monkeypatch, fast):
+    rob = _Valetudo()
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    vs.data["link"]["dock"] = {"x_m": 7.0, "y_m": 3.5}                     # 0.5 m from where the map has it
+    conn, _ = asyncio.run(_start_and_wait(h))
+    assert conn.error[0] == "map_changed" and "import it again" in conn.error[1] and rob.sent(vr.GOTO_PATH) == []
+    rob2 = _Valetudo()
+    rob2.vmap = {**_house(), "entities": [e for e in _house()["entities"] if e["type"] != "charger_location"]}
+    h2, vs2, cal2, _ = _house_with(monkeypatch, rob2)
+    assert asyncio.run(_start_and_wait(h2))[0].error[0] == "no_dock"
+
+
+def test_spots_keep_clear_of_no_go_areas_virtual_walls_and_obstacles():
+    vmap = _house()
+    # A no-go area over the Hall's left half, a virtual wall across the Kitchen, an obstacle in it.
+    vmap["entities"] = vmap["entities"] + [
+        {"type": "no_go_area", "points": [81 * PS, 1 * PS, 120 * PS, 1 * PS, 120 * PS, 80 * PS, 81 * PS, 80 * PS]},
+        {"type": "virtual_wall", "points": [1 * PS, 40 * PS, 79 * PS, 40 * PS]},
+        {"type": "obstacle", "points": [20 * PS, 20 * PS]},
+    ]
+    plan = vr.plan_spots(vmap)
+    assert plan["spots"]
+    for s in plan["spots"]:
+        x, y = s["x"] / 100, s["y"] / 100
+        assert not (s["room"] == "Hall" and 81 * PS / 100 <= x <= 120 * PS / 100)
+        assert abs(y - 40 * PS / 100) > vr.WALL_CLEAR_M or not (0 < x < 4)
+        assert math.hypot(x - 1.0, y - 1.0) > vr.WALL_CLEAR_M
+
+
+def test_a_valetudo_timer_firing_soon_is_said_never_a_refusal(monkeypatch, fast):
+    from datetime import datetime, timezone
+    now = datetime(2026, 11, 24, 18, 0, tzinfo=timezone.utc)                 # a Tuesday: dow 2
+    timers = {"t1": {"enabled": True, "dow": [2], "hour": 19, "minute": 30}, "t2": {"enabled": False, "dow": [2], "hour": 18, "minute": 10},
+              "t3": {"enabled": True, "dow": [3], "hour": 1, "minute": 0}}
+    assert vr.timer_soon(timers, now) == "2026-11-24T19:30:00+00:00"
+    assert vr.timer_soon({"t": {"enabled": True, "dow": [2], "hour": 21, "minute": 0}}, now) is None
+    rob = _Valetudo()
+    rob.timers = {"t": {"enabled": True, "dow": list(range(7)), "hour": (datetime.now(timezone.utc).hour + 1) % 24, "minute": 0}}
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    asyncio.run(_start_and_wait(h, "Pantry"))
+    assert vs.data["runs"][-1]["timer_soon"] and vs.data["runs"][-1]["state"] == "finished"
+
+
+def test_robot_points_carry_their_tag_height_into_the_path_loss_fit():
+    from unittest.mock import MagicMock
+    from custom_components.padspan_ha.calibration_store import CalibrationStore
+    store = CalibrationStore.__new__(CalibrationStore)
+    store.hass = MagicMock()
+    store.hass.data = {}
+    model = MagicMock()
+    model.scanner_positions_m.return_value = {"sc1": {"x_m": 0.0, "y_m": 0.0}}
+    model.scanner_absolute_z_m.return_value = {"sc1": 2.4}
+    model.floor_base_elevations_m.return_value = {"main": 0.0}
+    store._model = model
+    rows = [(3.0, -62.0), (6.0, -70.0), (9.0, -75.0)]
+
+    def pts(h, w=1.0):
+        return [{"id": f"p{i}", "x_m": d, "y_m": 0.0, "floor_id": "main", "weight": w,
+                 **({"device_height_m": h} if h is not None else {}),
+                 "scanner_readings": [{"source": "sc1", "mean_rssi": r}]} for i, (d, r) in enumerate(rows)]
+    store.data = {"points": pts(None)}
+    carried = store.fit_path_loss("sc1")
+    store.data = {"points": pts(0.1)}
+    on_floor = store.fit_path_loss("sc1")
+    assert carried != on_floor                                              # 2.3 m up, not 1.4: another slant
+    store.data = {"points": pts(0.1, w=0.5)}
+    assert store.fit_path_loss("sc1") == on_floor                           # one weight for all: the same fit
+
+
+def test_the_choice_and_the_fixes_are_counted_in_closed_words():
+    from custom_components.padspan_ha import telemetry as T
+    for w in ("taken_over", "rx_samples_0_2", "rx_samples_30_plus", "sampled_every", "sampled_poll",
+              "use_full", "use_fill", "use_none"):
+        assert T.event_allowed(f"robot_run:{w}")

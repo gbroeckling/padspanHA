@@ -341,13 +341,32 @@ Unter **Raumortung** zeigt die Karte, was eine Fahrt braucht: die Adresse des Ro
 Valetudo-Benutzer und sein Passwort, wenn die Anmeldung an ist), seine Karte aus Valetudo und den
 Beacon auf dem Roboter, und ob PadSpan ihn gerade hört. **Fahrt starten** schickt den Roboter zu
 Stellen etwa 1,5 m auseinander in jedem Raum oder in dem, den du wählst, jede mindestens 40 cm von
-den Wänden. An jeder Stelle steht er etwa 20 Sekunden still, während PadSpan dem Beacon zuhört
-(etwas länger, wenn zu wenige Empfänger ihn gehört haben, und die Stelle wird übersprungen, wenn es
-dann immer noch zu wenige sind), und die Stelle kommt sofort in die Kalibrierung. Vor jeder Fahrt
-wird die Kalibrierung gesichert. **Stopp** beendet die Fahrt und schickt den Roboter zurück zur
+den Wänden, und nie in einen Sperrbereich oder an eine virtuelle Wand oder ein Hindernis auf der
+Karte des Roboters. An jeder Stelle steht er etwa 20 Sekunden still, während PadSpan dem Beacon
+zuhört, jedem Paket, das jeder Empfänger hört (etwas länger, wenn zu wenige Empfänger ihn gehört
+haben, und die Stelle wird übersprungen, wenn es dann immer noch zu wenige sind). Hat sich der
+Roboter während des Halts bewegt, fällt die Stelle weg; eine, die er nicht erreicht, wird
+übersprungen. Vor jeder Fahrt wird die Kalibrierung gesichert, und eine Fahrt beginnt nicht, wenn
+sich die Karte des Roboters seit dem Import geändert hat (seine Station ist umgezogen): importiere
+sie dann neu. Startet ein Valetudo-Zeitplan den Roboter innerhalb von zwei Stunden, sagt die Karte
+es.
+
+Vor der ersten Fahrt wählst du, wie die Punkte des Roboters genutzt werden; nichts wird für dich
+gewählt, und du kannst es jederzeit ändern:
+
+- **Wie deine eigenen zählen**: jede Stelle kommt in die Kalibrierung, mit vollem Gewicht.
+- **Lücken füllen, weniger zählen**: nur in Räumen, in denen du weniger als 3 eigene Punkte hast,
+  und mit halbem Gewicht.
+- **Nur Fehler finden und WLAN**: nichts kommt in die Kalibrierung.
+
+Die Messwerte jeder Stelle bleiben so oder so bei ihrer Fahrt. Änderst du die Wahl, sagt die
+Karte, was sich für frühere Fahrten ändern würde, und lässt dich das anwenden (in einem Schritt,
+nach einer Sicherung, rückgängig zu machen) oder sie lassen, wie sie sind. Nach jeder Fahrt zeigt
+die Karte, wie deine eigenen Teststellen davor und danach abgeschnitten haben. **Stopp** beendet die Fahrt und schickt den Roboter zurück zur
 Station; das tun auch das Ende der Fahrt, ein Problem oder zwei Stunden. Fährt der Roboter von sich
-aus zur Station oder fällt sein Akku unter 20 %, endet die Fahrt dort, und PadSpan schickt ihm
-nichts mehr; unter 20 % beginnt keine Fahrt. **Diese Fahrt rückgängig machen** nimmt genau die
+aus zur Station, übernimmt ihn jemand oder ein Valetudo-Zeitplan (er saugt, wird gesteuert oder
+pausiert), oder fällt sein Akku unter 20 %, endet die Fahrt dort, und PadSpan schickt ihm nichts
+mehr; unter 20 % beginnt keine Fahrt. **Diese Fahrt rückgängig machen** nimmt genau die
 Punkte heraus, die diese Fahrt hinzugefügt hat, und keinen deiner eigenen; jede frühere Fahrt,
 deren Punkte noch da sind, steht mit ihrem eigenen **Rückgängig** auf der Karte. Eine Fahrt, die
 beim Neustart von Home Assistant lief oder als PadSpan neu geladen oder eine Sicherung
@@ -360,7 +379,8 @@ Aufräumarbeiten der Beacons rühren sie nie an.
 
 **Fehler finden** auf der Karte öffnet eine eigene Karte. Aus den Punkten, die die Fahrten schon
 gespeichert haben (ohne weitere Fahrt), berechnet sie, wo jeder Empfänger wirklich steht, und
-listet die auf, die an der falschen Stelle oder auf der falschen Etage platziert scheinen, mit
+listet die auf, die an der falschen Stelle oder auf der falschen Etage platziert scheinen (einer
+oben, der den Roboter unten etwa so stark hört wie die Empfänger dort), mit
 der Angabe, wie sicher das ist, und einem Link zur Platzierung dieses Empfängers. Ein Empfänger
 muss an sechs Stellen oder mehr gehört worden sein, über 3 m verteilt und rund um ihn, denn eine
 Fahrt durch einen Raum sagt nichts über einen Empfänger im nächsten; die anderen stehen unter zu

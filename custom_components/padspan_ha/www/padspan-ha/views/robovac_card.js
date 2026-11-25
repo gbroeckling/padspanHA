@@ -65,6 +65,7 @@ const ENDED = {
   finished: () => t("finished"), stopped: () => t("stopped"), failed: () => t("ended by a problem"),
   time_limit: () => t("stopped at the two-hour limit"), interrupted: () => t("ended when PadSpan restarted"),
   robot_home: () => t("ended: the robot went back to its dock"), low_battery: () => t("ended: the robot's battery ran low"),
+  taken_over: () => t("ended: someone or a Valetudo timer took the robot over"),
   running: () => t("running"),
 };
 // A refusal's code (vacuum_run.py RunRefused, RobotError) in words.
@@ -83,7 +84,16 @@ const REFUSED = {
   undone: () => t("That run was undone already."),
   low_battery: () => t("The robot's battery is low: let it charge first."),
   bad_login: () => t("That address or login cannot be used: put the user and password in their own boxes, without a colon in the user name."),
+  no_use: () => t("Choose how the robot's points are used first."),
+  map_changed: () => t("The robot's map has changed since it was imported: import it again."),
+  no_dock: () => t("The robot's map shows no dock: let it find its dock, then import its map again."),
 };
+// How the robot's points are used (vacuum_use.py), the owner's pick: its name and one plain sentence.
+const USES = [
+  ["full", () => t("Count them like your own"), () => t("Every spot goes into calibration, at full weight.")],
+  ["fill", () => t("Fill gaps, count them less"), () => t("Only in rooms where you have fewer than 3 points of your own, and at half weight.")],
+  ["none", () => t("Find mistakes and Wi-Fi only"), () => t("Nothing goes into calibration; the readings are kept for Find mistakes and the Wi-Fi map.")],
+];
 const words = (code, text) => (REFUSED[code] ? REFUSED[code]() : String(text || code || ""));
 const errWords = (e) => words(e && e.code, e && (e.message || e));
 
@@ -231,7 +241,7 @@ export function openRobovacCard(api, info){
 
     // ── room location ──
     sheet.appendChild(mk("div", C.h, t("Room location")));
-    sheet.appendChild(mk("div", C.muted, t("The robot drives to spots in each room and stands still while PadSpan listens to the tag on it. Each spot is added to calibration at once. Calibration is backed up before every run, and a run can be undone.")));
+    sheet.appendChild(mk("div", C.muted, t("The robot drives to spots in each room and stands still while PadSpan listens to the tag on it. Each spot is used the way you choose below. Calibration is backed up before every run, and a run can be undone.")));
     const need = mk("div", "display:flex;flex-direction:column;gap:6px;margin:8px 0");
     const line = (ok, text) => mk("div", "font-size:12px", `${ok ? "✓" : "✗"} ${text}`);
 
@@ -271,11 +281,42 @@ export function openRobovacCard(api, info){
     }
     sheet.appendChild(need);
 
+    // How its points are used (the owner, 2026-11-24: "there needs to be a choice ... the options need
+    // to be presented"): picked before the first run, nothing chosen for the owner; changeable any time.
+    const use = s.robot && s.robot.use;
+    sheet.appendChild(mk("div", "font-size:13px;font-weight:700;margin-top:6px", t("How its points are used")));
+    for (const [key, name, says] of USES) {
+      const row = mk("div", C.row);
+      row.append(button(name(), doing(() => call("vacuum_robot_use_set", { use: key })), use === key, use === key), mk("span", C.muted, says()));
+      sheet.appendChild(row);
+    }
+    if (!use) sheet.appendChild(mk("div", C.warn, t("Choose one before the first run.")));
+    const ch = s.use_change;
+    if (ch) {
+      sheet.appendChild(mk("div", "font-size:12px", t("Earlier runs, by this choice: {add} points would be added, {remove} taken out, {reweight} counted differently. Nothing changes unless you apply it.",
+        { add: ch.add, remove: ch.remove, reweight: ch.reweight })));
+      if (ch.old_runs) sheet.appendChild(mk("div", C.muted, tn(ch.old_runs, "{n} run from before this choice existed stays as it is.", "{n} runs from before this choice existed stay as they are.")));
+      const row = mk("div", C.row);
+      row.append(button(t("Apply to earlier runs"), doing(async () => {
+        if (!confirm(t("Apply this choice to the earlier runs? Calibration is backed up first, and you can undo it here."))) return null;
+        return call("vacuum_robot_use_apply", {});
+      }, (r) => (r ? t("Earlier runs changed: {added} points added, {removed} taken out.", r.done) : null)), true),
+      button(t("Leave them as they are"), doing(() => call("vacuum_robot_use_apply", { leave: true }))));
+      sheet.appendChild(row);
+    } else if (s.robot && s.robot.applied) {
+      const a = s.robot.applied, row = mk("div", C.row);
+      row.append(mk("span", "font-size:12px", t("Earlier runs were changed: {added} points added, {removed} taken out.", a)),
+        button(t("Undo this change"), doing(() => call("vacuum_robot_use_apply", { undo: true }))));
+      sheet.appendChild(row);
+    }
+
     // A run: going, or one to start.
     if (running) {
       const r = s.run;
       sheet.appendChild(mk("div", "font-size:13px;font-weight:700",
         t("Running in {room}: spot {n} of {total}, {added} added, {skipped} skipped", { room: r.at_room || "…", n: r.spot, total: r.spots, added: r.added, skipped: r.skipped })));
+      if (r.timer_soon) sheet.appendChild(mk("div", C.warn, t("A Valetudo timer starts the robot at {time} UTC: the run ends there if it is still going.",
+        { time: String(r.timer_soon).slice(11, 16) })));
       sheet.appendChild(button(t("Stop"), doing(() => call("vacuum_run_stop"), t("Stopping: the robot goes back to its dock")), true));
     } else {
       const row = mk("div", C.row), sel = mk("select", C.input);
@@ -283,14 +324,14 @@ export function openRobovacCard(api, info){
       for (const n of st.rooms || []) { const op = mk("option", null, n); op.value = n; sel.appendChild(op); }
       sel.value = st.room;
       sel.addEventListener("change", () => { st.room = sel.value; });
-      const ready = !!(url && map && tag.address && !(rs && rs.error));
+      const ready = !!(url && map && tag.address && use && !(rs && rs.error));
       row.append(sel, button(t("Start a run"), doing(() => call("vacuum_run_start", st.room ? { room: st.room } : {}),
         (r) => tn(r && r.run ? r.run.spots : 0, "Run started: {n} spot", "Run started: {n} spots")), true, !ready));
       sheet.appendChild(row);
     }
 
     // Find mistakes (the owner, 2026-11-24): receivers the runs' points say are misplaced, on a card of its own.
-    if ((s.runs || []).some(r => r.points_kept > 0)) {
+    if ((s.runs || []).some(r => r.points_kept > 0 || r.stops_kept > 0)) {
       sheet.appendChild(button(t("Find mistakes"), async () => {
         try { (await import(`./robovac_findings.js${new URL(import.meta.url).search}`)).openFindings(api); }
         catch (err) { console.warn("PadSpan: robovac_findings failed to load", err); }
@@ -307,7 +348,15 @@ export function openRobovacCard(api, info){
       if (last.error) sheet.appendChild(mk("div", C.warn, words(last.error)));
       if (last.home_failed) sheet.appendChild(mk("div", C.warn, t("It could not be sent back to its dock: send it there yourself.")));
       if (last.undone) sheet.appendChild(mk("div", C.muted, t("Undone: its points were taken out of calibration.")));
+      if (last.kept) sheet.appendChild(mk("div", C.muted, tn(last.kept, "{n} spot kept for Find mistakes only.", "{n} spots kept for Find mistakes only.")));
     }
+    // The measured effect of a run, on the owner's own test spots (heldout.py): told, never a gate.
+    const effect = (r) => {
+      const b = r.accuracy && r.accuracy.before && r.accuracy.before.knn, a = r.accuracy && r.accuracy.after && r.accuracy.after.knn;
+      if (!b || !a || b.rooms_right_pc == null || a.rooms_right_pc == null) return null;
+      return mk("div", C.muted, t("On your own test spots: rooms right {before} % before this run, {after} % after; typical error {eb} m, then {ea} m.",
+        { before: b.rooms_right_pc, after: a.rooms_right_pc, eb: b.median_error_m ?? "?", ea: a.median_error_m ?? "?" }));
+    };
     const undoable = (s.runs || []).filter(r => r.state !== "running" && !r.undone && r.points_kept > 0);
     for (const r of undoable) {
       const row = mk("div", C.row), when = String(r.started || "").slice(0, 16).replace("T", " ");
@@ -319,6 +368,8 @@ export function openRobovacCard(api, info){
         return call("vacuum_run_undo", { run_id: r.id });
       }, (res) => (res ? tn(res.removed, "Removed {n} point", "Removed {n} points") : null))));
       sheet.appendChild(row);
+      const e = effect(r);
+      if (e) sheet.appendChild(e);
     }
   }
 

@@ -46,6 +46,19 @@ A run:
 Nothing survives a Home Assistant restart: a run going then is over (its
 points stay, and stay undoable).
 
+Research, 2026-11-24 (Valetudo 2026.10.0 source, Home Assistant's developer
+docs): every advertisement during a stop (vacuum_sampler.py); the robot read
+again when the stop ends, the stop dropped if it moved or is no longer idle;
+a run ends sending nothing once someone or a Valetudo timer has the robot
+(cleaning, driven by hand, paused, home on its own); a spot it reports it
+cannot reach (a transient error) is skipped; a robot settled within ACCEPT_M
+of its target, in the planned room, is at its stop; a run never starts on a
+map the robot has made again since the import (its dock moved) or one with no
+dock; the robot's no-go areas, virtual walls and obstacles are kept clear of;
+a Valetudo timer firing within two hours is said on the card. How the stops'
+readings are used is the owner's choice, made before the first run
+(vacuum_use.py).
+
 Wi-Fi at each spot (the owner said yes to the robot for the Wi-Fi coverage
 heatmap, 2026-11-24). Once the robot stands at a spot it is asked
 GET /api/v2/robot/capabilities/WifiConfigurationCapability, Valetudo's
@@ -59,11 +72,15 @@ them through one admin-only command, versioned:
   padspan_ha/robot_wifi_readings  ->  {
       "version": 1,
       "robot_ip": "192.168.1.50" | null,    # from details.ips, the last one known
-      "readings": [{"run_id": "rr_1a2b3c", "ts": 1764000000.0,   # epoch seconds
+      "readings": [{"run_id": "rr_1a2b3c", "ts": 1764000000.0,   # epoch seconds, the stop's middle
+                    "ts_start": 1763999990.0, "ts_end": 1764000010.0,  # the stop (2026-11-24, research S8)
                     "x_m": 3.21, "y_m": 4.5, "floor_id": "main", "room": "Kitchen",
-                    "signal": -61, "bssid": "aa:bb:cc:dd:ee:ff",
+                    "signal": -61, "bssid": "aa:bb:cc:dd:ee:ff",       # the median of the stop's reads
                     "frequency": "5ghz", "state": "connected"}, ...]   # oldest first
   }
+
+ts_start and ts_end are on readings from 2026-11-24 on (older ones have ts
+alone): a joining integration takes only what was heard between them.
 
 Fields Valetudo does not give are null. The SSID is not kept; neither it nor
 a BSSID goes into the opt-in report (a run that read Wi-Fi is counted, no more).
@@ -75,13 +92,16 @@ import asyncio
 import logging
 import math
 import os
+import statistics
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .calibration_store import ROBOT_LABEL
-from .const import CALIBRATION_STORE_KEY, DATA_CALIBRATION, DOMAIN
+from .const import CALIBRATION_STORE_KEY, DATA_CALIBRATION, DATA_FABRIC, DOMAIN
 from . import vacuum_import as vi
+from . import vacuum_use as vu
+from .vacuum_sampler import StopSampler, samples_bucket
 from .quiet_errors import note as _quiet_error
 from .util import address_url, async_check_address
 
@@ -106,6 +126,14 @@ LOW_BATTERY = 20             # %: below this a run does not start, and one going
 POLL_FAILS = 3               # robot reads in a row that may fail while it drives before the run gives up
 LABEL_PREFIX = ROBOT_LABEL     # calibration_store.is_owner_point: a run's points are PadSpan's, not the owner's
 HEARD_WINDOW_S = 60.0        # "heard now": within the last minute
+ACCEPT_M = 1.0               # a robot settled this near its target, in the planned room, is at its stop (research S4)
+DOCK_MOVED_M = 0.3           # the dock further than this from the import's: the map has changed (research B3)
+TIMER_AHEAD_S = 2 * 3600.0   # a Valetudo timer firing this soon is said on the card (research S10)
+SAMPLE_EVERY_S = 1.0         # the scanners read this often during a stop, without the every-packet callback
+WIFI_READS = 3               # Wi-Fi reads per stop; the median signal is kept (research S8)
+TIMERS_PATH = "/api/v2/timers"
+# A Valetudo status the run did not ask for: someone (a person, a timer) has the robot now (research B2).
+TAKEN_OVER = ("cleaning", "manual_control", "paused")
 MAP_PATH = "/api/v2/robot/state/map"
 ATTRS_PATH = "/api/v2/robot/state/attributes"
 GOTO_PATH = "/api/v2/robot/capabilities/GoToLocationCapability"
@@ -194,7 +222,8 @@ async def robot_call(hass, base: str, method: str, path: str, body: dict | None 
 def robot_state(attrs: Any) -> dict[str, Any]:
     """Status and battery from Valetudo's attributes list (StatusStateAttribute,
     BatteryStateAttribute); missing parts are None, unknown words kept as sent."""
-    out: dict[str, Any] = {"status": None, "flag": None, "error": None, "battery": None, "charging": None}
+    out: dict[str, Any] = {"status": None, "flag": None, "error": None, "error_kind": None, "error_subsystem": None,
+                           "battery": None, "charging": None}
     for a in attrs if isinstance(attrs, list) else []:
         if not isinstance(a, dict):
             continue
@@ -204,6 +233,9 @@ def robot_state(attrs: Any) -> dict[str, Any]:
             err = a.get("error")
             if isinstance(err, dict):
                 out["error"] = str(err.get("message") or "")[:200] or None
+                sev = err.get("severity") if isinstance(err.get("severity"), dict) else {}
+                out["error_kind"] = str(sev.get("kind") or "")[:20] or None          # transient | permanent | unknown
+                out["error_subsystem"] = str(err.get("subsystem") or "")[:20] or None
         elif a.get("__class") == "BatteryStateAttribute":
             lv = a.get("level")
             out["battery"] = round(float(lv)) if isinstance(lv, (int, float)) else None
@@ -240,6 +272,25 @@ def robot_ip(status: Any) -> str | None:
     return str(good[0]) if good else None
 
 
+def timer_soon(timers: Any, now: datetime | None = None, ahead_s: float = TIMER_AHEAD_S) -> str | None:
+    """When the next enabled Valetudo timer fires within ahead_s (its time, UTC, ISO), or None.
+    Timers are UTC, dow Sunday = 0 (Valetudo's ValetudoTimer)."""
+    now = now or datetime.now(timezone.utc)
+    best = None
+    for t in (timers.values() if isinstance(timers, dict) else timers if isinstance(timers, list) else []):
+        if not isinstance(t, dict) or not t.get("enabled"):
+            continue
+        try:
+            hour, minute, dows = int(t.get("hour")), int(t.get("minute")), {int(d) for d in t.get("dow") or []}
+        except (TypeError, ValueError):
+            continue
+        for day in (0, 1):
+            at = (now + timedelta(days=day)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if (at.weekday() + 1) % 7 in dows and 0 <= (at - now).total_seconds() <= ahead_s:
+                best = at if best is None or at < best else best
+    return best.isoformat() if best else None
+
+
 # ── planning the spots ──────────────────────────────────────────────────────
 
 def plan_spots(vmap: Any, room: str | None = None) -> dict[str, Any]:
@@ -270,8 +321,43 @@ def plan_spots(vmap: Any, room: str | None = None) -> dict[str, Any]:
     c = max(1, math.ceil(WALL_CLEAR_M * 100 / ps))
     disc = [(dx, dy) for dx in range(-c, c + 1) for dy in range(-c, c + 1) if dx * dx + dy * dy <= c * c]
 
+    # The owner's own restrictions on the robot's map (research S3): never a spot in a
+    # no-go area, nor within WALL_CLEAR_M of a virtual wall or an obstacle the robot saw.
+    ents = vmap.get("entities") if isinstance(vmap.get("entities"), list) else []
+    nogo, lines, dots = [], [], []
+    for e in ents:
+        p = e.get("points") if isinstance(e, dict) else None
+        if not isinstance(p, list) or len(p) < 2 or not all(isinstance(v, (int, float)) for v in p):
+            continue
+        xy = [(float(p[i]) / ps, float(p[i + 1]) / ps) for i in range(0, len(p) - 1, 2)]
+        if e.get("type") == "no_go_area" and len(xy) >= 3:
+            nogo.append(xy)
+        elif e.get("type") == "virtual_wall" and len(xy) >= 2:
+            lines.append((xy[0], xy[1]))
+        elif e.get("type") == "obstacle":
+            dots.append(xy[0])
+
+    def _inside(x: float, y: float, poly: list) -> bool:
+        hit = False
+        for i in range(len(poly)):
+            (x1, y1), (x2, y2) = poly[i - 1], poly[i]
+            if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+                hit = not hit
+        return hit
+
+    def _to_line(x: float, y: float, a: tuple, b: tuple) -> float:
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        t = 0.0 if dx == dy == 0 else max(0.0, min(1.0, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy)))
+        return math.hypot(x - a[0] - t * dx, y - a[1] - t * dy)
+
+    def allowed(x: int, y: int) -> bool:
+        cx, cy = x + 0.5, y + 0.5
+        return (not any(_inside(cx, cy, g) for g in nogo)
+                and all(_to_line(cx, cy, a, b) > c for a, b in lines)
+                and all(math.hypot(cx - ox, cy - oy) > c for ox, oy in dots))
+
     def clear(x: int, y: int) -> bool:
-        return all((x + dx, y + dy) in free and (x + dx, y + dy) not in walls for dx, dy in disc)
+        return allowed(x, y) and all((x + dx, y + dy) in free and (x + dx, y + dy) not in walls for dx, dy in disc)
 
     step = max(1, round(RUN_SPACING_M * 100 / ps))
     sub = max(1, round(0.25 * 100 / ps))
@@ -306,7 +392,6 @@ def plan_spots(vmap: Any, room: str | None = None) -> dict[str, Any]:
             small.append(name)
     # Room by room from the dock (else where the robot is): the room with the
     # nearest spot next, and in it the nearest spot each time.
-    ents = vmap.get("entities") if isinstance(vmap.get("entities"), list) else []
     start = vi._point_entity(ents, "charger_location") or vi._point_entity(ents, "robot_position")
     at = (start["x"] / ps, start["y"] / ps) if start else (per_room[0][1][0] if per_room else (0, 0))
     order: list[dict[str, Any]] = []
@@ -353,9 +438,10 @@ def _now_iso() -> str:
 
 
 def run_for_client(r: dict) -> dict:
-    """A run as the card shows it: no point ids."""
-    out = {k: v for k, v in r.items() if k != "points"}
+    """A run as the card shows it: no point ids, no stops' readings."""
+    out = {k: v for k, v in r.items() if k not in ("points", "stops")}
     out["points_kept"] = len(r.get("points") or [])
+    out["stops_kept"] = len(r.get("stops") or [])
     return out
 
 
@@ -393,6 +479,9 @@ class RunEngine:
         self._starting = False                 # a start between its checks and its task: a second one waits
         self._interrupt = False                # stopped by PadSpan itself going (unload, restore, reset)
         self._left_dock = False                # "docked" ends a run only once the robot has left it
+        self._rooms: dict = {}                 # the house's rooms, read at the run's start (a stop's room)
+        self._own: dict[str, int] = {}         # the owner's own points per room, at the run's start (vacuum_use)
+        self._sampled = "buffer"               # how the last stop heard the tag (vacuum_sampler)
         # A run the store says was going is from before a restart: it is over.
         changed = False
         for r in vs.data.get("runs") or []:
@@ -439,13 +528,32 @@ class RunEngine:
         cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
         if not cal:
             raise RunRefused("not_ready", "PadSpan is still loading")
+        use = vu.use_of(vs)
+        if use is None:
+            raise RunRefused("no_use", "Choose how the robot's points are used first")
         st = robot_state(await robot_call(hass, base, "GET", ATTRS_PATH, auth=vs.basic_auth()))
         if isinstance(st["battery"], (int, float)) and st["battery"] < LOW_BATTERY:
             raise RunRefused("low_battery", "The robot's battery is low: let it charge first")
         vmap = await robot_call(hass, base, "GET", MAP_PATH, auth=vs.basic_auth())
+        # Data safety (research B3): a map the robot has made again since the import is in
+        # another frame; its points would land in the wrong places. Its dock tells.
+        ents = vmap.get("entities") if isinstance(vmap, dict) and isinstance(vmap.get("entities"), list) else []
+        dock = vi._point_entity(ents, "charger_location")
+        was = lk.get("dock") if isinstance(lk.get("dock"), dict) else None
+        if not dock:
+            raise RunRefused("no_dock", "The robot's map shows no dock")
+        if not was or not isinstance(was.get("x_m"), (int, float)) or \
+                math.dist(vi._apply(lk["to_m"], dock["x"], dock["y"]), (was["x_m"], was["y_m"])) > DOCK_MOVED_M:
+            raise RunRefused("map_changed", "The robot's map has changed since it was imported: import it again")
         plan = await hass.async_add_executor_job(plan_spots, vmap, room or None)
         if not plan["spots"]:
             raise RunRefused("no_spots", "No room on the robot's map has a spot clear of its walls")
+        # A Valetudo timer about to fire (research S10): said on the card, never a reason not to run.
+        try:
+            soon = timer_soon(await robot_call(hass, base, "GET", TIMERS_PATH, auth=vs.basic_auth()))
+        except Exception:  # noqa: BLE001 — no timers read: nothing to say
+            _quiet_error("vacuum_run:timers")
+            soon = None
         rid = f"rr_{os.urandom(3).hex()}"
         from .ws_backup import _auto_backup  # noqa: PLC0415
         backup_id = await _auto_backup(hass, f"Before the robot's room location run {rid}", [CALIBRATION_STORE_KEY],
@@ -455,7 +563,9 @@ class RunEngine:
         run = {"id": rid, "started": _now_iso(), "ended": None, "state": "running", "room": room or "",
                "rooms": sorted({s["room"] for s in plan["spots"]}), "small": plan["small"],
                "spots": len(plan["spots"]), "spot": 0, "at_room": "", "added": 0, "skipped": 0,
-               "points": [], "undone": False, "error": "", "backup_id": backup_id, "wifi": 0}
+               "points": [], "undone": False, "error": "", "backup_id": backup_id, "wifi": 0,
+               "use": use, "tag": tag, "stops": [], "kept": 0, "timer_soon": soon,
+               "accuracy": {"before": await self._accuracy(), "after": None}}
         runs = vs.data.setdefault("runs", [])
         runs.append(run)
         trim_runs(runs, {str(p.get("id")) for p in cal.list_points()})
@@ -463,8 +573,17 @@ class RunEngine:
         self.current = run
         self._stop.clear()
         self._interrupt = self._left_dock = False
-        self._task = hass.async_create_background_task(
-            self._async_run(run, plan["spots"], base, dict(lk), tag, cal), "padspan_ha robot room location run")
+        fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+        self._rooms = fab.rooms_flat() if fab and hasattr(fab, "rooms_flat") else {}
+        self._own = vu.own_per_room(cal.list_points(), self._rooms)
+        coro = self._async_run(run, plan["spots"], base, dict(lk), tag, cal)
+        # The config entry's own background task where there is one (research N1): Home
+        # Assistant then ends it with PadSpan; async_shutdown_run has sent the robot home first.
+        entry = next(iter(getattr(getattr(hass, "config_entries", None), "async_entries", lambda d: [])(DOMAIN)), None)
+        if entry is not None and hasattr(entry, "async_create_background_task"):
+            self._task = entry.async_create_background_task(hass, coro, "padspan_ha robot room location run")
+        else:
+            self._task = hass.async_create_background_task(coro, "padspan_ha robot room location run")
         self._bump("started")
         return run
 
@@ -490,6 +609,23 @@ class RunEngine:
     def _stopped(self) -> str:
         return "interrupted" if self._interrupt else "stopped"
 
+    async def _accuracy(self) -> dict | None:
+        """The held-out score on the owner's own test spots (robot points are never test
+        spots, heldout.py), worked out now: {knn, spatial} each {rooms_right_pc,
+        median_error_m, spots}, or None (too few spots, or PadSpan still loading)."""
+        pc = self.hass.data.get(DOMAIN, {}).get("presence_coordinator")
+        if pc is None or not hasattr(pc, "async_heldout"):
+            return None
+        try:
+            res = await pc.async_heldout(0.0)
+        except Exception:  # noqa: BLE001 — no score: the card says nothing about it
+            _quiet_error("vacuum_run:accuracy")
+            return None
+        if not isinstance(res, dict):
+            return None
+        keep = ("rooms_right_pc", "median_error_m", "spots")
+        return {m: {k: (res.get(m) or {}).get(k) for k in keep} for m in ("knn", "spatial") if isinstance(res.get(m), dict)} or None
+
     async def _wait(self, s: float) -> bool:
         """Sleep s seconds; True when Stop was pressed meanwhile."""
         try:
@@ -498,9 +634,9 @@ class RunEngine:
         except asyncio.TimeoutError:
             return False
 
-    async def _arrive(self, spot: dict, base: str) -> dict | None:
+    async def _arrive(self, spot: dict, base: str, lk: dict | None = None) -> dict | None:
         """Read the robot until it stands at the spot: where it stands, or None
-        (timed out, or stopped)."""
+        (timed out, a spot it cannot reach, or stopped)."""
         end = time.monotonic() + GOTO_TIMEOUT_S
         last, fails = None, 0
         while time.monotonic() < end:
@@ -518,32 +654,89 @@ class RunEngine:
                 continue
             fails = 0
             if st["status"] == "error":
+                # "Cannot reach target" is transient (Valetudo's Dreame robots: severity transient,
+                # subsystem navigation): that spot is skipped and the run goes on (research S2).
+                if st.get("error_kind") == "transient":
+                    return None
                 raise RobotError("robot_error", st["error"] or "The robot reports an error")
             # Going home on its own (to charge, or someone pressed Dock), or a low battery: the run ends.
             if st["status"] == "returning" or (st["status"] == "docked" and self._left_dock):
                 raise RobotLeft("robot_home")
+            # Cleaning, driven by hand or paused: a person or a Valetudo timer has it now (research B2).
+            if st["status"] in TAKEN_OVER:
+                raise RobotLeft("taken_over")
             if isinstance(st["battery"], (int, float)) and st["battery"] < LOW_BATTERY:
                 raise RobotLeft("low_battery")
             if st["status"] not in (None, "docked"):
                 self._left_dock = True
             pos = vi.robot_spot("valetudo", vmap)
-            if pos and math.hypot(pos["x"] - spot["x"], pos["y"] - spot["y"]) / 100 <= ARRIVE_M \
-                    and st["status"] != "moving" and last \
-                    and math.hypot(pos["x"] - last["x"], pos["y"] - last["y"]) / 100 < STILL_M:
+            still = bool(pos and last and st["status"] != "moving"
+                         and math.hypot(pos["x"] - last["x"], pos["y"] - last["y"]) / 100 < STILL_M)
+            off = math.hypot(pos["x"] - spot["x"], pos["y"] - spot["y"]) / 100 if pos else None
+            if still and off <= ARRIVE_M:
+                return pos
+            # Settled near it, in the room it was planned in: that is the stop (research S4);
+            # where it stands is what is stored anyway.
+            if still and off <= ACCEPT_M and lk and self._in_room(pos, spot["room"], lk):
                 return pos
             last = pos
         return None
 
-    async def _dwell(self, tag: str) -> list[dict] | None:
-        """The tag's readings over the dwell ([] too few heard; None stopped)."""
-        if await self._wait(DWELL_S):
-            return None
-        got = good_readings(vi.tag_samples(self.hass, tag, DWELL_S + 1))
-        if got:
-            return got
-        if await self._wait(DWELL_MORE_S):
-            return None
-        return good_readings(vi.tag_samples(self.hass, tag, DWELL_S + DWELL_MORE_S + 1))
+    def _in_room(self, pos: dict, room: str, lk: dict) -> bool:
+        from .subzones import room_at  # noqa: PLC0415
+        x, y = vi._apply(lk["to_m"], pos["x"], pos["y"])
+        return bool(self._rooms) and room_at(self._rooms, str(lk.get("floor_id") or ""), x, y) == room
+
+    async def _listen(self, sampler: StopSampler, seconds: float, base: str, wifi: list, wifi_at: list) -> bool:
+        """seconds of the stop, read a second at a time (the scanners, and Wi-Fi at its
+        moments); True when Stop was pressed."""
+        t0 = time.monotonic()
+        while True:
+            left = seconds - (time.monotonic() - t0)
+            if wifi_at and time.monotonic() - t0 >= wifi_at[0]:
+                wifi_at.pop(0)
+                try:
+                    wifi.append(await robot_call(self.hass, base, "GET", WIFI_PATH, auth=self.vs.basic_auth()))
+                except Exception:  # noqa: BLE001 — no Wi-Fi reading this time, the run goes on
+                    _quiet_error("vacuum_run:wifi")
+            if left <= 0:
+                return False
+            if await self._wait(min(SAMPLE_EVERY_S, left)):
+                return True
+            sampler.poll()
+
+    async def _dwell(self, tag: str, base: str = "", wifi: list | None = None) -> list[dict] | None:
+        """The tag's readings over the stop ([] too few heard; None stopped). Every
+        packet each receiver hears (vacuum_sampler.py), with the buffer's samples as
+        the fallback; the robot's Wi-Fi read WIFI_READS times along the way."""
+        sampler = StopSampler(self.hass, tag)
+        sampler.start()
+        wifi = wifi if wifi is not None else []
+        wifi_at = [DWELL_S * i / max(1, WIFI_READS - 1) for i in range(WIFI_READS)] if base else []
+        try:
+            if await self._listen(sampler, DWELL_S, base, wifi, wifi_at):
+                return None
+            got = good_readings(sampler.merged(vi.tag_samples(self.hass, tag, DWELL_S + 1)))
+            if not got:
+                if await self._listen(sampler, DWELL_MORE_S, base, wifi, []):
+                    return None
+                got = good_readings(sampler.merged(vi.tag_samples(self.hass, tag, DWELL_S + DWELL_MORE_S + 1)))
+        finally:
+            sampler.stop()
+        self._sampled = sampler.mode
+        for r in got or []:
+            self._bump(samples_bucket(len(r["rssi_samples"])))
+        return got
+
+    async def _still_there(self, pos: dict, base: str) -> bool:
+        """After the stop: the robot where it was and idle, or the stop is not kept (research B2)."""
+        auth = self.vs.basic_auth()
+        st = robot_state(await robot_call(self.hass, base, "GET", ATTRS_PATH, auth=auth))
+        if st["status"] in TAKEN_OVER or st["status"] == "returning" or st["status"] == "docked":
+            raise RobotLeft("taken_over" if st["status"] in TAKEN_OVER else "robot_home")
+        now = vi.robot_spot("valetudo", await robot_call(self.hass, base, "GET", MAP_PATH, auth=auth))
+        return bool(now and st["status"] == "idle"
+                    and math.hypot(now["x"] - pos["x"], now["y"] - pos["y"]) / 100 <= STILL_M)
 
     async def _async_run(self, run: dict, spots: list[dict], base: str, lk: dict, tag: str, cal) -> None:
         deadline = time.monotonic() + RUN_LIMIT_S
@@ -559,32 +752,35 @@ class RunEngine:
                 run["spot"], run["at_room"] = i + 1, sp["room"]
                 await robot_call(self.hass, base, "PUT", GOTO_PATH,
                                  {"action": "goto", "coordinates": {"x": sp["x"], "y": sp["y"]}}, auth=self.vs.basic_auth())
-                pos = await self._arrive(sp, base)
+                pos = await self._arrive(sp, base, lk)
                 if self._stop.is_set():
                     why = self._stopped()
                     break
                 if pos is None:
                     run["skipped"] += 1
                     continue
-                await self._wifi(run, sp, pos, lk, base)
-                readings = await self._dwell(tag)
+                t_start, wifi = _now_iso(), []
+                readings = await self._dwell(tag, base, wifi)
+                t_end = _now_iso()
+                self._wifi(run, sp, pos, lk, wifi, t_start, t_end)
                 if readings is None:
                     why = self._stopped()
                     break
-                if not readings:
-                    run["skipped"] += 1
+                if not readings or not await self._still_there(pos, base):
+                    run["skipped"] += 1                   # too little heard, or it moved during the stop
                     continue
                 x_m, y_m = vi._apply(lk["to_m"], pos["x"], pos["y"])
-                saved = await cal.async_add_point({
-                    "map_id": "", "x_frac": 0.5, "y_frac": 0.5,
-                    "x_m": round(x_m, 3), "y_m": round(y_m, 3), "floor_id": lk.get("floor_id") or "",
-                    "room": sp["room"],
-                    "label": f"{LABEL_PREFIX} {run['id']} {sp['room']} (tag {TAG_Z_M:g} m above the floor)",
-                    "device_id": tag, "collected_at": _now_iso(), "duration_s": round(DWELL_S),
-                    "scanner_readings": readings,
-                })
-                run["points"].append(saved["id"])
-                run["added"] += 1
+                stop = vu.stop_record(x_m, y_m, lk.get("floor_id") or "", sp["room"], t_start, t_end, readings)
+                run["stops"].append(stop)
+                # The owner's choice (vacuum_use.py): into calibration at its weight, or kept in the run's record.
+                w = vu.decide(run["use"], sp["room"], self._own)
+                if w is not None:
+                    saved = await cal.async_add_point(vu.stop_point(run["id"], stop, w, tag, TAG_Z_M, DWELL_S))
+                    stop["point_id"], stop["weight"] = saved["id"], w
+                    run["points"].append(saved["id"])
+                    run["added"] += 1
+                else:
+                    run["kept"] += 1
                 await self.vs.async_save()
         except RobotLeft as exc:
             why = exc.why
@@ -600,37 +796,40 @@ class RunEngine:
         finally:
             await self._finish(run, why, base)
 
-    async def _wifi(self, run: dict, sp: dict, pos: dict, lk: dict, base: str) -> None:
-        """The robot's Wi-Fi where it stands, kept for the coverage map. A read
-        that fails is skipped: it never stops the run."""
-        try:
-            status = await robot_call(self.hass, base, "GET", WIFI_PATH, auth=self.vs.basic_auth())
-        except Exception:  # noqa: BLE001 — no Wi-Fi reading at this spot, the run goes on
-            _quiet_error("vacuum_run:wifi")
+    def _wifi(self, run: dict, sp: dict, pos: dict, lk: dict, statuses: list, t_start: str, t_end: str) -> None:
+        """The robot's Wi-Fi where it stood, kept for the coverage map: the median
+        signal of the stop's reads (research S8), with the stop's start and end so
+        another integration joins only what was heard inside it. No read: none kept."""
+        ws = [w for w in (wifi_of(s) for s in statuses) if w]
+        if not ws:
             return
-        w = wifi_of(status)
-        if not w:
-            return
+        sig = [w["signal"] for w in ws if w["signal"] is not None]
+        last = ws[-1]
+        w = {**last, "signal": round(statistics.median(sig)) if sig else None}
         x_m, y_m = vi._apply(lk["to_m"], pos["x"], pos["y"])
         wifi = self.vs.data.setdefault("wifi", {"readings": [], "robot_ip": ""})
-        ip = robot_ip(status)
+        ip = next((i for i in (robot_ip(s) for s in reversed(statuses)) if i), None)
         if ip:
             wifi["robot_ip"] = ip
+        t0, t1 = datetime.fromisoformat(t_start).timestamp(), datetime.fromisoformat(t_end).timestamp()
         rd = wifi.setdefault("readings", [])
-        rd.append({"run_id": run["id"], "ts": round(time.time(), 1), "x_m": round(x_m, 3), "y_m": round(y_m, 3),
-                   "floor_id": lk.get("floor_id") or "", "room": sp["room"], **w})
+        rd.append({"run_id": run["id"], "ts": round((t0 + t1) / 2, 1), "ts_start": round(t0, 1), "ts_end": round(t1, 1),
+                   "x_m": round(x_m, 3), "y_m": round(y_m, 3), "floor_id": lk.get("floor_id") or "", "room": sp["room"], **w})
         del rd[:max(0, len(rd) - WIFI_KEPT)]
         run["wifi"] = run.get("wifi", 0) + 1
 
     async def _finish(self, run: dict, why: str, base: str) -> None:
-        # Going home already (or low on battery, on its way): nothing more is sent.
-        if why not in ("robot_home", "low_battery"):
+        # Going home already, low on battery, or someone else has it now: nothing more is sent.
+        if why not in ("robot_home", "low_battery", "taken_over"):
             try:
                 await robot_call(self.hass, base, "PUT", CONTROL_PATH, {"action": "home"}, auth=self.vs.basic_auth())
             except Exception:  # noqa: BLE001 — sent home when it can be; the run is over either way
                 _quiet_error("vacuum_run:home")
                 run["home_failed"] = True
         run["state"], run["ended"], run["at_room"] = why, _now_iso(), ""
+        # The measured effect, beside the run's Undo: the owner's own test spots, now.
+        if run.get("added") and isinstance(run.get("accuracy"), dict) and not self._interrupt:
+            run["accuracy"]["after"] = await self._accuracy()
         try:
             await self.vs.async_save()
         except Exception:  # noqa: BLE001
@@ -639,6 +838,10 @@ class RunEngine:
         self._bump(_points_bucket(run["added"]))
         if run.get("wifi"):
             self._bump("wifi_read")
+        if getattr(self, "_sampled", None) in ("every", "poll"):
+            self._bump(f"sampled_{self._sampled}")
+        if run.get("use") in vu.USES:
+            self._bump(f"use_{run['use']}")
         _LOGGER.info("Robot room location run %s %s: %d points added, %d spots skipped",
                      run["id"], why, run["added"], run["skipped"])
 
@@ -659,6 +862,9 @@ class RunEngine:
         prefix = f"{LABEL_PREFIX} {run_id} "
         ids = {p["id"] for p in cal.list_points() if p.get("id") in mine and str(p.get("label") or "").startswith(prefix)}
         removed = await cal.async_delete_points(ids) if ids else 0
+        for s in run.get("stops") or []:
+            if s.get("point_id") in ids:
+                s["point_id"], s["weight"] = None, None
         run["undone"], run["undone_at"], run["removed"] = True, _now_iso(), removed
         await self.vs.async_save()
         self._bump("undone")

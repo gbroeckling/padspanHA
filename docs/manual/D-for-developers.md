@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-280 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+282 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |
 |---|---|---|---|---|
@@ -386,6 +386,8 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/vacuum_robot_control` | `action` | always | `ws_vacuum.py` | Start, Pause or Dock, through Valetudo's BasicControlCapability (not while a run goes). |
 | `padspan_ha/vacuum_robot_set` | `url` (optional), `user` (optional), `password` (optional) | always | `ws_vacuum.py` | The robot's Valetudo address, and its user and password when Valetudo asks for them. |
 | `padspan_ha/vacuum_robot_status` | `rooms` (optional) | always | `ws_vacuum.py` | The robovac card: the robot as its Valetudo reports it, what a run needs, the last runs. |
+| `padspan_ha/vacuum_robot_use_apply` | `leave` (optional), `undo` (optional) | always | `ws_vacuum.py` | Apply the choice to the earlier runs (their points out and back in by it, one step after a backup), or leave them as they are, or undo the… |
+| `padspan_ha/vacuum_robot_use_set` | `use` | always | `ws_vacuum.py` | How the robot's points are used from now on. |
 | `padspan_ha/vacuum_run_start` | `room` (optional) | always | `ws_vacuum.py` | Start a room location run (every room, or one): calibration is backed up first. |
 | `padspan_ha/vacuum_run_stop` | – | always | `ws_vacuum.py` | Stop the run going: the robot is sent home, the points so far stay. |
 | `padspan_ha/vacuum_run_undo` | `run_id` | always | `ws_vacuum.py` | Remove exactly one run's points from calibration. |
