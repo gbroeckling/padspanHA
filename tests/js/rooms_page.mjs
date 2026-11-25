@@ -146,6 +146,11 @@ const text = (n) => n.textContent;
   check("render: rooms grouped in floor cards", all(root).filter(n => n.getAttribute && n.getAttribute("data-floor")).length === 3);
   check("render: Add a room goes to HA's Areas", !!q(root, "href", "/config/areas/dashboard"));
   check("render: Office's split level shows its value", q(roomNode(root, "Office"), "data-edit", "raise").value === "0.4");
+  // A select is as wide as its longest option; in German "Kind of space" ran over the Receivers field beside it.
+  const sels = all(root).filter(n => n.tagName === "SELECT");
+  check("render: every select is held to its field's width, so a long translation can't cover the next field",
+    sels.length > 0 && !!q(k, "data-edit", "space") && sels.every(s => /max-width:100%/.test(s.getAttribute("style") || "")),
+    sels.map(s => s.getAttribute("style")));
 }
 
 // ── the edits, through the existing commands ──────────────────────────────

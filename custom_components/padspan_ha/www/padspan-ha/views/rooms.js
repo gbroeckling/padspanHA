@@ -386,7 +386,7 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
 
   // What kind of space: a room on a house floor (a room on an Outside floor is outside ground).
   if (row.spaceNow !== "ground") {
-    const kSel = el("select", { style: INPUT + ";width:auto", "data-edit": "space",
+    const kSel = el("select", { style: INPUT + ";width:auto;max-width:100%", "data-edit": "space",
       title: t("Indoors, open to the sky, or covered (a roof, deck or floor over it, open sides). Used for the 3D view: walls, rain, where ceiling lights hang. Never for positioning.") }, [
       el("option", { value: "" }, t("Work it out")),
       el("option", { value: "indoor" }, t("Indoors")),
@@ -409,7 +409,7 @@ function _row(ctx, el, row, readOnly = false, presence = true) {
 
   // Surface: outdoor rooms only (a deck, a patio, or a room on an outdoor floor).
   if (row.outdoor) {
-    const sSel = el("select", { style: INPUT + ";width:auto", "data-edit": "surface",
+    const sSel = el("select", { style: INPUT + ";width:auto;max-width:100%", "data-edit": "surface",
       // The flat map draws no room of an Outside floor: there, the 3D view only.
       title: (row.spaceNow === "ground" ? t("What the 3D view draws on this outdoor space's floor (the flat map does not show rooms on the Outside floor).")
         : t("What the 3D view and the map draw on this outdoor space's floor.")) + " " + t("Drawing only, never positioning.") }, [
