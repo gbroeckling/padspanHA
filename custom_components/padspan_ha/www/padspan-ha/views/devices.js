@@ -19,7 +19,10 @@ const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // duplicate copy out. Optional: missing, every copy is offered.
 const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).catch(() => null);
 // Door Openers and the relay wizard's openers and locks are Alarm & security's (editions.js addonAllowed).
-const { addonAllowed, addonPrice } = await import(`./editions.js${new URL(import.meta.url).search}`);
+// Optional: without it, PadSpan Pro still has them (and a price is left unsaid).
+const _ED = await import(`./editions.js${new URL(import.meta.url).search}`).catch(() => null);
+const addonAllowed = _ED ? _ED.addonAllowed : (s) => String((s && s.tier) || "").toLowerCase() === "pro";
+const addonPrice = _ED ? _ED.addonPrice : () => "";
 const _dup = (ctx, eid) => !!(TW && TW.duplicateOf(eid, ctx.state && ctx.state.settings));
 const TABS = [
   { id: "all",      get label() { return t("All Devices"); } },

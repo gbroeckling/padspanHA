@@ -282,6 +282,10 @@ def test_the_alarm_inside_the_emergency_button(result) -> None:
     assert a["proCentre"] == ["button"], a
     assert a["freeTriggered"] == [True, "Alarm: Triggered · front door contact", True, 0], a
     assert a["freeTriggeredAlone"], a
+    # A test still running without the add-on (the review, 2026-11-25): shown, ended from its centre, Force off in its
+    # card, and no light's own switch there.
+    assert a["runningShown"] and a["runningCard"], a
+    assert a["runningEnded"] == ["padspan_ha/emergency_test:false"], a
     assert a["aloneButton"] and a["hiddenTestButton"], a
     # The button changes with what the house has (the owner, 2026-11-24): an alarm alone, its own plain ring, no
     # list notch; both, the emergency ring with its notch.

@@ -538,7 +538,7 @@ class PadSpanLightsApp extends HTMLElement {
       // whether the usage report is on, so its offer counts only leave the
       // browser when it is (panel.js _telemetryEvent's rule).
       if (s.pro_has_key !== undefined) {
-        this.state._trialSettings = { pro_has_key: s.pro_has_key, tier: s.tier,
+        this.state._trialSettings = { pro_has_key: s.pro_has_key, addon_key: s.addon_key, tier: s.tier,
           edition: s.edition, bright_reveal_presence: s.bright_reveal_presence,
           telemetry_enabled: !!s.telemetry_enabled };
         this.state._telemetryOn = !!s.telemetry_enabled;
@@ -677,8 +677,11 @@ class PadSpanLightsApp extends HTMLElement {
     // Hidden only while idle: a test running (started here or elsewhere)
     // always shows, so it can be seen and ended. The alarm is not the test:
     // it stays. The emergency lights are Alarm & security's (_alarmControls):
-    // without it, only an alarm going off, and with none, no button.
-    const lights = this._alarmControls() && !!(s && s.available) && !(this.state._emergButtonHidden && !(s.test && s.test.active));
+    // without it, only an alarm going off, and with none, no button; but a
+    // test already running (it outlives a restart and a lapsed key) always
+    // shows, so it can be ended or forced off (emergency_test.py allows both).
+    const running = !!(s && s.test && s.test.active);
+    const lights = (this._alarmControls() || running) && !!(s && s.available) && !(this.state._emergButtonHidden && !running);
     if(!lights && !alarm) return null;
     const active = lights && !!(s.test && s.test.active);
     const busy = lights && !!this._emergBusy;
@@ -829,7 +832,8 @@ class PadSpanLightsApp extends HTMLElement {
       + "font-size:10px;font-weight:700;letter-spacing:.04em;white-space:nowrap;" + style}, text);
     const fill = ()=>{
       const s = this.state._emerg;
-      const lights = this._alarmControls() && !!(s && s.available);
+      // As the button (_emergencyOverlay): Alarm & security's, or a test still running.
+      const lights = (this._alarmControls() || !!(s && s.test && s.test.active)) && !!(s && s.available);
       const withAlarm = !!alarm && !alarm.empty();
       if(!lights && !withAlarm){ close(); return; }
       shown = shows();
@@ -878,6 +882,9 @@ class PadSpanLightsApp extends HTMLElement {
           onclick:()=>this._emergencyForceOff()}, armed ? t("Tap again") : t("Force off"))] : []),
         ...(busy ? [el("span",{style:"font-size:12px;color:rgba(254,226,226,.75)"},t("Switching…"))] : []),
       ]));
+      // Without Alarm & security (a test that outlived the key) the list says each light's state; End test and
+      // Force off are its controls, a light's own switch is the add-on's (emergency_test.py refuses it).
+      const own = this._alarmControls();
       for(const m of s.members || []){
         const st = states[m.entity_id] ? states[m.entity_id].state : m.state;
         const on = st === "on";
@@ -894,7 +901,7 @@ class PadSpanLightsApp extends HTMLElement {
               : "color:rgba(226,240,232,.55);border:1px solid rgba(226,240,232,.2)"),
           // Fixed widths, and a blank where a row has no "⋯", so the state
           // chips and buttons line up down the list.
-          el("button",{style: act + ";min-width:82px" + (dead ? ";opacity:.4;cursor:default" : dim),
+          ...(own ? [el("button",{style: act + ";min-width:82px" + (dead ? ";opacity:.4;cursor:default" : dim),
             disabled: dead ? "" : null,
             onclick:()=>this._emergencyCall({ type:"padspan_ha/emergency_member", entity_id:m.entity_id, on:!on }, ()=>null)},
             on ? t("Turn off") : t("Turn on")),
@@ -905,7 +912,7 @@ class PadSpanLightsApp extends HTMLElement {
                 .then(r=>{ this._emergApply(r); }).catch(()=>{});
               close();
               this._openWledDetail(m.entity_id);
-            }},"⋯")] : [el("span",{style:"width:38px;flex:none", "aria-hidden":"true"})]),
+            }},"⋯")] : [el("span",{style:"width:38px;flex:none", "aria-hidden":"true"})])] : []),
         ]);
         sheet.appendChild(row);
       }

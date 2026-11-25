@@ -51,6 +51,7 @@ from .const import DATA_FABRIC, DATA_MODEL, DOMAIN, HOUSE3D_STORE_KEY
 from .house3d_library import carried_over, without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
                             apply_edit, async_get_store, empty, enabled, without_pieces, writable)
+from .licence import hass_addon_allowed
 from .ws_common import admin_if_enhanced_security, _tier_at_least
 from .quiet_errors import note as _quiet_error
 
@@ -97,6 +98,31 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], out)
 
 
+# What Advanced map creation (the maps add-on) saves into the 3D house without PadSpan Pro: what a scan's import
+# (live_aboard_import.js: its doors, windows, doorways, furniture and stairs, origin "import"; the stairs read off a
+# plan the same) and a photo read (origin "photo": a piece, or a person's figure) bring. Everything else in the 3D
+# house is PadSpan Pro's.
+MAPS_ORIGINS = ("import", "photo")
+
+
+def _maps_edit(data: dict, msg: dict) -> bool:
+    """Whether a house3d_edit message only saves Advanced map creation's work (MAPS_ORIGINS): openings, and pieces and
+    figures that come from a scan or a photo, or remove one that did. Nothing else is in it."""
+    if set(k for k in (*EDIT_SECTIONS, "heights_set", "rails_chosen") if k in msg) - {"openings", "pieces", "figures"}:
+        return False
+    for section in ("pieces", "figures"):
+        stored = data.get(section) if isinstance(data.get(section), dict) else {}
+        for key, entry in (msg.get(section) or {}).items():
+            was = stored.get(key) if isinstance(stored.get(key), dict) else None
+            if entry is None:
+                if was is not None and was.get("origin") not in MAPS_ORIGINS:
+                    return False
+            elif not isinstance(entry, dict) or entry.get("origin") not in MAPS_ORIGINS \
+                    or (was is not None and was.get("origin") not in MAPS_ORIGINS):
+                return False
+    return True
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/house3d_clear", vol.Optional("only"): vol.In(("pieces",))})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -105,7 +131,8 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
-    if not _tier_at_least(hass, "pro"):
+    # Removing all furniture undoes a scan's import too: Advanced map creation's as well as Pro's. The whole house, Pro's.
+    if not (_tier_at_least(hass, "pro") or (furniture and hass_addon_allowed(hass, "maps"))):
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return
     store = await _loaded(hass, connection, msg)
@@ -165,11 +192,16 @@ async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
-    if not _tier_at_least(hass, "pro"):
+    pro = _tier_at_least(hass, "pro")
+    if not pro and not hass_addon_allowed(hass, "maps"):
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return
     store = await _loaded(hass, connection, msg)
     if store is None:
+        return
+    # Advanced map creation without Pro saves only its own work (a scan's import, a photo read: _maps_edit).
+    if not pro and not _maps_edit(store.data, msg):
+        connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return
     if "figures" in msg:                 # FIGURE's lists (house3d_builders), read off the loop
         from .house3d_builders import async_data  # noqa: PLC0415

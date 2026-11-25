@@ -176,7 +176,8 @@ def has_calibration(s: dict) -> bool:
 
 
 def trial_offerable(has_key: bool, tier: str) -> bool:
-    """trial_offer.js trialOfferable: no key of any kind, and a tier below Bright."""
+    """trial_offer.js trialOfferable: no key (an add-on key doesn't count: it is kept aside for the trial, so the
+    caller passes has_key False for one, licence.is_addon_key), and a tier below Bright."""
     from .licence import tier_at_least  # noqa: PLC0415
     return not has_key and not tier_at_least(tier, "bright")
 
@@ -316,7 +317,7 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     """What offer_reason reads. `live`: the panel's word (Sample mode, a demo);
     the house's data_mode decides when it isn't given. The plan AI's store is
     read only if loaded (async_get_store first, where it matters)."""
-    from .licence import edition, hass_addon_allowed, hass_tier  # noqa: PLC0415
+    from .licence import edition, hass_addon_allowed, hass_tier, is_addon_key  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
     st = dom.get(DATA_SETTINGS)
     settings: dict[str, Any] = (st.data if st else {}) or {}
@@ -338,7 +339,8 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
             "wizard": w if isinstance(w, dict) else {}, "now": now,
             # The Plans tool's own sessions only: the helper's rooms and scale sessions are kept in the same store (via "wizard").
             "tool_used": bool(plan_ai.get("lineups")) or any(isinstance(r, dict) and r.get("via") != "wizard" for r in (plan_ai.get("rooms") or {}).values()),
-            "tier": tier, "trial_offerable": trial_offerable(bool(str(settings.get("forensics_license_key") or "").strip()), tier),
+            "tier": tier, "trial_offerable": trial_offerable(bool(str(settings.get("forensics_license_key") or "").strip())
+                                                             and not is_addon_key(settings), tier),
             # PadSpan Pro or Advanced map creation (the maps add-on): what the helper's reading needs (plan_ai guard).
             "maps": hass_addon_allowed(hass, "maps"),
             "plan_scaled": has_scale(s), "state": s}

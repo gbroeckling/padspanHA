@@ -159,7 +159,7 @@ export function lifetimeCardText(now = Date.now()) {
 }
 export function launchCardAnnual(settings) {
   const s = settings || {};
-  return s.pro_has_key === true && s.pro_active === true && !s.license_is_trial
+  return s.pro_has_key === true && s.pro_active === true && !s.license_is_trial && !addonKey(s)
     && typeof s.pro_days_left === "number" && s.pro_days_left < 3650;
 }
 export function lifetimeCardDue(settings, now = Date.now()) {

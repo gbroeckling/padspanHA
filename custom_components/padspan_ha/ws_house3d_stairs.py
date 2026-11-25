@@ -46,7 +46,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled
-from .ws_common import _tier_at_least
+from .licence import hass_addon_allowed
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 from . import ai_usage as U
 from . import ws_house3d_photo as P
@@ -273,7 +273,7 @@ def _refused(hass: HomeAssistant, connection, msg) -> dict | None:
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return None
-    if not _tier_at_least(hass, "pro"):
+    if not hass_addon_allowed(hass, "maps"):          # PadSpan Pro or Advanced map creation: AI plan reading
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return None
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)

@@ -223,7 +223,7 @@ def test_what_stays_free() -> None:
 def test_the_wifi_tab_is_wifi_coverage() -> None:
     panel = _src("panel.js")
     assert 'if (!this.state._wifiSurveyOn || !this._addon("wifi")) out.delete("wifi");' in panel
-    assert "return !!(EDITIONS && EDITIONS.addonAllowed && EDITIONS.addonAllowed(this.state.settings || {}, name));" in panel
+    assert "return !!EDITIONS.addonAllowed(s, name);" in panel
     # The Atlas's Wi-Fi device chip (access points) is not this add-on's.
     assert "addon" not in _src("views/light_codes.js").lower()
 
@@ -427,3 +427,113 @@ def test_the_rooms_helper_and_the_plans_read_with_pro_or_maps(start: dict, allow
          "indoor_plans": 1, "plan_age_days": 18.0, "wizard": {}, "now": 1.8e9, "tool_used": False,
          "tier": licence.hass_tier(h), "maps": allowed, "trial_offerable": False, "plan_scaled": True}
     assert (AW.offer_reason(f, "push") == "offer") is allowed
+
+
+# ── The review (2026-11-25) ─────────────────────────────────────────────────
+
+
+def _maps_house(tmp_path, who: str):
+    from tests.test_house3d_edit import _on
+    h, conn = _on(tmp_path, tier="free" if who == "free" else "pro", admin=True)
+    if who in ("maps", "audio"):
+        h.data[DOMAIN][DATA_SETTINGS].data.update(license_tier="free", license_addons=[who])
+    return h, conn
+
+
+@pytest.mark.parametrize("who", ["pro", "maps", "audio", "free"])
+def test_advanced_map_creation_saves_its_own_work_in_the_3d_house(disk, tmp_path, who) -> None:
+    """A maps buyer previews a scan into the 3D house, then saves it: its pieces (origin import or photo), openings
+    and photo figures save; anything else in the 3D house stays Pro's (house3d_edit _maps_edit)."""
+    from custom_components.padspan_ha import ws_house3d as W
+    from tests.test_house3d_edit import _DOOR, _edit
+    from tests.test_house3d_pieces import _sofa
+    h, conn = _maps_house(tmp_path, who)
+    scan = _edit(h, conn, pieces={"fur_00000001": _sofa(id="fur_00000001", origin="import")}, openings={"door_1a2b3c4d": dict(_DOOR)})
+    ok = who in ("pro", "maps")
+    assert ("error" not in scan) is ok, scan
+    if ok:
+        assert scan["data"]["pieces"]["fur_00000001"]["origin"] == "import"
+    h, conn = _maps_house(tmp_path, who)
+    built = _edit(h, conn, pieces={"fur_00000002": _sofa(id="fur_00000002", origin="build")})
+    assert ("error" not in built) is (who == "pro"), built
+    h, conn = _maps_house(tmp_path, who)
+    rooms = _edit(h, conn, rooms={"Hall": {"floor": "#ffffff"}})
+    assert (rooms.get("error") == W.OFF_CODE) is (who != "pro"), rooms
+
+
+def test_the_maps_edit_rule() -> None:
+    from custom_components.padspan_ha.ws_house3d import _maps_edit
+    data = {"pieces": {"fur_b": {"origin": "build"}, "fur_i": {"origin": "import"}}, "figures": {"person.a": {"origin": "build"}}}
+    assert _maps_edit(data, {"id": 1, "type": "x", "pieces": {"fur_n": {"origin": "import"}, "fur_i": None}})
+    assert _maps_edit(data, {"pieces": {"fur_p": {"origin": "photo"}}, "openings": {"d": {}}, "figures": {"person.b": {"origin": "photo"}}})
+    assert not _maps_edit(data, {"pieces": {"fur_b": None}}), "a piece built by hand is Pro's to remove"
+    assert not _maps_edit(data, {"pieces": {"fur_b": {"origin": "import"}}}), "nor to overwrite"
+    assert not _maps_edit(data, {"figures": {"person.a": {"origin": "photo"}}})
+    assert not _maps_edit(data, {"lights": {}}) and not _maps_edit(data, {"heights_set": []})
+
+
+@pytest.mark.parametrize("who, furniture, whole", [("pro", True, True), ("maps", True, False), ("audio", False, False)])
+def test_removing_all_furniture_is_maps_too_the_whole_house_pro(disk, tmp_path, who, furniture, whole) -> None:
+    from custom_components.padspan_ha import ws_house3d as W
+    from tests.test_house3d_store import _run
+
+    def clear(only):
+        h, conn = _maps_house(tmp_path, who)
+        _run(W.ws_house3d_clear(h, conn, {"id": 3, **({"only": only} if only else {})}))
+        return not (conn.send_error.called and conn.send_error.call_args[0][1] == W.OFF_CODE)
+    assert clear("pieces") is furniture and clear(None) is whole
+
+
+@pytest.mark.parametrize("who, allowed", [("pro", True), ("maps", True), ("audio", False), ("free", False)])
+def test_reading_a_plans_stairs_is_ai_plan_reading(disk, tmp_path, who, allowed) -> None:
+    from custom_components.padspan_ha import ws_house3d as W
+    from custom_components.padspan_ha import ws_house3d_stairs as WS
+    h, conn = _maps_house(tmp_path, who)
+    WS._refused(h, conn, {"id": 4})
+    refused_for_tier = conn.send_error.called and conn.send_error.call_args[0][1] == W.OFF_CODE
+    assert refused_for_tier is not allowed
+
+
+def test_an_add_on_key_is_offered_the_trial_on_every_surface() -> None:
+    """The sidebar's trial card reads addon_key (trial_offer.js trialOfferable), and the rooms helper's facts follow the
+    same rule (an add-on key is kept aside for the trial)."""
+    assert "this.state._trialSettings = { pro_has_key: s.pro_has_key, addon_key: s.addon_key, tier: s.tier," in _src("lights_panel.js")
+    aw = (_PKG / "ai_wizard.py").read_text(encoding="utf-8")
+    assert ('"trial_offerable": trial_offerable(bool(str(settings.get("forensics_license_key") or "").strip())\n'
+            '                                                             and not is_addon_key(settings), tier),') in aw
+    from custom_components.padspan_ha import ai_wizard as AW
+    addon = _addon_key("audio")
+    assert licence.is_addon_key(addon)
+    assert AW.trial_offerable(bool(addon["forensics_license_key"]) and not licence.is_addon_key(addon), licence.key_tier(addon))
+    assert not AW.trial_offerable(bool(_PRO_KEY["forensics_license_key"]) and not licence.is_addon_key(_PRO_KEY), "free")
+
+
+def test_pro_keeps_its_add_ons_when_editions_fails_to_load(tmp_path) -> None:
+    """panel.js _addon and devices.js fall back to the tier, so a Pro house keeps Day, the themes, the Wi-Fi tab and
+    Door Openers if editions.js can't load; nobody else gets anything from the fallback."""
+    panel = _src("panel.js")
+    assert 'if (!(EDITIONS && EDITIONS.addonAllowed)) return String(s.tier || "").toLowerCase() === "pro";' in panel
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    for name in ("devices.js", "device_name.js", "i18n.js"):          # no editions.js beside it
+        shutil.copy(_VIEWS / name, tmp_path / ("devices.mjs" if name == "devices.js" else name))
+    shutil.copy(_ROOT / "tests" / "js" / "dom_shim.mjs", tmp_path / "dom_shim.mjs")
+    (tmp_path / "run.mjs").write_text("""
+import { install } from './dom_shim.mjs';
+install(globalThis);
+const D = await import('./devices.mjs');
+const el = (tag, attrs = {}, children = []) => { const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null && !k.startsWith("on")) n.setAttribute(k, String(v));
+  for (const c of [].concat(children)) if (c != null) n.appendChild(typeof c === "object" ? c : document.createTextNode(String(c)));
+  return n; };
+const out = {};
+for (const tier of ["pro", "free"]) {
+  const ctx = { helpers: { el }, state: { settings: { tier }, _devicesTab: "openers" }, hass: { states: {} },
+    actions: { renderRooms: () => {} }, toast: () => {} };
+  out[tier] = (D.render(ctx).textContent || "").includes("Door Openers needs PadSpan Pro");
+}
+console.log(JSON.stringify(out));
+""", encoding="utf-8")
+    r = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert json.loads(r.stdout.strip().splitlines()[-1]) == {"pro": False, "free": True}

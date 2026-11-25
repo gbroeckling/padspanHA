@@ -633,8 +633,9 @@ def test_the_button_can_be_hidden_in_settings():
             "s.atlas_emergency_button === false;") in lp
     # Hidden, the test's button goes; the house's alarm inside the button stays (the button for the alarm alone;
     # nothing at all without one, as before).
-    assert ("const lights = this._alarmControls() && !!(s && s.available) && "
-            "!(this.state._emergButtonHidden && !(s.test && s.test.active));") in lp
+    assert "const running = !!(s && s.test && s.test.active);" in lp
+    assert ("const lights = (this._alarmControls() || running) && !!(s && s.available) && "
+            "!(this.state._emergButtonHidden && !running);") in lp
     assert "if(!lights && !alarm) return null;" in lp
 
 
@@ -701,12 +702,22 @@ def test_the_test_force_off_and_the_list_need_alarm_and_security(monkeypatch, ke
     assert "https://padspan.traks.ca/#addons" in ET.ADDON_MESSAGE
 
 
-def test_a_running_test_can_always_be_ended(monkeypatch):
-    """A test started while the install had the add-on can be ended after it lapsed: the lights it turned on are
-    never left on for want of a key."""
+@pytest.mark.parametrize("how", ["end", "force_off"])
+def test_a_running_test_can_always_be_ended_or_forced_off(monkeypatch, how):
+    """A test started while the install had the add-on (it outlives a restart and a lapsed key) can be ended, or
+    forced off, without it: the lights it turned on are never left on for want of a key (the review, 2026-11-25).
+    With no test running, Force off is the add-on's again."""
     h = _live_house(monkeypatch, settings=_PRO)
     _run(ET.async_test(h.hass, True))
     h.settings.data = {}
     out, errors = [], []
-    _run(ET.ws_emergency_test(h.hass, _conn(out, errors), {"id": 5, "type": "padspan_ha/emergency_test", "on": False}))
+    if how == "end":
+        _run(ET.ws_emergency_test(h.hass, _conn(out, errors), {"id": 5, "type": "padspan_ha/emergency_test", "on": False}))
+    else:
+        _run(ET.ws_emergency_force_off(h.hass, _conn(out, errors), {"id": 5, "type": "padspan_ha/emergency_force_off"}))
     assert errors == [] and out[-1]["test"]["active"] is False
+    _run(ET.ws_emergency_force_off(h.hass, _conn(out, errors), {"id": 6, "type": "padspan_ha/emergency_force_off"}))
+    assert errors == [ET.ADDON_CODE]
+    # A light's own switch stays the add-on's, test or not.
+    _run(ET.ws_emergency_member(h.hass, _conn(out, errors), {"id": 7, "entity_id": "light.a1_slwf_09", "on": False}))
+    assert errors == [ET.ADDON_CODE] * 2

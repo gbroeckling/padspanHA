@@ -50,7 +50,8 @@ switches are PadSpan Pro's and the Alarm & security add-on's (ADDON,
 licence.addon_allowed), and a Bright key keeps them (licensed); without them
 each is refused with ADDON_MESSAGE. The
 status is answered to everyone (it only reads), and a test already running can
-always be ended, so lights a test turned on are never left on for want of a key.
+always be ended or forced off, so lights a test turned on are never left on for
+want of a key.
 """
 
 import asyncio
@@ -477,7 +478,7 @@ async def ws_emergency_test(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({"type": "padspan_ha/emergency_force_off"})
 @websocket_api.async_response
 async def ws_emergency_force_off(hass: HomeAssistant, connection, msg) -> None:
-    if not licensed(hass):
+    if not licensed(hass) and not (await async_get_store(hass)).data.get("active"):   # a running test: always
         connection.send_error(msg["id"], ADDON_CODE, ADDON_MESSAGE)
         return
     ctx = connection.context(msg)

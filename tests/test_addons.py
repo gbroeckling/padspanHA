@@ -137,12 +137,16 @@ def test_every_validate_says_which_add_ons_this_padspan_knows() -> None:
 
 
 def _wire(monkeypatch, answer):
+    """The licence server answering `answer`; a function: its answer to each request's body (raising: no answer)."""
     class _Resp:
         status = 200
         headers: dict = {}
 
+        def __init__(self, got=None):
+            self.got = answer if got is None else got
+
         async def text(self):
-            return json.dumps(answer)
+            return json.dumps(self.got)
 
         async def __aenter__(self):
             return self
@@ -151,7 +155,8 @@ def _wire(monkeypatch, answer):
             return False
 
     session = MagicMock()
-    session.post = MagicMock(return_value=_Resp())
+    session.post = (MagicMock(side_effect=lambda *a, **kw: _Resp(answer(kw["data"]))) if callable(answer)
+                    else MagicMock(return_value=_Resp()))
     mod = types.ModuleType("homeassistant.helpers.aiohttp_client")
     mod.async_get_clientsession = lambda hass: session
     monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", mod)
@@ -388,23 +393,50 @@ def test_a_trial_keeps_an_add_on_key_aside(monkeypatch) -> None:
     assert _start_trial(monkeypatch, {}).data["license_addons_kept"] == {}
 
 
-@pytest.mark.parametrize("ends_in_days,back", [(-1, True), (30, False)], ids=["the trial has ended", "still running"])
-def test_the_kept_add_on_key_comes_back_when_the_trial_ends(monkeypatch, ends_in_days, back) -> None:
+_TRIAL_KEY = "PSPAN-TRIA-LKEY-AAAA-BBBB"
+
+
+@pytest.mark.parametrize("ends_in_days, said, back", [
+    (-20, "trial", True),       # still a trial, past its date and the 14 days' grace: the add-ons come back
+    (-1, "trial", False),       # past its date, inside the grace: the trial goes on, the add-on key stays aside
+    (30, "trial", False),       # still running
+    (-20, "pro", False),        # bought in place: the server says Pro, so the paid key stays (the review, 2026-11-25)
+    (30, "refused", True),      # refused by the server (a revoked trial): the add-ons come back at once
+    (-20, None, True),          # no answer, and past its date and grace: they come back offline too
+    (-1, None, False),          # no answer, inside the grace: nothing changes
+], ids=["ended", "in its grace", "running", "bought in place", "refused", "offline, ended", "offline, in its grace"])
+def test_the_kept_add_on_key_comes_back_only_once_the_trial_has_ended(monkeypatch, ends_in_days, said, back) -> None:
+    """The trial key is checked first, and its answer decides: an add-on key kept aside for the trial takes its place
+    only once the trial is over (past its date and the grace, or refused), never while a trial that was bought is Pro."""
     from custom_components.padspan_ha.update_check import _revalidate_license
     trial_ends = (datetime.now(timezone.utc) + timedelta(days=ends_in_days)).strftime("%Y-%m-%d %H:%M:%S")
     kept = {k: v for k, v in {**KEY, "forensics_license_expires": LATER, "license_home_token": "h" * 32,
                               "license_homes_used": 2}.items() if k in licence.ADDON_KEY_FIELDS}
-    hass, st = _hass({"forensics_license_key": "PSPAN-TRIA-LKEY-AAAA-BBBB", "forensics_license_expires": trial_ends,
+    hass, st = _hass({"forensics_license_key": _TRIAL_KEY, "forensics_license_expires": trial_ends,
                       "license_tier": "pro", "license_is_trial": True, "license_addons_kept": kept})
-    session = _wire(monkeypatch, ANSWER if back else {"valid": True, "plan": "trial", "tier": "pro", "expires_at": trial_ends})
+    trial = {"trial": {"valid": True, "status": "active", "plan": "trial", "tier": "pro", "expires_at": trial_ends},
+             "pro": {"valid": True, "status": "active", "plan": "pro", "tier": "pro", "expires_at": LATER},
+             "refused": {"valid": False, "status": "revoked", "message": "refunded"}}
+
+    def server(body):
+        if said is None:
+            raise RuntimeError("offline")
+        return ANSWER if body["key"] == KEY["forensics_license_key"] else trial[said]
+    session = _wire(monkeypatch, server)
     asyncio.run(_revalidate_license(hass))
-    sent = session.post.call_args.kwargs["data"]
+    sent = [c.kwargs["data"] for c in session.post.call_args_list]
+    assert sent[0]["key"] == _TRIAL_KEY, "the trial key is checked first"
     if back:
-        assert sent["key"] == KEY["forensics_license_key"] and sent["token"] == "h" * 32, "the add-on key is checked, as its home"
         assert st.data["forensics_license_key"] == KEY["forensics_license_key"] and st.data["license_is_trial"] is False
-        assert st.data["license_tier"] == "free" and st.data["license_addons"] == ["audio"] and st.data["license_addons_kept"] == {}
+        assert st.data["license_addons"] == ["audio"] and st.data["license_addons_kept"] == {}
+        if said is not None:
+            assert len(sent) == 2 and sent[1]["key"] == KEY["forensics_license_key"] and sent[1]["token"] == "h" * 32, \
+                "then the add-on key is checked, as its home"
+            assert st.data["license_tier"] == "free"
     else:
-        assert sent["key"] == "PSPAN-TRIA-LKEY-AAAA-BBBB" and st.data["license_addons_kept"] == kept
+        assert len(sent) == 1 and st.data["forensics_license_key"] == _TRIAL_KEY and st.data["license_addons_kept"] == kept
+    if said == "pro":
+        assert st.data["license_is_trial"] is False and st.data["license_tier"] == "pro" and st.data["forensics_license_expires"] == LATER
 
 
 def test_entering_another_key_lets_go_of_a_kept_add_on_key(monkeypatch) -> None:

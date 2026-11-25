@@ -637,7 +637,7 @@ if (Cls) {
   const QUIET = { "alarm_control_panel.house": ST("alarm_control_panel.house", "disarmed", { supported_features: 3, code_format: null }) };
   const TRIG = { "alarm_control_panel.house": ST("alarm_control_panel.house", "triggered", { supported_features: 3, code_format: "number",
       open_sensors: { "binary_sensor.front_door_contact": "on" } }) };
-  const open = async ({ tier = "bright", extra = {}, emerg = true, admin = true, kiosk = false, hidden = false, addons = null }) => {
+  const open = async ({ tier = "bright", extra = {}, emerg = true, admin = true, kiosk = false, hidden = false, addons = null, running = false }) => {
     const settings = { ...BASE, tier, telemetry_enabled: true, pro_has_key: tier !== "free" || !!addons, ...(hidden ? { atlas_emergency_button: false } : {}),
       ...(addons ? { addons_licensed: addons } : {}) };
     const hass = makeHass({ settings, admin, extraStates: STAGE(extra) });
@@ -645,9 +645,10 @@ if (Cls) {
     const sent = [], svc = [], tests = [];
     hass.callWS = async (m) => {
       if (m.type === "padspan_ha/emergency_status") return emerg
-        ? { available: true, source: "group", groups: [], members: [{ entity_id: "light.a", name: "Closet", state: "off" }], test: { active: false, kept_on: [], manual: [] } }
+        ? { available: true, source: "group", groups: [], members: [{ entity_id: "light.a", name: "Closet", state: "off" }], test: { active: running, kept_on: [], manual: [] } }
         : { available: false };
       if (m.type === "padspan_ha/emergency_test") { tests.push(m); return { ok: true, results: [], test: { active: !!m.on } }; }
+      if (m.type === "padspan_ha/emergency_force_off") { tests.push(m); return { ok: true, results: [], available: true, members: [], test: { active: false } }; }
       if (m.type === "padspan_ha/telemetry_event") sent.push(m.event);
       return real(m);
     };
@@ -708,6 +709,19 @@ if (Cls) {
     // Free with another add-on (Audio): the same, nothing of Alarm & security.
     p = await open({ tier: "free", extra: QUIET, addons: ["audio"] });
     alarm.otherAddonNone = p.el._emergencyOverlay() === null && !p.el._alarmControls();
+    p.done();
+    // Free, no add-on, a test still running from before (the review, 2026-11-25): the lights show, so it can be ended
+    // (its centre) and forced off (the card), and the card's list has no light's own switch.
+    p = await open({ tier: "free", running: true });
+    const rc = p.find("lv-emerg-btn")[0];
+    alarm.runningShown = !!rc && p.find("lv-emerg-dial").length === 1;
+    p.el._openEmergencyCard();
+    const rsheet = p.el._emergCard && p.el._emergCard.sheet;
+    const rwords = rsheet ? rsheet._all().filter(n => n.localName === "button").map(n => n.textContent) : [];
+    alarm.runningCard = ["End test", "Force off"].every(w => rwords.includes(w)) && !rwords.includes("Turn on") && !rwords.includes("Turn off");
+    p.el._emergCard && p.el._emergCard.close();
+    if (rc) { rc.click(); await flush(); await flush(); }
+    alarm.runningEnded = p.tests.map(m => m.type + ":" + (m.on === undefined ? "" : m.on));
     p.done();
     // Free with the Alarm & security add-on: as Bright and Pro, the shield and the lights' notch, armed from the card
     // after the question, the lights test below it; never the test from the centre.

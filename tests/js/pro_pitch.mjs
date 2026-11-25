@@ -92,6 +92,11 @@ for (const st of [{ tier: "free" }, { tier: "bright" }, { tier: "free", pro_has_
   check("lifetime card: never for a paid key that is running (Pro, Bright Pro, lifetime)",
     !due({ ...FREE, tier: "pro", pro_has_key: true, pro_active: true }) && !due({ ...FREE, tier: "bright", pro_has_key: true, pro_active: true }));
   check("lifetime card: never once shown", !due({ ...FREE, lifetime_card_done: true }));
+  // An add-on key is not a year of Pro (the review, 2026-11-25): its card would say the key becomes Pro for life.
+  check("lifetime card: never for a running add-on key",
+    !due({ ...FREE, pro_has_key: true, addon_key: true, pro_active: true, pro_days_left: 700 })
+    && !E.launchCardAnnual({ pro_has_key: true, addon_key: true, pro_active: true, pro_days_left: 700 })
+    && E.launchCardAnnual({ pro_has_key: true, pro_active: true, pro_days_left: 300 }));
   check("lifetime card: shown once more where the November 30 card was seen", due({ ...FREE, launch_card_done: true }));
   const old = { ...FREE }; delete old.lifetime_card_done;
   const unloaded = { ...FREE }; delete unloaded.pro_has_key;

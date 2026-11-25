@@ -3720,9 +3720,11 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   /** Whether this install may use add-on `name` (views/editions.js addonAllowed, the backend's own answer):
-   *  PadSpan Pro has them all. No editions module (it failed to load): no. */
+   *  PadSpan Pro has them all. No editions module (it failed to load): Pro still has them, nothing else does. */
   _addon(name){
-    return !!(EDITIONS && EDITIONS.addonAllowed && EDITIONS.addonAllowed(this.state.settings || {}, name));
+    const s = this.state.settings || {};
+    if (!(EDITIONS && EDITIONS.addonAllowed)) return String(s.tier || "").toLowerCase() === "pro";
+    return !!EDITIONS.addonAllowed(s, name);
   }
 
   /** Setup in the menu (owner's D4, 2026-11-13; review 2026-11-11): at the
