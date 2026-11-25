@@ -57,7 +57,7 @@ const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
 const OPTIMISTIC_MS = 3000;
 
 /** A name as two systems may both write it: lower case, no apostrophes, spaces or punctuation
- *  (Control4's "Garry's office" and the map's "Garry's Office" are one). */
+ *  (Control4's "Alex's office" and the map's "Alex's Office" are one). */
 export const norm = (s) => String(s || "").toLowerCase().replace(/[’‘'`´]/g, "").replace(/[^\p{L}\p{N}]+/gu, "");
 
 const features = (st) => Number((st && st.attributes && st.attributes.supported_features) || 0);
