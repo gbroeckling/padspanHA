@@ -619,12 +619,17 @@ if (Cls) {
   } catch (e) { fail("a saved floor when the page opens", "lifecycle", e); }
 }
 
-// The house's alarm on the emergency button (views/alarm_panel.js), through
-// the panel itself: no alarm panel and the button is the same DOM as before
-// (and so is a free house's with a quiet alarm); Bright and Pro show its
-// state and arm from it, after asking; free shows only an alarm going off,
-// with nothing to press; a house with no emergency lights gets the chip
-// alone; a wall screen and a non-admin arm as they unlock; counted once.
+// The house's alarm inside the emergency button (views/alarm_panel.js),
+// through the panel itself (the owner, 2026-11-24: "put it in the emergency
+// button on the top right of the screen inside the button there"): no alarm
+// panel and the button is the same DOM as before (and so is a free house's
+// with a quiet alarm); Bright and Pro: the button's centre is the alarm's
+// shield, nothing beside the dial, and a press opens the button's card with
+// the alarm on top and the emergency lights below, arming only after the
+// question, never starting the lighting test; free shows only an alarm going
+// off, with nothing to press; a house with no emergency lights gets the
+// button for the alarm alone; a wall screen and a non-admin arm as they
+// unlock; counted once.
 const alarm = {};
 if (Cls) {
   const tree = (n) => (n ? { tag: n.localName, a: n.attributes, html: n._html || "", text: n._text || "", kids: (n.children || []).map(tree) } : null);
@@ -636,11 +641,12 @@ if (Cls) {
     const settings = { ...BASE, tier, telemetry_enabled: true, pro_has_key: tier !== "free", ...(hidden ? { atlas_emergency_button: false } : {}) };
     const hass = makeHass({ settings, admin, extraStates: STAGE(extra) });
     const real = hass.callWS;
-    const sent = [], svc = [];
+    const sent = [], svc = [], tests = [];
     hass.callWS = async (m) => {
       if (m.type === "padspan_ha/emergency_status") return emerg
         ? { available: true, source: "group", groups: [], members: [{ entity_id: "light.a", name: "Closet", state: "off" }], test: { active: false, kept_on: [], manual: [] } }
         : { available: false };
+      if (m.type === "padspan_ha/emergency_test") { tests.push(m); return { ok: true, results: [], test: { active: !!m.on } }; }
       if (m.type === "padspan_ha/telemetry_event") sent.push(m.event);
       return real(m);
     };
@@ -652,7 +658,7 @@ if (Cls) {
     await el._boot(); await flush(); await flush();
     el._render(); el._render();
     const find = (cls) => el.shadowRoot.querySelector("#content")._all().filter(n => (n.className || "").split(" ").includes(cls));
-    return { el, hass, sent, svc, find, done: () => { el.disconnectedCallback(); if (kiosk) delete globalThis.location; } };
+    return { el, hass, sent, svc, tests, find, done: () => { el.disconnectedCallback(); if (kiosk) delete globalThis.location; } };
   };
   const bodyAll = () => document.body._all();
   const askBox = () => bodyAll().filter(n => n.attributes && n.attributes.role === "alertdialog").pop() || null;
@@ -661,74 +667,98 @@ if (Cls) {
     if (!b) throw new Error(`no "${label}" button`);
     b.click(); await flush(); await flush();
   };
-  const armFrom = async (p) => {
-    p.find("lv-alarm")[0].click();
+  // The button's centre opens its card: the alarm on top (and the emergency lights below, where the house has them).
+  const openCard = async (p) => {
+    p.find("lv-emerg-alarm")[0].click();
     await flush();
-    const card = bodyAll().find(n => n.className === "ps-alarm-card");
-    await press(card, "Arm away");
+    const sheet = p.el._emergCard && p.el._emergCard.sheet;
+    const section = sheet && sheet._all().find(n => n.className === "ps-alarm-card");
+    const words = sheet ? sheet._all().filter(n => n.localName === "button").map(n => n.textContent) : [];
+    return { sheet, section, alarmFirst: !!section && sheet.children[1] === section, lights: words.includes("Start test") };
+  };
+  const armFrom = async (p) => {
+    const c = await openCard(p);
+    await press(c.section, "Arm away");
     const asked = !!askBox() && p.svc.length === 0;
     await press(askBox(), "Arm away");
-    return { asked, card: !!card, links: card ? card._all().filter(n => n.localName === "a").length : -1, svc: p.svc.map(c => `${c.domain}.${c.service}:${c.entity_id}`) };
+    return { asked, card: !!c.section, alarmFirst: c.alarmFirst, lights: c.lights, noTest: p.tests.length === 0,
+      links: c.section ? c.section._all().filter(n => n.localName === "a").length : -1,
+      svc: p.svc.map(x => `${x.domain}.${x.service}:${x.entity_id}`) };
   };
   try {
     // No alarm panel: the overlay is exactly what it was (the alarm's path made to say nothing gives the same).
     let p = await open({});
     const real = JSON.stringify(tree(p.el._emergencyOverlay()));
-    const chip = p.el._alarmChip;
-    p.el._alarmChip = () => null;
+    const sum = p.el._alarmSummary;
+    p.el._alarmSummary = () => null;
     alarm.noPanelSame = real === JSON.stringify(tree(p.el._emergencyOverlay()));
-    p.el._alarmChip = chip;
-    alarm.noPanelChip = p.find("lv-alarm").length;
+    p.el._alarmSummary = sum;
+    alarm.noPanelAlarm = p.find("lv-emerg-alarm").length;
     alarm.noPanelSent = p.sent.filter(e => e.startsWith("alarm_button:"));
     p.done();
-    // Free, a quiet alarm: the same overlay again, byte for byte.
+    // Free, a quiet alarm: the same overlay again, byte for byte, and no alarm in the button's card.
     p = await open({ tier: "free", extra: QUIET });
     alarm.freeQuietSame = real === JSON.stringify(tree(p.el._emergencyOverlay()));
-    p.el._openAlarmCard();
-    alarm.freeCard = !!p.el._alarmCard;
+    p.el._openEmergencyCard();
+    alarm.freeCard = !!(p.el._emergCard && p.el._emergCard.sheet._all().find(n => n.className === "ps-alarm-card"));
+    p.el._emergCard && p.el._emergCard.close();
     p.done();
     // No emergency lights and no alarm: no button at all, as before.
     p = await open({ emerg: false });
     alarm.noLightsNoPanel = p.el._emergencyOverlay() === null && p.find("lv-emerg-anchor").length === 0;
     p.done();
-    // Bright, one alarm: its state beside the dial; arm away from it, after the question.
+    // Bright, one alarm: the centre is its shield, inside the dial, nothing beside it; armed from the card, after the question.
     p = await open({ extra: QUIET });
-    const c = p.find("lv-alarm")[0];
-    alarm.brightChip = c ? [c.localName, c.textContent, c.className] : null;
-    alarm.brightBeside = !!c && p.find("lv-emerg")[0].children.includes(c) && p.find("lv-emerg-dial").length === 1;
+    const c = p.find("lv-emerg-alarm")[0];
+    alarm.brightCentre = c ? [c.localName, c.className, c.attributes["aria-label"]] : null;
+    const dial = p.find("lv-emerg-dial")[0];
+    alarm.brightInside = !!c && !!dial && dial.children.includes(c) && p.find("lv-emerg-dial").length === 1
+      && p.find("lv-emerg")[0].children.every(n => !(n.className || "").includes("alarm"));
+    // Both: the emergency ring as it is, with its list notch, the shield as its centre.
+    const br = p.find("lv-emerg-ring")[0];
+    alarm.bothLook = br ? [br.className, br.attributes["aria-label"], p.find("lv-emerg-notch").length] : null;
     const anchor = p.find("lv-emerg-anchor")[0];
     alarm.brightBeforeStage = !!anchor && anchor.nextSibling === p.find("lv-stage")[0];
     alarm.brightArm = await armFrom(p);
     p.el._render(); p.el._render();
     alarm.brightSent = p.sent.filter(e => e.startsWith("alarm_button:"));
-    p.el._alarmCard && p.el._alarmCard.close();
+    p.el._emergCard && p.el._emergCard.close();
     p.done();
     // Pro too.
     p = await open({ tier: "pro", extra: QUIET });
-    alarm.proChip = p.find("lv-alarm").map(n => n.localName);
+    alarm.proCentre = p.find("lv-emerg-alarm").map(n => n.localName);
     p.done();
-    // Free, the alarm going off: said, with the sensor, nothing to press.
+    // Free, the alarm going off: the shield in red, and the card says it, with the sensor, nothing to press.
     p = await open({ tier: "free", extra: TRIG });
-    const f = p.find("lv-alarm")[0];
-    alarm.freeTriggered = f ? [f.localName, f.attributes.role, f.textContent, f._all().filter(n => n.localName === "button").length] : null;
+    const f = p.find("lv-emerg-alarm")[0];
+    const fc = f ? await openCard(p) : null;
+    alarm.freeTriggered = f ? [f.className.includes("lv-emerg-alarm-triggered"), f.attributes["aria-label"],
+      !!fc.section && fc.section.textContent.includes("Set off by front door contact"), fc.section ? fc.section._all().filter(n => n.localName === "button").length : -1] : null;
+    p.el._emergCard && p.el._emergCard.close();
     p.done();
-    // A house with no emergency lights: the chip alone, at the same corner; and with the test's button hidden in Settings.
+    // A house with no emergency lights: the button for the alarm alone, at the same corner; and with the test's button hidden in Settings.
     p = await open({ emerg: false, extra: QUIET });
-    alarm.aloneChip = p.find("lv-emerg-dial").length === 0 && p.find("lv-alarm").length === 1 && p.find("lv-emerg-anchor").length === 1;
+    // Its own look: a plain ring in the alarm's colour, no emergency stripes' class change and no list notch.
+    const ar = p.find("lv-emerg-ring")[0];
+    alarm.aloneLook = ar ? [ar.className, ar.attributes["aria-label"], p.find("lv-emerg-notch").length] : null;
+    const ac = p.find("lv-emerg-alarm").length === 1 ? await openCard(p) : null;
+    alarm.aloneButton = p.find("lv-emerg-dial").length === 1 && p.find("lv-emerg-anchor").length === 1
+      && !!ac && !!ac.section && !ac.lights;
+    p.el._emergCard && p.el._emergCard.close();
     p.done();
     p = await open({ hidden: true, extra: QUIET });
-    alarm.hiddenTestChip = p.find("lv-emerg-dial").length === 0 && p.find("lv-alarm").length === 1;
+    alarm.hiddenTestButton = p.find("lv-emerg-dial").length === 1 && p.find("lv-emerg-alarm").length === 1;
     p.done();
     // A wall screen (?kiosk=1) and a non-admin arm as they unlock a door, and nothing on the card leaves the page.
     p = await open({ extra: QUIET, kiosk: true });
     alarm.wallArm = await armFrom(p);
-    p.el._alarmCard && p.el._alarmCard.close();
+    p.el._emergCard && p.el._emergCard.close();
     p.done();
     p = await open({ extra: QUIET, admin: false });
     alarm.nonAdminArm = await armFrom(p);
-    p.el._alarmCard && p.el._alarmCard.close();
+    p.el._emergCard && p.el._emergCard.close();
     p.done();
-  } catch (e) { fail("alarm on the emergency button", "lifecycle", e); }
+  } catch (e) { fail("alarm inside the emergency button", "lifecycle", e); }
 }
 
 process.stdout.write(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor, alarm }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

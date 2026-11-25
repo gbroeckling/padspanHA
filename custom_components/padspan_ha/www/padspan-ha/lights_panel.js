@@ -644,57 +644,89 @@ class PadSpanLightsApp extends HTMLElement {
   // The floating button: a red centre (start/end the test) inside a ring of
   // its own (the card of every emergency light), the notch on the ring
   // marking it as the list.
+  //
+  // The house's alarm is inside this button (the owner, 2026-11-24: "put it
+  // in the emergency button on the top right of the screen inside the button
+  // there"): the centre is the alarm's shield in its state's colour, and the
+  // centre and the ring both open the button's card, the alarm on top. The
+  // test then starts from the card, so a hand going for the alarm never
+  // starts it. The button changes with what the house has (the owner,
+  // 2026-11-24: "Have the button change if there are no emergency lights, or
+  // if there is no alarm"): no alarm panel, the emergency lighting button
+  // exactly as before; an alarm and no emergency lights, the alarm's own
+  // button, a plain ring in its colour (no emergency stripes, no list notch);
+  // both, the emergency ring with the alarm's shield as its centre.
   _emergencyOverlay(){
     const s = this.state._emerg;
-    // The house's alarm (_alarmChip): beside the dial, or in its place on a
-    // house with no emergency lights. No alarm panel: nothing, as before.
-    const alarm = this._alarmChip();
-    const alone = alarm ? el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg"},[alarm])]) : null;
-    if(!s || !s.available) return alone;
+    const alarm = this._alarmSummary();
     // Settings → UI Structure → "Show the Test emergency lighting button".
     // Hidden only while idle: a test running (started here or elsewhere)
     // always shows, so it can be seen and ended. The alarm is not the test:
     // it stays.
-    if(this.state._emergButtonHidden && !(s.test && s.test.active)) return alone;
-    const active = !!(s.test && s.test.active);
-    const busy = !!this._emergBusy;
-    const name = {};
-    for(const m of s.members || []) name[m.entity_id] = m.name || m.entity_id;
-    const kept = ((s.test && s.test.kept_on) || []).map(e=>name[e]||e).join(", ");
-    const title = busy ? t("Switching the emergency lights…") : active
-      ? t("Emergency lighting test on — tap to end") + (kept ? "\n" + t("Already on, will stay on: {names}", { names: kept }) : "")
-      : t("Test emergency lighting");
-    const icon = el("span",{class:"lv-emerg-icon"});
-    icon.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" '
-      + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18v-5a5 5 0 0 1 10 0v5"/>'
-      + '<path d="M5 18h14v3H5z"/><path d="M12 2v2M4.9 5.4l1.4 1.4M19.1 5.4l-1.4 1.4M2 12h2M20 12h2"/></svg>';
+    const lights = !!(s && s.available) && !(this.state._emergButtonHidden && !(s.test && s.test.active));
+    if(!lights && !alarm) return null;
+    const active = lights && !!(s.test && s.test.active);
+    const busy = lights && !!this._emergBusy;
     const notch = el("span",{class:"lv-emerg-notch"});
     notch.innerHTML = '<svg viewBox="0 0 8 8" width="8" height="8" stroke="currentColor" stroke-width="1" '
       + 'stroke-linecap="round" aria-hidden="true"><path d="M1.5 1.5h5M1.5 4h5M1.5 6.5h5"/></svg>';
+    const alarmOnly = !lights;
     const ring = el("button",{
-      class: "lv-emerg-ring", title: t("Emergency lights — list and controls"), "aria-label": t("Emergency lights: list and controls"),
+      class: "lv-emerg-ring" + (alarmOnly ? " lv-emerg-ring-alarm lv-emerg-ring-alarm-" + alarm.kind : ""),
+      title: alarmOnly ? alarm.label : alarm ? t("Alarm and emergency lights") : t("Emergency lights — list and controls"),
+      "aria-label": alarmOnly ? alarm.label : alarm ? t("Alarm and emergency lights") : t("Emergency lights: list and controls"),
       // The card is rebuilt every poll: keep the pulse's phase continuous.
       style: active ? `animation-delay:-${(Date.now() % 1600) / 1000}s` : null,
       onclick: ()=>this._openEmergencyCard(),
-    },[notch]);
-    const centre = el("button",{
-      class: "lv-emerg-btn", title, "aria-label": title, "aria-pressed": active ? "true" : "false",
-      "aria-busy": busy ? "true" : null,
-      onclick: ()=>this._emergencyToggle(),
-    },[icon]);
+    }, alarmOnly ? [] : [notch]);
+    let centre, labelText, labelIcon, labelGo;
+    if(alarm){
+      const shield = el("span",{class:"lv-emerg-icon"});
+      shield.innerHTML = ALARM.SHIELD;
+      centre = el("button",{
+        class: "lv-emerg-btn lv-emerg-alarm lv-emerg-alarm-" + alarm.kind, title: alarm.title, "aria-label": alarm.label,
+        "aria-busy": busy ? "true" : null,
+        onclick: ()=>this._openEmergencyCard(),
+      },[shield]);
+    } else {
+      const name = {};
+      for(const m of s.members || []) name[m.entity_id] = m.name || m.entity_id;
+      const kept = ((s.test && s.test.kept_on) || []).map(e=>name[e]||e).join(", ");
+      const title = busy ? t("Switching the emergency lights…") : active
+        ? t("Emergency lighting test on — tap to end") + (kept ? "\n" + t("Already on, will stay on: {names}", { names: kept }) : "")
+        : t("Test emergency lighting");
+      const icon = el("span",{class:"lv-emerg-icon"});
+      icon.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18v-5a5 5 0 0 1 10 0v5"/>'
+        + '<path d="M5 18h14v3H5z"/><path d="M12 2v2M4.9 5.4l1.4 1.4M19.1 5.4l-1.4 1.4M2 12h2M20 12h2"/></svg>';
+      centre = el("button",{
+        class: "lv-emerg-btn", title, "aria-label": title, "aria-pressed": active ? "true" : "false",
+        "aria-busy": busy ? "true" : null,
+        onclick: ()=>this._emergencyToggle(),
+      },[icon]);
+    }
     // The label: an icon alone on a narrow map (styles.css), so Force off
-    // never slides under the rail.
-    const labelText = busy ? t("Switching…") : active ? t("Test on — tap to end") : t("Test emergency lighting");
-    const labelIcon = el("span",{class:"lv-emerg-label-ic", "aria-hidden":"true"});
-    if(busy) labelIcon.textContent = "…";
-    else labelIcon.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">'
-      + '<rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+    // never slides under the rail. With an alarm and no test running it says
+    // the alarm's state, and opens the card as the button does.
     const shown = active || busy;
+    if(alarm && !shown){
+      labelText = alarm.label;
+      labelIcon = el("span",{class:"lv-emerg-label-ic", "aria-hidden":"true"});
+      labelIcon.innerHTML = ALARM.SHIELD;
+      labelGo = ()=>this._openEmergencyCard();
+    } else {
+      labelText = busy ? t("Switching…") : active ? t("Test on — tap to end") : t("Test emergency lighting");
+      labelIcon = el("span",{class:"lv-emerg-label-ic", "aria-hidden":"true"});
+      if(busy) labelIcon.textContent = "…";
+      else labelIcon.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">'
+        + '<rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+      labelGo = ()=>this._emergencyToggle();
+    }
     const kids = [
       el("div",{class:"lv-emerg-dial" + (active ? " on" : "")},[ring, centre]),
       el("button",{class:"lv-emerg-label" + (shown ? " on" : ""), tabindex: shown ? null : "-1",
         "aria-hidden": shown ? null : "true", "aria-label": labelText, title: labelText,
-        onclick: ()=>this._emergencyToggle()},
+        onclick: labelGo},
         [labelIcon, el("span",{class:"lv-emerg-label-tx"}, labelText)]),
     ];
     const armed = this._emergArmed();
@@ -704,24 +736,22 @@ class PadSpanLightsApp extends HTMLElement {
         : t("Turn off every emergency light, including the ones that were already on"),
       onclick: ()=>this._emergencyForceOff(),
     }, armed ? t("Tap again") : t("Force off")));
-    if(alarm) kids.push(alarm);
     return el("div",{class:"lv-emerg-anchor"},[el("div",{class:"lv-emerg" + (busy ? " busy" : ""),
       "aria-busy": busy ? "true" : null},kids)]);
   }
 
-  // ── The house's alarm on the emergency button (views/alarm_panel.js) ──────
-  // Its state on Bright and Pro, and the card that arms and disarms it. On
-  // the free tier only an alarm going off, said: a safety alert is free.
-  // Read from this page's hass at every draw (the 5 s poll), never stored.
+  // ── The house's alarm inside the emergency button (views/alarm_panel.js) ──
+  // Its state and Arm/Disarm on Bright and Pro. On the free tier only an
+  // alarm going off, said: a safety alert is free. Read from this page's hass
+  // at every draw (the 5 s poll), never stored.
   _alarmControls(){ return ["bright","pro"].includes(String(this.state._tier||"").toLowerCase()); }
-  _alarmChip(){
+  _alarmSummary(){
     if(!ALARM) return null;
     const states = (this._hass && this._hass.states) || {};
-    const panels = ALARM.alarmPanels(states);
     const controls = this._alarmControls();
-    const chip = ALARM.alarmChip({ el, panels, states, controls, onOpen: ()=>this._openAlarmCard() });
-    if(chip && controls && !this._alarmShownSaid){ this._alarmShownSaid = true; this._alarmCount("shown"); }
-    return chip;
+    const sum = ALARM.alarmSummary({ panels: ALARM.alarmPanels(states), states, controls });
+    if(sum && controls && !this._alarmShownSaid){ this._alarmShownSaid = true; this._alarmCount("shown"); }
+    return sum;
   }
   // The opt-in report: alarm_button:shown / arm / disarm / refused, counts
   // only (telemetry.py ALARM_BUTTON_EVENTS), never a code or a name.
@@ -729,22 +759,9 @@ class PadSpanLightsApp extends HTMLElement {
     if(!this.state._telemetryOn || !this._hass) return;
     Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:"alarm_button:" + word })).catch(()=>{});
   }
-  _openAlarmCard(){
-    if(this._alarmCard || !ALARM || !this._alarmControls()) return;
-    this._alarmCard = ALARM.openAlarmCard({
-      el,
-      states: ()=>(this._hass && this._hass.states) || {},
-      call: (service, data)=>this._hass.callService(ALARM.DOMAIN, service, data),
-      ask: confirmAsk,
-      toast: (m, e)=>this._toast(m, e),
-      errorText: (e)=>this._errorText(e),
-      count: (w)=>this._alarmCount(w),
-      keys: KEYS,
-      onClose: ()=>{ this._alarmCard = null; },
-    });
-  }
 
-  // The card behind the ring: every emergency light, its state and tags, a
+  // The card behind the button: the house's alarm on top (views/alarm_panel.js
+  // alarmSection), then every emergency light, its state and tags, a
   // switch each, and a light's own Atlas controls. On document.body like the
   // Atlas sheets (so styled inline). Refilled on a render only when what it
   // shows changed, and never while a finger is down on it — a rebuild under
@@ -762,9 +779,20 @@ class PadSpanLightsApp extends HTMLElement {
       + `border-radius:${desktop ? "16px" : "18px 18px 0 0"};color:#e2e8f0;font-family:Inter,system-ui,sans-serif;`
       + "box-shadow:0 -12px 50px rgba(0,0,0,.6)"});
     overlay.appendChild(sheet);
+    // The house's alarm, on top. Bright and Pro arm and disarm it; free sees
+    // it only while it goes off.
+    const alarm = ALARM ? ALARM.alarmSection({
+      el, controls: this._alarmControls(),
+      states: ()=>(this._hass && this._hass.states) || {},
+      call: (service, data)=>this._hass.callService(ALARM.DOMAIN, service, data),
+      ask: confirmAsk,
+      toast: (m, e)=>this._toast(m, e),
+      errorText: (e)=>this._errorText(e),
+      count: (w)=>this._alarmCount(w),
+    }) : null;
     // Escape does what ✕ does, Tab stays in the card, the focus goes back (views/dialog_keys.js).
     let release = ()=>{};
-    const close = ()=>{ overlay.remove(); this._emergCard = null; release(); };
+    const close = ()=>{ overlay.remove(); this._emergCard = null; if(alarm) alarm.close(); release(); };
     overlay.addEventListener("click", e=>{ if(e.target === overlay) close(); });
     let down = false, shown = null;
     overlay.addEventListener("pointerdown", ()=>{ down = true; });
@@ -776,7 +804,7 @@ class PadSpanLightsApp extends HTMLElement {
       const states = (this._hass && this._hass.states) || {};
       return JSON.stringify([s ? { ...s, results: undefined } : null,
         ((s && s.members) || []).map(m => states[m.entity_id] ? states[m.entity_id].state : m.state),
-        !!this._emergBusy, this._emergArmed()]);
+        !!this._emergBusy, this._emergArmed(), alarm ? alarm.shows() : null]);
     };
     const act = "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
       + "background:rgba(255,255,255,.03);border:1px solid rgba(252,165,165,.3);color:rgba(254,226,226,.85)";
@@ -784,8 +812,20 @@ class PadSpanLightsApp extends HTMLElement {
       + "font-size:10px;font-weight:700;letter-spacing:.04em;white-space:nowrap;" + style}, text);
     const fill = ()=>{
       const s = this.state._emerg;
-      if(!s || !s.available){ close(); return; }
+      const lights = !!(s && s.available);
+      const withAlarm = !!alarm && !alarm.empty();
+      if(!lights && !withAlarm){ close(); return; }
       shown = shows();
+      if(withAlarm){
+        while(sheet.firstChild) sheet.removeChild(sheet.firstChild);
+        sheet.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px"},[
+          el("div",{style:"font-weight:800;font-size:16px;letter-spacing:-.01em"},t("Emergency")),
+          el("button",{style:act, title:t("Close"), onclick:close},"✕"),
+        ]));
+        alarm.fill();
+        sheet.appendChild(alarm.node);
+        if(!lights) return;
+      }
       const test = s.test || {};
       const active = !!test.active;
       const busy = !!this._emergBusy;
@@ -795,14 +835,21 @@ class PadSpanLightsApp extends HTMLElement {
       const from = s.source === "group" ? t("From {groups}", { groups: groupNames.join(" " + t("and") + " ") })
         : s.source === "settings" ? t("From the emergency lights setting")
         : t("WLED lights named Emergency");
-      while(sheet.firstChild) sheet.removeChild(sheet.firstChild);
-      sheet.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px"},[
-        el("div",{},[
-          el("div",{style:"font-weight:800;font-size:16px;letter-spacing:-.01em"},t("Emergency lights")),
-          el("div",{style:"font-size:12px;color:rgba(226,240,232,.5);margin-top:2px"}, from),
-        ]),
-        el("button",{style:act, title:t("Close"), onclick:close},"✕"),
+      // Under the alarm, the lights' own heading (the ✕ is on the card's top line).
+      if(withAlarm) sheet.appendChild(el("div",{style:"margin-bottom:10px"},[
+        el("div",{style:"font-weight:800;font-size:14px;letter-spacing:-.01em"},t("Emergency lights")),
+        el("div",{style:"font-size:12px;color:rgba(226,240,232,.5);margin-top:2px"}, from),
       ]));
+      else {
+        while(sheet.firstChild) sheet.removeChild(sheet.firstChild);
+        sheet.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px"},[
+          el("div",{},[
+            el("div",{style:"font-weight:800;font-size:16px;letter-spacing:-.01em"},t("Emergency lights")),
+            el("div",{style:"font-size:12px;color:rgba(226,240,232,.5);margin-top:2px"}, from),
+          ]),
+          el("button",{style:act, title:t("Close"), onclick:close},"✕"),
+        ]));
+      }
       const dim = busy ? ";opacity:.55;cursor:progress" : "";
       sheet.appendChild(el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px",
         "aria-busy": busy ? "true" : null},[
@@ -993,7 +1040,6 @@ class PadSpanLightsApp extends HTMLElement {
     layChildren(root, parts);
     if(back && !KEYS.deepActive()){ back.root=$c; KEYS.refocus(back); }
     if(this._emergCard) this._emergCard.refresh();
-    if(this._alarmCard) this._alarmCard.refresh();
   }
 
   _tipText(){
@@ -1961,7 +2007,6 @@ class PadSpanLightsApp extends HTMLElement {
     this._reconnectsStop = null; this._reconnectsConn = null;
     if(this._screen) this._screen.leave();
     if(this._emergCard) this._emergCard.close();
-    if(this._alarmCard) this._alarmCard.close();
     clearTimeout(this._emergArmTimer);
   }
 }

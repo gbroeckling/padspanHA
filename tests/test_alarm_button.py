@@ -1,10 +1,10 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""The house's alarm on the emergency button (views/alarm_panel.js), RUN (tests/js/alarm_button.mjs).
+"""The house's alarm inside the emergency button (views/alarm_panel.js), RUN (tests/js/alarm_button.mjs).
 
 2026-11-23, the owner: "add the alarm control to the emergency button in the
-top right". Bright and Pro (his choice, 2026-11-24) arm and disarm from it;
+top right"; 2026-11-24: "inside the button there". Bright and Pro (his choice, 2026-11-24) arm and disarm from it;
 an alarm going off is a safety alert, so it shows on every tier, in the red
 emergency banner on every tab. Every arm and disarm asks first, with the
 panel's code when it wants one. The panel itself, booted, is in
@@ -37,7 +37,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["modes", "no-code", "code", "refused", "tripped", "chip", "banner", "german"])
+@pytest.mark.parametrize("case", ["modes", "no-code", "code", "refused", "tripped", "summary", "banner", "german"])
 def test_alarm_button(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -60,7 +60,10 @@ def test_the_counts_are_a_closed_list_and_carry_no_name():
 def test_the_controls_are_bright_or_pro_and_the_banner_every_tier():
     panel = _src("lights_panel.js")
     assert '_alarmControls(){ return ["bright","pro"].includes(String(this.state._tier||"").toLowerCase()); }' in panel
-    assert "if(this._alarmCard || !ALARM || !this._alarmControls()) return;" in panel
+    assert "el, controls: this._alarmControls()," in panel   # the card's alarm part: buttons on Bright and Pro only
+    card = _src("views/alarm_panel.js")
+    assert 'return host.controls ? panels : panels.filter(p => p.state === "triggered");' in card
+    assert "const acts = host.controls ? actionsFor(p) : [];" in card
     shell = _src("panel.js")
     banner = shell[shell.index("  _updateEmergencyBanner(){"):shell.index("  // ── Navigation & View Routing")]
     assert "ALARM.triggeredAlarms(" in banner and "tier" not in banner

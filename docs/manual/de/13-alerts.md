@@ -9,7 +9,7 @@ wie du es ein- oder ausschaltest.
 |---|---|---|
 | Ein Gerät wechselt den Raum, kommt nach Hause oder geht | Dein Handy oder deine E-Mail | Folgen → **Bewegungsalarme** |
 | Ein Alarm wegen eines Wasserlecks, Rauch, Gas oder Kohlenmonoxid | Ein rotes Banner auf jedem PadSpan-Bildschirm; der Raum bekommt im Atlas einen roten Ring | Immer an |
-| Deine Alarmanlage löst aus (die Alarmzentrale in Home Assistant) | Dasselbe rote Banner auf jedem PadSpan-Bildschirm, und neben dem Notfallknopf im Atlas | Immer an, in jeder Ausgabe |
+| Deine Alarmanlage löst aus (die Alarmzentrale in Home Assistant) | Dasselbe rote Banner auf jedem PadSpan-Bildschirm, und auf dem Notfallknopf im Atlas | Immer an, in jeder Ausgabe |
 | Eine offen gelassene Tür, oder ein offenes Fenster im Regen | Der Raum bekommt im Atlas einen gelben Ring; ein Banner auf einem Wandbildschirm | **Einstellungen → Atlas → Atlas — Mapped Light Control → Alert pulse** |
 | Der Urlaubsmodus endet oder wird ausgeschaltet | Eine Home-Assistant-Benachrichtigung, und die Alarmziele aus Folgen | Immer, solange der Urlaubsmodus genutzt wird |
 | Ein Gast kommt, geht oder betritt einen Raum, den er nicht betreten soll | Dein Handy oder eine Home-Assistant-Benachrichtigung | Wenn du einen Gast-Tag verleihst |
@@ -102,26 +102,35 @@ Home-Assistant-Automation direkt auf dem Sensor: Sie hängt nicht von PadSpan ab
 ## Deine Alarmanlage am Notfallknopf
 
 Hat Home Assistant eine Alarmzentrale (eine Entität `alarm_control_panel`: Alarmo oder die eigene
-Integration deiner Alarmanlage), zeigt PadSpan sie neben dem runden roten Knopf **Test emergency
-lighting** im Atlas, oben rechts auf der Karte. Ein Haus ohne Notlichter bekommt die Alarmanlage
-allein in dieser Ecke. Ein Haus ohne Alarmzentrale sieht nichts Neues.
+Integration deiner Alarmanlage), legt PadSpan sie in den runden Notfallknopf im Atlas, oben rechts
+auf der Karte. Der Knopf ändert sich mit dem, was dein Haus hat:
+
+- **Notlichter, keine Alarmanlage**: der rote Knopf **Test emergency lighting**, wie bisher.
+- **Eine Alarmanlage, keine Notlichter**: der eigene Knopf der Alarmanlage, ein schlichter Ring um
+  ihr Schild.
+- **Beides**: der rote Notfallring mit dem Schild der Alarmanlage als Mitte. Ein Druck auf die Mitte
+  oder den Ring öffnet die Karte des Knopfs, oben die Alarmanlage, darunter die Notlichter. Der
+  Lichttest startet dann mit **Start test** in der Karte, damit eine Hand, die zur Alarmanlage will,
+  ihn nie startet.
+- **Keins von beiden**: kein Knopf.
 
 **Wenn sie auslöst**, in jeder Ausgabe, auch in der kostenlosen:
 
 - Eine Zeile im roten Banner auf jedem PadSpan-Bildschirm: „Alarm ausgelöst: Haus · Hintertür“. Auf
   einem Handy zählt die 🚨-Pille in der oberen Leiste sie mit.
-- Eine rote Zeile neben dem Notfallknopf im Atlas, mit denselben Worten.
+- Das Schild im Notfallknopf wird rot und pulsiert; seine Karte sagt dasselbe.
 - Der Sensor, der sie ausgelöst hat, wird genannt, wenn die Alarmanlage sagt, welcher es war
   (Alarmo tut das). Sonst wird nur die Alarmanlage genannt.
 
 **Ihr Zustand, scharf und unscharf schalten** (PadSpan Bright und PadSpan Pro):
 
-- Neben dem Knopf der Zustand der Alarmanlage in Worten: **Unscharf**, **Scharf (zu Hause)**,
-  **Scharf (abwesend)**, **Scharf (Nacht)**, **Scharf (Urlaub)**, **Scharf (benutzerdefiniert)**,
-  **Wird scharf geschaltet**, **Ausstehend**, **Wird unscharf geschaltet** oder
-  **Ausgelöst**. Bei mehreren Alarmanlagen zeigt er den dringendsten Zustand und wie viele es sind
-  (**×2**); halte den Zeiger darauf, dann siehst du jede.
-- Drück darauf für die Karte der Alarmanlage. Solange sie unscharf ist: **Scharf schalten (zu
+- Das Schild im Knopf zeigt den Zustand der Alarmanlage mit seiner Farbe: grau unscharf, blau
+  scharf, gelb ausstehend, rot ausgelöst. Halte den Zeiger darauf für den Zustand in Worten:
+  **Unscharf**, **Scharf (zu Hause)**, **Scharf (abwesend)**, **Scharf (Nacht)**, **Scharf
+  (Urlaub)**, **Scharf (benutzerdefiniert)**, **Wird scharf geschaltet**, **Ausstehend**, **Wird
+  unscharf geschaltet** oder **Ausgelöst**. Bei mehreren Alarmanlagen zeigt es den dringendsten
+  Zustand, und der Zeiger zeigt jede.
+- Drück auf den Knopf für seine Karte, oben die Alarmanlage. Solange sie unscharf ist: **Scharf schalten (zu
   Hause)**, **(abwesend)**, **(Nacht)**, **(Urlaub)** und **(benutzerdefiniert)**, nur die, die
   diese Alarmanlage kann. Solange sie scharf ist, scharf geschaltet wird, verzögert oder ausgelöst
   hat: **Unscharf schalten**.
@@ -135,8 +144,8 @@ allein in dieser Ecke. Ein Haus ohne Alarmzentrale sieht nichts Neues.
   Aufschließen einer Tür im Atlas, auch auf Wandbildschirmen. Nichts auf der Karte führt von der
   Seite weg.
 - Den Knopf Test emergency lighting auszublenden (Einstellungen → Atlas → Atlas — Mapped Light
-  Control → **Show the Test emergency lighting button on the Atlas**) blendet nur den Test aus; die
-  Alarmanlage bleibt.
+  Control → **Show the Test emergency lighting button on the Atlas**) blendet nur den Test aus; der
+  Knopf der Alarmanlage bleibt.
 
 ## Alert pulse (Atlas)
 

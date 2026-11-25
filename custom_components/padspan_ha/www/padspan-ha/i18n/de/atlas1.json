@@ -244,6 +244,8 @@
 "Disarm {name}?": "{name} unscharf schalten?",
 "{name} refused: {why}": "{name} hat abgelehnt: {why}",
 "Set off by {sensors}": "Ausgelöst durch {sensors}",
+"Alarm and emergency lights": "Alarmanlage und Notlichter",
+"Emergency": "Notfall",
 "Sending…": "Wird gesendet…",
 "Each one asks first, with the alarm's code when it has one.": "Jede Schaltung fragt zuerst nach, mit dem Code der Alarmanlage, wenn sie einen hat.",
 "{n} alarms: {state}": {
