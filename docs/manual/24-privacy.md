@@ -113,6 +113,8 @@ it: [chapter 19](19-ai-features.md).
 - **People's figures** in Live Aboard: only in this house's 3D file, never shared.
 - **Diagnostics and Export for support**: made on your machine, and go only where you send them
   ([chapter 27](27-getting-help.md)).
+- **A shared replay** (Traceback → **Share a replay**): made in your browser and saved to your
+  computer, with names hidden; PadSpan uploads nothing. Where you post it is up to you.
 
 ## Where PadSpan keeps your data
 

@@ -124,6 +124,9 @@ ein Grundriss geht so, wie er ist, mit allem, was darauf steht. Alles darüber:
 - **Die Figuren von Personen** in Live Aboard: nur in der 3D-Datei dieses Hauses, nie geteilt.
 - **Diagnose und Export for support**: entstehen auf deinem Rechner und gehen nur dorthin, wohin du
   sie schickst ([Kapitel 27](27-getting-help.md)).
+- **Eine geteilte Wiedergabe** (Traceback → **Wiedergabe teilen**): entsteht in deinem Browser und
+  wird auf deinem Computer gespeichert, ohne Namen; PadSpan lädt nichts hoch. Wo du sie postest,
+  entscheidest du.
 
 ## Wo PadSpan deine Daten aufbewahrt
 

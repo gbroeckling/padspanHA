@@ -85,6 +85,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     the alarm on the Atlas's emergency button: its controls shown, an arm,
         a disarm, one Home Assistant refused (ALARM_BUTTON_EVENTS); never a
         code, a mode or which alarm
+    Share a replay: its dialog opened, a clip saved by format and shape,
+        the names and room choices and the mark switched off, a clip that
+        failed (SHARE_REPLAY_EVENTS); never a name, a room or the clip
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -586,6 +589,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "robovac_card",                                 # the robot vacuum's card: a hold on it, on the Atlas or in 3D
     "robovac_findings",                             # its Find mistakes card: receivers the runs say are misplaced
     "alarm_panel",                                  # the house's alarm on the Atlas's emergency button, and in the banner
+    "share_replay", "gif_encoder", "mp4_remux",     # Traceback's Share a replay: the dialog and clip, its GIF, its plain MP4
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
     "atlas_heights",                                # Mapping's Height row and Heights list (Live Aboard's heights)
@@ -1340,6 +1344,13 @@ ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN
 # refused (a wrong code, most often). Counts only, never a code, a mode or which alarm.
 ALARM_BUTTON_WORDS: tuple[str, ...] = ("shown", "arm", "disarm", "refused")
 ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALARM_BUTTON_WORDS)
+# Share a replay (views/share_replay.js, 2026-11-25): its dialog opened from Traceback, a clip saved as MP4, WebM or
+# GIF, and with it its shape (wide, vertical), how names were shown (person, initials), room names kept and the
+# "made with PadSpan" mark switched off; a clip the browser could not make. Counts only: the clip itself is made and
+# saved in the browser, never sent, and no name or room is counted.
+SHARE_REPLAY_WORDS: tuple[str, ...] = ("opened", "saved_mp4", "saved_webm", "saved_gif", "wide", "vertical", "person",
+                                       "initials", "rooms_kept", "mark_off", "failed")
+SHARE_REPLAY_EVENTS: frozenset[str] = frozenset(f"share_replay:{w}" for w in SHARE_REPLAY_WORDS)
 # The robot's Wi-Fi while it cleans (vacuum_moving.py, 2026-11-25, off by default): moving_on once a day while the
 # owner's switch is on and the robot linked; moving_read_1/_100/_1000 once a day as the day's kept readings reach
 # each; moving_skipped a reading not kept (its position too old, or no position or signal); moving_failed a read
@@ -1818,7 +1829,7 @@ def event_allowed(name: str) -> bool:
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
-            or name in STARTER_HOUSE_EVENTS)
+            or name in STARTER_HOUSE_EVENTS or name in SHARE_REPLAY_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

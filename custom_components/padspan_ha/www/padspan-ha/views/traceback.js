@@ -497,6 +497,65 @@ export function render(ctx) {
     return s;
   }
 
+  // One storey in iso screen units: its slab's corners (TL, TR, BR, BL) and,
+  // in drawing order, its rooms ({room, poly, label}: fabric-first, the
+  // photos' own room bounds only where the fabric has none) and receivers
+  // ({receiver: [x, y]}). The playback drawing and Share a replay
+  // (share_replay.js) both draw from it.
+  function _levelGeometry(z, group) {
+    let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
+    for (const m of group) {
+      const bbPt = (mapTransforms[m.id] || {}).mapPt; if (!bbPt) continue;
+      for (const [cx, cy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const [wx, wy] = bbPt(cx, cy); x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy); }
+    }
+    if (!isFinite(x0)) { x0 = 0; y0_ = 0; x1 = 1; y1_ = 0.75; }
+    const corners = [iso(x0, y0_, z), iso(x1, y0_, z), iso(x1, y1_, z), iso(x0, y1_, z)];
+    const items = [];
+    const mid = (ps) => [ps.reduce((a, p) => a + p[0], 0) / ps.length, ps.reduce((a, p) => a + p[1], 0) / ps.length];
+    const fids = new Set(group.map(m => String(m.stack?.floor_id || m.floor_id || "main")));
+    const fabHere = _tbFabricW ? Object.entries(_tbFabricW).filter(([, fr]) => fids.has(fr.floor_id)) : [];
+    for (const [room, fr] of fabHere) {
+      const [cx2, cy2] = mid(fr.pts);
+      items.push({ room, poly: fr.pts.map(p => iso(p[0], p[1], z)), label: iso(cx2, cy2, z) });
+    }
+    for (const m of group) {
+      const mapPt = (mapTransforms[m.id] || {}).mapPt; if (!mapPt) continue;
+      if (!fabHere.length) {
+        for (const [room, b] of Object.entries(m.room_bounds || {})) {
+          if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
+          const [cx2, cy2] = mid(b.points);
+          const [lwx, lwy] = mapPt(cx2, cy2);
+          items.push({ room, poly: b.points.map(p => { const [wx, wy] = mapPt(p[0], p[1]); return iso(wx, wy, z); }), label: iso(lwx, lwy, z) });
+        }
+      }
+      for (const r of (m.receivers || [])) {
+        const [wx, wy] = mapPt(r.x || 0, r.y || 0);
+        items.push({ receiver: iso(wx, wy, z) });
+      }
+    }
+    return { corners, items };
+  }
+
+  // What Share a replay draws its clip from: every storey (numbered, never
+  // named), its rooms by their real names (share_replay.js decides what the
+  // clip shows), where a recorded entry stands, and the receivers' keys to
+  // leave out. No plan image: nothing here is a picture.
+  function _shareScene() {
+    const scanners = new Set();
+    for (const r of ((ctx.state.live?.snapshot?.ble?.radios) || [])) {
+      if (r.source) scanners.add(String(r.source).toUpperCase());
+      if (r.name) scanners.add(String(r.name).toUpperCase());
+    }
+    const floors = [...byLevel.entries()].sort((a, b) => a[0] - b[0]).map(([z, group]) => {
+      const geo = _levelGeometry(z, group);
+      return {
+        n: sortedIsoLevels.indexOf(z) + 1, color: levelColor(z), corners: geo.corners,
+        rooms: geo.items.filter(it => it.room).map(it => ({ ...it, color: roomColorFn(it.room) })),
+      };
+    });
+    return { floors, posOf: _getObjPos, scanners };
+  }
+
   // ── SVG builder ────────────────────────────────────────────────────────
   function _buildTracebackSVG(frameIdx) {
     const maxIsoZ = sortedIsoLevels.length ? sortedIsoLevels[sortedIsoLevels.length - 1] : 0;
@@ -543,53 +602,20 @@ export function render(ctx) {
       const lyrColor = levelColor(z);
       const lidx = sortedIsoLevels.indexOf(z);
 
-      let x0 = Infinity, y0_ = Infinity, x1 = -Infinity, y1_ = -Infinity;
-      for (const m of group) {
-        const bbPt = (mapTransforms[m.id] || {}).mapPt; if (!bbPt) continue;
-        for (const [cx, cy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const [wx, wy] = bbPt(cx, cy); x0 = Math.min(x0, wx); y0_ = Math.min(y0_, wy); x1 = Math.max(x1, wx); y1_ = Math.max(y1_, wy); }
-      }
-      if (!isFinite(x0)) { x0 = 0; y0_ = 0; x1 = 1; y1_ = 0.75; }
-      const TL = iso(x0, y0_, z), TR = iso(x1, y0_, z), BR = iso(x1, y1_, z), BL = iso(x0, y1_, z);
+      const geo = _levelGeometry(z, group);
+      const [TL, TR, BR, BL] = geo.corners;
       s += `<g opacity="${go}">`;
       s += `<polygon points="${pts([TL, TR, BR, BL])}" fill="url(#tbpat_${lidx})" stroke="${lyrColor}" stroke-width="1.2" stroke-dasharray="10,5" opacity="0.5"/>`;
 
-      // Room polygons — fabric-first, per-photo bounds as fallback
-      const _emitTbRoom = (room, pp, lix, liy) => {
-        const color = roomColorFn(room);
-        s += `<polygon points="${pp}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.2" opacity="0.85"/>`;
-        s += `<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" opacity="0.85">${_esc(room)}</text>`;
-      };
-      const _tbGroupFids = new Set(group.map(m => String(m.stack?.floor_id || m.floor_id || "main")));
-      const _tbFabHere = _tbFabricW
-        ? Object.entries(_tbFabricW).filter(([, fr]) => _tbGroupFids.has(fr.floor_id)) : [];
-      if (_tbFabHere.length) {
-        for (const [room, fr] of _tbFabHere) {
-          const pp = fr.pts.map(p => pt(iso(p[0], p[1], z))).join(" ");
-          const cx2 = fr.pts.reduce((a, p) => a + p[0], 0) / fr.pts.length;
-          const cy2 = fr.pts.reduce((a, p) => a + p[1], 0) / fr.pts.length;
-          const [lix, liy] = iso(cx2, cy2, z);
-          _emitTbRoom(room, pp, lix, liy);
+      // Room polygons — fabric-first, per-photo bounds as fallback — and receivers
+      for (const it of geo.items) {
+        if (it.receiver) {
+          s += `<circle cx="${Math.round(it.receiver[0])}" cy="${Math.round(it.receiver[1])}" r="4" fill="#52b788" opacity="0.3"/>`;
+          continue;
         }
-      }
-      for (const m of group) {
-        const mapPt = (mapTransforms[m.id] || {}).mapPt; if (!mapPt) continue;
-        if (!_tbFabHere.length) {
-          for (const [room, b] of Object.entries(m.room_bounds || {})) {
-            if (!b || b.type !== "poly" || !Array.isArray(b.points) || b.points.length < 3) continue;
-            const pp = b.points.map(p => { const [wx, wy] = mapPt(p[0], p[1]); return pt(iso(wx, wy, z)); }).join(" ");
-            const cx2 = b.points.reduce((a, p) => a + p[0], 0) / b.points.length;
-            const cy2 = b.points.reduce((a, p) => a + p[1], 0) / b.points.length;
-            const [lwx, lwy] = mapPt(cx2, cy2);
-            const [lix, liy] = iso(lwx, lwy, z);
-            _emitTbRoom(room, pp, lix, liy);
-          }
-        }
-        // Receivers
-        for (const r of (m.receivers || [])) {
-          const [wx, wy] = mapPt(r.x || 0, r.y || 0);
-          const [px2, py2] = iso(wx, wy, z);
-          s += `<circle cx="${Math.round(px2)}" cy="${Math.round(py2)}" r="4" fill="#52b788" opacity="0.3"/>`;
-        }
+        const color = roomColorFn(it.room);
+        s += `<polygon points="${pts(it.poly)}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.2" opacity="0.85"/>`;
+        s += `<text x="${Math.round(it.label[0])}" y="${Math.round(it.label[1])}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="9" font-weight="600" opacity="0.85">${_esc(it.room)}</text>`;
       }
       // Layer index
       s += `<circle cx="${Math.round(BL[0])}" cy="${Math.round(BL[1])}" r="12" fill="${lyrColor}" opacity="0.7"/>`;
@@ -1597,6 +1623,22 @@ export function render(ctx) {
       exportJsonBtn.textContent = t("Export JSON");
       exportJsonBtn.addEventListener("click", _exportTracebackJson);
       filterRow.appendChild(exportJsonBtn);
+      // Share a replay: this window as a short clip with no names in it,
+      // made and saved in this browser (share_replay.js). The recorded
+      // frames, not Full house activity's merged ones: the clip plays on
+      // the floor stack, never the Atlas.
+      const shareBtn = document.createElement("button");
+      shareBtn.className = "btn tiny";
+      shareBtn.dataset.shareReplay = "1";
+      shareBtn.textContent = t("Share a replay");
+      shareBtn.title = t("A short clip of this stretch, names hidden, saved to your computer");
+      shareBtn.addEventListener("click", async () => {
+        _stopPlayback();
+        _buildControls();
+        const share = await import(`./share_replay.js${new URL(import.meta.url).search}`);
+        share.openShareReplay(ctx, { frames: tb.rawFrames || tb.frames, scene: _shareScene() });
+      });
+      filterRow.appendChild(shareBtn);
     }
     ctrlCard.appendChild(filterRow);
 

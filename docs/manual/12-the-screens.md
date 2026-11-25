@@ -195,6 +195,18 @@ The row at the top switches between four modes:
   takes. Step a frame, jump to the start or end, or drag the timeline. Each device is drawn where
   live tracking placed it at that moment, or at the centre of its room when there was no position.
   **Export CSV** and **Export JSON** save the frames.
+  - **Share a replay** turns the chosen stretch into a 10 to 30 second clip of people moving through
+    the house, ready to post. Names become **Person 1**, **Person 2** (or initials); device names,
+    addresses and signal readings are left out; room names stay as they are or become generic ones
+    (**Bedroom**, **Room 3**); floors are numbered, never named, and only the time of day shows, not
+    the date. The clip is drawn from your rooms' outlines, so no plan image, address or coordinates
+    are in it, and it starts where the first person changes room. The dialog plays the clip and lists
+    what it hides (and each name and room as it will show) before you press **Save clip**. Pick
+    **Wide** or **Vertical**, and **MP4** (best for Reddit and X; Chrome and Edge make it), **WebM**
+    (Firefox) or **GIF**. A small **made with PadSpan** mark sits in a corner; untick it to leave it
+    out. The clip is made in your browser and saved to your computer: nothing is uploaded. A video
+    records in real time, so keep the tab in front until it is saved. It plays on the floor stack;
+    the 3D house comes later. Free in every edition.
   - **Full house activity** (PadSpan Pro) plays the same back on your Atlas, and with **💡 Devices**
     on, the house too: lights, locks, motion, doors and windows, and sensor readings, from Home
     Assistant's recorder.
