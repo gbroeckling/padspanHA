@@ -9,7 +9,7 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // Escape, Tab and the focus for the builder's guide and the Point Align
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
-const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
+const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
         surfacesForEdition: _surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
@@ -5353,7 +5353,7 @@ const BRIGHT_PRO_MANUAL = [
           "Look for the message confirming your licence was activated. The card updates to show you're licensed."
         ],
         "notes": [
-          "Don't have a key yet? The same card has a Buy PadSpan Pro button — $45 CAD/year — that takes you straight to the purchase page."
+          "Don't have a key yet? The same card has a Buy PadSpan Pro button that takes you straight to the purchase page."
         ]
       },
       {
@@ -10097,16 +10097,20 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
 // same mechanism the sidebar's own one-time coach mark already uses for a
 // different surface (padspan_ha_lights_coach_seen, lights_panel.js).
 function _lightsTourSteps(paid){
+  // Which key it names: Bright Pro is no longer sold from the end of
+  // December 15, 2026 (editions.js brightProOpen), so from then Pro alone.
+  const brightPro = _brightProOpen();
+  const key = brightPro ? "a PadSpan Bright Pro or PadSpan Pro key" : "a PadSpan Pro key";
   const steps = [
     { title: "Welcome to the Atlas builder",
-      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs a PadSpan Bright Pro or PadSpan Pro key.",
+      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs " + key + ".",
       find: null },
     paid
       ? { title: "Place a light",
           body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
           find: (wrap) => wrap.querySelector(".lv-stage") }
       : { title: "Your lights on the map",
-          body: "Without a key, each light stays at the centre of its room and you can still switch it from the map. Dragging it to its real spot (or + Place in the list) needs a PadSpan Bright Pro or PadSpan Pro key.",
+          body: "Without a key, each light stays at the centre of its room and you can still switch it from the map. Dragging it to its real spot (or + Place in the list) needs " + key + ".",
           find: (wrap) => wrap.querySelector(".lv-stage") },
     ...(paid ? [{ title: "Give it a shape",
       body: "Click a light in the list below the map (or hold one still on the map itself) to select it. A panel opens underneath with Shape, size and rotation. Pick the glyph that matches the real fixture, or leave it on Auto for PadSpan's own guess.",
@@ -10123,7 +10127,7 @@ function _lightsTourSteps(paid){
       find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
   } else {
     steps.push({ title: "What a key adds",
-      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
+      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need " + (brightPro ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro") + ". " + _LIC_PATH + " is where a key goes once you have one.",
       find: null });
   }
   steps.push({ title: "You're set",
@@ -10419,9 +10423,10 @@ function _lightsTab(ctx, maps, active) {
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
         "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
-        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "),
+        + (_brightProOpen() ? "need PadSpan Bright Pro or PadSpan Pro. " : "need PadSpan Pro. ")
+        + "Already have a key? Enter it in " + _LIC_PATH + ". "),
       el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
-        "Get PadSpan Pro \u2014 " + _LIC_PRICE),
+        "Get PadSpan Pro \u2014 " + _licPrice()),
       // Want to see it on your own house first? The trial, right here. The
       // banner keeps its own Buy link above, so the card's is off. Counted
       // as "placement" when a save was just refused for want of a key (see

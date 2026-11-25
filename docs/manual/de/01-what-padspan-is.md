@@ -50,7 +50,7 @@ neu installieren, nichts neu einrichten.
 | **PadSpan HA** | keiner | Anwesenheit pro Raum, Grundrisse, Kalibrierung, Bewegungsverlauf und die Sensoren für deine Automationen. Kostenlos. |
 | **PadSpan Pro** | `pro` | Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandbildschirm, Whole house presets und Vacation Mode, Forensik, Busy Times, Finden und die Designs Graphit, Ozean, Dämmerung und Tag. |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | keiner | Ein eigener, leichterer Download aus demselben Code: nur der Atlas, für ein Haus, das seine Lichter auf einer Karte will und keine Anwesenheitserkennung. |
-| **PadSpan Bright Pro** | `bright` | Brights volle Atlas-Werkzeuge (Platzieren, Formen, WLED, Automorph, Showcase), auf einer Bright-Installation. |
+| **PadSpan Bright Pro** | `bright` | Brights volle Atlas-Werkzeuge (Platzieren, Formen, WLED, Automorph, Showcase), auf einer Bright-Installation. Verkauft bis zum 15. Dezember 2026. |
 
 Ein PadSpan-Pro-Schlüssel schaltet auch Brights Werkzeuge frei, wenn du stattdessen Bright
 installierst.

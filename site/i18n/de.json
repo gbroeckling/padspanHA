@@ -1281,6 +1281,54 @@
   {
    "en": "<b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.",
    "de": "<b>Teste es.</b> Tester bekommen zwei Jahre PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Einstellungen → Ortung → Datenschutz, Updates und Feedback → Hilf, PadSpan besser zu machen. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
+  },
+  {
+   "en": "Unlocked by a <a href=\"#pro\">PadSpan Pro</a> key, $49 a year or $85 for two years, in either download. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.",
+   "de": "Freigeschaltet mit einem <a href=\"#pro\">PadSpan Pro</a>-Schlüssel: 49 CAD im Jahr (ca. 33 €) oder 85 CAD (ca. 56 €) für zwei Jahre, in beiden Downloads. Was du gezeichnet hast, rührt die Sperre nie an: Gib einen Schlüssel ein, und jede Platzierung ist genau so wieder da, wie sie war. Auch mit abgelaufener Lizenz kannst du alles, was du gebaut hast, weiter ansehen und exportieren."
+  },
+  {
+   "en": "Three programs, two dials",
+   "de": "Drei Programme, zwei Regler"
+  },
+  {
+   "en": "$49 <small style=\"font-size:13px;font-weight:600\">CAD / yr</small>",
+   "de": "49 <small style=\"font-size:13px;font-weight:600\">CAD / Jahr · ca. 33 €</small>"
+  },
+  {
+   "en": "Light placement — that takes a Pro key",
+   "de": "Lichter platzieren: Dafür brauchst du einen Pro-Schlüssel"
+  },
+  {
+   "en": "<b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a lighting-only install for people who do not want presence tracking at all — is live: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. A PadSpan Pro key works in it too: there it unlocks light placement.",
+   "de": "<b>Zum Download:</b> Die eigenständige Edition <i>PadSpan Bright</i>, eine reine Licht-Installation für alle, die gar keine Anwesenheitserkennung wollen, ist verfügbar: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. Ein PadSpan-Pro-Schlüssel funktioniert auch dort: Er schaltet das Platzieren der Lichter frei."
+  },
+  {
+   "en": "<b>Test it.</b> Testers get a year of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.",
+   "de": "<b>Teste es.</b> Tester bekommen ein Jahr PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Einstellungen → Ortung → Datenschutz, Updates und Feedback → Hilf, PadSpan besser zu machen. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
+  },
+  {
+   "en": "$49 <small style=\"font-size:14px;font-weight:600\">CAD / year</small>",
+   "de": "49 <small style=\"font-size:14px;font-weight:600\">CAD pro Jahr · ca. 33 €</small>"
+  },
+  {
+   "en": "PadSpan Pro · two years",
+   "de": "PadSpan Pro · zwei Jahre"
+  },
+  {
+   "en": "$85 <small style=\"font-size:14px;font-weight:600\">CAD, two years</small>",
+   "de": "85 <small style=\"font-size:14px;font-weight:600\">CAD für zwei Jahre · ca. 56 €</small>"
+  },
+  {
+   "en": "Two years of PadSpan Pro, paid once. There's no lifetime any more: PadSpan gets new releases every week, and a one-off price doesn't keep that going. Every new PadSpan feature is included while it runs. Already have a PadSpan key? Pay with the same email and the two years are added to it.",
+   "de": "Zwei Jahre PadSpan Pro, einmal bezahlt. Eine Lebenszeit-Lizenz gibt es nicht mehr: PadSpan bekommt jede Woche neue Versionen, und ein einmaliger Preis trägt das nicht. Jede neue PadSpan-Funktion ist enthalten, solange dein Pro läuft. Du hast schon einen PadSpan-Schlüssel? Bezahl mit derselben E-Mail-Adresse, dann kommen die zwei Jahre dazu."
+  },
+  {
+   "en": "Buy two years of PadSpan Pro with PayPal",
+   "de": "Zwei Jahre PadSpan Pro mit PayPal kaufen"
+  },
+  {
+   "en": "Bright with a Pro key",
+   "de": "Bright mit Pro-Schlüssel"
   }
  ],
  "attrs": {

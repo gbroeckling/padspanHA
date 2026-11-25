@@ -69,7 +69,7 @@ needs it on in each of them ([chapter 25](25-padspan-pro.md)).
 
 ## Becoming a tester
 
-While the report is on, its card offers **Become a tester**: PadSpan Pro free for two years for
+While the report is on, its card offers **Become a tester**: PadSpan Pro free for two years (one year if you join from December 16, 2026) for
 people happy to be contacted about trying new things. It is the one place PadSpan asks for contact
 details, so it is kept apart from the anonymous report in every way: its own consent box, its own
 **Send sign-up** button, its own address and its own random ID. What goes is what you type (an email

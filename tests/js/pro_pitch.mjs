@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 
 const VIEWS_DIR = process.argv[2];
-const { proPitch, BUY_URL, PRO_PRICE } =
+const { proPitch, BUY_URL, proPrice } =
   await import(pathToFileURL(join(VIEWS_DIR, "editions.js")).href);
 
 const checks = [], failures = [];
@@ -42,7 +42,7 @@ check("free tier is pitched something", !!free);
 check("free pitch names Forensics", /Forensics/.test(free.text));
 check("free pitch names light placement", /light placement/i.test(free.text));
 check("free pitch names the 3D house and the wall screen", /3D house/.test(free.text) && /wall screen/.test(free.text), free.text);
-check("free pitch carries the real price", free.cta.includes(PRO_PRICE), free.cta);
+check("free pitch carries the real price", free.cta.includes(proPrice()), free.cta);
 check("free pitch links the purchase page", free.url === BUY_URL, free.url);
 
 // An unknown or missing tier is treated as free — the safe side is telling
@@ -75,28 +75,40 @@ for (const st of [{ tier: "free" }, { tier: "bright" }, { tier: "free", pro_has_
   check(`pitch for ${r.kind} has a call to action`, !!r.cta && !!r.url);
 }
 
-// ── The launch price's card (launchCardDue): once, only until it ends ──────
-// Who the licence card offers lifetime to (no key, a trial, a lapsed key), on
-// the launch price's own end date (PRO_LIFETIME_LAUNCH_UNTIL), never after it.
+// ── "Pro for life ends Dec 15" (lifetimeCardDue): once, while lifetime is sold ──
+// Who the licence card offers lifetime to (no key, a trial, a lapsed key), until
+// lifetime ends (PRO_PASS_FROM), never after it; from December 1 its words drop the $89.
 {
   const E = await import(pathToFileURL(join(VIEWS_DIR, "editions.js")).href);
-  const end = Date.parse(E.PRO_LIFETIME_LAUNCH_UNTIL);
+  const end = Date.parse(E.PRO_PASS_FROM), dec1 = Date.parse(E.PRO_LIFETIME_LAUNCH_UNTIL);
   const before = Date.parse("2026-11-24T18:00:00Z"), lastMinute = end - 60e3;
-  const FREE = { tier: "free", pro_has_key: false, launch_card_done: false };
-  const due = (s, now = before) => E.launchCardDue(s, now);
-  check("launch card: due for a free install before the end", due(FREE));
-  check("launch card: due on the last minute of November 30, Pacific", due(FREE, lastMinute) && new Date(lastMinute).toISOString() === "2026-12-01T07:59:00.000Z");
-  check("launch card: never from the end on, or after", !due(FREE, end) && !due(FREE, end + 86400e3 * 30));
-  check("launch card: due for a trial and a lapsed key", due({ ...FREE, pro_has_key: true, license_is_trial: true, tier: "pro" })
+  const FREE = { tier: "free", pro_has_key: false, lifetime_card_done: false };
+  const due = (s, now = before) => E.lifetimeCardDue(s, now);
+  check("lifetime card: due for a free install before the end, in November and December", due(FREE) && due(FREE, dec1 + 86400e3));
+  check("lifetime card: due on the last minute of December 15, Pacific", due(FREE, lastMinute) && new Date(lastMinute).toISOString() === "2026-12-16T07:59:00.000Z");
+  check("lifetime card: never from the end on, or after", !due(FREE, end) && !due(FREE, end + 86400e3 * 30));
+  check("lifetime card: due for a trial and a lapsed key", due({ ...FREE, pro_has_key: true, license_is_trial: true, tier: "pro" })
     && due({ ...FREE, pro_has_key: true, pro_active: false }));
-  check("launch card: never for a paid key that is running (Pro, Bright Pro, lifetime)",
+  check("lifetime card: never for a paid key that is running (Pro, Bright Pro, lifetime)",
     !due({ ...FREE, tier: "pro", pro_has_key: true, pro_active: true }) && !due({ ...FREE, tier: "bright", pro_has_key: true, pro_active: true }));
-  check("launch card: never once shown", !due({ ...FREE, launch_card_done: true }));
-  const old = { ...FREE }; delete old.launch_card_done;
+  check("lifetime card: never once shown", !due({ ...FREE, lifetime_card_done: true }));
+  check("lifetime card: shown once more where the November 30 card was seen", due({ ...FREE, launch_card_done: true }));
+  const old = { ...FREE }; delete old.lifetime_card_done;
   const unloaded = { ...FREE }; delete unloaded.pro_has_key;
-  check("launch card: never before the settings say (an older backend, or not loaded yet)", !due(old) && !due(unloaded) && !due(null));
-  check("launch card: its words come from the one date", E.LAUNCH_CARD_TITLE === "The launch price ends November 30"
-    && E.proLifetimeWords(before) === "$89 CAD, once, until November 30 (then $168)", E.proLifetimeWords(before));
+  check("lifetime card: never before the settings say (an older backend, or not loaded yet)", !due(old) && !due(unloaded) && !due(null));
+  check("lifetime card: its words, before and from December 1", E.LIFETIME_CARD_TITLE === "Pro for life ends Dec 15"
+    && E.lifetimeCardText(before) === "Pro for life is $89 until Nov 30. Then it's $168 until Dec 15, and after that there's no lifetime: Pro is $85 for two years or $49 a year. Keys already sold stay lifetime."
+    && E.lifetimeCardText(dec1) === "Pro for life is $168 until Dec 15, and after that there's no lifetime: Pro is $85 for two years or $49 a year. Keys already sold stay lifetime.",
+    E.lifetimeCardText(before) + " | " + E.lifetimeCardText(dec1));
+  check("prices by date: lifetime $89, $168, then none; the year $45, then $49; the pass $85",
+    E.proLifetimeWords(before) === "$89 CAD, once, until November 30 (then $168 until December 15)"
+    && E.proLifetimeWords(dec1) === "$168 CAD, once, until December 15" && E.proLifetimeWords(end) === ""
+    && E.proLifetimeOpen(lastMinute) && !E.proLifetimeOpen(end) && !E.proPassOpen(lastMinute) && E.proPassOpen(end)
+    && E.proPrice(lastMinute) === "$45 CAD/year" && E.proPrice(end) === "$49 CAD/year" && E.PRO_PASS_PRICE === "$85 CAD",
+    [E.proLifetimeWords(before), E.proLifetimeWords(dec1), E.proPrice(end)].join(" | "));
+  check("Bright Pro and the tester's two years end at the same moment",
+    E.brightProOpen(lastMinute) && !E.brightProOpen(end) && E.testerTerm(lastMinute) === "two years" && E.testerTerm(end) === "one year");
+  check("from the end, every pitch says $49", (() => { const r = Date.now; try { Date.now = () => end; return proPitch({ tier: "free" }).cta.includes("$49 CAD/year"); } finally { Date.now = r; } })());
 }
 
 process.stdout.write(JSON.stringify({ checks, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

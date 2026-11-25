@@ -23,7 +23,7 @@
  * sample mode, never to an install that already has Pro.
  * tests/js/pro_invite.mjs drives this file.
  */
-const { tierAtLeast, currentTier, currentEdition } = await import(`./editions.js${new URL(import.meta.url).search}`);
+const { tierAtLeast, currentTier, currentEdition, testerTerm } = await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const INVITE_TITLE = "A free year of PadSpan Pro";
 export const INVITE_BODY = "Thanks for sending the usage report. Houses like yours are what PadSpan gets built against, " +
@@ -37,12 +37,16 @@ export const INVITE_LATER_DAYS = 7;
 const _LATER_KEY = "padspan_pro_invite_later";
 
 export const TESTER_CARD_TITLE = "Get PadSpan Pro free by testing it";
-export const TESTER_CARD_BODY = "Testers get two years of PadSpan Pro free. In return the anonymous usage report stays on, " +
-  "and the developer may email you when there's something new for your setup to try.";
+// Two years of Pro for a tester until the end of December 15, one year from
+// then (editions.js testerTerm): said when the card is drawn, never cached.
+export function testerCardBody(now = Date.now()) {
+  return "Testers get " + testerTerm(now) + " of PadSpan Pro free. In return the anonymous usage report stays on, " +
+    "and the developer may email you when there's something new for your setup to try.";
+}
 export const TESTER_CARD_REPORT_OFF = "It needs the usage report on. Settings shows exactly what it sends before you switch it on.";
 export const TESTER_CARD_BUTTON = "Sign me up";
 // Settings → PadSpan licence, beside its button.
-export const TESTER_CARD_BODY_SHORT = "Or test it: testers get PadSpan Pro free for two years.";
+export function testerCardBodyShort(now = Date.now()) { return "Or test it: testers get PadSpan Pro free for " + testerTerm(now) + "."; }
 export const TESTER_MILESTONE_DAYS = 7;
 
 const _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -232,7 +236,7 @@ export function testerCard(host, { onSignUp, onNo, onClose }) {
   close.addEventListener("click", () => { _count(host, "free_pro_card_no"); onClose(); });
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
     el("div", { style: "font-weight:700;font-size:13px;color:#52b788" }, TESTER_CARD_TITLE), close]));
-  card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55" }, TESTER_CARD_BODY));
+  card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55" }, testerCardBody()));
   if (s.telemetry_enabled !== true) {
     card.appendChild(el("div", { "data-tester-card": "report-off", style: "font-size:12px;color:#94a3b8;line-height:1.55;margin-top:4px" },
       TESTER_CARD_REPORT_OFF));

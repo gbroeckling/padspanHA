@@ -294,7 +294,7 @@ await tryCase("look: below a Showcase tier, Classic, Studio and one plain line; 
   LA.releaseLiveAboardSlot("lk-free");
   check("look: below a Showcase tier, Classic, Studio and one plain line; a theme picked before is kept and not drawn",
     key === "atlas:plain:classic" && J(heads) === J(["Live Aboard"]) && rows.includes("Classic") && rows.includes("Studio") && !rows.includes("Aurora")
-    && J(note) === J(["Showcase themes come with PadSpan Bright Pro or PadSpan Pro."]) && prefs.get("look_lk-free") === J({ day: "theme:aurora" })
+    && J(note) === J(["Showcase themes come with a Pro key."]) && prefs.get("look_lk-free") === J({ day: "theme:aurora" })
     && back === "atlas:aurora", { key, rows, note, heads, back });
 });
 await tryCase("look: Same as Settings follows Settings (the Atlas's look, Live Aboard's own, Studio) and the Atlas's Showcase theme; a pick sits over it", async () => {

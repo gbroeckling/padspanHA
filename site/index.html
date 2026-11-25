@@ -185,6 +185,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.293</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">24 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Pro for life ends December 15.</b> It's $89 until November 30, then $168 until December 15. After that there's no lifetime. From then PadSpan Pro is $85 for two years or $49 a year, and every new PadSpan feature is included while it runs. Lifetime keys already sold stay lifetime.</li>
+          <li><b>One card on Overview says so, once:</b> "Pro for life ends Dec 15", for administrators, until December 15. It replaces the November 30 card, so if you saw that one you'll see this one once too. No thanks takes it away.</li>
+          <li><b>From December 16, every price in PadSpan switches by itself:</b> the licence card, the trial card and the paywalls show $49 a year and $85 for two years. PadSpan Bright Pro is no longer sold; in PadSpan Bright the buy button offers PadSpan Pro, whose key unlocks light placement there too. New testers get one year of Pro instead of two. Keys already issued keep their terms.</li>
+          <li><b>Rain is more see-through.</b> On the flat Atlas and in the 3D house, rain is drawn at a little over half its old strength, so it reads as rain falling past the house, not as a white snow-like veil. Snow is as it was.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.292</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">24 November 2026</span>
@@ -5498,7 +5514,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li><b>Automorph</b> — a soft aura drawn on the map from each fixture into its room</li>
         <li><b>Showcase</b> presentation mode, now with 20 selectable themes <a href="/showcase-themes.html" style="color:var(--acc)">— see them all <span class="pill soon">New</span></a></li>
       </ul>
-      <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
+      <p data-until-pass style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
+      <p data-from-pass style="display:none;font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by a <a href="#pro">PadSpan Pro</a> key, $49 a year or $85 for two years, in either download. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
     </div>
     <div class="feat">
       <h3>With PadSpan Pro</h3>
@@ -5516,7 +5533,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
 <section class="wrap" id="editions">
   <div class="kick">Editions</div>
-  <h2>Four programs, two dials</h2>
+  <h2 data-until-pass>Four programs, two dials</h2><h2 data-from-pass style="display:none">Three programs, two dials</h2>
   <p class="lede">There is one codebase. Which <b>edition</b> you download decides what you can see; what your <b>key</b> says decides what you can edit. A Pro key typed into any edition unlocks everything that edition can show, so you never have to work out which key goes with which download.</p>
 
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
@@ -5537,7 +5554,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <div class="ed hi">
       <h3>PadSpan Pro</h3>
       <div class="sub">Full edition · Pro key</div>
-      <div class="price">$45 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
+      <div class="price" data-until-pass>$45 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
+      <div class="price" data-from-pass style="display:none">$49 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
       <ul>
         <li>Everything in PadSpan HA</li>
         <li><b>Forensics</b> — who was near which scanner, when</li>
@@ -5555,11 +5573,12 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <ul>
         <li>A lighting-only download for people who want the map without the presence tracking</li>
         <li>Draws the house and the lights, switching only</li>
-        <li class="x">Light placement — that is Bright Pro</li>
+        <li class="x" data-until-pass>Light placement — that is Bright Pro</li>
+        <li class="x" data-from-pass style="display:none">Light placement — that takes a Pro key</li>
       </ul>
       <a class="btn ghost" href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener" style="margin-top:auto">Install free</a>
     </div>
-    <div class="ed">
+    <div class="ed" data-until-pass>
       <h3>PadSpan Bright Pro</h3>
       <div class="sub">Lighting licence</div>
       <div class="price">$35 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
@@ -5584,7 +5603,13 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     </div>
   </div>
 
-  <div class="note">
+  <div class="note" data-from-pass style="display:none">
+    <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a
+    lighting-only install for people who do not want presence tracking at all — is live:
+    <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
+    A PadSpan Pro key works in it too: there it unlocks light placement.
+  </div>
+  <div class="note" data-until-pass>
     <b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not
     alternatives — Pro is the whole product, Bright Pro is the lighting half of it at a
     lower price. There is never a reason to buy both, and if you start with Bright Pro and
@@ -5724,14 +5749,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li><b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence "possible" matches, with CSV export.</li>
         <li>Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.</li>
         <li><b>The Graphite, Ocean, Dusk and Day themes.</b></li>
-        <li><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
+        <li data-until-pass><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
         <li>More Pro features will join under the same key.</li>
       </ul>
     </div>
     <div class="feat" id="pro-free">
       <h3>Or get Pro free</h3>
       <ul class="steps">
-        <li><b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
+        <li data-until-pass><b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
+        <li data-from-pass style="display:none"><b>Test it.</b> Testers get a year of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
         <li data-offer-until="2027-01-01T08:00:00Z"><b>Ask for a year.</b> Until December 31, the first 20 people running PadSpan who email <a href="mailto:hello@traks.ca">hello@traks.ca</a> get a year of Pro free. No card, nothing renews.</li>
         <li data-offer-until="2027-01-01T08:00:00Z"><b>Show your setup.</b> Post your house anywhere (the HA forum, Reddit, a blog, a video) with a few screenshots, send the link to hello@traks.ca, and get a year too.</li>
         <li><b>Invites.</b> Now and then an install that sends the usage report gets an invite for a free year, right in the panel.</li>
@@ -5741,21 +5767,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     </div>
     <div class="feat" style="text-align:center">
       <h3>Pro</h3>
-      <div style="font-size:38px;font-weight:900;margin:6px 0">$45 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
+      <div data-until-pass style="font-size:38px;font-weight:900;margin:6px 0">$45 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
+      <div data-from-pass style="display:none;font-size:38px;font-weight:900;margin:6px 0">$49 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
       <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 14px">One-time PayPal payment · key valid 1 year · emailed automatically on payment</p>
       <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
         <input type="hidden" name="cmd" value="_xclick">
         <input type="hidden" name="business" value="garry@bcmail.net">
         <input type="hidden" name="item_name" value="PadSpan Pro — 1 year license">
         <input type="hidden" name="item_number" value="padspan-pro-annual">
-        <input type="hidden" name="amount" value="45.00">
+        <input type="hidden" name="amount" value="45.00" id="pro-year-amount">
         <input type="hidden" name="currency_code" value="CAD">
         <input type="hidden" name="no_shipping" value="1">
         <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
         <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
         <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
       </form>
-      <div id="pro-lifetime" data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+      <div id="pro-lifetime" data-until-pass data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
         <div id="pl-kick" style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch price · until November 30, 2026</div>
         <div style="font-size:30px;font-weight:900;margin:4px 0"><span id="pl-price">$89</span> <small style="font-size:14px;font-weight:600">CAD, once</small></div>
         <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. <span id="pl-later">$89 until November 30, 2026, then $168 until December 15. After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.</p>
@@ -5775,8 +5802,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
         document.getElementById("pl-kick").textContent="PadSpan Pro for life · until December 15";document.getElementById("pl-price").textContent="$168";
         document.getElementById("pl-later").textContent="After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.";document.getElementById("pl-amount").value="168.00";})();</script>
+      <div id="pro-pass" data-from-pass style="display:none;margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+        <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">PadSpan Pro · two years</div>
+        <div style="font-size:30px;font-weight:900;margin:4px 0">$85 <small style="font-size:14px;font-weight:600">CAD, two years</small></div>
+        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">Two years of PadSpan Pro, paid once. There's no lifetime any more: PadSpan gets new releases every week, and a one-off price doesn't keep that going. Every new PadSpan feature is included while it runs. Already have a PadSpan key? Pay with the same email and the two years are added to it.</p>
+        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+          <input type="hidden" name="cmd" value="_xclick">
+          <input type="hidden" name="business" value="garry@bcmail.net">
+          <input type="hidden" name="item_name" value="PadSpan Pro — 2 years">
+          <input type="hidden" name="item_number" value="padspan-pro-2year">
+          <input type="hidden" name="amount" value="85.00">
+          <input type="hidden" name="currency_code" value="CAD">
+          <input type="hidden" name="no_shipping" value="1">
+          <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+          <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+          <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy two years of PadSpan Pro with PayPal</button>
+        </form>
+      </div>
       <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.38.274</span>. Enter your key under Settings → Features → PadSpan licence.</p>
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div data-until-pass style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
         <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>
         <p style="font-size:12px;color:var(--mut,#94a3b8);margin:0 0 10px">Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.</p>
         <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
@@ -5804,7 +5848,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <p class="lede">Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, with real placement, WLED control and RF-aware doors behind a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
   <div class="tablewrap">
   <table>
-    <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th>Bright Pro</th></tr>
+    <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th data-until-pass>Bright Pro</th><th data-from-pass style="display:none">Bright with a Pro key</th></tr>
     <tr><td>Floors &amp; rooms drawn as an isometric plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
     <tr><td>One marker per light, tap (or its row) to toggle</td><td class="yes">✓</td><td class="yes">✓</td></tr>
     <tr><td>Hide lights you don't want cluttering the map</td><td class="yes">✓</td><td class="yes">✓</td></tr>
@@ -5826,6 +5870,14 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <a class="shot" href="images/bright-wled-card.png" target="_blank"><img src="images/bright-wled-card.png" alt="WLED light control card" loading="lazy"><div class="cap"><b>WLED Control Card</b>Brightness, colour and effect, live against the real strip</div></a>
   </div>
 </section>
+
+<!-- From the end of December 15, 2026 (editions.js PRO_PASS_FROM, the licence server's PSPAN_LIFETIME_ENDS):
+     no lifetime, no Bright Pro, Pro $49 a year or $85 for two years, testers a year. Visitors without
+     JavaScript keep seeing the blocks before it until the Dec 16 edit. -->
+<script>(function(){if(Date.now()<Date.parse("2026-12-16T08:00:00Z"))return;
+  document.querySelectorAll("[data-until-pass]").forEach(function(e){e.remove();});
+  document.querySelectorAll("[data-from-pass]").forEach(function(e){e.style.display="";});
+  var a=document.getElementById("pro-year-amount");if(a)a.value="49.00";})();</script>
 
 <section class="wrap" id="donate" style="text-align:center;padding-top:10px">
   <h2 style="font-size:24px">Buy me a coffee ☕</h2>

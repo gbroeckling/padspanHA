@@ -27,10 +27,14 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, DATA_SETTINGS, VERSION
+from .const import DOMAIN, DATA_SETTINGS, PRO_PASS_FROM_TS, VERSION
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
+
+# The end of December 15, 2026: from then a new tester gets one year of Pro,
+# not two (const.PRO_PASS_FROM_TS).
+_PASS_FROM_TS = PRO_PASS_FROM_TS
 
 UPDATE_CHECK_URL = "https://padspan.traks.ca/api/version.php"
 _FIRST_DELAY_S = (300, 6 * 3600)  # the first check after a start: at random, 5 minutes to 6 hours in
@@ -104,7 +108,10 @@ def _tester_line(hass: HomeAssistant) -> str:
     except Exception:
         _quiet_error("update_check:tester_line_signed_up")
         pass
-    return ("\n\nTesters get PadSpan Pro free for two years. "
+    # Two years for a tester until the end of December 15, 2026, one year from
+    # then (the licence server's TESTER_YEARS_AFTER; editions.js testerTerm).
+    term = "one year" if time.time() >= _PASS_FROM_TS else "two years"
+    return (f"\n\nTesters get PadSpan Pro free for {term}. "
             "Sign up under Help improve PadSpan in PadSpan's Settings.")
 
 

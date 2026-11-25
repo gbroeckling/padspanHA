@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.293 — Pro for life ends December 15; Lighter rain (2026-11-24)
+
+### Changed
+- **Pro for life ends December 15.** It's $89 until November 30, then $168 until December 15. After that there's no lifetime. From then PadSpan Pro is $85 for two years or $49 a year, and every new PadSpan feature is included while it runs. Lifetime keys already sold stay lifetime.
+- **One card on Overview says so, once:** "Pro for life ends Dec 15", for administrators, until December 15. It replaces the November 30 card, so if you saw that one you'll see this one once too. No thanks takes it away.
+- **From December 16, every price in PadSpan switches by itself:** the licence card, the trial card and the paywalls show $49 a year and $85 for two years. PadSpan Bright Pro is no longer sold; in PadSpan Bright the buy button offers PadSpan Pro, whose key unlocks light placement there too. New testers get one year of Pro instead of two. Keys already issued keep their terms.
+- **Rain is more see-through.** On the flat Atlas and in the 3D house, rain is drawn at a little over half its old strength, so it reads as rain falling past the house, not as a white snow-like veil. Snow is as it was.
+
+---
+
 ## 0.38.292 — Fit keeps Edgecut; A PDF plan, in the manual; The robot's Wi-Fi on the Wi-Fi coverage map; The robot vacuum's card, and room location runs; The usage report says how long one screen shows PadSpan (2026-11-24)
 
 ### New

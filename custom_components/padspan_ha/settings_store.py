@@ -72,7 +72,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # its ✕, or a trial started from it. Per install; it never shows again.
     "trial_nudge_done": False,
     "tester_nudge_done": False,     # the Overview "test it, get Pro free" card was shown; never again (views/pro_invite.js)
-    "launch_card_done": False,      # the Overview "launch price ends November 30" card was shown; never again (panel.js _launchPriceCard)
+    "launch_card_done": False,      # the Overview "launch price ends November 30" card was shown (the card is gone; kept so old backups still read)
+    "lifetime_card_done": False,    # the Overview "Pro for life ends Dec 15" card was shown; never again (panel.js _launchPriceCard)
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the
@@ -465,7 +466,8 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
     a, b = live or {}, other or {}
     out: dict[str, Any] = {"trial_nudge_done": bool(a.get("trial_nudge_done") or b.get("trial_nudge_done")),
                            "tester_nudge_done": bool(a.get("tester_nudge_done") or b.get("tester_nudge_done")),
-                           "launch_card_done": bool(a.get("launch_card_done") or b.get("launch_card_done"))}
+                           "launch_card_done": bool(a.get("launch_card_done") or b.get("launch_card_done")),
+                           "lifetime_card_done": bool(a.get("lifetime_card_done") or b.get("lifetime_card_done"))}
     seen = [v for v in (a.get("first_seen_ts"), b.get("first_seen_ts"))
             if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
     if seen:

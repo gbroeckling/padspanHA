@@ -280,7 +280,7 @@ await check("Not now is offered only where the host asks for it", () => {
   assert(hidden === 1, "onDismiss not called");
 });
 
-await check("the started card gives the launch price before Nov 30 and drops it after", async () => {
+await check("the started card gives the price and its end: $89 to Nov 30, $168 to Dec 15, then the pass and the year", async () => {
   const h = makeHost({ answer: { ok: true, days_left: 90, settings: { tier: "pro", pro_has_key: true } } });
   const card = T.trialOfferCard(h.host, "maps");
   type(card, "someone@example.com");
@@ -294,8 +294,13 @@ await check("the started card gives the launch price before Nov 30 and drops it 
     assert(/PadSpan Pro trial has started/.test(before), before);
     assert(/for life is \$\d+ CAD, once, until November 30/.test(before) && before.includes(T.trialLaunchLine()), "no launch line: " + before);
     Date.now = () => Date.parse("2026-12-02T12:00:00Z");
+    const dec = T.trialOfferCard(h.host, "maps").textContent;
+    assert(dec.includes("PadSpan Pro for life is $168 until December 15; after that it's $85 for two years or $49 a year.")
+      && !dec.includes("$89"), "the December line: " + dec);
+    Date.now = () => Date.parse("2026-12-16T08:00:00Z");
     const after = T.trialOfferCard(h.host, "maps").textContent;
-    assert(T.trialLaunchLine() === "" && !/for life/.test(after), "launch line after the launch price ended: " + after);
+    assert(after.includes("PadSpan Pro is $85 for two years or $49 a year. Whenever you buy, everything you set up stays.")
+      && !/for life/.test(after), "the line once lifetime ended: " + after);
   } finally {
     Date.now = realNow;
   }

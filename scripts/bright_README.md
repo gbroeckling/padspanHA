@@ -29,7 +29,7 @@ Long-press a light on the map for its full card — this one's a WLED strip mid-
 clustered in its room. Tap a marker or a row to toggle the light. Hide the
 lights you never want on the map.
 
-**PadSpan Bright Pro (key)** — place every light, fan, lock, and motion,
+**PadSpan Bright Pro (key, sold until December 15, 2026)** — place every light, fan, lock, and motion,
 temperature, humidity and air-quality sensor exactly where it really is; set
 shape (pot, strip, pendant, sconce, fan…), size and angle in real units;
 place WLED strips and control their brightness, colour and effects live from
@@ -50,7 +50,8 @@ seconds and a radar sensor that holds "on" for 20 minutes both read the same
 way on the map: a 5-minute flash, then a graduated fade through six colours
 the longer it's been quiet.
 
-A **PadSpan Pro** key unlocks all of the same — one key, either download.
+A **PadSpan Pro** key unlocks all of the same — one key, either download. From
+December 16, 2026 it's the key to buy: Bright Pro is no longer sold.
 
 | Feature                                                             | Bright (free) | Bright Pro |
 | --------------------------------------------------------------------- | :-----------: | :--------: |

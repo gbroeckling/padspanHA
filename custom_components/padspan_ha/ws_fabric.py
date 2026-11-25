@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import logging
 import math
+import time
 import voluptuous as vol
 from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from .const import (
+    PRO_PASS_FROM_TS,
     refusal,
     NOT_LOADED_MESSAGE,
     DOMAIN,
@@ -49,6 +51,15 @@ _LOGGER = logging.getLogger(__name__)
 # places that can resolve it: the licence card, and the page that sells a key.
 _PRO_REQUIRED_MSG = (
     "Light placement needs PadSpan Bright Pro or PadSpan Pro. "
+    "Enter a key in Settings \u2192 Features \u2192 PadSpan licence, "
+    "or get one at https://padspan.traks.ca/#pro"
+)
+# Bright Pro is no longer sold from the end of December 15, 2026
+# (const.PRO_PASS_FROM_TS), so from then the refusal names PadSpan Pro alone.
+# Chosen where it's sent, as `A if ... else B`, so the panel's translations
+# can find both sentences (scripts/i18n_coverage.py).
+_PRO_REQUIRED_MSG_FROM_PASS = (
+    "Light placement needs PadSpan Pro. "
     "Enter a key in Settings \u2192 Features \u2192 PadSpan licence, "
     "or get one at https://padspan.traks.ca/#pro"
 )
@@ -144,7 +155,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     so the licence guarded a path nothing used while the live one was open.
     """
     if not _tier_at_least(hass, "bright"):
-        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG)
+        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:
@@ -200,7 +211,7 @@ async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> No
     fabric write path, so the history sees it like a placement. All or
     nothing: a device with no placement record refuses the lot."""
     if not _tier_at_least(hass, "bright"):
-        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG)
+        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)
         return
     heights = _heights_of(msg, "entity_id")
     if isinstance(heights, str):
@@ -233,7 +244,7 @@ async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> No
 async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
     """Un-place a light (it returns to automatic room clustering). Bright-tier editing."""
     if not _tier_at_least(hass, "bright"):
-        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG)
+        connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:

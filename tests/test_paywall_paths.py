@@ -54,7 +54,7 @@ def test_the_server_refusal_says_where_to_go() -> None:
     # and (2026-10-05) setting only its height.
     literals = s.count('"Light placement needs PadSpan Bright Pro or PadSpan Pro"')
     assert literals == 0, "a gate is still using its own literal message"
-    assert s.count('"pro_required", _PRO_REQUIRED_MSG') == 3, (
+    assert s.count('"pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)') == 3, (
         "expected exactly the three light-placement gates to use the shared message")
 
 
@@ -97,14 +97,16 @@ def test_the_licence_card_names_the_lifetime_offer_while_it_lasts() -> None:
     out = json.loads(lines[-1])
     assert not out["failures"] and res.returncode == 0, out["failures"]
     cases = out["cases"]
-    line = "Or PadSpan Pro for life — $89 CAD, once, until November 30 (then $168)."
-    after = "Or PadSpan Pro for life — $168 CAD, once."
+    line = "Or PadSpan Pro for life — $89 CAD, once, until November 30 (then $168 until December 15)."
+    after = "Or PadSpan Pro for life — $168 CAD, once, until December 15."
+    passed = "Or two years for $85 CAD."
     for kind in ("nokey", "trial", "lapsed"):
         assert cases[f"{kind}_during"]["buy"], kind
         assert cases[f"{kind}_during"]["lifetime"] == {"text": line, "href": BUY_URL}, (kind, cases[f"{kind}_during"])
-        assert cases[f"{kind}_after"]["buy"] and cases[f"{kind}_after"]["lifetime"] == {"text": after, "href": BUY_URL}, (kind, "from December 1: $168, still on sale")
+        assert cases[f"{kind}_after"]["buy"] and cases[f"{kind}_after"]["lifetime"] == {"text": after, "href": BUY_URL}, (kind, "from December 1: $168 until December 15")
+        assert cases[f"{kind}_pass"]["buy"] and cases[f"{kind}_pass"]["lifetime"] == {"text": passed, "href": BUY_URL}, (kind, "from December 16: the two-year pass")
     for kind in ("annual", "lifetime"):
-        for day in ("during", "after"):
+        for day in ("during", "after", "pass"):
             assert cases[f"{kind}_{day}"] == {"buy": False, "lifetime": None}, (kind, day, cases[f"{kind}_{day}"])
 
 

@@ -228,7 +228,7 @@ function tester_key($email, $dir, $max_per_day) {
             tester_note('Tester signed up (already keyed)', "A new tester signed up who already holds a $plan key, so nothing more was sent.\n\n  email: $email\n"); return;
         }
         if ($plan === 'pro' && $live) {
-            tester_note('Tester key needs you', "A new tester signed up who already has a paid Pro key; two free years were NOT added.\n" . $hand); return;
+            tester_note('Tester key needs you', "A new tester signed up who already has a paid Pro key; no free tester time was added.\n" . $hand); return;
         }
     }
     // The daily cap, counted only for keys actually sent.
@@ -249,7 +249,7 @@ function tester_key($email, $dir, $max_per_day) {
     }
     flock($h, LOCK_UN); fclose($h);
     if ($r && !empty($r['ok'])) {
-        tester_note('Tester key sent', "A new tester signed up and their two-year key went out automatically.\n\n  email   : $email\n  expires : " . ($r['expires_at'] ?? '?') . "\n");
+        tester_note('Tester key sent', "A new tester signed up and their tester key went out automatically.\n\n  email   : $email\n  expires : " . ($r['expires_at'] ?? '?') . "\n");
     } else {
         tester_note('Tester key needs you', "A new tester signed up; the licence server refused or failed the key.\n" . $hand);
     }

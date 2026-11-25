@@ -72,8 +72,8 @@ def test_wizard_content_branches_on_this_installs_own_edition():
     s = _read(_VIEWS / "settings.js")
     ladder = s[s.index("function _tiersWizardLadder("):s.index("function _tiersWizardUpgrade(")]
     assert "isBright" in ladder
-    assert "BRIGHT_PRICE" in ladder and "PRO_PRICE" in ladder, (
-        "the ladder step must show the correct price for whichever branch is taken")
+    assert "BRIGHT_PRICE" in ladder and "proPrice()" in ladder and "brightProOpen()" in ladder, (
+        "the ladder step must show the correct price for whichever branch is taken, and Pro's in Bright once Bright Pro is retired")
 
 
 def test_wizard_prices_come_from_the_shared_editions_constants_not_literals():
@@ -85,7 +85,7 @@ def test_wizard_prices_come_from_the_shared_editions_constants_not_literals():
     wiz = s[s.index("const TIERS_WIZARD_STEPS"):s.index("// ── PadSpan licence")]
     for literal in ("$35", "$45", "$12"):
         assert literal not in wiz, f"the wizard hard-codes {literal!r} instead of using the shared constant"
-    for name in ("BRIGHT_PRICE", "PRO_PRICE", "BRIGHT_UPGRADE_PRICE"):
+    for name in ("BRIGHT_PRICE", "proPrice()", "BRIGHT_UPGRADE_PRICE", "brightProOpen()"):
         assert name in wiz, f"the wizard never references {name}"
 
 

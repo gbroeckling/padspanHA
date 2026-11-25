@@ -19,6 +19,8 @@
  * words; tests/test_tester_signup_ui.py runs both on the same cases.
  */
 
+const { testerTerm } = await import(`./editions.js${new URL(import.meta.url).search}`);
+
 // The same keys as tester.py INTERESTS and tester.php $INTERESTS.
 export const TESTER_INTERESTS = [
   ["findmy", "AirTags / Find My tags"],
@@ -31,10 +33,14 @@ export const TESTER_INTERESTS = [
   ["other", "Other"],
 ];
 // Characters, as tester.py counts them.
-// What a tester gets: the licence server's plan 'tester' (TESTER_YEARS = 2),
-// issued by hand to the sign-up's email, on the condition the report stays on.
-export const TESTER_PRO_LINE = "Testers get PadSpan Pro free for two years, sent to the email you sign up with. " +
-  "The usage report stays on for those two years: it can't be turned off while the key runs.";
+// What a tester gets: the licence server's plan 'tester', two years until the
+// end of December 15, 2026 and one year from then (editions.js testerTerm),
+// sent to the sign-up's email, on the condition the report stays on.
+export function testerProLine(now = Date.now()) {
+  const term = testerTerm(now);
+  return "Testers get PadSpan Pro free for " + term + ", sent to the email you sign up with. " +
+    "The usage report stays on for " + (term === "one year" ? "that year" : "those two years") + ": it can't be turned off while the key runs.";
+}
 export const TESTER_LIMITS ={ email: 254, github: 39, name: 64, interests_other: 80, notes: 500, timezone: 64 };
 // Character for character the patterns in tester.py (and tester.php).
 export const TESTER_PATTERNS = {
@@ -239,7 +245,7 @@ function _testerInvite(ctx, s){
     // off: settings.offer_tester, views/pro_invite.js testerOfferOn).
     (ctx.state.settings || {}).offer_tester !== false
       ? el("div", { "data-tester": "pro", style: "font-size:12px;margin-bottom:10px;line-height:1.55;color:#a7f3d0" },
-        TESTER_PRO_LINE)
+        testerProLine())
       : null,
     open,
   ]);

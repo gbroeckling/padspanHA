@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
+const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, brightProOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
@@ -39,7 +39,7 @@ const { trialOfferFromCtx, newTabOk } = await import(`./trial_offer.js${new URL(
 // Optional: free Pro by invite or by testing (pro_invite.js).
 const PRO = await import(`./pro_invite.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: pro_invite failed to load", err);
-    return { inviteCard: () => null, inviteHostFromCtx: () => null, TESTER_CARD_BODY_SHORT: "", testerOfferOn: () => false }; });
+    return { inviteCard: () => null, inviteHostFromCtx: () => null, testerCardBodyShort: () => "", testerOfferOn: () => false }; });
 // Optional as well: only the Atlas weather section's "Automatic — …" labels
 // and warning list need it.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
@@ -3244,14 +3244,15 @@ function _tiersWizardLadder(ctx, w, isBright){
   if (isBright) {
     wrap.appendChild(row(t("PadSpan Bright (free)"), null,
       t("Place lights on a map, control them. No key, no time limit.")));
-    wrap.appendChild(row("PadSpan Bright Pro", BRIGHT_PRICE,
+    // Bright Pro is retired from the end of December 15; Pro's key does the same here (editions.js).
+    wrap.appendChild(row(brightProOpen() ? "PadSpan Bright Pro" : "PadSpan Pro", brightProOpen() ? BRIGHT_PRICE : proPrice(),
       t("Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs. Forensics needs presence tracking to report on, so it isn't part of this edition.")));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
       t("Want presence tracking too? That's a separate, full download — PadSpan HA — not an upgrade of this one.")));
   } else {
     wrap.appendChild(row(t("PadSpan HA (free)"), null,
       t("Presence tracking and everything else in this app except the paid features below. No key, no time limit.")));
-    wrap.appendChild(row("PadSpan Pro", PRO_PRICE,
+    wrap.appendChild(row("PadSpan Pro", proPrice(),
       t("Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install.")));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
       t("Only want lighting, not presence tracking? PadSpan Bright is a lighter, separate download built for exactly that.")));
@@ -3266,11 +3267,12 @@ function _tiersWizardUpgrade(ctx, w, isBright){
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     t("A licence key is entered once, right on this install, at {path} — the same card shows this install's edition and tier, and how long a key has left.", { path: t("Settings → Features → PadSpan licence") })));
   const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"});
-  row.appendChild(el("a",{class:"btn inline", href: isBright ? EDITIONS_URL : BUY_URL, target:"_blank", rel:"noopener",
+  const brightPro = isBright && brightProOpen();
+  row.appendChild(el("a",{class:"btn inline", href: brightPro ? EDITIONS_URL : BUY_URL, target:"_blank", rel:"noopener",
     style:"border-color:#52b788;color:#a7f3d0;text-decoration:none"},
-    isBright ? t("Buy PadSpan Bright Pro — {price}", { price: BRIGHT_PRICE }) : t("Buy PadSpan Pro — {price}", { price: PRO_PRICE })));
+    brightPro ? t("Buy PadSpan Bright Pro — {price}", { price: BRIGHT_PRICE }) : t("Buy PadSpan Pro — {price}", { price: proPrice() })));
   wrap.appendChild(row);
-  if (isBright) {
+  if (brightPro) {
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;line-height:1.5"},
       t("Already have a Bright key and want the full app's Pro tier instead? The changeover is {price} — same key, same expiry, Forensics unlocks once you're on the full download.", { price: BRIGHT_UPGRADE_PRICE })));
   }
@@ -3536,7 +3538,7 @@ function _settingsLicence(ctx, el){
   if (canBuy) {
     row.appendChild(el("a", { class: "btn inline", href: BUY_URL, target: "_blank", rel: "noopener",
       style: "font-size:12px;border-color:#52b788;color:#a7f3d0;text-decoration:none" },
-      (lapsed ? t("Renew PadSpan Pro — {price}", { price: PRO_PRICE }) : t("Buy PadSpan Pro — {price}", { price: PRO_PRICE }))));
+      (lapsed ? t("Renew PadSpan Pro — {price}", { price: proPrice() }) : t("Buy PadSpan Pro — {price}", { price: proPrice() }))));
   }
 
   if (hasKey) {
@@ -3556,11 +3558,13 @@ function _settingsLicence(ctx, el){
   card.appendChild(row);
   if (hasKey) card.appendChild(_licenceHomes(ctx, el, s));
   // Pro for life, under the buy button (editions.js: $89 until November 30,
-  // then $168). A lifetime key never has the buy button, so never this either.
-  if (canBuy && proLifetimeOpen()) {
+  // then $168 until December 15); from then the two-year pass in its place.
+  // A lifetime key never has the buy button, so never this either.
+  if (canBuy) {
     card.appendChild(el("div", { style: "font-size:12px;margin-top:8px" },
       el("a", { href: BUY_URL, target: "_blank", rel: "noopener", style: "color:#a7f3d0;text-decoration:underline" },
-        t("Or PadSpan Pro for life — {price}.", { price: proLifetimeWords() }))));
+        proLifetimeOpen() ? t("Or PadSpan Pro for life — {price}.", { price: proLifetimeWords() })
+                          : t("Or two years for {price}.", { price: PRO_PASS_PRICE }))));
   }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key at all. Its own Buy link is off —
@@ -3587,7 +3591,7 @@ function _settingsLicence(ctx, el){
         FOCUS.openFocus(ctx, PART.usageReport);
       });
       card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-top:8px;line-height:1.55" },
-        [PRO.TESTER_CARD_BODY_SHORT, go]));
+        [PRO.testerCardBodyShort(), go]));
     }
   }
 

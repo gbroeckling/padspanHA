@@ -110,7 +110,7 @@ const lightness = (h) => { const p = parseInt(String(h).slice(1), 16); return (0
  *  Showcase Classic theme (the flat Atlas's plain look) is not listed again. */
 export function lookGroups(themes, rows, studio){
   const own = { head: t("Live Aboard"), items: OWN.map(pick => ({ pick, words: pickWords(pick, themes), swatch: swatchOf(pick, rows, studio) })) };
-  if (!themes) return { groups: [own], note: t("Showcase themes come with PadSpan Bright Pro or PadSpan Pro.") };
+  if (!themes) return { groups: [own], note: t("Showcase themes come with a Pro key.") };
   const dark = [], light = [];
   for (const [key, t] of Object.entries(themes)) {
     if (key === "classic" || !t) continue;

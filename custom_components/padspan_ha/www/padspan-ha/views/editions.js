@@ -38,48 +38,76 @@ export const IDEAS_MAIL = "mailto:hello@traks.ca?subject=PadSpan%20idea";
 // issue", the two places its report has always said to send it.
 export const SUPPORT_MAIL = "mailto:hello@traks.ca?subject=PadSpan%20problem&body=What%20happened%3A%0A%0A%0AThe%20report%20from%20PadSpan%27s%20Diagnostics%20(paste%20it%20here)%3A%0A";
 export const ISSUES_NEW_URL = "https://github.com/gbroeckling/padspanHA/issues/new";
+// PadSpan Pro's prices, by date (the owner, 2026-11-24). Until the end of
+// December 15, 2026 a year is $45 and Pro for life is on sale ($89 until
+// November 30, then $168). From PRO_PASS_FROM lifetime is no longer sold, a
+// year is $49, and there's a two-year pass at $85. The site and the licence
+// server switch at the same moment (tests/test_site_claims.py pins them).
+// PRO_PRICE is the year until then: say a price with proPrice(), never this.
 export const PRO_PRICE = "$45 CAD/year";
+export const PRO_PRICE_FROM_PASS = "$49 CAD/year";
+export const PRO_PASS_PRICE = "$85 CAD";
+export const PRO_PASS_FROM = "2026-12-16T08:00:00Z";
+export function proPassOpen(now = Date.now()) { return now >= Date.parse(PRO_PASS_FROM); }
+/** What a year of Pro costs now: "$45 CAD/year", or "$49 CAD/year" from PRO_PASS_FROM. */
+export function proPrice(now = Date.now()) { return proPassOpen(now) ? PRO_PRICE_FROM_PASS : PRO_PRICE; }
 // The other two SKUs padspan.traks.ca#editions actually sells — pinned exactly
 // against the site's own PayPal forms by tests/test_site_claims.py. Added so
 // anything quoting the Bright ladder (the tiers help card, the onboarding
 // wizard) has one source too, the same discipline PRO_PRICE already gives Pro.
 export const BRIGHT_PRICE = "$35 CAD/year";
 export const BRIGHT_UPGRADE_PRICE = "$12 CAD";
+// Bright Pro is retired at PRO_PASS_FROM (the owner, 2026-11-24; nobody holds a
+// Bright key). From then a Bright build's buy button offers PadSpan Pro, whose
+// key unlocks light placement there too.
+export function brightProOpen(now = Date.now()) { return !proPassOpen(now); }
+// What a new tester gets (the licence server's plan 'tester'): two years of
+// Pro until PRO_PASS_FROM, one year from then (the owner, 2026-11-24).
+export function testerTerm(now = Date.now()) { return proPassOpen(now) ? "one year" : "two years"; }
 // PadSpan Pro for life: $89 CAD at the launch price until November 30, 2026,
-// then $168 CAD from December 1, for good (2026-10-22). The site
-// switches its PayPal form at the same moment; the licence server accepts
-// $89 for a week after, for late payment notices. Pinned to the site like the rest.
+// then $168 CAD until December 15, then no longer sold (2026-10-22; the end,
+// the owner, 2026-11-24). The site switches its PayPal form at each moment; the
+// licence server honours a payment made before each one for a week after,
+// for late payment notices. Pinned to the site like the rest.
 export const PRO_LIFETIME_LAUNCH_PRICE = "$89 CAD";
 export const PRO_LIFETIME_FULL_PRICE = "$168 CAD";
 export const PRO_LIFETIME_LAUNCH_UNTIL = "2026-12-01T08:00:00Z";
 export function proLifetimeLaunch(now = Date.now()) { return now < Date.parse(PRO_LIFETIME_LAUNCH_UNTIL); }
 /** What lifetime costs now, said one way everywhere: "$89 CAD, once, until
- *  November 30 (then $168)", or "$168 CAD, once". */
+ *  November 30 (then $168 until December 15)", "$168 CAD, once, until
+ *  December 15", or "" once it's no longer sold. */
 export function proLifetimeWords(now = Date.now()) {
-  return proLifetimeLaunch(now) ? PRO_LIFETIME_LAUNCH_PRICE + ", once, until November 30 (then $168)"
-                                : PRO_LIFETIME_FULL_PRICE + ", once";
+  if (proLifetimeLaunch(now)) return PRO_LIFETIME_LAUNCH_PRICE + ", once, until November 30 (then $168 until December 15)";
+  return proPassOpen(now) ? "" : PRO_LIFETIME_FULL_PRICE + ", once, until December 15";
 }
-// Lifetime is always on sale now; kept for callers asking whether to offer it.
-export function proLifetimeOpen() { return true; }
-// The launch price's one Overview card (panel.js _launchPriceCard), the last
-// word on it: shown once, to an administrator, until the launch price ends
-// (proLifetimeLaunch, the date above: no second date). Due where the licence
-// card offers lifetime too (no key, a trial, a lapsed key) and, until the
-// launch price ends (owner, 2026-11-19), to a running key for a year (Pro or
-// Bright Pro): paid with the same email, the licence server makes that key
-// lifetime (issue_lifetime). A lifetime key runs to 2099, so "under ten years
-// left" is a year's key. Only once the backend says it was never shown
-// (launch_card_done: a key an older backend does not send reads as "not
-// known", never as "due").
-export const LAUNCH_CARD_TITLE = "The launch price ends November 30";
+// Lifetime is on sale until PRO_PASS_FROM, then never again.
+export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
+// "Pro for life ends Dec 15", the one Overview card about it (panel.js
+// _launchPriceCard; the owner, 2026-11-24). It took the place of the launch
+// price's card, with its own flag, so an administrator who saw that one sees
+// this once more. Shown once, to an administrator, while lifetime is on sale
+// (proLifetimeOpen); from December 1 its words drop the $89. Due where the
+// licence card offers lifetime too (no key, a trial, a lapsed key) and to a
+// running key for a year (Pro or Bright Pro): paid with the same email, the
+// licence server makes that key lifetime (issue_lifetime). A lifetime key
+// runs to 2099, so "under ten years left" is a year's key. Only once the
+// backend says it was never shown (lifetime_card_done: a key an older backend
+// does not send reads as "not known", never as "due").
+export const LIFETIME_CARD_TITLE = "Pro for life ends Dec 15";
+export function lifetimeCardText(now = Date.now()) {
+  return (proLifetimeLaunch(now)
+      ? "Pro for life is $89 until Nov 30. Then it's $168 until Dec 15, and after that"
+      : "Pro for life is $168 until Dec 15, and after that")
+    + " there's no lifetime: Pro is $85 for two years or $49 a year. Keys already sold stay lifetime.";
+}
 export function launchCardAnnual(settings) {
   const s = settings || {};
   return s.pro_has_key === true && s.pro_active === true && !s.license_is_trial
     && typeof s.pro_days_left === "number" && s.pro_days_left < 3650;
 }
-export function launchCardDue(settings, now = Date.now()) {
+export function lifetimeCardDue(settings, now = Date.now()) {
   const s = settings || {};
-  if (!proLifetimeLaunch(now) || !("launch_card_done" in s) || s.launch_card_done) return false;
+  if (!proLifetimeOpen(now) || !("lifetime_card_done" in s) || s.lifetime_card_done) return false;
   if (typeof s.pro_has_key !== "boolean") return false;            // not loaded yet: no flash
   return !s.pro_has_key || s.pro_active === false || !!s.license_is_trial || launchCardAnnual(s);
 }
@@ -125,7 +153,7 @@ export function proPitch(settings) {
       kind: "lapsed",
       text: "Your licence has lapsed, so " + off
           + "Everything you set up is still here and comes back as you left it when you renew. ",
-      cta: `Renew PadSpan Pro — ${PRO_PRICE}`,
+      cta: `Renew PadSpan Pro — ${proPrice()}`,
       url: BUY_URL,
     };
   }
@@ -136,7 +164,7 @@ export function proPitch(settings) {
       text: "Your key covers the lighting half. PadSpan Pro adds the 3D house (Live Aboard), the wall "
           + "screen and Forensics — which Bluetooth devices were near a given scanner in any time window, "
           + "with dwell time and CSV export. ",
-      cta: `PadSpan Pro — ${PRO_PRICE}`,
+      cta: `PadSpan Pro — ${proPrice()}`,
       url: BUY_URL,
     };
   }
@@ -146,7 +174,7 @@ export function proPitch(settings) {
         + "light exactly where it hangs instead of clustered in the middle of its room; the 3D house "
         + "(Live Aboard); the wall screen; and Forensics, which answers which Bluetooth devices were "
         + "near a scanner in any time window. ",
-    cta: `PadSpan Pro — ${PRO_PRICE}`,
+    cta: `PadSpan Pro — ${proPrice()}`,
     url: BUY_URL,
   };
 }

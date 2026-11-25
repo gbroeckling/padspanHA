@@ -57,7 +57,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, NOT_LOADED_MESSAGE, refusal
+from .const import DOMAIN, NOT_LOADED_MESSAGE, PRO_PASS_FROM_TS, refusal
 from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
@@ -67,6 +67,9 @@ _LOGGER = logging.getLogger(__name__)
 WLED_DOMAIN = "wled"
 TIER = "bright"
 TIER_MSG = "The WLED Advanced tab needs a PadSpan Bright Pro or PadSpan Pro key."
+# Bright Pro is no longer sold from the end of December 15, 2026 (const.PRO_PASS_FROM_TS).
+# Chosen where it's sent, as `A if ... else B`, so the panel's translations find both.
+TIER_MSG_FROM_PASS = "The WLED Advanced tab needs a PadSpan Pro key."
 
 GET_TIMEOUT_S = 8
 POST_TIMEOUT_S = 12
@@ -491,7 +494,7 @@ _TARGET = {vol.Optional("entity_id"): str, vol.Optional("device_id"): str}
 async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
     """Tier + target resolution shared by every command. Sends the error."""
     if not _tier_at_least(hass, TIER):
-        connection.send_error(msg["id"], "bright_required", TIER_MSG)
+        connection.send_error(msg["id"], "bright_required", TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS)
         return None
     tgt = _target(hass, msg)
     if tgt is None:
@@ -512,7 +515,7 @@ async def _gate(hass: HomeAssistant, connection, msg) -> dict[str, Any] | None:
 async def ws_wled_devices(hass: HomeAssistant, connection, msg) -> None:
     """Every WLED device HA knows, with its light entities — for teaming."""
     if not _tier_at_least(hass, TIER):
-        connection.send_error(msg["id"], "bright_required", TIER_MSG)
+        connection.send_error(msg["id"], "bright_required", TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS)
         return
     from homeassistant.helpers import device_registry as dr, entity_registry as er  # noqa: PLC0415
 
@@ -1202,7 +1205,7 @@ async def ws_wled_teams_get(hass: HomeAssistant, connection, msg) -> None:
 async def ws_wled_teams_set(hass: HomeAssistant, connection, msg) -> None:
     from .const import DATA_SETTINGS  # noqa: PLC0415
     if not _tier_at_least(hass, TIER):
-        connection.send_error(msg["id"], "bright_required", TIER_MSG)
+        connection.send_error(msg["id"], "bright_required", TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS)
         return
     st0 = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     stored = (st0.data.get("wled_teams") if st0 else None) or []

@@ -30,7 +30,7 @@
  * card takes a small host object: trialOfferFromCtx builds one from a panel
  * ctx. tests/js/trial_offer.mjs drives it.
  */
-const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, tierAtLeast, currentTier, currentEdition } =
+const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, tierAtLeast, currentTier, currentEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const TRIAL_DAYS = 90;
@@ -58,13 +58,15 @@ export const TRIAL_MILESTONE_TITLE = "PadSpan's working in your house.";
 export const TRIAL_MILESTONE_BODY = "Try all of PadSpan Pro on it: every light where it hangs on this map, " +
   "the 3D house, the wall screen and Forensics. 90 days free, no card.";
 export const TRIAL_SIDEBAR_LABEL = "✨ Pro · free trial";
-/** Said once the trial has started, while Pro for life is at its launch
- *  price (editions.js; 2026-10-27): the price and its end date, so it
- *  can't read as lasting the whole trial. Empty after the launch price. */
+/** Said once the trial has started (editions.js; 2026-10-27): what Pro
+ *  costs and until when, so a price can't read as lasting the whole trial.
+ *  From December 1, $168 for life until December 15; from then the pass and
+ *  the year (the owner, 2026-11-24). */
 export function trialLaunchLine(now = Date.now()) {
-  return proLifetimeLaunch(now)
-    ? "PadSpan Pro for life is " + proLifetimeWords(now) + ". Whenever you buy, everything you set up stays."
-    : "";
+  const price = proLifetimeLaunch(now) ? "PadSpan Pro for life is " + proLifetimeWords(now) + "."
+    : proLifetimeOpen(now) ? "PadSpan Pro for life is $168 until December 15; after that it's $85 for two years or $49 a year."
+    : "PadSpan Pro is $85 for two years or $49 a year.";
+  return price + " Whenever you buy, everything you set up stays.";
 }
 export const TRIAL_MILESTONE_DAYS = 7;
 export const TRIAL_BUTTON = "Start 90-day free trial";
@@ -303,8 +305,8 @@ export function trialOfferCard(host, surface, opts = {}) {
     // is the offer and buying is a small grey link under it; the paywalls
     // keep the amber line.
     const quiet = _QUIET_SURFACES.includes(surface);
-    const buyText = "Or buy PadSpan Pro — " + PRO_PRICE
-      + (proLifetimeOpen() ? ", or for life " + proLifetimeWords() : "");
+    const buyText = "Or buy PadSpan Pro — " + proPrice()
+      + (proLifetimeOpen() ? ", or for life " + proLifetimeWords() : ", or " + PRO_PASS_PRICE + " for two years");
     const buyStyle = quiet ? "color:#94a3b8;text-decoration:underline" : "color:#fbbf24;font-weight:600;text-decoration:none";
     card.appendChild(el("div", { style: "font-size:11px;margin-top:6px" }, [
       // A wall screen can't close the tab a link opens: say where instead.
