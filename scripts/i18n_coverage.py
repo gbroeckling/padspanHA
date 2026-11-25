@@ -69,7 +69,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "tracking2": ("views/settings.js#tracking2",),
     "features": ("views/settings.js#features",),
     "ai": ("views/settings.js#ai",),
-    "atlas": ("views/settings.js#atlas",),
+    "atlas": ("views/settings.js#atlas", "views/screens_card.js"),
     "manage": ("views/manage.js",),
     "manage2": ("views/manage.js#manage2",),
     "training": ("views/training.js",),
