@@ -730,6 +730,7 @@ ws_maps:scan_create_read
 ws_maps:update_beacon_calibration
 ws_maps:update_beacons_removed
 ws_maps:update_calibration
+ws_maps:import_area_names
 ws_maps:update_old_map
 ws_notify:services_list
 ws_objects:label_delete_cross

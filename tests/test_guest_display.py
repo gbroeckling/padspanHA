@@ -59,7 +59,7 @@ def test_the_traceback_preset_is_used_up_once() -> None:
     src = (_VIEWS / "traceback.js").read_text(encoding="utf-8")
     assert "export function openTracebackFor(ctx, preset)" in src
     assert "delete ctx.state._tracebackPreset;" in src
-    assert "tb.filterKey = String(_preset.key);" in src
+    assert "tb.filterKey = _preset.key ? String(_preset.key) : null;" in src   # no key: every device (Yesterday at home's link)
 
 
 def test_overview_and_atlas_draw_the_guest_only_when_there_is_one() -> None:

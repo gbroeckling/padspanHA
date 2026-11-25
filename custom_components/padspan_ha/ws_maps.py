@@ -1065,6 +1065,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
         names = {a.id: a.name for a in ar.async_get(hass).async_list_areas()}
     except Exception:  # noqa: BLE001 — no names: the file's own are used
+        _quiet_error("ws_maps:import_area_names")
         names = {}
 
     def read() -> tuple[dict, dict | None, tuple | None]:

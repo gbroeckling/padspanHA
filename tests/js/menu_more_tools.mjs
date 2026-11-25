@@ -39,7 +39,7 @@ const consts = [
   fn("function el(tag, attrs={}, children=[]){"),
 ].join("\n");
 const methods = ["_getVisibleTabs", "_setupInMenu", "_getMainTabs", "_moreToolsOpen", "_toggleMoreTools",
-                 "_keepsLinkedView", "_renderNav", "_setComplexity"].map(method).join("\n");
+                 "_keepsLinkedView", "_renderNav", "_setComplexity", "_tracebackWindow"].map(method).join("\n");
 // The constructor's ?view= block, as a method.
 const deepLink = cut("      const q = new URLSearchParams(window.location.search);", "\n    } catch(e) { /* ignore */ }");
 

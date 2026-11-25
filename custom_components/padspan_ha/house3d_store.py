@@ -47,6 +47,9 @@ SCHEMA = 1
 # beacon/scanner recipes, people figures, and each room's floor and wall
 # finish and each floor's outside wall colour). "library" holds the terms acceptance.
 SECTIONS: tuple[str, ...] = ("pieces", "lights", "openings", "devices", "figures", "rooms", "floors")
+# The floor and wall finish sections are optional: absent means empty, and they are written only once an edit sets
+# one, so a file from before them keeps its bytes through a save that sets nothing (a plan AI undo promises it).
+OPTIONAL_SECTIONS: frozenset[str] = frozenset(("rooms", "floors"))
 _LOAD_LOCK = "house3d_load_lock"   # hass.data[DOMAIN]: one first load at a time
 NEWER_MESSAGE = ("Live Aboard's file was saved by a newer PadSpan. This version shows it but does not "
                  "change it: update PadSpan to edit it.")
@@ -54,7 +57,7 @@ NEWER_MESSAGE = ("Live Aboard's file was saved by a newer PadSpan. This version 
 
 def empty() -> dict[str, Any]:
     """The file's content for a house with nothing in 3D yet."""
-    return {"schema": SCHEMA, **{k: {} for k in SECTIONS}, "library": {}, "rails_chosen": True}
+    return {"schema": SCHEMA, **{k: {} for k in SECTIONS if k not in OPTIONAL_SECTIONS}, "library": {}, "rails_chosen": True}
 
 
 def writable(data: Any) -> bool:
@@ -77,6 +80,8 @@ def normalise(raw: Any) -> dict[str, Any]:
     out.setdefault("schema", SCHEMA)
     if writable(out):
         for k in (*SECTIONS, "library"):
+            if k in OPTIONAL_SECTIONS and k not in out:
+                continue
             if not isinstance(out.get(k), dict):
                 out[k] = {}
         # Railings are choices (2026-11-02). A file from before says its are
@@ -657,7 +662,8 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
         n += len(entries)
         if n > MAX_CHANGES:
             raise EditError(f"at most {MAX_CHANGES} changes in one save")
-        target, before = out[section], len(out[section])
+        target = out.setdefault(section, {})   # an optional section comes into being with its first entry
+        before = len(target)
         for key, e in entries.items():
             owned, clean, whole = _entry(section, key, e, stamp)
             old = target.get(key)

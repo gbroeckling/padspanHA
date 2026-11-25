@@ -91,10 +91,12 @@ def test_each_entry_is_the_editors_whole_and_none_removes_it() -> None:
 
 
 def test_nothing_chosen_nothing_in_the_file() -> None:
-    """A new house and a file from before: empty sections, counted as none."""
-    assert H.empty()["rooms"] == {} and H.empty()["floors"] == {}
+    """A new house and a file from before: no finish sections at all (absent is none chosen, and a file from before
+    keeps its bytes through a save that sets nothing), counted as none."""
+    assert "rooms" not in H.empty() and "floors" not in H.empty()
     old = H.normalise({"schema": 1, "pieces": {}, "openings": {}, "lights": {}, "devices": {}, "figures": {}, "rails_chosen": True})
-    assert old["rooms"] == {} and old["floors"] == {}
+    assert "rooms" not in old and "floors" not in old
+    assert H.normalise({**old, "rooms": "junk"})["rooms"] == {}   # present but broken: read as empty
 
 
 def test_the_command_takes_both_sections() -> None:
@@ -150,7 +152,7 @@ def test_restoring_a_backup_from_before_them_draws_the_house_as_it_was(disk, tmp
     _seed(tmp_path, {**H.empty(), "rooms": {"Den": dict(_DEN)}})
     h, _conn = _on(tmp_path)
     _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: {"schema": 1, "openings": {}, "lights": {}, "pieces": {}}})
-    assert _run(H.async_get_store(h)).data["rooms"] == {}
+    assert _run(H.async_get_store(h)).data.get("rooms", {}) == {}
 
 
 # ═══ the opt-in report ═══════════════════════════════════════════════════════

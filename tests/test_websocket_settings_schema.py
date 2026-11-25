@@ -32,6 +32,7 @@ _BACKEND_ONLY = {
     "forensics_license_expires",   # ditto — derived at activation
     "license_is_trial",            # padspan_ha/trial_start — same reason, never user-settable
     "irk_devices",                 # private-BLE resolver bookkeeping
+    "yesterday_home_sent_day",     # presence_coordinator: the day Yesterday at home last told, stamped by the backend
     "room_tag_map",                # tag integration / live snapshot
     "telemetry_install_id",        # minted by telemetry.py; replaced via telemetry_reset_id
     "telemetry_last_day",          # stamped by telemetry.py on an accepted send
