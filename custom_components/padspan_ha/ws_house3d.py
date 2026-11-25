@@ -146,6 +146,9 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("devices"): dict,
     vol.Optional("pieces"): dict,
     vol.Optional("figures"): dict,
+    # Floors and walls (Furnish): each room's floor and wall colours, each floor's outside walls.
+    vol.Optional("rooms"): dict,
+    vol.Optional("floors"): dict,
     # The devices with no placement record whose height this Save writes here.
     vol.Optional("heights_set"): [str],
     # The railings a file from before 2026-11-02 showed are choices now (house3d_store.apply_edit).
@@ -154,7 +157,7 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 @admin_if_enhanced_security
 async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
-    """Save the 3D editor's draft: {openings, lights, devices, pieces, figures}, each
+    """Save the 3D editor's draft: {openings, lights, devices, pieces, figures, rooms, floors}, each
     {key: entry to set | None to remove}, and heights_set (see above). Returns
     the whole file."""
     if not enabled(hass):

@@ -44,8 +44,9 @@ _LOGGER = logging.getLogger(__name__)
 
 SCHEMA = 1
 # The keyed sections (docs: pieces, 3D-only light heights, door hinge and swing,
-# beacon/scanner recipes, people figures). "library" holds the terms acceptance.
-SECTIONS: tuple[str, ...] = ("pieces", "lights", "openings", "devices", "figures")
+# beacon/scanner recipes, people figures, and each room's floor and wall
+# finish and each floor's outside wall colour). "library" holds the terms acceptance.
+SECTIONS: tuple[str, ...] = ("pieces", "lights", "openings", "devices", "figures", "rooms", "floors")
 _LOAD_LOCK = "house3d_load_lock"   # hass.data[DOMAIN]: one first load at a time
 NEWER_MESSAGE = ("Live Aboard's file was saved by a newer PadSpan. This version shows it but does not "
                  "change it: update PadSpan to edit it.")
@@ -203,7 +204,7 @@ class House3dStore:
 # the furniture (P2 Furnish: "fur_" + 8 hex digits) and the people figures
 # (P6). Each entry is set, or removed with None. What the editor owns is checked strictly; every other
 # key already in the file (a newer PadSpan's) is kept.
-EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces", "figures")
+EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces", "figures", "rooms", "floors")
 OPENING_ID = re.compile(r"^(win|door|doorway)_[0-9a-f]{8}$")
 BARRIER_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
 # Home Assistant's own entity id shape (core.valid_entity_id).
@@ -265,7 +266,7 @@ STAIR_SIZE_MIN_M, STAIR_RISE_M = 0.5, (0.3, 8.0)
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
                           "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))
 _CAPS = {"openings": MAX_OPENINGS, "lights": MAX_HEIGHTS, "devices": MAX_HEIGHTS, "pieces": MAX_PIECES,
-         "figures": 50}
+         "figures": 50, "rooms": 1000, "floors": 100}
 
 
 class EditError(ValueError):
@@ -892,7 +893,69 @@ def _device_entry(key: str, e: Any) -> tuple[frozenset, dict | None, bool]:
     return owned, clean or None, False
 
 
-_OWN_ENTRY = {"figures": _figure_entry, "devices": _device_entry}
+# ── Floors and walls (Furnish, 2026-11-24) ───────────────────────────────────
+# rooms: {"<room name>": {floor, wall, walls}}, keyed by the room's name as the
+# map keys it (room_geometry_m): floor, a material from FLOOR_MATERIALS (a
+# short lowercase word this version does not know is kept, and drawn as the
+# room's colour, so a newer version's save is never refused); wall, the
+# colour of the room's walls inside; walls, one wall a colour of its own, by
+# its number round the room's outline ({"0": "#rrggbb"}). floors: {"<floor
+# id>": {outside}}, the colour of that floor's outside walls. Each entry is the
+# editor's whole: a key it leaves out goes. Nothing set, nothing drawn
+# differently (views/live_aboard_finish.js).
+FLOOR_MATERIALS = ("wood", "light_wood", "tile", "stone", "carpet", "concrete")
+_ROOM_FINISH_OWNED = frozenset(("floor", "wall", "walls"))
+_FLOOR_FINISH_OWNED = frozenset(("outside",))
+ROOM_NAME_MAX, WALLS_MAX = 100, 200
+
+
+def _colour(key: str, v: Any, what: str) -> str:
+    if not isinstance(v, str) or not COLOR.fullmatch(v):
+        raise EditError(f"{key}: {what} must be a colour like #5b6b7a")
+    return v.lower()
+
+
+def _room_finish_entry(key: str, e: Any) -> tuple[frozenset, dict | None, bool]:
+    """A room's floor material and wall colours (Furnish)."""
+    if not _plain(key, ROOM_NAME_MAX):
+        raise EditError(f"rooms: {key[:48]!r} is not a room's name")
+    if e is None:
+        return _ROOM_FINISH_OWNED, None, False
+    if not isinstance(e, dict) or not e or set(e) - _ROOM_FINISH_OWNED:
+        raise EditError(f"{key}: a room's finish has a floor, a wall colour and/or walls")
+    out: dict[str, Any] = {}
+    if "floor" in e:
+        f = e["floor"]
+        if f not in FLOOR_MATERIALS and not (isinstance(f, str) and STAIR_STYLE_WORD.fullmatch(f)):
+            raise EditError(f"{key}: floor must be a short lowercase word ({', '.join(FLOOR_MATERIALS)})")
+        out["floor"] = f
+    if "wall" in e:
+        out["wall"] = _colour(key, e["wall"], "wall")
+    if "walls" in e:
+        w = e["walls"]
+        if not isinstance(w, dict) or not w or len(w) > WALLS_MAX:
+            raise EditError(f"{key}: walls must be at most {WALLS_MAX} walls, each by its number")
+        clean = {}
+        for k, v in w.items():
+            if not isinstance(k, str) or not re.fullmatch(r"(0|[1-9][0-9]{0,2})", k) or int(k) >= WALLS_MAX:
+                raise EditError(f"{key}: a wall is named by its number from 0 to {WALLS_MAX - 1}")
+            clean[k] = _colour(key, v, f"wall {k}")
+        out["walls"] = clean
+    return _ROOM_FINISH_OWNED, out, False
+
+
+def _floor_finish_entry(key: str, e: Any) -> tuple[frozenset, dict | None, bool]:
+    """A floor's outside wall colour (Furnish)."""
+    if not _plain(key, 64):
+        raise EditError(f"floors: {key[:48]!r} is not a floor's id")
+    if e is None:
+        return _FLOOR_FINISH_OWNED, None, False
+    if not isinstance(e, dict) or set(e) != {"outside"}:
+        raise EditError(f"{key}: a floor's finish is {{outside}}")
+    return _FLOOR_FINISH_OWNED, {"outside": _colour(key, e["outside"], "outside")}, False
+
+
+_OWN_ENTRY = {"figures": _figure_entry, "devices": _device_entry, "rooms": _room_finish_entry, "floors": _floor_finish_entry}
 
 
 async def async_get_store(hass: HomeAssistant) -> House3dStore:

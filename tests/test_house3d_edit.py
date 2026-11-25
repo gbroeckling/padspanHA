@@ -350,7 +350,7 @@ def test_a_newer_padspans_file_is_kept_whole_and_never_written(disk, tmp_path, s
     get = MagicMock()
     _run(W.ws_house3d_get(h, get, {"id": 8}))
     assert get.send_result.call_args[0][1]["counts"] == {"pieces": 0, "lights": 0, "openings": 1, "devices": 0,
-                                                         "figures": 0}
+                                                         "figures": 0, "rooms": 0, "floors": 0}
     with pytest.raises(H.EditError):
         H.apply_edit(newer, {"openings": {"door_0a1b2c3d": dict(_DOOR)}})
 
