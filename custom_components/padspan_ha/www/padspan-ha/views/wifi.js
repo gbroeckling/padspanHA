@@ -16,11 +16,18 @@
  * marks at the robot's spots, coloured by the robot's own signal, never in the coverage colours or the
  * findings. They are taken about 0.1 m off the floor (weaker than at hand height), and the robot's own
  * dBm and the access point's side are different scales, so the details give both, apart.
+ *
+ * Readings taken while the robot cleans (2026-11-25, the owner: "a far lower weight than standing still vac"; off
+ * unless turned on on its card): "kind" "moving", "weight" 0.1 (a stop "stop", 1.0; a reading without them is a
+ * stop). Stops stay diamonds. The moving ones are a faint tint of small squares, one per MOVING_CELL_M cell of
+ * this floor and band, coloured by the WEIGHTED mean of every robot reading in the cell (each by its own weight),
+ * so where the robot also stood the stop decides. Drawn under the stops and devices, small enough to leave the
+ * coverage colours showing round them; hidden with their own choice, remembered per browser like the layer's.
  */
 
 const V = new URL(import.meta.url).search;
 const RM = await import(`./radio_map.js${V}`);
-const { t } = await import(`./i18n.js${V}`);
+const { t, tn } = await import(`./i18n.js${V}`);
 
 export const WORST = -85;     // dBm at the red end of the ramp
 export const BEST = -45;      // dBm at the green end
@@ -125,6 +132,8 @@ function bbox(rooms, pts, extra = []) {
 }
 
 const ROBOT_KEY = "padspan_wifi_robot";   // "0": the robot layer turned off in this browser
+const MOVING_KEY = "padspan_wifi_robot_moving";   // "0": its readings taken while it cleans hidden in this browser
+export const MOVING_CELL_M = 0.5;                 // the moving readings' cells, this many metres a side
 
 /** The robot vacuum's readings in the answer that can be drawn (an older UniFi Utopia has none). */
 export function robotReadings(data) {
@@ -139,6 +148,49 @@ export function robotOn() {
 
 function setRobotOn(on) {
   try { localStorage.setItem(ROBOT_KEY, on ? "1" : "0"); } catch (_e) { /* storage blocked: this visit only */ }
+}
+
+/** Taken while it cleaned, not standing at a run's stop (no kind: a stop). */
+export const isMoving = (r) => !!r && r.kind === "moving";
+/** How much a reading counts: as given, else a stop's 1. */
+const weightOf = (r) => (Number.isFinite(r.weight) && r.weight >= 0 ? r.weight : 1);
+
+/** The moving readings of one floor and band in MOVING_CELL_M cells: each cell with at least one, valued by the
+ *  weighted mean of every robot reading in it (stops too, each by its weight). [{x, y, size, v, n, stops}] */
+export function movingCells(readings, floor, band, size = MOVING_CELL_M) {
+  const cells = new Map();
+  for (const r of readings || []) {
+    if (r.floor !== floor || r.band !== band) continue;
+    const i = Math.floor(r.x / size), j = Math.floor(r.y / size), k = `${i},${j}`;
+    const c = cells.get(k) || { i, j, sw: 0, sv: 0, n: 0, stops: 0 };
+    const w = weightOf(r);
+    c.sw += w; c.sv += w * r.own;
+    if (isMoving(r)) c.n += 1; else c.stops += 1;
+    cells.set(k, c);
+  }
+  const out = [];
+  for (const c of cells.values()) {
+    if (!c.n || !(c.sw > 0)) continue;
+    out.push({ x: (c.i + 0.5) * size, y: (c.j + 0.5) * size, size, v: c.sv / c.sw, n: c.n, stops: c.stops });
+  }
+  return out;
+}
+
+/** Its readings taken while it cleans: shown unless hidden in this browser. */
+export function movingOn() {
+  try { return localStorage.getItem(MOVING_KEY) !== "0"; } catch (_e) { return true; }
+}
+
+function setMovingOn(on) {
+  try { localStorage.setItem(MOVING_KEY, on ? "1" : "0"); } catch (_e) { /* storage blocked: this visit only */ }
+}
+
+/** One moving cell's details: how many readings while cleaning, the weighted value, a stop in it. */
+export function movingDetails(c) {
+  const lines = [tn(c.n, "While cleaning: {n} reading", "While cleaning: {n} readings"),
+    t("Weighted: {dbm} dBm at floor level", { dbm: Math.round(c.v) })];
+  if (c.stops) lines.push(tn(c.stops, "With {n} stop here, which counts ten times as much", "With {n} stops here, which count ten times as much"));
+  return lines.join("\n");
 }
 
 /** One robot reading's details: its own signal, the access point, the access point's side when joined, when. */
@@ -156,7 +208,8 @@ export function floorAPs(data, floor) {
 }
 
 /** The floor drawing: rooms, the coloured coverage, each room's typical reading, the placed devices,
- *  the robot's readings when its layer is on (opt.robot, this floor's and band's), the access points,
+ *  the robot's readings when its layer is on (opt.robot its stops, opt.moving the cells of those taken while it
+ *  cleaned, movingCells; this floor's and band's), the access points,
  *  and a ring round what the picked finding is about (opt.focus). */
 export function floorSVG(ctx, data, floor, band, opt = {}) {
   const { esc } = ctx.helpers;
@@ -164,7 +217,8 @@ export function floorSVG(ctx, data, floor, band, opt = {}) {
   const pts = points(data, floor, band);
   const aps = floorAPs(data, floor);
   const robot = opt.robot || [];
-  const bb = bbox(rooms, pts, [...aps, ...robot]);
+  const moving = opt.moving || [];
+  const bb = bbox(rooms, pts, [...aps, ...robot, ...moving]);
   if (!bb) return "";
   const W = bb.x1 - bb.x0, H = bb.y1 - bb.y0, fs = Math.max(0.28, Math.min(W, H) / 38);
   const parts = [];
@@ -183,6 +237,11 @@ export function floorSVG(ctx, data, floor, band, opt = {}) {
         parts.push(`<rect data-wifi="cell" x="${c.x - c.size / 2}" y="${c.y - c.size / 2}" width="${c.size}" height="${c.size}" fill="${colour(c.median)}" opacity="0.8"/>`);
       }
     }
+  }
+  if (moving.length) {
+    // Faint and small, under the rooms' outlines and names, the devices and the stops: the coverage colours still show round each one.
+    const side = MOVING_CELL_M * 0.6;
+    parts.push(`<g data-wifi="robot-moving" opacity="0.55">${moving.map((c) => `<rect data-wifi="robot-cell" x="${c.x - side / 2}" y="${c.y - side / 2}" width="${side}" height="${side}" rx="${side * 0.2}" fill="${colour(c.v)}"><title>${esc(movingDetails(c))}</title></rect>`).join("")}</g>`);
   }
   for (const r of rooms) {
     parts.push(`<polygon points="${r.pts.map(([x, y]) => `${x},${y}`).join(" ")}" fill="none" stroke="#3d5a48" stroke-width="${fs * 0.12}"/>`);
@@ -436,17 +495,25 @@ export function render(ctx) {
   // The robot vacuum's layer: a choice only when there are readings, on until turned off in this browser.
   const robotAll = robotReadings(D);
   const robotShown = robotAll.length > 0 && robotOn();
-  const robotHere = robotShown ? robotAll.filter((r) => r.floor === s.floor && r.band === s.band) : [];
+  const robotHere = robotShown ? robotAll.filter((r) => !isMoving(r) && r.floor === s.floor && r.band === s.band) : [];
   const robotBands = [...new Set(robotAll.map((r) => r.band).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+  // Its readings taken while it cleans: their own choice, only with the layer on and readings to show.
+  const anyMoving = robotAll.some(isMoving);
+  const movingShown = robotShown && anyMoving && movingOn();
+  const movingHere = movingShown ? movingCells(robotAll, s.floor, s.band) : [];
   if (robotAll.length) {
     bar.appendChild(el("span", { style: "width:12px" }));
     bar.appendChild(chip(ctx, t("Robot (floor level, {band} GHz)", { band: robotBands.join(" / ") || "2.4" }), robotShown,
       () => { setRobotOn(!robotShown); ctx.actions.renderRooms(); }, { "data-wifi-layer": "robot" }));
+    if (robotShown && anyMoving) {
+      bar.appendChild(chip(ctx, t("While it cleaned"), movingShown,
+        () => { setMovingOn(!movingShown); ctx.actions.renderRooms(); }, { "data-wifi-layer": "robot-moving" }));
+    }
   }
   root.appendChild(bar);
 
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus, robot: robotHere }) : "";
+  const svg = s.floor ? floorSVG(ctx, D, s.floor, s.band, { focus: s.focus, robot: robotHere, moving: movingHere }) : "";
   const pics = el("div", { "data-wifi": "map" });
   if (svg) pics.innerHTML = svg;
   else pics.appendChild(el("div", { style: "color:#94a3b8;padding:18px" }, "This floor has no rooms drawn in PadSpan yet."));
@@ -459,10 +526,11 @@ export function render(ctx) {
   ]);
   root.appendChild(legend);
   if (robotShown) {
-    const none = robotHere.length ? "" : " " + t("None on this floor at {band} GHz: the robot's readings are at {bands} GHz.",
+    const mv = anyMoving ? " " + t("Faint squares: its Wi-Fi taken every few seconds while it cleaned. They count a tenth of a stop's, so where it also stood, the stop decides.") : "";
+    const none = robotHere.length || movingHere.length ? "" : " " + t("None on this floor at {band} GHz: the robot's readings are at {bands} GHz.",
       { band: s.band, bands: robotBands.join(" / ") || "?" });
     root.appendChild(el("div", { "data-wifi": "robot-note", style: "font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5" },
-      t("Diamonds: the robot vacuum's own Wi-Fi where it stood on its room location runs. Taken at floor height, they read weaker than at hand height, so they are kept apart from the coverage colours. Point at one for what the access point heard from it.") + none));
+      t("Diamonds: the robot vacuum's own Wi-Fi where it stood on its room location runs. Taken at floor height, they read weaker than at hand height, so they are kept apart from the coverage colours. Point at one for what the access point heard from it.") + mv + none));
   }
 
   const cellsHere = (D.cells || []).filter((c) => c.floor === s.floor && c.band === s.band);

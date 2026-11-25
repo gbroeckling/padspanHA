@@ -6,7 +6,7 @@
 // connection: what a room location run needs and what is missing, Start /
 // Pause / Dock and the run's Start, Stop and Undo each sending their command,
 // the 401 said plainly, nothing reached for someone who is not an
-// administrator, and its words in German.
+// administrator, the switch for Wi-Fi while it cleans, and its words in German.
 //
 // usage: robovac_card.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -238,6 +238,36 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   RC.closeRobovacCard();
 }
 
+// Wi-Fi while it cleans (2026-11-25): a switch, off by default, its one plain line; it sends vacuum_robot_set only.
+{
+  const { hass } = await open(READY);
+  const text = sheet().textContent;
+  const sw = btn("Collect Wi-Fi while it cleans");
+  check("wifi-moving", sw && sw.getAttribute("role") === "switch" && sw.getAttribute("aria-checked") === "false" && text.includes("Off"), sw && sw.getAttribute("aria-checked"));
+  check("wifi-moving", text.includes("These readings are taken on the move, count far less than its standing-still ones, and add one small request to the robot every few seconds while it cleans."), text);
+  await press(sw);
+  const set = hass.sent.find(m => m.type === "padspan_ha/vacuum_robot_set");
+  check("wifi-moving", set && set.wifi_moving === true && Object.keys(set).join() === "type,wifi_moving", set);
+  RC.closeRobovacCard();
+  const { hass: h2 } = await open({ ...READY, robot: { ...READY.robot, wifi_moving: true, wifi_moving_n: 12 } });
+  const on = btn("Collect Wi-Fi while it cleans");
+  check("wifi-moving", on.getAttribute("aria-checked") === "true" && sheet().textContent.includes("On") && sheet().textContent.includes("12 readings kept so far."), sheet().textContent);
+  check("wifi-moving", !sheet().textContent.includes("live position is on"), "linked: no warning");
+  await press(on);
+  check("wifi-moving", h2.sent.some(m => m.type === "padspan_ha/vacuum_robot_set" && m.wifi_moving === false), h2.sent);
+  RC.closeRobovacCard();
+  await open({ ...READY, robot: { ...READY.robot, wifi_moving: true, wifi_moving_n: 0 }, link: { ...READY.link, on: false } });
+  check("wifi-moving", sheet().textContent.includes("It reads only while the robot's live position is on") && !sheet().textContent.includes("kept so far"), sheet().textContent);
+  RC.closeRobovacCard();
+  // Not on a wall, not for anyone but an administrator.
+  await open(READY, true, [], true);
+  check("wifi-moving", !btn("Collect Wi-Fi while it cleans") && !sheet().textContent.includes("on the move"), sheet().textContent);
+  RC.closeRobovacCard();
+  await open(READY, false);
+  check("wifi-moving", !btn("Collect Wi-Fi while it cleans"), "not an administrator");
+  RC.closeRobovacCard();
+}
+
 // In German: the card's own words, from i18n/de/aboard2.json.
 {
   const lang = await I.useLanguage({ language: "de" }, ["aboard2"]);
@@ -246,6 +276,7 @@ const types = (h) => h.sent.map(m => m.type.replace("padspan_ha/", ""));
   check("german", lang === "de" && text.includes("Raumortung") && text.includes("In der Station · Akku 87 % (lädt)"), text);
   check("german", btn("Zur Station") && btn("Fahrt starten") && btn("Diese Fahrt rückgängig machen") && text.includes("angehalten"), text);
   check("german", !text.includes("Room location") && !text.includes("Start a run"), text);
+  check("german", btn("WLAN beim Saugen erfassen") && text.includes("zählen viel weniger als die im Stillstand") && !text.includes("Collect Wi-Fi"), text);
   await press(btn("Fehler finden"));
   await tick(); await tick();
   const card = all(document.body, "div").find(d => d.className === "ps-robovac-findings");

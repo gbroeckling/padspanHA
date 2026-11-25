@@ -16,6 +16,8 @@
 //
 //   the robot   what Valetudo says it is doing and its battery, read every
 //               POLL_MS only while the card is open; Start, Pause, Dock
+//   Wi-Fi while it cleans  the switch "Collect Wi-Fi while it cleans", off by
+//               default (2026-11-25, vacuum_moving.py), and what it kept
 //   room location (the rest)  what a run needs and what is missing (the
 //               robot's address, its map from Valetudo, the tag stuck on it
 //               and whether that tag is heard now), Start a run (every room
@@ -238,6 +240,20 @@ export function openRobovacCard(api, info){
       });
       sheet.appendChild(a);
     }
+
+    // Wi-Fi while it cleans (the owner, 2026-11-25: "selectable, and a far lower weight than standing still"):
+    // off until turned on here, per house (vacuum_moving.py). A button, not a box: a focused box would stop the redraws.
+    const wm = !!(s.robot && s.robot.wifi_moving);
+    const wrow = mk("div", C.row);
+    const wb = button(t("Collect Wi-Fi while it cleans"), doing(() => call("vacuum_robot_set", { wifi_moving: !wm })), wm);
+    wb.setAttribute("role", "switch");
+    wb.setAttribute("aria-checked", wm ? "true" : "false");
+    wb.setAttribute("data-robovac", "wifi-moving");
+    wrow.append(wb, mk("span", "font-size:12px;font-weight:600", wm ? t("On") : t("Off")));
+    sheet.appendChild(wrow);
+    sheet.appendChild(mk("div", C.muted, t("These readings are taken on the move, count far less than its standing-still ones, and add one small request to the robot every few seconds while it cleans.")));
+    if (wm && !(s.link && s.link.on && s.link.valetudo)) sheet.appendChild(mk("div", C.warn, t("It reads only while the robot's live position is on, from its map imported from Valetudo.")));
+    if (wm && s.robot.wifi_moving_n) sheet.appendChild(mk("div", C.muted, tn(s.robot.wifi_moving_n, "{n} reading kept so far.", "{n} readings kept so far.")));
 
     // ── room location ──
     sheet.appendChild(mk("div", C.h, t("Room location")));

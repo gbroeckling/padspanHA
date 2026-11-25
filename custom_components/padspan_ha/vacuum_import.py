@@ -42,6 +42,11 @@ Three things, every one of them off until the user asks for it:
      tag's readings there are ADDED to calibration, after a backup, each run
      undoable as a whole. The store keeps the robot's address and the runs'
      history; its user and password are kept apart (AUTH_STORE_KEY).
+
+  5. WI-FI WHILE IT CLEANS (vacuum_moving.py, 2026-11-25): with the owner's
+     switch on the robot's card, each tick also hands the robot's position to
+     the collector, which reads the robot's Wi-Fi while Valetudo says it is
+     cleaning, moving or returning.
 """
 
 import base64
@@ -78,6 +83,7 @@ WALK_STILL_M = 0.25                     # moved less than this between reads: st
 WALK_APART_M = 1.0                      # a new pending point at least this far from the others
 WALK_MIN_SOURCES = 2                    # scanners that must hear the tag at a spot
 PENDING_MAX = 200
+SAVE_DELAY_S = 60                       # many small changes (Wi-Fi while it cleans): one write a minute at most
 
 _PNG_SIG = b"\x89PNG\r\n\x1a\n"
 
@@ -471,7 +477,8 @@ def _default_data() -> dict[str, Any]:
         "pending": [],                          # the review pile — never calibration
         "robot": {"url": ""},                   # the robot's Valetudo address, for its card and runs
         "runs": [],                             # room location runs (vacuum_run.py), the last few
-        "wifi": {"readings": [], "robot_ip": ""},   # the robot's Wi-Fi at each run spot (vacuum_run.py)
+        "wifi": {"readings": [], "robot_ip": ""},   # the robot's Wi-Fi at each run spot (vacuum_run.py); "moving"
+                                                    # added once it reads while it cleans (vacuum_moving.py)
     }
 
 
@@ -502,6 +509,11 @@ class VacuumStore:
 
     async def async_save(self) -> None:
         await self.store.async_save(self.data)
+
+    def schedule_save(self) -> None:
+        """Saved once, SAVE_DELAY_S after the first of many small changes (Home Assistant
+        writes a pending one when it stops)."""
+        self.store.async_delay_save(lambda: self.data, SAVE_DELAY_S)
 
     async def async_save_auth(self, user: str, password: str) -> None:
         self.auth = {"user": user, "password": password}
@@ -536,6 +548,9 @@ class VacuumStore:
         if self._unsub:
             self._unsub()
             self._unsub = None
+        mw = getattr(self, "_moving", None)
+        if mw is not None:
+            mw.cancel()
         self.live = None
         self._last_spot = None
 
@@ -557,6 +572,7 @@ class VacuumStore:
         if not self.link_on():
             self.live = None
             return
+        t_read = time.time()
         payload = await self.async_read_payload(lk)
         spot = robot_spot(lk.get("format") or "", payload)
         if not spot:
@@ -569,6 +585,10 @@ class VacuumStore:
                      "map_id": lk["map_id"],
                      "angle": spot.get("a"), "entity_id": lk.get("vacuum_entity") or "", "ts": time.time()}
         await self.async_walk(m[0], m[1], lk)
+        # Wi-Fi while it cleans (off unless the owner turned it on): the position just read, and when
+        # Valetudo was asked for it; a camera's picture is of an unknown moment, so its own map read then.
+        from .vacuum_moving import moving_for  # noqa: PLC0415 — it imports this module
+        moving_for(self).after_tick(t_read if lk.get("read") == "url" else None, m)
 
     # The walker ---------------------------------------------------------------
     async def async_walk(self, x_m: float, y_m: float, lk: dict) -> dict | None:

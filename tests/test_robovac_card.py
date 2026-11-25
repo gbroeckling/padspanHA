@@ -33,7 +33,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "choice", "wall", "not-admin", "findings", "german"])
+@pytest.mark.parametrize("case", ["setup", "ready", "running", "undo", "auth", "choice", "wall", "not-admin", "findings", "wifi-moving", "german"])
 def test_robovac_card(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 

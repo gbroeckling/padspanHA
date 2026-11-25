@@ -391,6 +391,14 @@ Auf einem Wandbildschirm zeigt die Karte nur, was der Roboter gerade tut, und se
 An jeder Stelle meldet der Roboter auch sein eigenes WLAN-Signal. PadSpan behält die letzten 2.000
 davon für die WLAN-Abdeckungskarte, und andere Integrationen können sie lesen.
 
+Der Roboter kann sein WLAN auch melden, während er von sich aus saugt. Schalte dazu auf seiner Karte
+**WLAN beim Saugen erfassen** ein (bis dahin ist es aus). Während der Roboter saugt oder fährt und
+seine Live-Position an ist, liest PadSpan etwa alle 5 Sekunden sein WLAN und wo er ist, und nichts,
+solange er in der Station steht oder eine Fahrt läuft. Diese Messwerte entstehen während der Fahrt,
+deshalb zählt jeder nur ein Zehntel eines Messwerts im Stillstand; PadSpan behält die letzten 5.000,
+getrennt von den Stellen der Fahrten. Auf dem Bildschirm zur WLAN-Abdeckung sind sie blasse Quadrate
+unter den Rauten, mit **Beim Saugen** zum Ausblenden.
+
 ## Mehr als eine Etage: sie ausrichten
 
 Jeder Grundriss behält seinen eigenen Platz in Metern. Mit zwei oder mehr Etagen richtest du sie so

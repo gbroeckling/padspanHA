@@ -346,6 +346,13 @@ On a wall screen the card shows only what the robot is doing and its battery.
 At each spot the robot also reports its own Wi-Fi signal. PadSpan keeps the last 2,000 of these for
 the Wi-Fi coverage map, and other integrations can read them.
 
+The robot can also report its Wi-Fi while it cleans on its own. Turn on **Collect Wi-Fi while it
+cleans** on its card (it is off until you do). While the robot is cleaning or driving, and its live
+position is on, PadSpan reads its Wi-Fi and where it is about every 5 seconds, and nothing while it
+is docked or during a run. These readings are taken on the move, so each counts a tenth of a
+standing-still one; PadSpan keeps the last 5,000, apart from the run spots. On the Wi-Fi coverage
+screen they are faint squares under the diamonds, with **While it cleaned** to hide them.
+
 ## More than one floor: lining them up
 
 Each plan keeps its own place in metres. With two floors or more, line them up so a stairwell on

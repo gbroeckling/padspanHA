@@ -16,7 +16,8 @@ robot    the robovac card (2026-11-24): the robot's state and battery read
          from its own Valetudo, Start / Pause / Dock, its address and login.
 run      room location runs (vacuum_run.py): start, stop, undo one run.
 findings where the runs' points say a receiver really is (vacuum_findings.py).
-robot_wifi_readings  the robot's Wi-Fi at each run spot, for other
+robot_wifi_readings  the robot's Wi-Fi at each run spot, and while it cleans
+         when the owner turned that on (vacuum_moving.py), for other
          integrations (its shape: vacuum_run.py's docstring).
 
 All admin-gated: they parse untrusted files, reach a robot on the network, or
@@ -355,7 +356,10 @@ async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) ->
     out: dict = {
         "robot": {"url": base, "auth": bool(vs.basic_auth()),
                   # How the robot's points are used (vacuum_use.py): None until the owner picks.
-                  "use": vu.use_of(vs), "applied": (vs.data.get("robot") or {}).get("applied")},
+                  "use": vu.use_of(vs), "applied": (vs.data.get("robot") or {}).get("applied"),
+                  # Wi-Fi while it cleans (vacuum_moving.py): the owner's switch, off by default, and what it kept.
+                  "wifi_moving": bool((vs.data.get("robot") or {}).get("wifi_moving")),
+                  "wifi_moving_n": len((vs.data.get("wifi") or {}).get("moving") or [])},
         "link": {"map": bool(lk and lk.get("map_id")), "valetudo": bool(lk and lk.get("format") == "valetudo"),
                  "on": vs.link_on(), "vacuum_entity": (lk or {}).get("vacuum_entity") or ""},
         "tag": {"address": tag, **vr.tag_heard(hass, tag)},
@@ -404,12 +408,17 @@ async def ws_vacuum_robot_status(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("url"): id_text,
     vol.Optional("user"): id_text,
     vol.Optional("password"): id_text,
+    vol.Optional("wifi_moving"): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_vacuum_robot_set(hass: HomeAssistant, connection, msg) -> None:
-    """The robot's Valetudo address, and its user and password when Valetudo asks for them."""
+    """The robot's Valetudo address, and its user and password when Valetudo asks for them;
+    and the switch "Collect Wi-Fi while it cleans" (vacuum_moving.py), off until the owner turns it on."""
     vs = await _store(hass)
+    if "wifi_moving" in msg:
+        vs.data.setdefault("robot", {})["wifi_moving"] = bool(msg["wifi_moving"])
+        await vs.async_save()
     if "url" in msg:
         url = msg["url"].strip().rstrip("/")
         try:
@@ -604,7 +613,7 @@ async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_robot_wifi_readings(hass: HomeAssistant, connection, msg) -> None:
-    """The robot's Wi-Fi at each room location run spot, for other integrations (version 1)."""
+    """The robot's Wi-Fi at each room location run spot and while it cleans, for other integrations (version 1)."""
     await _store(hass)
     connection.send_result(msg["id"], vr.robot_wifi_snapshot(hass))
 

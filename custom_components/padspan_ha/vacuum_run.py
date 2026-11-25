@@ -76,11 +76,21 @@ them through one admin-only command, versioned:
                     "ts_start": 1763999990.0, "ts_end": 1764000010.0,  # the stop (2026-11-24, research S8)
                     "x_m": 3.21, "y_m": 4.5, "floor_id": "main", "room": "Kitchen",
                     "signal": -61, "bssid": "aa:bb:cc:dd:ee:ff",       # the median of the stop's reads
-                    "frequency": "5ghz", "state": "connected"}, ...]   # oldest first
+                    "frequency": "5ghz", "state": "connected",
+                    "kind": "stop", "weight": 1.0}, ...]                 # oldest first
   }
 
 ts_start and ts_end are on readings from 2026-11-24 on (older ones have ts
 alone): a joining integration takes only what was heard between them.
+
+kind and weight (2026-11-25, additive; version stays 1): "stop" at
+STOP_WEIGHT (1.0) for a run's stop, "moving" at MOVING_WEIGHT (0.1) for a
+reading taken while the robot cleans or drives on its own (vacuum_moving.py,
+the owner's switch on its card, off by default). A moving reading has no
+run_id, ts_start or ts_end: ts is the moment its Wi-Fi was read, its place
+where the robot's map put it within vacuum_moving.FRESH_S (3 s) of that. A reading without kind
+or weight is a stop at 1.0. A joining integration takes UniFi's side for a
+moving reading only from a sample taken within a few seconds of its ts.
 
 Fields Valetudo does not give are null. The SSID is not kept; neither it nor
 a BSSID goes into the opt-in report (a run that read Wi-Fi is counted, no more).
@@ -142,6 +152,13 @@ CONTROL_ACTIONS = ("start", "pause", "home")
 WIFI_PATH = "/api/v2/robot/capabilities/WifiConfigurationCapability"
 WIFI_KEPT = 2000             # Wi-Fi readings kept, the oldest dropped first
 WIFI_VERSION = 1             # padspan_ha/robot_wifi_readings' shape
+# How much one reading counts on the coverage map (the owner, 2026-11-25: "a far lower weight than standing
+# still"): a stop stood ~20 s with three reads and its median; one taken on the move is a single read, up to
+# vacuum_moving.FRESH_S (3 s) from its position, somewhere along about a metre of the robot's path. This one place sets both;
+# the answer carries each reading's weight, and the Wi-Fi screen weighs by what it is given.
+STOP_WEIGHT = 1.0
+MOVING_WEIGHT = 0.1
+MOVING_KEPT = 5000           # readings taken on the move, kept apart from the stops' WIFI_KEPT, the oldest dropped first
 
 
 class RobotError(Exception):
@@ -878,14 +895,21 @@ def robot_wifi_snapshot(hass) -> dict[str, Any] | None:
     Wi-Fi survey reads it (as custom_components.padspan_ha.vacuum_run, once
     PadSpan is loaded) and joins each reading with what its access point hears
     from the robot. None while the vacuum store is not loaded yet. Reads only,
-    never waits, never loads the store; the readings are copies."""
+    never waits, never loads the store; the readings are copies. The stops
+    (each run's, "kind" "stop") and those taken while the robot cleans
+    ("kind" "moving", vacuum_moving.py) together, oldest first, each with its
+    "weight"."""
     vs = hass.data.get(DOMAIN, {}).get(vi.DATA_VACUUM)
     data = getattr(vs, "data", None)
     if not isinstance(data, dict):
         return None
     wifi = data.get("wifi") or {}
-    return {"version": WIFI_VERSION, "robot_ip": wifi.get("robot_ip") or None,
-            "readings": [dict(r) for r in wifi.get("readings") or []]}
+    stops = [{**r, "kind": "stop", "weight": STOP_WEIGHT} for r in wifi.get("readings") or [] if isinstance(r, dict)]
+    moving = [dict(r) for r in wifi.get("moving") or [] if isinstance(r, dict)]
+    readings = stops + moving
+    if moving:
+        readings.sort(key=lambda r: r.get("ts") or 0)       # oldest first, both kinds together
+    return {"version": WIFI_VERSION, "robot_ip": wifi.get("robot_ip") or None, "readings": readings}
 
 
 def engine(hass, vs: vi.VacuumStore) -> RunEngine:
