@@ -125,7 +125,7 @@ const LBE = Object.fromEntries(LM.gatherLights(STATES, {}, {}, "pro", {}, {}, {}
 // ── the host: the sidebar's, with its settings ──────────────────────────────
 const SENT = [];
 let SCAN = null;                 // a scanned plan's furniture, beside the file (house3d_get's scan_pieces)
-const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null, looks: null, asked: 0 };
+const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null, looks: null, asked: 0, top: null };
 const store = new Map();
 const prefs = { get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, String(v)) };
 const host = document.createElement("padspan-lights-app");
@@ -135,7 +135,7 @@ document.body.appendChild(host);
 host.appendChild(shadow);
 const SNAP = { objects: { list: [{ key: "ble:keys", kind: "ble", x_m: 4, y_m: 2, floor_id: "main", user_label: "Keys", room: "Kitchen", age_s: 3 }] } };
 const SET = (over = {}) => ({ atlas_3d_enabled: true, atlas_3d_people: true, atlas_3d_tags: true, atlas_3d_home_idle_s: 60, ...over });
-const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: null, quality: "low",
+const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: H.top || null, quality: "low",
   telemetry: (name) => { H.sent.push(name); SENT.push(name); }, onTouch: () => {}, states: STATES, config: {}, bearing: 0, saveNorth: null, useApi: () => null,
   haStartedMs: 0, load: async () => ({ data: { schema: 1, pieces: PIECES, lights: {}, openings: {}, devices: {}, figures: {} }, ...(SCAN ? { scan_pieces: SCAN } : {}) }),
   edit: null, furnish: null, mapOnly: true, floorSteps: null, prefs,
@@ -591,18 +591,32 @@ await tryCase("setup: Audio is listed where the host hands it, says Audio, and i
 await tryCase("setup: Audio ticked, the flat map's speaker at a room's name in 3D: on, muted, none while off; a tap is the room's", async () => {
   const name = "setup: Audio ticked, the flat map's speaker at a room's name in 3D: on, muted, none while off; a tap is the room's";
   const listOpen = async () => { if (S().show.menu.open) { click(more()); await settle(); } click(more()); await settle(); };
-  H.audio = { setup: () => {} }; H.looks = { Kitchen: "on", Loft: "muted" }; H.asked = 0;
+  H.audio = { setup: () => {} }; H.looks = { Kitchen: "on", Loft: "muted", Hall: "on" }; H.asked = 0; H.top = ["main"];   // the main floor alone: its names and the Hall's readout show
   poll(); await settle();
   const off = S().audio.length, askedOff = H.asked;                       // not ticked: nothing drawn, the looks never asked
   await listOpen(); await toggle("room_controls");
   if (S().show.menu.open) { click(more()); await settle(); }
-  poll(); await settle();
+  poll(); await settle(); await later(200, 20);
   const on = S().audio.map(a => [a.room, a.look]).sort((a, b) => a[0].localeCompare(b[0]));
   const shown = S().audio.filter(a => a.shown).length;
+  // Its own badge (the owner, 2026-11-25: it sat over the humidity, "so the humidity looks like a volume indicator"):
+  // the Hall's (a readout chip under its name) touches neither, with the names shown and with them hidden (his wall).
+  const apart = (a, b) => !a || !b || a[2] + 2 <= b[0] || b[2] + 2 <= a[0] || a[3] + 2 <= b[1] || b[3] + 2 <= a[1];
+  const hallNamed = S().audio.find(a => a.room === "Hall") || {};
+  await listOpen(); await toggle("room_names");
+  if (S().show.menu.open) { click(more()); await settle(); }
+  await later(200, 20);
+  const hallBare = S().audio.find(a => a.room === "Hall") || {};
+  await listOpen(); await toggle("room_names");
+  if (S().show.menu.open) { click(more()); await settle(); }
+  await later(200, 20);
+  const badges = [hallNamed, hallBare].map(a => ({ box: a.box, chip: a.chip, name: a.name, shown: a.shown }));
+  const ownSpot = !!(hallNamed.box && hallNamed.chip && hallNamed.name && hallBare.box && hallBare.chip && !hallBare.name)
+    && [hallNamed, hallBare].every(a => apart(a.box, a.chip) && apart(a.box, a.name) && a.box[0] > a.chip[2]);
   // A tap on one: the room (its panel), never a light or a switch.
-  const at = (S().audio.find(a => a.room === "Kitchen") || {}).at;
+  const hb = (S().audio.find(a => a.room === "Hall") || {}).box;
   const r0 = slot.element.querySelector("canvas"), box = r0 && r0.getBoundingClientRect ? r0.getBoundingClientRect() : { left: 0, top: 0 };
-  const hit = at ? slot._pick(box.left + at[0], box.top + at[1]) : null;
+  const hit = hb ? slot._pick(box.left + (hb[0] + hb[2]) / 2, box.top + (hb[1] + hb[3]) / 2) : null;
   // The players all off: nothing; and unticked again: nothing, the looks not asked.
   H.looks = { Kitchen: "on" }; poll(); await settle();
   const one = S().audio.map(a => a.room);
@@ -613,10 +627,10 @@ await tryCase("setup: Audio ticked, the flat map's speaker at a room's name in 3
   if (S().show.menu.open) { click(more()); await settle(); }
   const asked = H.asked; poll(); await settle();
   const unticked = S().audio.length, askedAfter = H.asked - asked;
-  store.delete("show_show-a"); H.audio = null; H.looks = null; poll(); await settle();
-  check(name, off === 0 && askedOff === 0 && JSON.stringify(on) === JSON.stringify([["Kitchen", "on"], ["Loft", "muted"]]) && shown >= 1
-    && (!hit || hit.hit === "room:Kitchen") && JSON.stringify(one) === JSON.stringify(["Kitchen"]) && none === 0 && unticked === 0 && askedAfter === 0
-    && SHOW.SHOW_ITEMS.find(i => i.key === "room_controls").dflt === false, { off, askedOff, on, shown, at, hit, one, none, unticked, askedAfter });
+  store.delete("show_show-a"); H.audio = null; H.looks = null; H.top = null; poll(); await settle();
+  check(name, off === 0 && askedOff === 0 && JSON.stringify(on) === JSON.stringify([["Hall", "on"], ["Kitchen", "on"], ["Loft", "muted"]]) && shown >= 1
+    && ownSpot && hit && hit.hit === "room:Hall" && JSON.stringify(one) === JSON.stringify(["Kitchen"]) && none === 0 && unticked === 0 && askedAfter === 0
+    && SHOW.SHOW_ITEMS.find(i => i.key === "room_controls").dflt === false, { off, askedOff, on, shown, badges, hb, hit, one, none, unticked, askedAfter });
 });
 
 LA.releaseLiveAboardSlot("show-a");

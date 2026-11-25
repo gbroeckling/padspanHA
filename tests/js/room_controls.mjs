@@ -19,7 +19,7 @@
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
-import { install } from "./dom_shim.mjs";
+import { install, flush } from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: room_controls.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -187,6 +187,33 @@ await tryCase("icon", async () => {
   check("icon", muted.includes('data-look="muted"') && (muted.match(/<g class="lroom-audio"[\s\S]*?<\/g>/)[0].match(/<path/g) || []).length === 5, "the muted look has its slash");
 });
 
+// ── icon-clear: the speaker is a round badge of its own, never on a live reading's digits (the owner, 2026-11-25: over the
+// humidity, "the humidity looks like a volume indicator") ──
+await tryCase("icon-clear", async () => {
+  const h = house(), now = new Date().toISOString();
+  const states = { ...h.hass.states, "sensor.great_room_humidity": { ...h.hass.states["sensor.great_room_humidity"], last_changed: now, last_updated: now } };
+  const lbe = Object.fromEntries(LM.gatherLights(states, {}, {}, "pro").map(l => [l.entity_id, l]));
+  const model = (x, y) => ({ ...MODEL, light_positions_m: x === null ? {} : { "sensor.great_room_humidity": { x_m: x, y_m: y, floor_id: "main" } } });
+  const draw = (m, ra) => ISO.buildIsoSVG(m, {}, new Set(), null, 150, 0, lbe, false, MODEL.floors, { codeChip: true, hitHalo: true, roomAudio: ra });
+  const reading = (svg) => { const m = svg.match(/<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>([\d.]+%)<\/text>/); return m ? m.slice(1, 4).map(Number).concat(m[4]) : null; };
+  const badge = (svg) => { const m = svg.match(/<g class="lroom-audio"[^>]*><circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.]+)"/); return m ? m.slice(1).map(Number) : null; };
+  // Where a reading lands for a sensor at (x, y) m is affine: three draws find it, and the reading goes where the speaker
+  // would otherwise be.
+  const o = reading(draw(model(1, 1))), ex = reading(draw(model(2, 1))), ey = reading(draw(model(1, 2)));
+  const want = badge(draw(model(null), { "Great Room": "on" }));
+  const a = ex[0] - o[0], b = ey[0] - o[0], c = ex[1] - o[1], d = ey[1] - o[1], det = a * d - b * c;
+  const dx = want[0] - o[0], dy = want[1] - o[1];
+  const svg = draw(model(1 + (d * dx - b * dy) / det, 1 + (a * dy - c * dx) / det), { "Great Room": "on" });
+  const r = reading(svg), g = badge(svg);
+  const onIt = r && Math.hypot(r[0] - want[0], r[1] - want[1]) < 1;          // the reading is where the speaker was
+  // The digits' box (markerSvg: monospace, centred on the sensor) against the badge's circle: apart, with a gap.
+  const hw = String(r[3]).length * r[2] * 0.32, hh = r[2] * 0.45;
+  const apart = g && (Math.abs(g[0] - r[0]) >= hw + g[2] || Math.abs(g[1] - r[1]) >= hh + g[2]);
+  check("icon-clear", onIt && g && (g[0] !== want[0] || g[1] !== want[1]) && apart, { want, reading: r, badge: g });
+  // Round, dark, edged in the name's colour, the speaker inside it.
+  check("icon-clear", /<g class="lroom-audio"[^>]*stroke="(#[0-9a-f]{6}|hsl[^"]*)"[^>]*><circle [^>]*fill="#071008"/.test(svg), svg.match(/<g class="lroom-audio"[^>]*>[^]*?<\/g>/));
+});
+
 // ── off: the sheet with no room controls is the sheet as it was ──
 await tryCase("off", async () => {
   const h = house(), lights = lightsOf(h);
@@ -260,11 +287,11 @@ await tryCase("audio", async () => {
   const c4 = () => rowOf(section(sheetNow(), "audio"), "media_player.c4_great_room");
   let got = await one(byAria(c4(), "Great Room volume up"));
   check("audio", JSON.stringify(got) === JSON.stringify([{ domain: "media_player", service: "volume_up", entity_id: "media_player.c4_great_room" }]), got);
-  // A player that steps itself (a Control4 room: 1 in 100 a press) shows only the level it reports, never a guess in
-  // tens, so the row is not drawn again under the finger before the next press.
+  // A player that steps itself (a Control4 room: 1 in 100 a press) shows the pressed level at once, one step, never
+  // in tens (the quick presses themselves: "quick").
   s.update(apiOf(h, r.rc), lights);
   const lvlNow = () => all(c4()).find(n => n.attributes["data-level"] !== undefined).textContent;
-  check("audio", lvlNow() === "35", lvlNow());
+  check("audio", lvlNow() === "36", lvlNow());
   got = await one(byAria(c4(), "Great Room volume down"));
   check("audio", JSON.stringify(got) === JSON.stringify([{ domain: "media_player", service: "volume_down", entity_id: "media_player.c4_great_room" }]), got);
   got = await one(byAria(c4(), "Mute Great Room"));
@@ -305,6 +332,72 @@ await tryCase("features", async () => {
   await press(byText(dz, "+"));
   check("features", h.calls.length === 1 && h.calls[0].service === "volume_up", h.calls);
   s.close(); reset();
+});
+
+// ── quick: each − / + moves the number one step at once, in place; presses add up; Home Assistant's word after ──
+// (the owner, 2026-11-25: "The volume doesn't update fast enough")
+await tryCase("quick", async () => {
+  const realNow = Date.now;
+  let clk = 0;
+  Date.now = () => realNow() + clk;
+  try {
+    const h = house({ "media_player.kitchen_speaker": ST("media_player.kitchen_speaker", "playing", { friendly_name: "Kitchen speaker", volume_level: 0.2, supported_features: F.SET | F.MUTE }) });
+    const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.kitchen_speaker"] }, ha: true });
+    reset();
+    const lights = lightsOf(h);
+    const s = LM.openRoomSheet(apiOf(h, r.rc), lights, "Great Room");
+    const c4 = () => rowOf(section(sheetNow(), "audio"), "media_player.c4_great_room");
+    const num = (row) => all(row).find(n => n.attributes["data-level"] !== undefined);
+    const row0 = c4(), num0 = num(row0), plus = byAria(row0, "Great Room volume up"), minus = byAria(row0, "Great Room volume down");
+    const seen = [];
+    for (let i = 0; i < 3; i++) { await press(plus); seen.push(num0.textContent); }
+    // 35 → 36, 37, 38: one in 100 a press, at once, in the same node; nothing drawn again, three calls.
+    check("quick", seen.join() === "36,37,38", seen);
+    check("quick", h.calls.length === 3 && h.calls.every(c => c.service === "volume_up" && c.entity_id === "media_player.c4_great_room") && r.redraws === 0, [h.calls, r.redraws]);
+    s.update(apiOf(h, r.rc), lights);
+    check("quick", c4() === row0 && num(c4()) === num0 && num0.textContent === "38", "the row was drawn again");
+    // Home Assistant catching up (36: on its way to 38): still 38, the row still the same; then a 4th press adds up.
+    h.hass.states["media_player.c4_great_room"].attributes.volume_level = 0.36;
+    s.update(apiOf(h, r.rc), lights);
+    check("quick", c4() === row0 && num0.textContent === "38", num0.textContent);
+    await press(plus);
+    check("quick", num0.textContent === "39", num0.textContent);
+    // Home Assistant says the pressed level: shown, and still after the window.
+    h.hass.states["media_player.c4_great_room"].attributes.volume_level = 0.39;
+    s.update(apiOf(h, r.rc), lights);
+    clk += 3500; s.update(apiOf(h, r.rc), lights);
+    check("quick", c4() === row0 && num0.textContent === "39", num0.textContent);
+    // A press Home Assistant never answers: the pressed level until the window ends, then Home Assistant's own again.
+    await press(minus);
+    check("quick", num0.textContent === "38", num0.textContent);
+    clk += 2000; s.update(apiOf(h, r.rc), lights);
+    check("quick", num0.textContent === "38", num0.textContent);
+    clk += 1200;
+    await flush(4);                                                    // the window's own timer, nothing else needed
+    check("quick", num0.textContent === "39", num0.textContent);
+    // Changed elsewhere (a keypad: 20, not on the way): Home Assistant's level at once.
+    await press(plus);
+    h.hass.states["media_player.c4_great_room"].attributes.volume_level = 0.2;
+    s.update(apiOf(h, r.rc), lights);
+    check("quick", num0.textContent === "20", num0.textContent);
+    clk += 3500;
+    // A player with its own volume_step steps by it.
+    h.hass.states["media_player.c4_great_room"].attributes.volume_step = 0.02;
+    s.update(apiOf(h, r.rc), lights);
+    await press(byAria(c4(), "Great Room volume up"));
+    check("quick", num(c4()).textContent === "22", num(c4()).textContent);
+    // A VOLUME_SET player Home Assistant steps by 0.1: one press, 10 more.
+    const ks = rowOf(section(sheetNow(), "audio"), "media_player.kitchen_speaker");
+    await press(byAria(ks, "Kitchen speaker volume up"));
+    check("quick", num(ks).textContent === "30", num(ks).textContent);
+    // Refused: the number goes back to Home Assistant's.
+    clk += 3500;
+    h.hass.refuse = "Control4 controller did not answer";
+    await press(byAria(c4(), "Great Room volume down"));
+    await tick();
+    check("quick", num(c4()).textContent === "20", num(c4()).textContent);
+    s.close(); reset();
+  } finally { Date.now = realNow; }
 });
 
 // ── climate and shades ──

@@ -3782,20 +3782,40 @@ function createSlot(slotKey){
       const op = (C.clsOp ?? 1) * C.fk;
       if (C.sprite.material.opacity !== op) C.sprite.material.opacity = op;
     }
-    // Audio: each speaker just right of its room's name where the name shows, else where the name would be
-    // (a little up, clear of the readout chip under it); hidden where the name is (behind a wall, under a floor).
+    // Audio: each room's speaker a round badge of its own beside what shows at the room's name (the name, the readout
+    // chip under it), never on them: right of the wider of the two, level with their middle, a clear gap between (the
+    // owner, 2026-11-25: the speaker "sits right over the humidity readout in the room, so the humidity looks like a
+    // volume indicator"). Hidden where the name is (behind a wall, under a floor).
+    const chipAt = audioUi.length ? new Map(chips.filter(C => C.label).map(C => [C.label, C])) : null;
     for (const sp of audioUi) {
       const u = sp.userData, lu = u.label.userData;
       if (!u.F.group.visible) continue;
       sp.position.copy(u.label.position);
-      const hPx = Math.max(READ_PX[0] * wallK, Math.min(READ_PX[1] * wallK, READ_H / mppAt(sp.position)));
-      sp.scale.set(hPx * k, hPx * k, 1);
-      const named = u.label.visible && lu.px > 0;
-      sp.center.set(named ? 0.5 - (lu.px * (lu.aspect / 2 - 0.2) + 4 + hPx / 2) / hPx : 0.5, named ? 0.5 + (lu.dy || 0) / hPx : 0.5 - 6 / hPx);
+      const d = Math.max(READ_PX[0] * wallK, Math.min(READ_PX[1] * wallK, READ_H / mppAt(sp.position))) * AUDIO_D;
+      sp.scale.set(d * k, d * k, 1);
+      const box = audioCluster(u.label, chipAt.get(u.label));
+      const dx = box ? box[0] + Math.max(6, d * 0.45) + d / 2 : 0, dy = box ? (box[1] + box[2]) / 2 : 0;
+      sp.center.set(0.5 - dx / d, 0.5 + dy / d);
       sp.visible = !quiet && !lu.covered && !(persp && lu.behind);
       const op = u.op * (level === "room" && !isOpen(u.F, u.i) ? ROOM_FADE : 1);
       if (sp.material.opacity !== op) sp.material.opacity = op;
     }
+  }
+  /** What shows at a room's name, in px from its spot (y down) as sizeNames just laid them out: [right, top, bottom]
+   *  of the name (where it shows) and its readout chip's pill (where that shows); null when neither does. */
+  function audioCluster(label, C){
+    const lu = label.userData;
+    let x1 = 0, y0 = Infinity, y1 = -Infinity;
+    if (label.visible && lu.px > 0) {
+      const dy = lu.dy || 0;
+      x1 = lu.px * (lu.aspect / 2 - 0.2); y0 = dy - lu.px / 2; y1 = dy + lu.px / 2;
+    }
+    if (C && C.sprite.visible && C.px > 0 && C.pillW > 0) {
+      const cy = (C.sprite.center.y - 0.5) * C.px, ph = C.px * (READ_C - 8) / READ_C;
+      x1 = Math.max(x1, C.px * READ_W / READ_C * C.pillW / 2);
+      y0 = Math.min(y0, cy - ph / 2); y1 = Math.max(y1, cy + ph / 2);
+    }
+    return y1 > y0 ? [x1, y0, y1] : null;
   }
   /** Where a chip sits on its spot: under its room's name (or where the name
    *  would be), clear of it; moved with its name, or alone where no name
@@ -4956,13 +4976,31 @@ function createSlot(slotKey){
     return true;
   }
   function closeRoomPanel(){ if (roomPanel) roomPanel.close(); }
-  /** Beside the house the panel stops above the bar (and its scene row), whatever their height. */
+  /** Beside the house the panel stops above the bar (and its scene row), whatever their height, and starts below
+   *  what floats over its corner: the emergency button (lights_panel.js _emergencyOverlay, over the view or the map
+   *  alone) and ☰ under it. Their boxes as drawn, so its name and ✕ are never under them (the owner, 2026-11-25:
+   *  "trapped behind the emergency lighting button, so it can not be closed"). */
   function fitRoomPanel(){
     const el = roomPanel && roomPanel.el;
     if (!el || !bar || !root || typeof bar.getBoundingClientRect !== "function") return;
     const rr = root.getBoundingClientRect(), br = bar.getBoundingClientRect(), k = wallUiOf(root, "--wall-ctl");
-    const h = br.height > 0 && !narrow ? (br.top - rr.top - 8) / k - 10 : 0;
+    const top = narrow ? 0 : roomPanelTop(el, rr, k);
+    if (top) el.style.setProperty("--la3d-roomt", `${top}px`); else el.style.removeProperty("--la3d-roomt");
+    const h = !narrow && (br.height > 0 || top) ? ((br.height > 0 ? br.top : rr.bottom) - rr.top - 8) / k - (top || 10) : 0;
     if (h > 120) el.style.setProperty("--la3d-roomh", `${Math.round(h)}px`); else el.style.removeProperty("--la3d-roomh");
+  }
+  /** Where the panel's top must be (its own px, under the wall's zoom `k`) to be clear of what floats over the view's
+   *  upper right corner across the panel's width; 0 when its own place is clear. */
+  function roomPanelTop(el, rr, k){
+    const pr = el.getBoundingClientRect(), rn = root.getRootNode ? root.getRootNode() : null, scope = rn && rn.querySelector ? rn : document;
+    let need = 0;
+    for (const n of [scope.querySelector(".lv-emerg"), root.querySelector(".la3d-solo")]) {
+      const b = n && typeof n.getBoundingClientRect === "function" ? n.getBoundingClientRect() : null;
+      if (!b || !(b.width > 0) || !(b.height > 0) || b.left >= pr.right || b.right <= pr.left || b.top > rr.top + rr.height / 2) continue;
+      need = Math.max(need, b.bottom - rr.top + 8);
+    }
+    const own = (bare ? 62 : 10) * k;
+    return need > own ? Math.ceil(need / k) : 0;
   }
   /** The panel's "More devices of the area (n)": what Home Assistant puts in the room's area that the sheet doesn't list. */
   function paintRoomMore(api){
@@ -5564,6 +5602,7 @@ function createSlot(slotKey){
     narrow = w < NARROW_W;
     root.classList.toggle("la3d-narrow", narrow);
     if (roomChips) roomChips.sync();                         // a narrow screen: one Rooms ▾
+    fitRoomPanel();                                          // the bar and the corner's buttons where they are now
     const pr = ratioFor(w, h);
     if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
@@ -5890,7 +5929,7 @@ function createSlot(slotKey){
   // One sprite per such room, its texture drawn once per colour and look, sized with the names (sizeNames); built
   // again only when what it shows changed. A tap on one is a tap on the room (pickAt: its panel, with its Audio):
   // nothing on the map switches anything.
-  const AUDIO_PX = 64;
+  const AUDIO_PX = 64, AUDIO_D = 1.1;   // its canvas; on screen a little taller than a readout chip's pill
   function clearAudio(){
     for (const sp of audioUi) if (sp.parent) sp.parent.remove(sp);
     disposeList(audioRes);
@@ -5901,20 +5940,20 @@ function createSlot(slotKey){
     if (made.has(key)) return made.get(key);
     const c = document.createElement("canvas");
     c.width = c.height = AUDIO_PX;
-    const g = c.getContext("2d"), s = AUDIO_PX * 0.33, x = AUDIO_PX / 2, y = AUDIO_PX / 2, w = s * 0.22;
+    const g = c.getContext("2d"), s = AUDIO_PX * 0.22, x = AUDIO_PX / 2, y = AUDIO_PX / 2, w = s * 0.26;
     const P = (a, b) => [x + a * s, y + b * s];
     const line = (pts) => { g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(...P(a, b)) : g.moveTo(...P(a, b)))); };
     g.lineJoin = "round"; g.lineCap = "round";
-    const speaker = (ink, lw, fill) => {
-      g.strokeStyle = ink; g.lineWidth = lw;
-      line([[-1, -0.35], [-0.55, -0.35], [-0.05, -0.85], [-0.05, 0.85], [-0.55, 0.35], [-1, 0.35]]);
-      g.closePath();
-      if (fill) { g.globalAlpha = 0.35; g.fillStyle = ink; g.fill(); g.globalAlpha = 1; }
-      g.stroke();
-      for (const r of [0.4, 0.8]) { g.beginPath(); g.arc(x + 0.25 * s, y, r * s, -Math.PI / 2, Math.PI / 2); g.stroke(); }
-    };
-    speaker("rgba(7,16,8,0.86)", w * 2.8, false);           // the dark edge the names have
-    speaker(color, w, true);
+    // A round badge: dark, edged in the room name's colour, the speaker inside (not a unit beside a number).
+    g.beginPath(); g.arc(x, y, AUDIO_PX / 2 - 3, 0, Math.PI * 2);
+    g.fillStyle = "rgba(7,16,8,0.88)"; g.fill();
+    g.lineWidth = 3; g.strokeStyle = color; g.stroke();
+    g.strokeStyle = color; g.lineWidth = w;
+    line([[-1, -0.35], [-0.55, -0.35], [-0.05, -0.85], [-0.05, 0.85], [-0.55, 0.35], [-1, 0.35]]);
+    g.closePath();
+    g.globalAlpha = 0.35; g.fillStyle = color; g.fill(); g.globalAlpha = 1;
+    g.stroke();
+    for (const r of [0.4, 0.8]) { g.beginPath(); g.arc(x + 0.25 * s, y, r * s, -Math.PI / 2, Math.PI / 2); g.stroke(); }
     if (look === "muted") for (const [ink, lw] of [["#071008", w * 2.6], [color, w]]) {
       g.strokeStyle = ink; g.lineWidth = lw; line([[-1.05, -1], [1.05, 1]]); g.stroke();
     }
@@ -7060,8 +7099,18 @@ function createSlot(slotKey){
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),
                // Audio: each room's speaker, its look, shown or not, beside its name or not, and where it is (px in the view).
                audio: audioUi.map(sp => { const r = view3Rect(), q = renderer && r.width ? screenPt(sp.position, r) : null;
+                 // box: the badge as drawn [left, top, right, bottom]; chip: its room's readout pill, name: its name (null where none shows).
+                 const off = (x, y) => (q ? [Math.round(q[0] - r.left + x), Math.round(q[1] - r.top + y)] : null);
+                 const span = (x0, y0, x1, y1) => (q ? [...off(x0, y0), ...off(x1, y1)] : null);
+                 const d = sp.scale.y && renderer && r.height ? sp.scale.y * r.height / (camera.isPerspectiveCamera ? 2 * Math.tan((camera.fov || FOV) / 2 * D2R) : (camera.top - camera.bottom)) : 0;
+                 const C = chips.find(c => c.label === sp.userData.label), lu = sp.userData.label.userData;
+                 const cy = C ? (C.sprite.center.y - 0.5) * C.px : 0, pw = C ? C.px * READ_W / READ_C * C.pillW / 2 : 0, ph = C ? C.px * (READ_C - 8) / READ_C / 2 : 0;
+                 const nw = lu.px * (lu.aspect / 2 - 0.2), ny = lu.dy || 0;
                  return { room: sp.userData.room, look: sp.userData.look, shown: sp.visible && sp.userData.F.group.visible, opacity: sp.material.opacity,
-                          beside: sp.center.x < 0.5, at: q ? [Math.round(q[0] - r.left), Math.round(q[1] - r.top)] : null }; }),
+                          beside: sp.center.x < 0.5, at: off(0, 0),
+                          box: d ? span((0.5 - sp.center.x) * d - d / 2, (sp.center.y - 0.5) * d - d / 2, (0.5 - sp.center.x) * d + d / 2, (sp.center.y - 0.5) * d + d / 2) : null,
+                          chip: C && C.sprite.visible && C.pillW > 0 ? span(-pw, cy - ph, pw, cy + ph) : null,
+                          name: sp.userData.label.visible && lu.px > 0 ? span(-nw, ny - lu.px / 2, nw, ny + lu.px / 2) : null }; }),
                dimmed: lights.filter(L => dimOf(L.eid)).map(L => L.eid),
                split: furnishOn ? (viewports().plan ? (viewports().d3 ? "both" : "plan") : "3d") : null, plan: { ...plan } };
     },

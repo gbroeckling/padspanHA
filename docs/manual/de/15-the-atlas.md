@@ -124,20 +124,25 @@ Bildschirm (ein Handy, eine Wand) hat seinen eigenen Haken. Aus sind die Karte u
 wie vorher. **Einrichten ›** in derselben Zeile öffnet die Zuordnungskarte (unten) gleich dort über
 der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbildschirm.
 
-- **Auf der Karte**: ein kleiner Lautsprecher neben dem Namen eines Raums, solange einer seiner
-  Player an ist, durchgestrichen, solange der erste Player des Raums stumm ist. Nichts, solange alle
-  aus sind, und keine anderen neuen Zeichen. Tipp darauf oder auf den Namen für das Blatt des Raums:
-  Ein Tippen auf die Karte ändert nie etwas. Die 3D-Ansicht zeigt denselben Lautsprecher beim Namen
-  des Raums (sind die Namen ausgeblendet, dort, wo der Name stünde); ein Tippen darauf öffnet das
-  Feld des Raums.
+- **Auf der Karte**: ein kleines rundes Lautsprecher-Abzeichen neben dem Namen eines Raums,
+  solange einer seiner Player an ist, durchgestrichen, solange der erste Player des Raums stumm ist.
+  Es hält Abstand zum Namen und zu den Werten des Raums (Temperatur, Luftfeuchtigkeit, Luft), damit
+  ein Wert nie wie eine Lautstärke aussieht. Nichts, solange alle aus sind, und keine anderen neuen
+  Zeichen. Tipp darauf oder auf den Namen für das Blatt des Raums: Ein Tippen auf die Karte ändert
+  nie etwas. Die 3D-Ansicht zeigt dasselbe Abzeichen neben dem Namen und den Werten des Raums (sind
+  die Namen ausgeblendet, neben den Werten); ein Tippen darauf öffnet das Feld des Raums, das sich
+  unterhalb des Notfallknopfs öffnet, nie darunter verdeckt.
 - **Das Blatt**: unter dem Namen des Raums seine Temperatur und Luftfeuchtigkeit (der mittlere Wert
   seiner Sensoren) und wer da ist. **Raum aus (n)** schaltet die Lichter und Player des Raums aus,
   nie ein Schloss, eine Beschattung, das Thermostat oder eine Steckdose, und erscheint nur, solange
   etwas an ist. Dann die Szenen wie bisher, und:
   - **Audio**: eine Zeile für jeden Player, mit seinem System benannt („Control4 · Great Room“,
     „Denon · Zone 2“), ob er an, aus oder stumm ist, **Stumm**, **−**, die Lautstärke, **+** und ⏻
-    (dieser Player aus), diese fünf immer in einer Zeile. Was ein Player nicht kann, fehlt oder ist
-    grau: Ein ausgeschalteter Player zeigt seine Lautstärke als —.
+    (dieser Player aus), diese fünf immer in einer Zeile. Jedes **−** oder **+** ändert die
+    angezeigte Lautstärke sofort um einen Schritt (1 von 100 bei einem Player, der selbst schrittweise
+    regelt, etwa einem Control4-Raum), und schnelle Tipps zählen zusammen; meldet Home Assistant eine
+    Lautstärke, wird sie gezeigt. Was ein Player nicht kann, fehlt oder ist grau: Ein
+    ausgeschalteter Player zeigt seine Lautstärke als —.
   - die Lichter des Raums wie bisher;
   - **Beschattung**: eine Zeile für alle Abdeckungen des Raums, **Öffnen**, **Stopp** und
     **Schließen** für alle zugleich, und wie weit sie offen sind. Garagentore, Tore und Türen bleiben
