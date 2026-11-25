@@ -102,6 +102,10 @@ ALLOWED: dict[tuple[str, str, str], tuple[str, str | None, str]] = {
     ("ws_radios.py", "ws_radio_area_set", "registry.async_update_device"):
         (OTHER, None, "Overview radios list (any user, no admin check: non-admins use it today): "
                       "assigns a radio (ESPHome/Shelly/... device) to a room = its HA area"),
+    # Reads only, flagged because every flow call is: Settings' Control4 OS 2 Local card asks whether Home Assistant
+    # found a Control4 controller nobody has set up yet. It starts, changes and ends no flow.
+    ("c4local_install.py", "async_status", "config_entries.flow.async_progress_by_handler"):
+        (OWN, "async_progress_by_handler(C4_DOMAIN)", "reads only: a discovered Control4 controller, for the card"),
     ("ws_irk.py", "ws_private_ble_add_irk._try_create_entry", "config_entries.flow.async_init"):
         (OTHER, '"private_ble_device"', "Add IRK: starts HA's own Private BLE Device add flow for the IRK the user typed"),
     ("ws_irk.py", "ws_private_ble_add_irk._try_create_entry", "config_entries.flow.async_configure"):

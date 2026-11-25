@@ -110,11 +110,20 @@ export const ADDONS = Object.freeze([
   // Goes on sale with the free 3D house (the December 1 free-basics switch).
   { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,
     desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
+  // Specialty (the owner, 2026-11-25): a product of its own, sold beside the add-ons and never in their list or their
+  // sale. Control4 OS 2 Local is a separate Home Assistant integration (domain control4) PadSpan can install
+  // (views/c4local.js, c4local_install.py); one payment, good for life (lifetime). on_sale: false until it is
+  // published; on_sale_from, an ISO moment, puts it on sale by itself from then (addonOnSale). The site's #c4local
+  // box shows exactly while it is on sale (tests/test_site_claims.py).
+  { name: "c4local", words: "Control4 OS 2 Local", price: "$26 CAD", on_sale: false, on_sale_from: "", category: "specialty",
+    lifetime: true, url: "https://padspan.traks.ca/#c4local",
+    desc: "Home Assistant's Control4 integration for OS 2 controllers: a local login with the controller's system password, and room volume, mute and off" },
 ]);
-/** Whether add-on `name` is sold now: a known add-on whose entry is not on_sale: false. */
-export function addonOnSale(name) {
+/** Whether add-on `name` is sold now: a known add-on whose entry is not on_sale: false, or whose on_sale_from has
+ *  come. */
+export function addonOnSale(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
-  return !!a && a.on_sale !== false;
+  return !!a && (a.on_sale !== false || (!!a.on_sale_from && now >= Date.parse(a.on_sale_from)));
 }
 /** Whether add-on `name`'s features may be used: always on Pro, else the
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
@@ -143,11 +152,11 @@ export function halfPrice(price) {
   return `$${(Math.floor(cents / 2) / 100).toFixed(2)} CAD`;
 }
 /** What add-on `name` costs at `now`: { price ("$3.22 CAD" in the sale, else "$6.45 CAD"), normal ("$6.45"), half
- *  (true in the sale) }, or null for no such add-on. One that isn't on sale yet is never half off. */
+ *  (true in the sale) }, or null for no such add-on. One that isn't on sale yet, or a specialty, is never half off. */
 export function addonPriceParts(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
   if (!a) return null;
-  const half = addonHalfOff(now) && a.on_sale !== false;
+  const half = addonHalfOff(now) && a.on_sale !== false && a.category !== "specialty";   // a specialty is never in a sale
   return { price: half ? halfPrice(a.price) : a.price, normal: a.price.replace(/ CAD$/, ""), half };
 }
 /** An add-on's price now, as the site sells it ("$8.65 CAD"; "$4.32 CAD" in the sale), "" for no such add-on: what a

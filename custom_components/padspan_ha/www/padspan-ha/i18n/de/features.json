@@ -208,5 +208,9 @@
 "Licence activated. It doesn't include Forensics: that needs {what}.": "Lizenz aktiviert. Forensik ist nicht dabei: dafür braucht es {what}.",
 "Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.": "Braucht {what}. Gib einen Schlüssel oben in diesem Tab unter PadSpan-Lizenz ein, oder du wirst beim Einschalten danach gefragt.",
 "Advanced map creation": "Erweiterte Kartenerstellung",
-"{price} — half off until January 1 (normally {normal})": "{price} — halber Preis bis 1. Januar (sonst {normal})"
+"{price} — half off until January 1 (normally {normal})": "{price} — halber Preis bis 1. Januar (sonst {normal})",
+"for life": "lebenslang",
+"{price}, once, for life": "{price}, einmal, lebenslang",
+"Specialty": "Spezial",
+"Your PadSpan add-on key is active.": "Dein PadSpan-Add-on-Schlüssel ist aktiv."
 }

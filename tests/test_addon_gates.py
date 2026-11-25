@@ -330,13 +330,15 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
 
 def test_maps_is_known_and_not_on_sale_in_both_halves(gates) -> None:
     """editions.js on_sale: false and licence.NOT_ON_SALE say the same; nothing offers it: not the licence card, not
-    the site."""
-    assert "maps" in ADDONS and licence.NOT_ON_SALE == ("maps",) and not licence.addon_on_sale("maps")
-    assert all(licence.addon_on_sale(a) for a in ADDONS if a != "maps")
-    assert gates["onSale"] == {a: a != "maps" for a in ADDONS}
+    the site. Control4 OS 2 Local (c4local, the specialty) is not on sale yet either, and is never in the add-ons' list
+    (tests/test_c4local.py: its own part of the card, its own box on the site, hidden until it is)."""
+    not_yet = ("maps", "c4local")
+    assert "maps" in ADDONS and licence.NOT_ON_SALE == not_yet and not licence.addon_on_sale("maps")
+    assert all(licence.addon_on_sale(a) for a in ADDONS if a not in not_yet)
+    assert gates["onSale"] == {a: a not in not_yet for a in ADDONS}
     assert '{ name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,' in _src("views/editions.js")
-    assert gates["offered"]["free"] == [a for a in ADDONS if a != "maps"]
-    assert gates["offered"]["audio"] == [a for a in ADDONS if a not in ("audio", "maps")]
+    assert gates["offered"]["free"] == [a for a in ADDONS if a not in not_yet]
+    assert gates["offered"]["audio"] == [a for a in ADDONS if a not in ("audio", *not_yet)]
     site = (_ROOT / "site" / "index.html").read_text(encoding="utf-8")
     assert 'data-addon="maps"' not in site and "padspan-addon-maps" not in site
 

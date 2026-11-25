@@ -208,5 +208,9 @@
 "Licence activated. It doesn't include Forensics: that needs {what}.": "Licentie geactiveerd. Forensisch zit er niet in: daarvoor is {what} nodig.",
 "Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.": "Vraagt {what}. Vul een sleutel in bij PadSpan-licentie bovenaan dit tabblad, of je wordt erom gevraagd bij het inschakelen.",
 "Advanced map creation": "Geavanceerd kaarten maken",
-"{price} — half off until January 1 (normally {normal})": "{price} — halve prijs tot 1 januari (normaal {normal})"
+"{price} — half off until January 1 (normally {normal})": "{price} — halve prijs tot 1 januari (normaal {normal})",
+"for life": "voor altijd",
+"{price}, once, for life": "{price}, eenmalig, voor altijd",
+"Specialty": "Specialiteit",
+"Your PadSpan add-on key is active.": "Je PadSpan-add-onsleutel is actief."
 }

@@ -125,6 +125,12 @@ let AIW = null;
 import(`./views/ai_wizard_offer.js?b=${BUILD_ID}`)
   .then(m => { AIW = m; })
   .catch(err => console.warn("PadSpan: ai_wizard_offer module failed to load", err));
+// Control4 OS 2 Local (views/c4local.js): the Overview's card when a Control4 entry failed to set up or a
+// controller runs OS 2. Optional like the others.
+let C4L = null;
+import(`./views/c4local.js?b=${BUILD_ID}`)
+  .then(m => { C4L = m; })
+  .catch(err => console.warn("PadSpan: c4local module failed to load", err));
 // "Is this setup step done?": views/setup_status.js, the one rule Setup, the
 // Setup Wizard and Mapping read; the Getting started card waits for it.
 let SETUP_STATUS = null;
@@ -1559,6 +1565,17 @@ class PadSpanHaApp extends HTMLElement {
   // beside the Getting started card or another Overview card (the caller).
   // Let Claude draw your rooms (views/ai_wizard_offer.js): the Overview's own
   // card when Getting started isn't showing, one card at a time.
+  // Control4 OS 2 Local (views/c4local.js): to an administrator, in live data, never on a wall; one card at a time.
+  _c4localOverviewCard(){
+    if (!C4L || this.state.kioskMode) return null;
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
+    if (!this._c4lCardVisible && this._overviewCardShown) return null;   // another card has this page load
+    let card = null;
+    try { card = C4L.overviewCard(this._ctx()); } catch(e) { card = null; }
+    if (card) { this._c4lCardVisible = true; this._overviewCardShown = true; }
+    return card;
+  }
+
   _aiWizardOverviewCard(){
     if (!AIW || this.state.kioskMode) return null;
     if (!this._aiwCardVisible && this._overviewCardShown) return null;   // another card has this page load
@@ -5759,7 +5776,7 @@ class PadSpanHaApp extends HTMLElement {
             // invite, the one-time tester card, then the trial's: whichever is
             // first to be due, one at a time.
             const _ms = this._launchPriceCard() || this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
-              || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);
+              || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned) || this._c4localOverviewCard();
             if (_ms) frag.appendChild(_ms);
             // Last in line: the accuracy tips, only when no other card is up.
             else { const _tips = this._accuracyTipsCard(); if (_tips) frag.appendChild(_tips); }

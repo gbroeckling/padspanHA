@@ -241,5 +241,8 @@
 "That is not a notification target": "Ce n'est pas une destination de notification",
 "Only an administrator can match players to rooms": "Seul un administrateur peut associer les lecteurs aux pièces",
 "The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Le test de l’éclairage de secours nécessite PadSpan Pro ou le module « Alarme et sécurité ». Saisissez une clé dans Paramètres → Fonctions → Licence PadSpan, ou obtenez-en une sur https://padspan.traks.ca/#addons",
-"A floor plan from a LiDAR scan needs PadSpan Pro or the Advanced map creation add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Un plan d’étage tiré d’un scan LiDAR nécessite PadSpan Pro ou le module « Création de plans avancée ». Saisissez une clé dans Paramètres → Fonctions → Licence PadSpan, ou obtenez-en une sur https://padspan.traks.ca/#addons"
+"A floor plan from a LiDAR scan needs PadSpan Pro or the Advanced map creation add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Un plan d’étage tiré d’un scan LiDAR nécessite PadSpan Pro ou le module « Création de plans avancée ». Saisissez une clé dans Paramètres → Fonctions → Licence PadSpan, ou obtenez-en une sur https://padspan.traks.ca/#addons",
+"Installing Control4 OS 2 Local takes PadSpan Pro or the Control4 OS 2 Local add-on.": "Pour installer Control4 OS 2 Local, il faut PadSpan Pro ou le module Control4 OS 2 Local.",
+"The files couldn't be written; nothing was changed.": "Les fichiers n’ont pas pu être écrits ; rien n’a été modifié.",
+"The files couldn't be moved; check Home Assistant's control4 folder.": "Les fichiers n’ont pas pu être déplacés ; vérifiez le dossier control4 de Home Assistant."
 }

@@ -553,6 +553,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "screens_card", "screens_client",               # Open screens (screens.py): Settings' card, and the page as a screen
     "pdf_plan",                                     # a PDF floor plan drawn as a picture for Mapping → Upload (vendor/pdfjs)
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
+    "c4local",                                      # Control4 OS 2 Local: Settings' card and the Overview's (c4local_install.py)
     "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
     "plan_carry",                                   # a moved plan's line in the Library, and what could move with it
     "room_snap",                                    # drawing rooms in Edit and Layout: corners that land, Straighten edges

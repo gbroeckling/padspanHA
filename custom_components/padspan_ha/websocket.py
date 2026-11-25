@@ -429,6 +429,11 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ai_usage import WS_COMMANDS as _ai_usage_commands
     for _cmd in _ai_usage_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Control4 OS 2 Local, the specialty add-on (c4local_install.py): its status, update check, install and undo;
+    # admins only, nothing runs unless one presses.
+    from .c4local_install import WS_COMMANDS as _c4local_commands
+    for _cmd in _c4local_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # "Use the Zigbee2MQTT one": the kept copy of a Zigbee device in two integrations takes its duplicate's place (zigbee_twins.py).
     from .zigbee_twins import WS_COMMANDS as _twin_commands

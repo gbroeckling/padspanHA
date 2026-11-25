@@ -138,6 +138,8 @@ _SKUS = {
     **{f"padspan-addon-{name}": (price, ("padspan", "addon"), ("upgrade", "bright", "lifetime", "2year"))
        for name, price in (("audio", 6.45), ("alarm", 6.45), ("wifi", 6.45), ("climate", 8.65), ("timetravel", 7.55),
                            ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56))},
+    # The specialty Control4 OS 2 Local (2026-11-25): an add-on SKU like the others, for life, never half price.
+    "padspan-addon-c4local":        (26.00, ("padspan", "addon"),      ("upgrade", "bright", "lifetime", "2year")),
 }
 
 
@@ -441,8 +443,9 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
     assert got["before"] == got["after"] and got["first"] == got["last"]
     for name, price in got["before"].items():
         row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S)
-        if name == "maps":
-            assert row is None and got["first"][name] == price, "not on sale: no box, and never half off"
+        if name in ("maps", "c4local"):
+            # maps: not on sale, no box. c4local: a specialty, in its own box (#specialty), never half off.
+            assert row is None and got["first"][name] == price, "no box among the add-ons, and never half off"
             continue
         row = row.group(0)
         normal, sale = price[1:-4], got["first"][name][1:-4]
@@ -451,3 +454,42 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
         assert f'data-addon-price="normal" style="color:var(--mut);font-weight:600">${normal} CAD</span>' in row, name
         assert f'data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">${sale} CAD</span>' in row, name
         assert f"Half off until January 1 (normally ${normal})" in row, name
+
+
+def test_the_specialty_is_sold_as_the_panel_says_and_shown_only_while_on_sale(html: str) -> None:
+    """Control4 OS 2 Local (editions.js ADDONS c4local, the owner, 2026-11-25): its own Specialty box in #editions,
+    apart from the add-ons; $26 CAD once, for life, PadSpan Pro includes it, never in the Black Friday sale; who it is
+    for, said as facts; the trademark line; a PayPal form like the add-ons'. The whole box is hidden exactly while
+    editions.js says it is not on sale (on_sale: false), and its on_sale_from date is the box's, so the page shows it at
+    the same moment as the panel offers it."""
+    from pathlib import Path
+    ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
+          / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
+    m = re.search(r'\{ name: "c4local", words: "Control4 OS 2 Local", price: "\$(\d+) CAD", on_sale: (true|false), '
+                  r'on_sale_from: "([^"]*)", category: "specialty",\s+lifetime: true, url: "https://padspan\.traks\.ca/#c4local"', ed)
+    assert m, "editions.js's c4local entry"
+    price, on_sale, sale_from = m.group(1), m.group(2) == "true", m.group(3)
+    assert price == "26" and _SKUS["padspan-addon-c4local"][0] == 26.0
+    start = html.index('<div class="ed" id="specialty"')
+    box = html[start:html.index('<div class="ed">', start)]
+    ed_start = html.index('id="editions"')
+    assert ed_start < html.index('id="addons"') < start < html.index("</section>", ed_start), "in #editions, after the add-ons"
+    assert max(m.start() for m in re.finditer(r'data-addon="', html)) < start, "apart from the add-ons' own boxes"
+    head = box[:box.index(">")]
+    assert f'data-on-sale-from="{sale_from}"' in head
+    assert ("display:none" in head) == (not on_sale), "hidden exactly while it is not on sale"
+    assert "<h3>Specialty</h3>" in box and ' id="c4local"' in box
+    assert f'Control4 OS 2 Local <span style="color:var(--mut);font-weight:600">${price} CAD</span>' in box
+    assert "Once, good for life. PadSpan Pro includes it." in box
+    assert "Control4 ended its cloud services for OS 2 on November 1, 2026" in box
+    assert "Home Assistant's built-in Control4 integration logs in through that cloud" in box
+    assert "Control4 is a trademark of Snap One, LLC." in box and "not affiliated" in box
+    form = re.search(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", box, re.S).group(0)
+    for field, value in (("cmd", "_xclick"), ("item_number", "padspan-addon-c4local"), ("amount", f"{price}.00"),
+                         ("currency_code", "CAD"), ("notify_url", "https://traks.ca/license/?action=ipn")):
+        assert f'name="{field}" value="{value}"' in form, field
+    # Never halved: no sale amount, and the sale's script only touches the #addons box.
+    assert "data-half" not in box and "data-addon-price" not in box
+    assert 'var b=document.getElementById("addons")' in html
+    # The date, when there is one, shows it by itself (the visitor's clock, as the sale does).
+    assert 'var f=b.getAttribute("data-on-sale-from");' in box and 'if(f&&Date.now()>=Date.parse(f))b.style.display="";' in box

@@ -63,6 +63,11 @@ ADDONS: tuple[str, ...] = ("audio", "alarm", "wifi", "climate", "timetravel", "v
 # ADDONS on_sale: false says the same), and a feature that is free today and moves into it stays everyone's until it
 # is on sale (hass_addon_gate), so nobody loses one before it can be bought.
 NOT_ON_SALE: tuple[str, ...] = ("maps",)
+# Specialty (the owner, 2026-11-25): c4local, Control4 OS 2 Local, a separate integration PadSpan can install
+# (c4local_install.py). One payment for life (no end date: the server's list of running add-ons decides), never in
+# a sale, PadSpan Pro includes it; not on sale until the product is published.
+ADDONS += ("c4local",)
+NOT_ON_SALE += ("c4local",)
 
 
 def addon_on_sale(name: str) -> bool:

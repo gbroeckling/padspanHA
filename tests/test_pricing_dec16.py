@@ -143,9 +143,12 @@ def test_after_the_switch_the_page_sells_the_pass_and_the_year_only(site: str) -
     forms = re.findall(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", after, re.S)
     skus = sorted(re.search(r'name="item_number" value="([^"]+)"', f).group(1) for f in forms)
     addons = [s for s in skus if s.startswith("padspan-addon-")]
-    assert len(addons) == 9 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
+    # Nine add-ons and the specialty Control4 OS 2 Local (padspan-addon-c4local, its own box, for life by design).
+    assert len(addons) == 10 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
     assert 'name="amount" value="85.00"' in next(f for f in forms if "padspan-pro-2year" in f)
     sales = after[after.index('id="lights"'):after.index('id="donate"')]
+    spec = sales.index('<div class="ed" id="specialty"')
+    sales = sales[:spec] + sales[sales.index('<div class="ed">', spec):]   # its "for life" is its own, not Pro's
     assert "Bright Pro" not in sales and "for life" not in sales and "$12" not in sales, \
         [ln.strip()[:120] for ln in sales.splitlines() if "Bright Pro" in ln or "for life" in ln or "$12" in ln]
     assert "$49" in sales and "$85" in sales and "a year of PadSpan Pro free" in sales

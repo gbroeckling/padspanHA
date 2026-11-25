@@ -190,7 +190,7 @@ Anfrage ablehnen. Das sind die eigenen Befehle des Panels, keine stabile öffent
 Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dienste und Ereignisse aus
 <a href="/manual/home-assistant-reference/de/">Kapitel 14</a>. Mehr: <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md">Websocket API</a>.</p>
 <p>Die folgende Tabelle ist englisch: Sie entsteht direkt aus PadSpans Code.</p>
-<p>284 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
+<p>288 commands. Each takes <code>id</code> and <code>type</code> as well; a field marked (optional) may be left out.</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Command</th><th>Fields</th><th>Administrator</th><th>Module</th><th>What it does (its handler's first sentence, or a line written for this table)</th></tr>
@@ -206,6 +206,10 @@ Sie ändern sich zwischen Versionen. Für Automationen nimm die Entitäten, Dien
   <tr><td><code>padspan_ha/auto_diagnostics</code></td><td>–</td><td>–</td><td><code>ws_diagnostics.py</code></td><td>Run quick health checks and return pass/fail with recommendations.</td></tr>
   <tr><td><code>padspan_ha/bright_import</code></td><td>–</td><td>always</td><td><code>ws_bright_import.py</code></td><td>Back up, refuse a non-empty target, copy the house, reload.</td></tr>
   <tr><td><code>padspan_ha/bright_import_status</code></td><td>–</td><td>–</td><td><code>ws_bright_import.py</code></td><td>Whether a PadSpan Bright house is on this Home Assistant, whether it was imported, and whether it can be.</td></tr>
+  <tr><td><code>padspan_ha/c4local_check</code></td><td>–</td><td>always</td><td><code>c4local_install.py</code></td><td>Check for an update: the newest release's version (pressed by an administrator).</td></tr>
+  <tr><td><code>padspan_ha/c4local_install</code></td><td>–</td><td>always</td><td><code>c4local_install.py</code></td><td>Install or update (pressed by an administrator).</td></tr>
+  <tr><td><code>padspan_ha/c4local_status</code></td><td>–</td><td>always</td><td><code>c4local_install.py</code></td><td>Settings' Control4 OS 2 Local card and the Overview's offer: what is there now (reads only).</td></tr>
+  <tr><td><code>padspan_ha/c4local_undo</code></td><td>–</td><td>always</td><td><code>c4local_install.py</code></td><td>Undo (pressed by an administrator): never locked behind the licence.</td></tr>
   <tr><td><code>padspan_ha/calibration_beacon_profiles</code></td><td>–</td><td>–</td><td><code>ws_calibration.py</code></td><td>Compute per-beacon signal profiles grouped by model.</td></tr>
   <tr><td><code>padspan_ha/calibration_clear</code></td><td>–</td><td>always</td><td><code>ws_calibration.py</code></td><td>Delete all calibration points and reset the model.</td></tr>
   <tr><td><code>padspan_ha/calibration_clear_map</code></td><td><code>map_id</code></td><td>always</td><td><code>ws_calibration.py</code></td><td>Delete all calibration points collected on a specific map.</td></tr>
