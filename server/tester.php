@@ -135,56 +135,106 @@ function with_store($dir, $mutate) {
     @chmod($file, 0640);
     return $result;
 }
-
-// A new tester gets their key at once: the panel promises testers two years
-// of PadSpan Pro while the usage report stays on. The licence server issues
-// it (plan 'tester', emailed to them by the licence server) after being asked
-// what this email already holds, because this form is public:
-//   - a tester or lifetime key already: nothing more (leaving and joining
-//     again never adds more years);
-//   - a paid Pro key: the developer decides by hand;
-//   - nothing, a trial or Bright: the tester key, which upgrades it in place.
-// At most $MAX_KEYS_PER_DAY automatic keys a day across everyone, so nobody
-// can collect keys by script. Past that, or on any failure, the developer is
-// emailed to decide by hand. The developer is told about every key sent.
-// Never makes the sign-up fail. The admin secret is read from the licence
-// server's private config at the moment it is needed, never copied anywhere.
-function tester_note($subject, $body) {
-    @mail('garry@bcmail.net', '[PadSpan] ' . $subject, $body,
-        "From: PadSpan <hello@traks.ca>\r\nContent-Type: text/plain; charset=UTF-8", '-f hello@traks.ca');
-}
-function licence_call($action, $fields, $secret) {
-    $ch = curl_init('https://traks.ca/license/?action=' . $action . '&product=padspan');
-    curl_setopt_array($ch, array(CURLOPT_POST => 1, CURLOPT_RETURNTRANSFER => 1, CURLOPT_TIMEOUT => 8,
-        CURLOPT_HTTPHEADER => array('X-Admin-Secret: ' . $secret), CURLOPT_POSTFIELDS => http_build_query($fields)));
-    $out = curl_exec($ch);
-    curl_close($ch);
-    $d = is_string($out) ? json_decode(ltrim($out, "\xEF\xBB\xBF"), true) : null;
-    return is_array($d) ? $d : null;
-}
-function licence_secret() {
-    // Loaded the way the licence server loads it: private/license-config.php
-    // since 2026-10-30 (license/index.php only requires it now), so any PHP form
-    // of the constant works. The file's text, and index.php where it was before,
-    // are the fallbacks. tester_selfcheck() below says each night if all fail.
-    $cfg = __DIR__ . '/../../../private/license-config.php';
-    if (!defined('ADMIN_SECRET') && is_readable($cfg)) {
-        // In its own scope, its output dropped and any exception or syntax error in
-        // it caught, so a stray byte or a typo there never reaches a reply or quotes
-        // the secret (a fatal error still stops it; the nightly self-check says so).
-        ob_start();
-        try { (static function ($f) { include_once $f; })($cfg); } catch (\Throwable $e) { }
-        ob_end_clean();
-    }
-    if (defined('ADMIN_SECRET') && is_string(constant('ADMIN_SECRET')) && constant('ADMIN_SECRET') !== '') {
-        return constant('ADMIN_SECRET');
-    }
-    foreach (array($cfg, __DIR__ . '/../../license/index.php') as $f) {
-        $src = @file_get_contents($f);
-        if ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) { return $m[1]; }
-    }
-    return '';
-}
+
+
+// A new tester gets their key at once: the panel promises testers two years
+
+// of PadSpan Pro while the usage report stays on. The licence server issues
+
+// it (plan 'tester', emailed to them by the licence server) after being asked
+
+// what this email already holds, because this form is public:
+
+//   - a tester or lifetime key already: nothing more (leaving and joining
+
+//     again never adds more years);
+
+//   - a paid Pro key: the developer decides by hand;
+
+//   - nothing, a trial or Bright: the tester key, which upgrades it in place.
+
+// At most $MAX_KEYS_PER_DAY automatic keys a day across everyone, so nobody
+
+// can collect keys by script. Past that, or on any failure, the developer is
+
+// emailed to decide by hand. The developer is told about every key sent.
+
+// Never makes the sign-up fail. The admin secret is read from the licence
+
+// server's private config at the moment it is needed, never copied anywhere.
+
+function tester_note($subject, $body) {
+
+    @mail('garry@bcmail.net', '[PadSpan] ' . $subject, $body,
+
+        "From: PadSpan <hello@traks.ca>\r\nContent-Type: text/plain; charset=UTF-8", '-f hello@traks.ca');
+
+}
+
+function licence_call($action, $fields, $secret) {
+
+    $ch = curl_init('https://traks.ca/license/?action=' . $action . '&product=padspan');
+
+    curl_setopt_array($ch, array(CURLOPT_POST => 1, CURLOPT_RETURNTRANSFER => 1, CURLOPT_TIMEOUT => 8,
+
+        CURLOPT_HTTPHEADER => array('X-Admin-Secret: ' . $secret), CURLOPT_POSTFIELDS => http_build_query($fields)));
+
+    $out = curl_exec($ch);
+
+    curl_close($ch);
+
+    $d = is_string($out) ? json_decode(ltrim($out, "\xEF\xBB\xBF"), true) : null;
+
+    return is_array($d) ? $d : null;
+
+}
+
+function licence_secret() {
+
+    // Loaded the way the licence server loads it: private/license-config.php
+
+    // since 2026-10-30 (license/index.php only requires it now), so any PHP form
+
+    // of the constant works. The file's text, and index.php where it was before,
+
+    // are the fallbacks. tester_selfcheck() below says each night if all fail.
+
+    $cfg = __DIR__ . '/../../../private/license-config.php';
+
+    if (!defined('ADMIN_SECRET') && is_readable($cfg)) {
+
+        // In its own scope, its output dropped and any exception or syntax error in
+
+        // it caught, so a stray byte or a typo there never reaches a reply or quotes
+
+        // the secret (a fatal error still stops it; the nightly self-check says so).
+
+        ob_start();
+
+        try { (static function ($f) { include_once $f; })($cfg); } catch (\Throwable $e) { }
+
+        ob_end_clean();
+
+    }
+
+    if (defined('ADMIN_SECRET') && is_string(constant('ADMIN_SECRET')) && constant('ADMIN_SECRET') !== '') {
+
+        return constant('ADMIN_SECRET');
+
+    }
+
+    foreach (array($cfg, __DIR__ . '/../../license/index.php') as $f) {
+
+        $src = @file_get_contents($f);
+
+        if ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) { return $m[1]; }
+
+    }
+
+    return '';
+
+}
+
 // The list is full: switch the tester offer off in private/padspan-offers.json,
 // the same switch pro_invites.py flips, so panels from 0.38.133 stop offering
 // it (the update check's answer) and the developer hears about it. A place
@@ -208,92 +258,173 @@ New sign-ups are refused politely until a place opens; the offer stays off until
     }
 }
 
-function tester_key($email, $dir, $max_per_day) {
-    $hand = "Issue it by hand if it should go (licence API, plan tester).\n\n  email: $email\n";
+function tester_key($email, $dir, $max_per_day) {
+
+    $hand = "Issue it by hand if it should go (licence API, plan tester).\n\n  email: $email\n";
+
     // The offer switched off in private/padspan-offers.json ({"tester": false}).
     $offers = json_decode((string)@file_get_contents(__DIR__ . '/../../../private/padspan-offers.json'), true);
     if (is_array($offers) && isset($offers['tester']) && $offers['tester'] === false) {
         tester_note('Tester signed up (offer off)', "A new tester signed up while the tester offer is switched off, so no key went out.\n" . $hand); return;
     }
-    $secret = licence_secret();
-    if ($secret === '') { tester_note('Tester key needs you', "A new tester signed up; the licence secret could not be read.\n" . $hand); return; }
-    $look = licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret);
-    if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) {
-        tester_note('Tester key needs you', "A new tester signed up; the licence server did not answer the lookup.\n" . $hand); return;
-    }
-    foreach ($look['licenses'] as $l) {
-        $plan = isset($l['plan']) ? (string)$l['plan'] : '';
-        $live = empty($l['expired']);
-        if ($plan === 'tester' || $plan === 'lifetime') {
-            tester_note('Tester signed up (already keyed)', "A new tester signed up who already holds a $plan key, so nothing more was sent.\n\n  email: $email\n"); return;
-        }
-        if ($plan === 'pro' && $live) {
-            tester_note('Tester key needs you', "A new tester signed up who already has a paid Pro key; two free years were NOT added.\n" . $hand); return;
-        }
-    }
-    // The daily cap, counted only for keys actually sent.
-    $cf = $dir . '/autokeys.json';
-    $h = @fopen($cf, 'c+');
-    if (!$h || !flock($h, LOCK_EX)) { tester_note('Tester key needs you', "A new tester signed up; the daily count could not be read.\n" . $hand); return; }
-    $c = json_decode(stream_get_contents($h) ?: '{}', true);
-    $today = gmdate('Y-m-d');
-    if (!is_array($c) || ($c['day'] ?? '') !== $today) { $c = array('day' => $today, 'sent' => 0); }
-    if ((int)$c['sent'] >= $max_per_day) {
-        flock($h, LOCK_UN); fclose($h);
-        tester_note('Tester key needs you', "A new tester signed up after today's $max_per_day automatic keys.\n" . $hand); return;
-    }
-    $r = licence_call('issue', array('email' => $email, 'plan' => 'tester', 'product' => 'padspan', 'email_it' => 1), $secret);
-    if ($r && !empty($r['ok'])) {
-        $c['sent'] = (int)$c['sent'] + 1;
-        ftruncate($h, 0); rewind($h); fwrite($h, json_encode($c)); fflush($h);
-    }
-    flock($h, LOCK_UN); fclose($h);
-    if ($r && !empty($r['ok'])) {
-        tester_note('Tester key sent', "A new tester signed up and their two-year key went out automatically.\n\n  email   : $email\n  expires : " . ($r['expires_at'] ?? '?') . "\n");
-    } else {
-        tester_note('Tester key needs you', "A new tester signed up; the licence server refused or failed the key.\n" . $hand);
-    }
-}
-// `php tester.php selfcheck`: the nightly pull (server/pull_padspan_telemetry.sh)
-// runs it on this server as www-data; the web never reaches it (PHP_SAPI is
-// 'cli' only on the command line). Can a key go out right now, and what does
-// each tester hold? One JSON line of yes/no, a count and each tester_id's key
-// status (keyed, pro, none, noemail, error), never an address, a key or the secret.
-// Exit 0 when the key path works, 1 when it does not, 2 on a wrong argument.
-function tester_selfcheck($dir, $args) {
-    if (!isset($args[1]) || $args[1] !== 'selfcheck') { fwrite(STDERR, "usage: php tester.php selfcheck\n"); return 2; }
-    $secret = licence_secret();
-    $lookup = false;
-    if ($secret !== '') {
-        // An address that can hold nothing: an answer proves the lookup works.
-        $probe = licence_call('staff_lookup', array('email' => 'selfcheck@padspan.invalid', 'secret' => $secret), $secret);
-        $lookup = $probe && !empty($probe['ok']) && isset($probe['licenses']) && is_array($probe['licenses']);
-    }
-    $db = json_decode((string)@file_get_contents($dir . '/testers.json'), true);
-    $testers = (is_array($db) && isset($db['testers']) && is_array($db['testers'])) ? $db['testers'] : array();
-    $status = array();
-    foreach ($testers as $id => $rec) {
-        $email = (is_array($rec) && isset($rec['contact']['email']) && is_string($rec['contact']['email'])) ? $rec['contact']['email'] : '';
-        if ($email === '') { $status[$id] = 'noemail'; continue; }
-        $look = $lookup ? licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret) : null;
-        if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) { $status[$id] = 'error'; continue; }
-        $s = 'none';
-        foreach ($look['licenses'] as $l) {
-            $plan = isset($l['plan']) ? (string)$l['plan'] : '';
-            if ($plan === 'tester' || $plan === 'lifetime') { $s = 'keyed'; break; }
-            if ($plan === 'pro' && empty($l['expired'])) { $s = 'pro'; }
-        }
-        $status[$id] = $s;
-    }
-    $ok = $secret !== '' && $lookup && !in_array('error', $status, true);
-    echo json_encode(array('ok' => $ok, 'secret' => $secret !== '', 'lookup' => $lookup, 'testers' => count($testers),
-        'status' => $status ? $status : new stdClass())) . "\n";
-    return $ok ? 0 : 1;
-}
-
-// The nightly self-check (tester_selfcheck above); a web request never takes this branch.
-if (PHP_SAPI === 'cli' && !isset($_SERVER['REQUEST_METHOD'])) { exit(tester_selfcheck($DIR, isset($argv) ? $argv : array())); }
-header('Content-Type: application/json');
+    $secret = licence_secret();
+
+    if ($secret === '') { tester_note('Tester key needs you', "A new tester signed up; the licence secret could not be read.\n" . $hand); return; }
+
+    $look = licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret);
+
+    if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) {
+
+        tester_note('Tester key needs you', "A new tester signed up; the licence server did not answer the lookup.\n" . $hand); return;
+
+    }
+
+    foreach ($look['licenses'] as $l) {
+
+        $plan = isset($l['plan']) ? (string)$l['plan'] : '';
+
+        $live = empty($l['expired']);
+
+        if ($plan === 'tester' || $plan === 'lifetime') {
+
+            tester_note('Tester signed up (already keyed)', "A new tester signed up who already holds a $plan key, so nothing more was sent.\n\n  email: $email\n"); return;
+
+        }
+
+        if ($plan === 'pro' && $live) {
+
+            tester_note('Tester key needs you', "A new tester signed up who already has a paid Pro key; no free tester time was added.\n" . $hand); return;
+
+        }
+
+    }
+
+    // The daily cap, counted only for keys actually sent.
+
+    $cf = $dir . '/autokeys.json';
+
+    $h = @fopen($cf, 'c+');
+
+    if (!$h || !flock($h, LOCK_EX)) { tester_note('Tester key needs you', "A new tester signed up; the daily count could not be read.\n" . $hand); return; }
+
+    $c = json_decode(stream_get_contents($h) ?: '{}', true);
+
+    $today = gmdate('Y-m-d');
+
+    if (!is_array($c) || ($c['day'] ?? '') !== $today) { $c = array('day' => $today, 'sent' => 0); }
+
+    if ((int)$c['sent'] >= $max_per_day) {
+
+        flock($h, LOCK_UN); fclose($h);
+
+        tester_note('Tester key needs you', "A new tester signed up after today's $max_per_day automatic keys.\n" . $hand); return;
+
+    }
+
+    $r = licence_call('issue', array('email' => $email, 'plan' => 'tester', 'product' => 'padspan', 'email_it' => 1), $secret);
+
+    if ($r && !empty($r['ok'])) {
+
+        $c['sent'] = (int)$c['sent'] + 1;
+
+        ftruncate($h, 0); rewind($h); fwrite($h, json_encode($c)); fflush($h);
+
+    }
+
+    flock($h, LOCK_UN); fclose($h);
+
+    if ($r && !empty($r['ok'])) {
+
+        tester_note('Tester key sent', "A new tester signed up and their tester key went out automatically.\n\n  email   : $email\n  expires : " . ($r['expires_at'] ?? '?') . "\n");
+
+    } else {
+
+        tester_note('Tester key needs you', "A new tester signed up; the licence server refused or failed the key.\n" . $hand);
+
+    }
+
+}
+
+// `php tester.php selfcheck`: the nightly pull (server/pull_padspan_telemetry.sh)
+
+// runs it on this server as www-data; the web never reaches it (PHP_SAPI is
+
+// 'cli' only on the command line). Can a key go out right now, and what does
+
+// each tester hold? One JSON line of yes/no, a count and each tester_id's key
+
+// status (keyed, pro, none, noemail, error), never an address, a key or the secret.
+
+// Exit 0 when the key path works, 1 when it does not, 2 on a wrong argument.
+
+function tester_selfcheck($dir, $args) {
+
+    if (!isset($args[1]) || $args[1] !== 'selfcheck') { fwrite(STDERR, "usage: php tester.php selfcheck\n"); return 2; }
+
+    $secret = licence_secret();
+
+    $lookup = false;
+
+    if ($secret !== '') {
+
+        // An address that can hold nothing: an answer proves the lookup works.
+
+        $probe = licence_call('staff_lookup', array('email' => 'selfcheck@padspan.invalid', 'secret' => $secret), $secret);
+
+        $lookup = $probe && !empty($probe['ok']) && isset($probe['licenses']) && is_array($probe['licenses']);
+
+    }
+
+    $db = json_decode((string)@file_get_contents($dir . '/testers.json'), true);
+
+    $testers = (is_array($db) && isset($db['testers']) && is_array($db['testers'])) ? $db['testers'] : array();
+
+    $status = array();
+
+    foreach ($testers as $id => $rec) {
+
+        $email = (is_array($rec) && isset($rec['contact']['email']) && is_string($rec['contact']['email'])) ? $rec['contact']['email'] : '';
+
+        if ($email === '') { $status[$id] = 'noemail'; continue; }
+
+        $look = $lookup ? licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret) : null;
+
+        if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) { $status[$id] = 'error'; continue; }
+
+        $s = 'none';
+
+        foreach ($look['licenses'] as $l) {
+
+            $plan = isset($l['plan']) ? (string)$l['plan'] : '';
+
+            if ($plan === 'tester' || $plan === 'lifetime') { $s = 'keyed'; break; }
+
+            if ($plan === 'pro' && empty($l['expired'])) { $s = 'pro'; }
+
+        }
+
+        $status[$id] = $s;
+
+    }
+
+    $ok = $secret !== '' && $lookup && !in_array('error', $status, true);
+
+    echo json_encode(array('ok' => $ok, 'secret' => $secret !== '', 'lookup' => $lookup, 'testers' => count($testers),
+
+        'status' => $status ? $status : new stdClass())) . "\n";
+
+    return $ok ? 0 : 1;
+
+}
+
+
+
+// The nightly self-check (tester_selfcheck above); a web request never takes this branch.
+
+if (PHP_SAPI === 'cli' && !isset($_SERVER['REQUEST_METHOD'])) { exit(tester_selfcheck($DIR, isset($argv) ? $argv : array())); }
+
+header('Content-Type: application/json');
+
 header('Cache-Control: no-store');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { reply(405, 'method', 'POST only.'); }
 $raw = file_get_contents('php://input', false, null, 0, $MAX + 1);

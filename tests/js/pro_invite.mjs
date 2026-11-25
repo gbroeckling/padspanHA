@@ -147,8 +147,16 @@ await check("the tester card waits for an answer it knows, and for something to 
 await check("the tester card says what testing costs, and when the report is off", () => {
   let yes = 0, no = 0, x = 0;
   const cb = { onSignUp: () => yes++, onNo: () => no++, onClose: () => x++ };
-  const on = P.testerCard({ el, settings: { telemetry_enabled: true } }, cb);
+  const realNow = Date.now;
+  let on, onAfter;
+  try {
+    Date.now = () => Date.parse("2026-11-24T12:00:00Z");
+    on = P.testerCard({ el, settings: { telemetry_enabled: true } }, cb);
+    Date.now = () => Date.parse("2026-12-16T08:00:00Z");
+    onAfter = P.testerCard({ el, settings: { telemetry_enabled: true } }, cb);
+  } finally { Date.now = realNow; }
   assert(on.textContent.includes("two years of PadSpan Pro") && on.textContent.includes("usage report stays on"), on.textContent);
+  assert(onAfter.textContent.includes("one year of PadSpan Pro") && !onAfter.textContent.includes("two years"), "from Dec 16: " + onAfter.textContent);
   assert(!on.querySelector("[data-tester-card=report-off]"), "report-off line with the report on");
   const off = P.testerCard({ el, settings: { telemetry_enabled: false } }, cb);
   assert(off.querySelector("[data-tester-card=report-off]"), "report-off line missing");
@@ -162,7 +170,11 @@ await check("dates read as words, anything else as nothing", () => {
 });
 
 await check("the tester sign-up says what a tester gets", () => {
-  assert(/Pro free for two years/.test(TS.TESTER_PRO_LINE) && /usage report stays on/.test(TS.TESTER_PRO_LINE), TS.TESTER_PRO_LINE);
+  const before = TS.testerProLine(Date.parse("2026-11-24T12:00:00Z")), after = TS.testerProLine(Date.parse("2026-12-16T08:00:00Z"));
+  assert(/Pro free for two years/.test(before) && /usage report stays on for those two years/.test(before), before);
+  assert(/Pro free for one year/.test(after) && /usage report stays on for that year/.test(after) && !/two years/.test(after), after);
+  assert(P.testerCardBodyShort(Date.parse("2026-11-24T12:00:00Z")) === "Or test it: testers get PadSpan Pro free for two years."
+    && P.testerCardBodyShort(Date.parse("2026-12-16T08:00:00Z")) === "Or test it: testers get PadSpan Pro free for one year.", "the short line");
 });
 
 await check("an offer switched off on the server disappears", () => {

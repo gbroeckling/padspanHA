@@ -32,6 +32,11 @@ from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
+# 2026-12-16T08:00:00Z, the end of December 15: from then a new tester gets
+# one year of Pro, not two (editions.js PRO_PASS_FROM, the licence server's
+# PSPAN_LIFETIME_ENDS; tests/test_pricing_dec16.py holds them equal).
+_PASS_FROM_TS = 1797408000
+
 UPDATE_CHECK_URL = "https://padspan.traks.ca/api/version.php"
 _FIRST_DELAY_S = (300, 6 * 3600)  # the first check after a start: at random, 5 minutes to 6 hours in
 _MIN_AGE_S = 20 * 3600            # a check this recent makes the next one wait
@@ -104,7 +109,10 @@ def _tester_line(hass: HomeAssistant) -> str:
     except Exception:
         _quiet_error("update_check:tester_line_signed_up")
         pass
-    return ("\n\nTesters get PadSpan Pro free for two years. "
+    # Two years for a tester until the end of December 15, 2026, one year from
+    # then (the licence server's TESTER_YEARS_AFTER; editions.js testerTerm).
+    term = "one year" if time.time() >= _PASS_FROM_TS else "two years"
+    return (f"\n\nTesters get PadSpan Pro free for {term}. "
             "Sign up under Help improve PadSpan in PadSpan's Settings.")
 
 

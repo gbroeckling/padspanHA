@@ -28,9 +28,11 @@ Bought a key, or got one by email? Press **Enter licence key** and paste it
 **Show licence key** shows it (administrators only). A PadSpan Pro key also unlocks
 [PadSpan Bright](https://github.com/gbroeckling/padspanBright)'s tools.
 
-Keys and pricing: [padspan.traks.ca](https://padspan.traks.ca). PadSpan Pro is $45 CAD a year.
-**PadSpan Pro for life** is $89 CAD, once, at the launch price until November 30, 2026, and
-$168 CAD from December 1, 2026.
+Keys and pricing: [padspan.traks.ca](https://padspan.traks.ca). PadSpan Pro is $45 CAD a year
+until December 15, 2026, then $49 CAD a year or $85 CAD for two years.
+**PadSpan Pro for life** is $89 CAD, once, at the launch price until November 30, 2026, then
+$168 CAD until December 15, 2026. After that it's no longer sold; lifetime keys already sold stay
+lifetime. Every new PadSpan feature is included while a key runs.
 
 ## One key, five homes
 
@@ -56,7 +58,8 @@ no longer use. If a home isn't counted, the licence card says why.
 ## Get Pro free by testing it
 
 **Become a tester** (on the licence card, or under **Settings → Tracking → Help improve PadSpan**)
-gives you two years of PadSpan Pro free. The anonymous usage report stays on for those two years:
+gives you two years of PadSpan Pro free (one year if you join from December 16, 2026). The
+anonymous usage report stays on for that time:
 it can't be turned off while the key runs (the key needs it on when you enter it). You're
 asked for an email and can add what you'd like to test. Before anything is sent you can see exactly
 what goes, and **Stop being a tester** withdraws your sign-up at any time. The README's

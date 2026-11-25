@@ -49,7 +49,8 @@ const KINDS = {
   lifetime: { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "pro", pro_days_left: 26000,
               forensics_license_expires: "2099-12-31" },
 };
-const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2026-12-01T09:00:00Z") };   // launch price, then $168
+const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2026-12-01T09:00:00Z"),   // launch price, then $168
+               pass: Date.parse("2026-12-16T09:00:00Z") };   // lifetime ended: the two-year pass in its place
 
 function licenceCard(settings) {
   const ctx = {
@@ -76,8 +77,12 @@ for (const [day, now] of Object.entries(DAYS)) {
     for (const [kind, settings] of Object.entries(KINDS)) {
       try {
         const links = licenceCard(settings)._all().filter(n => n.localName === "a");
-        const buy = links.some(a => /^(Buy|Renew) PadSpan Pro/.test(a.textContent));
-        const life = links.find(a => /for life/.test(a.textContent));
+        const buyA = links.find(a => /^(Buy|Renew) PadSpan Pro/.test(a.textContent));
+        const buy = !!buyA;
+        // The year's price on the button: $45 until the end of December 15, $49 from then.
+        if (buyA && !(day === "pass" ? /\$49 CAD\/year/ : /\$45 CAD\/year/).test(buyA.textContent))
+          failures.push(`${kind}_${day}: the buy button says ${buyA.textContent}`);
+        const life = links.find(a => /for life|two years for/.test(a.textContent));
         cases[`${kind}_${day}`] = { buy, lifetime: life ? { text: life.textContent, href: life.getAttribute("href") } : null };
       } catch (e) { failures.push(`${kind}_${day}: ${e && e.message ? e.message : e}`); }
     }

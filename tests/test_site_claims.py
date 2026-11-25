@@ -128,6 +128,10 @@ _SKUS = {
     # Nov 30, 2026; the page's script makes it $168 from Dec 1). The server
     # decides a SKU with BOTH 'padspan' and 'lifetime' before every other tier.
     "padspan-pro-lifetime":         (89.00, ("padspan", "lifetime"),   ("upgrade", "bright")),
+    # Two years of Pro, from the end of December 15, 2026 (the page shows its
+    # box from then). The server decides 'padspan' AND '2year' before the year,
+    # so the SKU must never carry 'lifetime', 'upgrade' or 'bright'.
+    "padspan-pro-2year":            (85.00, ("padspan", "2year"),      ("upgrade", "bright", "lifetime")),
 }
 
 

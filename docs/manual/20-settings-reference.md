@@ -334,6 +334,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `trial_nudge_done` | off | on or off | The trial card was answered. |
 | `tester_nudge_done` | off | on or off | The tester card was shown. |
 | `launch_card_done` | off | on or off | The launch-price card was shown. |
+| `lifetime_card_done` | off | on or off | The "Pro for life ends Dec 15" card was shown. |
 | `tester_signup` | empty |  | Your tester sign-up, so you can update or withdraw it. |
 | `pro_invite` | empty |  | An invite to free Pro, and your answer. |
 | `server_offers` | empty |  | Which free-Pro offers the update check last said are on. |

@@ -500,16 +500,16 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
   } catch (e) { fail.push(`${label}: ${e && e.message ? e.message : e}`); }
 }
 
-// 12. The launch price's card (panel.js _launchPriceCard, editions.js
-//     launchCardDue): to an administrator, once, until the launch price ends.
+// 12. "Pro for life ends Dec 15" (panel.js _launchPriceCard, editions.js
+//     lifetimeCardDue): to an administrator, once, until lifetime ends.
 //     The clock is the harness's, so the cases hold on any day.
 {
   const ED = await import(pathToFileURL(join(dirname(PANEL), "views", "editions.js")).href);
-  const BEFORE = Date.parse("2026-11-24T18:00:00Z"), END = Date.parse(ED.PRO_LIFETIME_LAUNCH_UNTIL);
+  const BEFORE = Date.parse("2026-11-24T18:00:00Z"), DEC1 = Date.parse(ED.PRO_LIFETIME_LAUNCH_UNTIL), END = Date.parse(ED.PRO_PASS_FROM);
   let clock = BEFORE;
-  const edNow = { ...ED, proLifetimeLaunch: () => ED.proLifetimeLaunch(clock), launchCardDue: (s) => ED.launchCardDue(s, clock),
-                  proLifetimeWords: () => ED.proLifetimeWords(clock) };
-  const LFREE = { ...FREE, launch_card_done: false };
+  const edNow = { ...ED, proLifetimeOpen: () => ED.proLifetimeOpen(clock), lifetimeCardDue: (s) => ED.lifetimeCardDue(s, clock),
+                  lifetimeCardText: () => ED.lifetimeCardText(clock) };
+  const LFREE = { ...FREE, lifetime_card_done: false };
   const launch = (settings, { admin = true, trial = T, editions = edNow, state = {} } = {}) => {
     const c = ctx(settings, { admin });
     Object.assign(c.state, state);
@@ -518,37 +518,47 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     return { c, card: () => obj._launchPriceCard.call(c) };
   };
   const lt = (label, fn) => { clock = BEFORE; t(label, fn); };
-  lt("launch card: an administrator sees it once: the end date, the price after, where to buy, No thanks", () => {
+  lt("lifetime card: an administrator sees it once: lifetime's end, the prices after, where to buy, No thanks", () => {
     const { c, card } = launch(LFREE);
     const out = card();
     assert(out, "not shown");
     const words = out.textContent;
-    assert(words.includes("The launch price ends November 30"), words);
-    assert(words.includes("PadSpan Pro for life is $89 CAD, once, until November 30 (then $168)."), words);
+    assert(words.includes("Pro for life ends Dec 15"), words);
+    assert(words.includes("Pro for life is $89 until Nov 30. Then it's $168 until Dec 15, and after that there's no lifetime: Pro is $85 for two years or $49 a year. Keys already sold stay lifetime."), words);
     const buy = q(out, '[data-launch-card="buy"]');
-    assert(buy && buy.getAttribute("href") === ED.BUY_URL && buy.getAttribute("target") === "_blank" && buy.textContent === "Buy at padspan.traks.ca", "buy link");
+    assert(buy && buy.getAttribute("href") === ED.BUY_URL && buy.getAttribute("target") === "_blank" && buy.textContent === "Get Pro for life", "buy link");
     assert(q(out, '[data-launch-card="no"]').textContent === "No thanks", "No thanks");
     assert(c._overviewCardShown === true, "it does not hold the one-card slot");
     card();
-    const saves = c._saved.filter(m => m.launch_card_done === true);
-    assert(saves.length === 1 && saves[0].type === "padspan_ha/settings_set", "saved " + saves.length + " times");
+    const saves = c._saved.filter(m => m.lifetime_card_done === true);
+    assert(saves.length === 1 && saves[0].type === "padspan_ha/settings_set" && !c._saved.some(m => "launch_card_done" in m), "saved " + saves.length + " times");
     assert(!c._events.length, "counted something: " + JSON.stringify(c._events));
   });
-  lt("launch card: No thanks is final for this page, and the flag was already saved for every other", () => {
+  lt("lifetime card: from December 1 it says $168 until Dec 15, without the $89", () => {
+    clock = DEC1;
+    const out = launch(LFREE).card();
+    assert(out && out.textContent.includes("Pro for life is $168 until Dec 15, and after that there's no lifetime: Pro is $85 for two years or $49 a year.")
+      && !out.textContent.includes("$89"), out && out.textContent);
+  });
+  lt("lifetime card: an install that saw the November 30 card sees this one once", () => {
+    const out = launch({ ...LFREE, launch_card_done: true }).card();
+    assert(out && out.textContent.includes("Pro for life ends Dec 15"), "not shown where the old card was seen");
+  });
+  lt("lifetime card: No thanks is final for this page, and the flag was already saved for every other", () => {
     const { c, card } = launch(LFREE);
     q(card(), '[data-launch-card="no"]').click();
     assert(card() === null, "still shown after No thanks");
-    assert(c._saved.filter(m => m.launch_card_done === true).length === 1, "not saved, or saved twice");
-    c.state.settings = { ...LFREE, launch_card_done: true };
-    const next = launch({ ...LFREE, launch_card_done: true });
+    assert(c._saved.filter(m => m.lifetime_card_done === true).length === 1, "not saved, or saved twice");
+    c.state.settings = { ...LFREE, lifetime_card_done: true };
+    const next = launch({ ...LFREE, lifetime_card_done: true });
     assert(next.card() === null, "shown again on the next page load");
   });
-  lt("launch card: never to a non-admin, on a wall, in sample mode or before the mode is known, to a running paid key, or without editions.js", () => {
+  lt("lifetime card: never to a non-admin, on a wall, in sample mode or before the mode is known, to a running paid key, or without editions.js", () => {
     const cases = [
       [{ admin: false }, LFREE], [{ state: { kioskMode: true } }, LFREE], [{ state: { dataMode: "sample" } }, LFREE],
       [{ state: { _dataModeKnown: false } }, LFREE], [{}, { ...LFREE, tier: "pro", pro_has_key: true, pro_active: true }],
-      [{}, (() => { const s = { ...LFREE }; delete s.launch_card_done; return s; })()], [{}, null],
-      [{ editions: null }, LFREE], [{ editions: { ...edNow, launchCardDue: undefined } }, LFREE],
+      [{}, (() => { const s = { ...LFREE }; delete s.lifetime_card_done; return s; })()], [{}, null],
+      [{ editions: null }, LFREE], [{ editions: { ...edNow, lifetimeCardDue: undefined } }, LFREE],
     ];
     for (const [o, s] of cases) {
       const { c, card } = launch(s, o);
@@ -558,7 +568,7 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     const trial = launch({ ...LFREE, tier: "pro", pro_has_key: true, license_is_trial: true });
     assert(trial.card(), "not shown during a trial");
   });
-  lt("launch card: a key for a year (Pro or Bright Pro) is told it becomes Pro for life; a lifetime key never sees it", () => {
+  lt("lifetime card: a key for a year (Pro or Bright Pro) is told it becomes Pro for life; a lifetime key never sees it", () => {
     const year = { ...LFREE, tier: "pro", pro_has_key: true, pro_active: true, pro_days_left: 200 };
     const a = launch(year).card();
     assert(a && a.textContent.includes("Pay with the email your key was sent to and this key becomes Pro for life."), a && a.textContent);
@@ -569,23 +579,25 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     const life = launch({ ...year, pro_days_left: 26000 });
     assert(life.card() === null && !life.c._saved.length, "shown to a lifetime key");
     clock = END;
-    assert(launch(year).card() === null, "shown to a year's key after the launch price ended");
+    assert(launch(year).card() === null, "shown to a year's key after lifetime ended");
   });
-  lt("launch card: waits for another page load after another Overview card showed on this one", () => {
+  lt("lifetime card: waits for another page load after another Overview card showed on this one", () => {
     const { c, card } = launch(LFREE);
     c._overviewCardShown = true;
     assert(card() === null && !c._saved.length, "shown or saved right after another card");
   });
-  lt("launch card: gone at the end of November 30, even on screen, and never after", () => {
+  lt("lifetime card: still there in December, gone at the end of December 15, even on screen, and never after", () => {
     const { card } = launch(LFREE);
+    clock = DEC1 + 1000;
+    assert(card(), "gone on December 1");
     clock = END - 1000;
     assert(card(), "not shown in the last second");
     clock = END;
-    assert(card() === null, "still on screen once the launch price ended");
+    assert(card() === null, "still on screen once lifetime ended");
     const later = launch(LFREE);
     assert(later.card() === null, "shown after the end");
   });
-  lt("launch card: a page that fills the screen names the site instead of opening a tab it can't close", () => {
+  lt("lifetime card: a page that fills the screen names the site instead of opening a tab it can't close", () => {
     const { card } = launch(LFREE, { trial: { ...T, newTabOk: () => false } });
     const out = card();
     assert(out && !q(out, "a") && q(out, '[data-launch-card="buy-text"]').textContent === "At padspan.traks.ca", out && out.textContent);

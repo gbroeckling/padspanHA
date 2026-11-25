@@ -9,7 +9,7 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // Escape, Tab and the focus for the builder's guide and the Point Align
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
-const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
+const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
         surfacesForEdition: _surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
@@ -5308,7 +5308,7 @@ const BRIGHT_PRO_MANUAL = [
           "Look for the message confirming your licence was activated. The card updates to show you're licensed."
         ],
         "notes": [
-          "Don't have a key yet? The same card has a Buy PadSpan Pro button — $45 CAD/year — that takes you straight to the purchase page."
+          "Don't have a key yet? The same card has a Buy PadSpan Pro button that takes you straight to the purchase page."
         ]
       },
       {
@@ -10374,9 +10374,10 @@ function _lightsTab(ctx, maps, active) {
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
         "Placing each light where it really is, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room "
-        + "need PadSpan Bright Pro or PadSpan Pro. Already have a key? Enter it in " + _LIC_PATH + ". "),
+        + (_brightProOpen() ? "need PadSpan Bright Pro or PadSpan Pro. " : "need PadSpan Pro. ")
+        + "Already have a key? Enter it in " + _LIC_PATH + ". "),
       el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
-        "Get PadSpan Pro \u2014 " + _LIC_PRICE),
+        "Get PadSpan Pro \u2014 " + _licPrice()),
       // Want to see it on your own house first? The trial, right here. The
       // banner keeps its own Buy link above, so the card's is off. Counted
       // as "placement" when a save was just refused for want of a key (see
