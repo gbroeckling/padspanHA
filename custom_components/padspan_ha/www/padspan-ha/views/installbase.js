@@ -307,6 +307,89 @@ function renderUnlocked(ctx, root) {
       ], `${fmt(nMap)} homes still setting up` + (lead ? ` · most: ${word("mapping", lead[0])}` : ""));
     }
 
+    // ── add-ons ───────────────────────────────────────────────────────────
+    // The report's `addons` (addon_report.py), added up by stats.php from each
+    // install's latest report (s.addons), and the funnel's events over the
+    // window (telemetry.ADDON_EVENTS, in s.usage with every other event).
+    const ao = s.addons || {};
+    const aUse = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^addon_/.test(k)));
+    if (ao.installs || Object.keys(aUse).length) {
+      const nA = ao.installs || 0, lic = ao.licence || {}, held = ao.held || {}, c4 = ao.c4 || {};
+      const aw = (kind, k) => word("addons", `${kind}:${k}`);
+      const pre = (kind, map) => Object.fromEntries(Object.entries(map || {}).map(([k, v]) => [`${kind}:${k}`, v]));
+      const total = (map) => Object.values(map || {}).reduce((t, v) => t + (Number(v) || 0), 0);
+      const u = (k, f = "count") => Number((aUse[k] || {})[f]) || 0;
+      const both = (k) => (u(k) ? `${fmt(u(k))} · ${fmt(u(k, "installs"))}` : "–");
+      const pick = (re) => Object.fromEntries(Object.entries(aUse).filter(([k]) => re.test(k)));
+      const order = Object.keys(W_ADDONS.addon), places = Object.keys(W_ADDONS.place), days = Object.keys(W_ADDONS.days);
+      const notSold = (a) => a === "lighting";      // Advanced smart lighting: everyone's until it is sold
+      const onPro = Object.entries(lic).reduce((t, [k, v]) => t + (/^pro_/.test(k) ? Number(v) || 0 : 0), 0);
+      const gained = total(Object.fromEntries(Object.entries(pick(/^addon_gained:/)).map(([k, v]) => [k, v.count])));
+      // Offers and buy clicks per add-on and place: whatever the window's events name.
+      const funnel = [...new Set(Object.keys(pick(/^addon_(offer|buy):/)).map(k => k.split(":").slice(1).join(":")))]
+        .map(pa => pa.split(":"))
+        .sort((x, y) => (order.indexOf(x[1]) - order.indexOf(y[1])) || (places.indexOf(x[0]) - places.indexOf(y[0])))
+        .map(([p, a]) => {
+          const o = `addon_offer:${p}:${a}`, b = `addon_buy:${p}:${a}`;
+          return [`${aw("addon", a)} · ${aw("place", p)}`, both(o), both(b), u(o) && (u(b) || p === "licence_card") ? pctOf(u(b), u(o)) : "–"];
+        });
+      const changes = [...new Set([...Object.keys(ao.was || {}), ...Object.keys(ao.changes || {})])]
+        .map(k => [k.split(">").map(w => aw("licence", w)).join(" → "), Number((ao.was || {})[k]) || 0, Number((ao.changes || {})[k]) || 0])
+        .sort((x, y) => (y[2] - x[2]) || (y[1] - x[1]));
+      const gainedIn = Object.keys(W_ADDONS.sale).filter(w => u(`addon_gained_in:${w}`));
+      const gainedInAll = gainedIn.reduce((t, w) => t + u(`addon_gained_in:${w}`), 0);
+      const reach = Object.entries(ao.reach || {}).sort((x, y) => order.indexOf(x[0]) - order.indexOf(y[0]));
+      const c4n = total(c4);
+      const market = [
+        ...Object.entries(ao.market || {}).map(([k, v]) => [aw("market", k), fmt(v.installs), fmt(v.sum)]),
+        ...Object.entries(ao.audio || {}).sort((x, y) => y[1].installs - x[1].installs).map(([k, v]) => [`${aw("audio", k)} audio players`, fmt(v.installs), fmt(v.sum)]),
+        ...Object.entries(ao.wifi || {}).map(([k, v]) => [aw("wifi", k), fmt(v), "–"]),
+        ...Object.entries(ao.plans || {}).map(([k, v]) => [`a plan from ${aw("plans", k)}`, fmt(v), "–"]),
+        ...(ao.roomplan ? [["the RoomPlan import on", fmt(ao.roomplan), "–"]] : []),
+        ...(ao.valetudo ? [["a vacuum on Valetudo", fmt(ao.valetudo), "–"]] : []),
+        ...Object.keys(W_ADDONS.history).filter(k => (ao.history || {})[k]).map(k => [aw("history", k), fmt(ao.history[k]), "–"]),
+      ];
+      section("Add-ons", `The add-ons: the licence each install runs on and the add-ons its key carries (each install's latest report), what was offered, clicked and bought over the last ${W} days, whether the people on an add-on use it, and who could use each one. Older PadSpan sends none of it.`, [
+        grid([
+          barCard(el, { title: "Licence", ask: "The licence each install runs on (installs that say)", map: pre("licence", lic), total: nA, kind: "addons" }),
+          cardShell(el, "Add-on keys, by time left", `Installs whose add-on key carries each add-on, by how long it has left · ${fmt(ao.kept || 0)} on a Pro trial over a kept add-on key`, () => {
+            const rows = order.filter(a => held[a]).map(a => [aw("addon", a), fmt(total(held[a])), ...days.map(d => fmt(held[a][d] || 0))]);
+            return rows.length ? dataTable(el, ["", "installs", ...days.map(d => aw("days", d))], rows) : empty(el);
+          }),
+          cardShell(el, "Licence changes", "Installs whose licence changed: on the latest report (since the one before), and across the reports kept", () =>
+            (changes.length ? dataTable(el, ["", "latest report", "reports kept"], changes.map(([k, w, c]) => [k, fmt(w), fmt(c)]), "addon_changes") : empty(el))),
+          cardShell(el, `Offers and buy clicks (${W} days)`, "Each add-on where it was offered, its link to the site opened (times · installs), and clicks per offer", () =>
+            (funnel.length ? dataTable(el, ["", "offers", "buy clicks", "per offer"], funnel, "addon_funnel") : empty(el))),
+          pairCard(el, `Keys entered (${W} days)`, "Keys typed into the licence card, and how each went", pick(/^addon_key:/), "count", 12, "usage"),
+          pairCard(el, `Add-ons gained (${W} days)`, "A key that newly carries an add-on, by add-on", pick(/^addon_gained:/), "count", 12, "usage"),
+          kvCard(el, `The sale (${W} days)`, "The Overview's sale card, and when add-ons were gained against the sale", [
+            ["Sale card shown", u("addon_sale_card:shown"), null],
+            ["  ↳ its link opened", u("addon_sale_card:clicked"), u("addon_sale_card:shown")],
+            ["  ↳ No thanks", u("addon_sale_card:dismissed"), u("addon_sale_card:shown")],
+            ...gainedIn.map(w => [`Add-ons gained ${aw("sale", w)}`, u(`addon_gained_in:${w}`), gainedInAll]),
+          ]),
+          ...(Object.keys(ao.refused || {}).length ? [kvCard(el, `Wanted, not bought (${W} days)`, "Installs a feature turned away for want of the add-on, and how many still go without it (no add-on key carrying it, not on Pro)",
+            Object.entries(ao.refused).sort((x, y) => y[1].installs - x[1].installs).flatMap(([a, v]) => [
+              [`${aw("addon", a)}: offered where refused`, v.installs, nA], ["  ↳ still without it", v.without, v.installs]]))] : []),
+          ...(Object.keys(ao.on_it || {}).length ? [kvCard(el, `Used by the people on it (${W} days)`, "Of the installs on each add-on (its key carries it, or Pro), how many used it",
+            order.filter(a => ao.on_it[a]).map(a => [notSold(a) ? `${aw("addon", a)} (not sold yet: everyone)` : aw("addon", a), (ao.used || {})[a] || 0, ao.on_it[a]]))] : []),
+          ...(Object.keys(ao.moved || {}).length ? [kvCard(el, "Moved from free", "Installs that had each feature in use when it moved into an add-on, and how many are on that add-on now",
+            Object.entries(ao.moved).flatMap(([w, v]) => [[`${aw("moved", w)} → ${aw("addon", v.into)}`, v.installs, nA],
+              ...(notSold(v.into) ? [["  ↳ not sold yet", "–", null]] : [[`  ↳ holding ${aw("addon", v.into)}`, v.holds, v.installs], ["  ↳ on Pro", v.pro, v.installs]])]))] : []),
+          ...(reach.length ? [kvCard(el, "Who could use each add-on", "Installs with something an add-on is for (an alarm panel or opener, audio players, UniFi, sensors, WLED, a plan …), and of them already on it",
+            reach.flatMap(([a, v]) => [[aw("addon", a), v.installs, nA], notSold(a) ? ["  ↳ not sold yet", "–", null] : ["  ↳ already on it", v.on_it, v.installs]]))] : []),
+          ...(market.length ? [cardShell(el, "What those homes have", "Installs with each, and the devices in them (counted to 99 a home)", () =>
+            dataTable(el, ["", "installs", "devices"], market, "addon_market"))] : []),
+          ...(c4n ? [kvCard(el, "Control4", "Homes with Control4: the controller's OS, whether Home Assistant's own Control4 is running, and the local-token override", [
+            ["Homes with Control4", c4n, nA],
+            ["  ↳ the OS 2 Local market: OS 2, its Control4 not running or on the local override", ao.c4_os2_local || 0, c4n],
+            ["  ↳ the local-token override installed", ao.c4_local || 0, c4n],
+            ...Object.entries(c4).sort((x, y) => y[1] - x[1]).map(([k, v]) => { const [os, st] = k.split(":"); return [`  ↳ OS ${aw("c4_os", os)}, ${aw("c4_entry", st)}`, v, c4n]; }),
+          ])] : []),
+        ]),
+      ], `${fmt(lic.addon || 0)} installs on an add-on, ${fmt(onPro)} on Pro` + (gained ? ` · ${fmt(gained)} add-ons gained in ${W} days` : ""));
+    }
+
     // ── 02 versions ───────────────────────────────────────────────────────
     section("Versions", `What people run, from each install's latest report. Percentages on this page are of the ${fmt(n)} installs that have ever sent a report, unless a card says otherwise.`, [
       grid([
@@ -858,6 +941,39 @@ const W_WEATHER = { still: "nothing falling", light_rain: "light rain", heavy_ra
 const W_WALL_KIND = { kiosk: "as a wall screen (kiosk link)", fullscreen_idle: "full screen, left alone (a wall)",
                       fullscreen_used: "full screen, in use", windowed: "in a window", fullscreen: "full screen", stuck: "stuck on the old version" };
 
+// Add-ons (addon_report.py, telemetry.ADDON_EVENTS; the Add-ons section): word("addons", "<list>:<word>").
+const W_ADDONS = {
+  addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Time travel",
+    vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
+    maps: "Advanced map creation", lighting: "Advanced smart lighting" },
+  licence: { free: "Free", trial: "Pro trial", pro_year: "Pro, a year", pro_pass: "Pro, a two-year pass", pro_life: "Pro for life",
+    pro_tester: "Pro, a tester's or a free year", bright: "Bright (Atlas only)", addon: "An add-on key", lapsed_trial: "Trial ended",
+    lapsed_pro: "Pro ended", lapsed_bright: "Bright ended", lapsed_addon: "Add-on key ended" },
+  days: { gt365: "over a year", "91_365": "3–12 months", "30_90": "1–3 months", lt30: "under 30 days", grace: "in its grace",
+    ended: "ended", unknown: "not known" },
+  place: { licence_card: "the licence card", busy_times: "Busy Times", locate: "Locate", door_openers: "the doors and openers card",
+    emergency_test: "the emergency lights test", themes: "Themes", showcase: "Showcase", forensics: "Forensics" },
+  key: { entered: "a key entered", addon: "an add-on key", pro: "a Pro key", pro_from_addon: "a Pro key where an add-on key was",
+    needs_update: "PadSpan too old for the key", invalid: "not a valid key", refused: "refused for another reason" },
+  sale: { before: "before the sale", sale_w1: "in the sale's week 1", sale_w2: "in the sale's week 2", sale_w3: "in the sale's week 3",
+    sale_w4: "in the sale's week 4", sale_w5: "in the sale's week 5", sale_w6: "in the sale's week 6", after: "after the sale" },
+  card: { shown: "shown", clicked: "its link opened", dismissed: "No thanks" },
+  moved: { emergency_test: "The emergency lights test", power_teams: "Power teams", circadian: "Lights following the day",
+    lidar: "A LiDAR room scan" },
+  market: { alarm: "alarm panels", garage: "garage openers", gate: "gate openers", emergency: "emergency lights",
+    temp: "temperature sensors", humidity: "humidity sensors", co2: "CO₂ sensors", wled: "WLED devices", teams: "power teams",
+    colour_bulbs: "colour bulbs", vacuum: "robot vacuums" },
+  audio: { control4: "Control4", crestron: "Crestron", savant: "Savant", russound: "Russound", nuvo: "NuVo", monoprice: "Monoprice",
+    xantech: "Xantech", triad: "Triad", denon: "Denon", yamaha: "Yamaha", anthem: "Anthem" },
+  c4_os: { 2: "2", 3: "3", other: "another", unknown: "not known" },
+  c4_entry: { loaded: "running", setup_error: "failed to set up", setup_retry: "retrying its setup", not_loaded: "not loaded",
+    other: "another state" },
+  wifi: { utopia: "UniFi Utopia", unifi: "UniFi Network" },
+  history: { none: "no history kept", lt7d: "under 7 days of history", "7_13d": "7–13 days of history", "14_30d": "14–30 days of history",
+    gt30d: "over 30 days of history" },
+  plans: { picture: "a picture", sketch: "a sketch", blank: "a blank floor", scan: "a LiDAR scan" },
+};
+
 function tidy(k) {
   const s = String(k).replace(/[_:/]+/g, " ").trim();
   return s ? s[0].toUpperCase() + s.slice(1) : String(k);
@@ -908,6 +1024,7 @@ function word(kind, k) {
     case "stage": return W_STAGE[key] || tidy(key);
     case "tier": return W_TIER[key] || tidy(key);
     case "scan": return W_SCAN[key] || tidy(key);
+    case "addons": return (W_ADDONS[a] || {})[b] || tidy(b ?? key);
     case "mapping":
       if (a === "wizard_state" && String(b).startsWith("left_")) return `left the helper at ${W_WIZARD_STEP[String(b).slice(5)] || String(b).slice(5)}`;
       return (W_MAPPING[a] || {})[b] || tidy(key);
@@ -1147,6 +1264,14 @@ function word(kind, k) {
         return `Setup: ${a === "setup_step" ? "reached" : "skipped"} the ${step} step`;
       }
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;
+      // Add-ons (telemetry.ADDON_EVENTS).
+      if (a === "addon_offer") return `Add-on offered: ${W_ADDONS.addon[c] || c} on ${W_ADDONS.place[b] || b}`;
+      if (a === "addon_buy") return `Add-on's site opened: ${W_ADDONS.addon[c] || c}, from ${W_ADDONS.place[b] || b}`;
+      if (a === "addon_key") return `Licence card: ${W_ADDONS.key[b] || b}`;
+      if (a === "addon_gained") return `Add-on gained: ${W_ADDONS.addon[b] || b}`;
+      if (a === "addon_gained_in") return `An add-on gained ${W_ADDONS.sale[b] || b}`;
+      if (a === "addon_sale_card") return `The Overview's sale card: ${W_ADDONS.card[b] || b}`;
+      if (a === "addon_used") return `Used ${W_ADDONS.addon[b] || b}`;
       return tidy(key);
     }
   }

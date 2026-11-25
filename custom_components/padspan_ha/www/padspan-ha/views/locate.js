@@ -43,7 +43,7 @@
 const { pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
-const { addonAllowed, addonPrice } =
+const { addonAllowed, addonPrice, addonOfferSeen, addonUsedSeen } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
 // must not blank the view it sits in.
@@ -74,10 +74,14 @@ export function render(ctx, { targetKey } = {}) {
 
   // Every root this returns answers _refresh (Follow calls it each poll).
   root._refresh = () => {};
+  // The usage report's add-on funnel (telemetry.py ADDON_EVENTS), once per page load: refused here, or used.
+  const tel = (n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); };
   if (!addonAllowed(ctx.state.settings, "insights")) {
+    addonOfferSeen(tel, "locate", "insights");
     root.appendChild(_buildProGateCard(ctx, "Locate"));
     return root;
   }
+  addonUsedSeen(tel, "insights");
 
   const pickerCard = el("div");
   const body = el("div");

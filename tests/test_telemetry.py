@@ -286,7 +286,10 @@ def test_nothing_from_the_house_is_in_the_report():
     # many minutes the house's busiest single screen showed PadSpan, all day
     # and 07:00-23:00, beside the window's length (the owner, 2026-11-22:
     # one display at 90% or better is a dashboard adopted fully).
-    assert len(text) < 4970
+    # Raised 4970 -> 5070 (2026-11-25) for the top-level addons (~95 bytes
+    # here): the licence as a word, the add-ons used, and what the house has
+    # that an add-on is for (addon_report.py). Words and counts only.
+    assert len(text) < 5070
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1143,9 +1146,10 @@ def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
     # took those. 2026-10-22: nor the Find My counts — the Overview's set-up
     # words, in every report, took the rest; such a full day sends nine.
     # 2026-11-24: env.top_screen, in every report, is ~80 bytes more, so the
-    # room is made by that much here.)
+    # room is made by that much here. 2026-11-25: the top-level addons, in
+    # every report, ~95 bytes more here, so 100 more.)
     monkeypatch.setattr(ws_common, "_log_handler", SimpleNamespace(counts={}))
-    monkeypatch.setattr(T, "_MAX_BYTES", 8192 + 100)
+    monkeypatch.setattr(T, "_MAX_BYTES", 8192 + 200)
     h2 = _findmy_house()
     h2.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"]
     assert len(T.build_payload(h2)["presets"]) == 10

@@ -255,6 +255,10 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
     if not st:
         connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
         return
+    # The usage report's add-on funnel (telemetry ADDON_EVENTS, counted only while it is on): a key entered, and below
+    # how it went.
+    from .telemetry import bump as _bump  # noqa: PLC0415
+    _bump(hass, "addon_key:entered")
     try:
         from .licence_homes import call, home_params, homes_warning  # noqa: PLC0415
         # A different key starts this home afresh among that key's homes, and
@@ -275,6 +279,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
     if _free_new:
         from .telemetry import enabled as _report_on  # noqa: PLC0415
         if not _report_on(hass):
+            _bump(hass, "addon_key:refused")
             connection.send_result(msg["id"], {"ok": False, "valid": False, "status": "report_off", "message":
                 "A tester key needs the usage report on (Settings → Tracking → Usage report), and it stays on while "
                 "the key runs. Turn it on, then enter the key again."})
@@ -287,6 +292,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         # answer is an add-on key's, which is always free (licence.answer_tier).
         _tier = answer_tier(data)
         _addons = normalize_addons(data.get("addons"))
+        from .licence import is_addon_key as _is_addon_key  # noqa: PLC0415
+        _was_addon, _had = _is_addon_key(st.data), normalize_addons(st.data.get("license_addons"))
         await st.async_set(
             forensics_license_key=key,
             forensics_license_expires=str(data.get("expires_at") or ""),
@@ -314,6 +321,10 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
                 "license_homes_used": int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0}
                if new_key else {}),
         )
+        _now_addon = _is_addon_key(st.data)
+        _bump(hass, "addon_key:addon" if _now_addon else "addon_key:pro_from_addon" if _was_addon else "addon_key:pro")
+        from .addon_report import note_gained  # noqa: PLC0415
+        note_gained(hass, _had, _addons)
         if not new_key:
             # The same key again: this home keeps its token unless a new one came.
             from .licence_homes import keep_token  # noqa: PLC0415
@@ -328,6 +339,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             "settings": _get_settings(hass, connection),
         })
     else:
+        _st = str(data.get("status") or "invalid")
+        _bump(hass, "addon_key:" + ("needs_update" if _st == "needs_update" else "invalid" if _st == "invalid" else "refused"))
         connection.send_result(msg["id"], {
             "ok": False,
             "status": data.get("status") or "invalid",

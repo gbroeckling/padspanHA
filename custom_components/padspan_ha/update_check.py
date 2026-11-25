@@ -205,8 +205,13 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         # Offline: a trial already past its date and its grace still gives the kept add-on key back.
         await _bring_back_kept_addons(hass, st, None)
         return
+    from .licence import normalize_addons  # noqa: PLC0415
+    _had = normalize_addons(st.data.get("license_addons"))
     if not await _keep_answer(st, data, key):
         return                                          # another key is stored now: this answer was not about it
+    # An add-on bought onto this key since (the usage report's addon_gained, only while it is on).
+    from .addon_report import note_gained  # noqa: PLC0415
+    note_gained(hass, _had, st.data.get("license_addons"))
     # The trial key's answer is in: an add-on key kept aside for the trial comes back only now, and is then checked
     # in its turn (it is not a trial, so this happens once).
     if await _bring_back_kept_addons(hass, st, data):

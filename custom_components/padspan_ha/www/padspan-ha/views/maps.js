@@ -10,7 +10,8 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
-        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate } =
+        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate,
+        addonOfferSeen: _addonOfferSeen } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -10455,6 +10456,8 @@ function _lightsTab(ctx, maps, active) {
     }
   }
   if (!paid) {
+    // The Looks pack named below (the usage report's add-on funnel, once per page load).
+    if (!_addonAllowed(ctx.state.settings, "looks")) _addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "showcase", "looks");
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },

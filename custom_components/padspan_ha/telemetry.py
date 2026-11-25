@@ -100,6 +100,17 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     Share a replay: its dialog opened, a clip saved by format and shape,
         the names and room choices and the mark switched off, a clip that
         failed (SHARE_REPLAY_EVENTS); never a name, a room or the clip
+    add-ons (top-level `addons`, addon_report.py): the licence as one word,
+        an add-on key's add-ons with their time left in bands, whether a
+        trial runs over one, the last report's licence word when it changed,
+        the features that moved from free into an add-on which the house had
+        in use, which add-ons' features were used, and what the house has
+        that an add-on is for (counts and words: alarm panels, openers,
+        emergency lights, audio players by system, Control4's OS and state,
+        UniFi, sensors, history days, WLED, power teams, vacuums, plan
+        sources); and the funnel in `usage` (ADDON_EVENTS): offers seen by
+        place, the site opened, keys entered and how they went, add-ons
+        gained and when against the sale, the sale card
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -150,6 +161,8 @@ from .const import (
     DOMAIN,
 )
 from .onboarding import BUCKET_WORDS as _ONB_BUCKETS, STEPS as _ONB_STEPS
+from . import addon_report as _addon_report
+from .licence import ADDONS as _ADDONS
 from . import quiet_errors as _quiet_errors
 from .quiet_errors import note as _quiet_error
 
@@ -669,6 +682,39 @@ OFFER_EVENTS: frozenset[str] = frozenset(
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
     | PRO_OFFER_EVENTS
+)
+# Add-ons (the owner's, 2026-11-25; licence.ADDONS, views/editions.js ADDONS): the funnel, beside the report's
+# own `addons` section (addon_report.py). Words from these lists only, never a key:
+#   addon_offer:<place>:<add-on>  offered to an install without it: in the licence card's list, or where a feature
+#                                 refuses it (ADDON_OFFER_PLACES); once per page load per place (editions.js
+#                                 addonOfferSeen), and each time the backend refuses the emergency lights test
+#   addon_buy:<place>:<add-on>    its link to the site opened, each time (the licence card's list is the one that links)
+#   addon_key:<word>              a key entered in the licence card (entered) and how it went: an add-on key (addon), a
+#                                 Pro key (pro; pro_from_addon where an add-on key was), this PadSpan too old for it
+#                                 (needs_update), not valid (invalid), refused for another reason (refused)
+#   addon_gained:<add-on>         a key carries an add-on it did not (entered, or added to it by the daily check) ...
+#   addon_gained_in:<when>        ... and when, against the Black Friday sale (addon_report.SALE_WHEN)
+#   addon_sale_card:<word>        the Overview's sale card (panel.js _addonSaleCard): shown, its link opened, No thanks
+#   addon_used:<feature>          an add-on's feature used where nothing else counts it (Busy Times, Locate, the day
+#                                 replayed on the Atlas), once per page load; addons.used reads these
+ADDON_OFFER_PLACES: dict[str, tuple[str, ...]] = {
+    "licence_card": _ADDONS,
+    "busy_times": ("insights",), "locate": ("insights",),
+    "door_openers": ("alarm",), "emergency_test": ("alarm",),
+    "themes": ("looks",), "showcase": ("looks",),
+    "forensics": ("forensics",),
+}
+ADDON_BUY_PLACES: tuple[str, ...] = ("licence_card",)
+ADDON_KEY_WORDS: tuple[str, ...] = ("entered", "addon", "pro", "pro_from_addon", "needs_update", "invalid", "refused")
+ADDON_SALE_CARD_WORDS: tuple[str, ...] = ("shown", "clicked", "dismissed")
+ADDON_EVENTS: frozenset[str] = frozenset(
+    {f"addon_offer:{p}:{a}" for p, names in ADDON_OFFER_PLACES.items() for a in names}
+    | {f"addon_buy:{p}:{a}" for p in ADDON_BUY_PLACES for a in _ADDONS}
+    | {f"addon_key:{w}" for w in ADDON_KEY_WORDS}
+    | {f"addon_gained:{a}" for a in _ADDONS}
+    | {f"addon_gained_in:{w}" for w in _addon_report.SALE_WHEN}
+    | {f"addon_sale_card:{w}" for w in ADDON_SALE_CARD_WORDS}
+    | {f"addon_used:{w}" for w in _addon_report.USED_WORDS}
 )
 # Atlas outdoor weather (views/atlas_weather.js — the same four lists there,
 # held equal by tests/test_atlas_weather.py). Each counted once per page load
@@ -1847,7 +1893,7 @@ RUNS_KEYS: tuple[str, ...] = ("starts", "unclean", "rss_mb", "mem_avail_pc", "sw
 _TOP_KEYS: frozenset[str] = frozenset({
     "schema", "install_id", "day", "version", "edition", "tier", "ha_version",
     "python", "env", "features", "usage", "health", "errors", "presets",
-    "country", "language", "licence_group",
+    "country", "language", "licence_group", "addons",
 })
 # One licence's homes, together: a code made from the key, never the key.
 _GROUP_RE = re.compile(r"[0-9a-f]{16}")
@@ -1894,7 +1940,7 @@ def event_allowed(name: str) -> bool:
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
             or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS or name in LIGHTS_FOLLOW_EVENTS or name in SHARE_REPLAY_EVENTS
-            or name in ROOM_CONTROLS_EVENTS)
+            or name in ROOM_CONTROLS_EVENTS or name in ADDON_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -3333,6 +3379,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                       dom.get(_DATA_WINDOW_START_TAKEN) if consume else _window_start(hass), time.time(), _ha_tz(hass))
     if _top is not None:
         env["top_screen"] = _top
+    # The add-ons (addon_report.py): read before the usage counters can be trimmed for size below.
+    addons: dict[str, Any] | None = None
+    try:
+        addons = _addon_report.section(hass, settings, usage, env)
+    except Exception as err:
+        _quiet_error("telemetry:payload_addons")
+        _LOGGER.debug("Telemetry: add-ons left out: %s", err)
     # WARNING+ log lines by module since the last report — the "what broke"
     # signal for the parts of the code the developer cannot exercise.
     errors: dict[str, int] = {}
@@ -3361,6 +3414,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "errors": errors,
         "presets": presets,
     }
+    if addons:
+        payload["addons"] = addons
     # Where installs are and which translations matter: only what the person
     # set in Home Assistant, never anything looked up from the address.
     cfg = getattr(hass, "config", None)
@@ -3601,6 +3656,8 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
             _num(v, f"health.runs.{k}")
     if isinstance(health, dict) and "quiet_errors" in health:
         _quiet_errors.check_report(health["quiet_errors"])
+    if "addons" in payload:
+        _addon_report.check(payload["addons"])
 
 
 # ── the schedule ─────────────────────────────────────────────────────────────
@@ -3728,9 +3785,13 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
         return {"sent": False, "reason": "network", "bytes": len(body)}
     if st:
         try:
+            # The licence word this report said, so the next one can say when it changed (addons.was).
+            _seen = st.data.get(_addon_report.SEEN_KEY) if isinstance(st.data.get(_addon_report.SEEN_KEY), dict) else {}
+            _lic = (payload.get("addons") or {}).get("licence")
             await st.async_set(telemetry_last_day=_today(),
                                calibration_points_seen=int((payload.get("env") or {}).get("calibration_points") or 0),
-                               maps_seen=int((payload.get("env") or {}).get("maps") or 0))
+                               maps_seen=int((payload.get("env") or {}).get("maps") or 0),
+                               **({_addon_report.SEEN_KEY: {**_seen, "licence": _lic}} if _lic else {}))
         except Exception:
             _quiet_error("telemetry:send_last_day")
             pass
@@ -3845,6 +3906,12 @@ def async_setup_telemetry(hass: HomeAssistant) -> None:
             await send_now(hass)
 
     async def _first(_now: Any = None) -> None:
+        # Once per install, report on or not: the moved features this house had in use (addon_report.py).
+        try:
+            await _addon_report.async_note_moved(hass)
+        except Exception as err:
+            _quiet_error("telemetry:note_moved")
+            _LOGGER.debug("Telemetry: moved features not noted: %s", err)
         if _days_since_report(hass) >= _STALE_DAYS:
             await _run()
             return

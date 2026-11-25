@@ -461,6 +461,149 @@ foreach ($usage as $ev => $n) { $usage_out[$ev] = array('count' => $n, 'installs
 $tabs_out = array();
 foreach ($tabs as $t => $n) { $tabs_out[$t] = array('count' => $n, 'installs' => count($usage_installs['tab:' . $t])); }
 
+// ── add-ons (the owner's, 2026-11-25) ────────────────────────────────────────
+// The report's top-level `addons` (addon_report.py), from each install's
+// latest report: the licence as a word, the add-ons a key carries by time
+// left, Pro trials over a kept add-on key, the licence before it changed, the
+// features that moved from free into an add-on and how many of those houses
+// are on that add-on now, and what each house has that an add-on is for
+// (market counts; reach: houses with any of it, and of them already on it).
+// Use reads every row's `used` in the window; licence changes read each
+// install's rows in day order (and a row's `was`). The funnel (addon_offer:,
+// addon_buy:, addon_key:, addon_gained:, addon_gained_in:, addon_sale_card:)
+// is in `usage` with every other event; `refused` sets the offers where a
+// feature refused an add-on against each install's latest report.
+$ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps');
+$ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pro_tester', 'bright', 'addon',
+                        'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
+$ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
+                       'emergency_test' => array('alarm'), 'themes' => array('looks'), 'showcase' => array('looks'),
+                       'forensics' => array('forensics'));
+$ADDON_MOVED = array('emergency_test' => 'alarm', 'power_teams' => 'lighting', 'circadian' => 'lighting', 'lidar' => 'maps');
+$ADDON_MARKET = array('alarm' => array('alarm', 'garage', 'gate', 'emergency'), 'climate' => array('temp', 'humidity', 'co2'),
+                      'lighting' => array('wled', 'teams', 'colour_bulbs'), 'maps' => array('vacuum'));
+function addon_part($r) {
+    $a = is_array($r) && isset($r['addons']) && is_array($r['addons']) ? $r['addons'] : array();
+    return isset($a['licence']) && is_string($a['licence']) ? $a : null;
+}
+function addon_words($a, $k) {
+    $out = array();
+    foreach ((isset($a[$k]) && is_array($a[$k]) ? $a[$k] : array()) as $w) { if (is_string($w)) { $out[] = $w; } }
+    return $out;
+}
+// An add-on key carries it and it has not ended: running, in its grace, or kept aside while a trial runs.
+function addon_holds($a, $name) {
+    $held = as_map(isset($a['held']) ? $a['held'] : null);
+    return isset($held[$name]) && $held[$name] !== 'ended' && strpos($a['licence'], 'lapsed_') !== 0;
+}
+function addon_pro($a) { return strpos($a['licence'], 'pro_') === 0; }
+// Holds it or is on Pro; Advanced smart lighting is not sold yet, so everyone's.
+function addon_on_it($a, $name) { return $name === 'lighting' || addon_holds($a, $name) || addon_pro($a); }
+$addons = array('installs' => 0, 'licence' => array(), 'held' => array(), 'kept' => 0, 'was' => array(), 'changes' => array(),
+                'moved' => array(), 'on_it' => array(), 'used' => array(), 'refused' => array(), 'market' => array(),
+                'reach' => array(), 'audio' => array(), 'c4' => array(), 'c4_local' => 0, 'c4_os2_local' => 0,
+                'wifi' => array(), 'history' => array(), 'plans' => array(), 'roomplan' => 0, 'valetudo' => 0);
+$addon_used_by = array();     // add-on => id => 1: a row in the window said it was used
+$addon_seq = array();         // id => day => that row's addons
+foreach ($rows as $k => $r) {
+    $a = addon_part($r);
+    if ($a === null) { continue; }
+    list($id, $d) = explode('|', $k, 2);
+    $addon_seq[$id][$d] = $a;
+    if ($d >= $cutoff) { foreach (addon_words($a, 'used') as $w) { $addon_used_by[$w][$id] = 1; } }
+}
+foreach ($addon_seq as $id => $seq) {
+    ksort($seq);
+    $prev = null; $pairs = array();
+    foreach ($seq as $a) {
+        $now = $a['licence'];
+        if ($prev !== null && $prev !== $now) { $pairs[$prev . '>' . $now] = 1; }
+        if (isset($a['was']) && is_string($a['was']) && in_array($a['was'], $ADDON_LICENCES, true) && $a['was'] !== $now) { $pairs[$a['was'] . '>' . $now] = 1; }
+        $prev = $now;
+    }
+    foreach ($pairs as $p => $_) { incr($addons['changes'], $p); }
+}
+$addon_reach = array();       // add-on => id => 1: the house has something the add-on is for
+foreach ($latest as $id => $r) {
+    $a = addon_part($r);
+    if ($a === null) { continue; }
+    $addons['installs']++;
+    incr($addons['licence'], $a['licence']);
+    foreach (as_map(isset($a['held']) ? $a['held'] : null) as $name => $band) {
+        if (!in_array($name, $ADDON_NAMES, true) || !is_string($band)) { continue; }
+        if (!isset($addons['held'][$name])) { $addons['held'][$name] = array(); }
+        incr($addons['held'][$name], $band);
+    }
+    if (isset($a['kept']) && $a['kept'] === true) { $addons['kept']++; }
+    if (isset($a['was']) && is_string($a['was']) && in_array($a['was'], $ADDON_LICENCES, true)) { incr($addons['was'], $a['was'] . '>' . $a['licence']); }
+    foreach (addon_words($a, 'moved') as $w) {
+        if (!isset($ADDON_MOVED[$w])) { continue; }
+        if (!isset($addons['moved'][$w])) { $addons['moved'][$w] = array('installs' => 0, 'holds' => 0, 'pro' => 0, 'into' => $ADDON_MOVED[$w]); }
+        $addons['moved'][$w]['installs']++;
+        if (addon_holds($a, $ADDON_MOVED[$w])) { $addons['moved'][$w]['holds']++; }
+        if (addon_pro($a)) { $addons['moved'][$w]['pro']++; }
+    }
+    foreach (array_merge($ADDON_NAMES, array('lighting')) as $name) {
+        if (!addon_on_it($a, $name)) { continue; }
+        incr($addons['on_it'], $name);
+        if (isset($addon_used_by[$name][$id])) { incr($addons['used'], $name); }
+    }
+    $m = as_map(isset($a['market']) ? $a['market'] : null);
+    foreach ($ADDON_MARKET as $name => $keys) {
+        foreach ($keys as $k) {
+            $v = isset($m[$k]) && is_numeric($m[$k]) ? (int)$m[$k] : 0;
+            if ($v <= 0) { continue; }
+            if (!isset($addons['market'][$k])) { $addons['market'][$k] = array('installs' => 0, 'sum' => 0); }
+            $addons['market'][$k]['installs']++;
+            $addons['market'][$k]['sum'] += $v;
+            $addon_reach[$name][$id] = 1;
+        }
+    }
+    foreach (as_map(isset($m['audio']) ? $m['audio'] : null) as $sys => $v) {
+        if (!is_numeric($v) || (int)$v <= 0) { continue; }
+        if (!isset($addons['audio'][$sys])) { $addons['audio'][$sys] = array('installs' => 0, 'sum' => 0); }
+        $addons['audio'][$sys]['installs']++;
+        $addons['audio'][$sys]['sum'] += (int)$v;
+        $addon_reach['audio'][$id] = 1;
+    }
+    if (isset($m['c4']) && is_array($m['c4'])) {
+        $os = isset($m['c4']['os']) && is_string($m['c4']['os']) ? $m['c4']['os'] : 'unknown';
+        $entry = isset($m['c4']['entry']) && is_string($m['c4']['entry']) ? $m['c4']['entry'] : 'other';
+        $local = isset($m['c4']['local']) && $m['c4']['local'] === true;
+        incr($addons['c4'], $os . ':' . $entry);
+        if ($local) { $addons['c4_local']++; }
+        // "Control4 OS 2 Local": OS 2 whose own Control4 entry is not running, or that runs the local-token override.
+        if ($os === '2' && ($entry !== 'loaded' || $local)) { $addons['c4_os2_local']++; }
+    }
+    if (isset($m['wifi']) && is_string($m['wifi'])) { incr($addons['wifi'], $m['wifi']); $addon_reach['wifi'][$id] = 1; }
+    if (isset($m['history']) && is_string($m['history'])) { incr($addons['history'], $m['history']); }
+    foreach (addon_words($m, 'plans') as $w) { incr($addons['plans'], $w); $addon_reach['maps'][$id] = 1; }
+    foreach (array('roomplan', 'valetudo') as $k) {
+        if (isset($m[$k]) && $m[$k] === true) { $addons[$k]++; $addon_reach['maps'][$id] = 1; }
+    }
+}
+foreach ($addon_reach as $name => $who) {
+    $on = 0;
+    foreach ($who as $id => $_) { if (addon_on_it(addon_part($latest[$id]), $name)) { $on++; } }
+    $addons['reach'][$name] = array('installs' => count($who), 'on_it' => $on);
+}
+$addon_refused_who = array();
+foreach ($ADDON_REFUSAL as $place => $names) {
+    foreach ($names as $name) {
+        $ev = "addon_offer:$place:$name";
+        if (isset($usage_installs[$ev])) { foreach ($usage_installs[$ev] as $id => $_) { $addon_refused_who[$name][$id] = 1; } }
+    }
+}
+foreach ($addon_refused_who as $name => $who) {
+    $without = 0;
+    foreach ($who as $id => $_) {
+        $a = isset($latest[$id]) ? addon_part($latest[$id]) : null;
+        if ($a === null || !(addon_holds($a, $name) || addon_pro($a))) { $without++; }
+    }
+    $addons['refused'][$name] = array('installs' => count($who), 'without' => $without);
+}
+arsort($addons['licence']); arsort($addons['was']); arsort($addons['changes']);
+
 // ── the per-install table (anonymous: the random id's first 8 chars) ─────────
 $table = array();
 foreach ($latest as $id => $r) {
@@ -577,6 +720,7 @@ $out = array(
     'errors' => $errors_out,
     'table' => $table,
     'new_installs' => $new_installs,
+    'addons' => $addons,
     'fields' => $fields,
 );
 $json = json_encode($out, JSON_UNESCAPED_SLASHES);
