@@ -31,10 +31,26 @@ export function hasReceivers(state) {
  * (model.room_geometry_m) first — that is the one true record a room's
  * shape is judged by — falling back to any per-map room_bounds so a house
  * that drew rooms without ever having built a fabric still reads as started.
+ * The rooms that count for the plan path (planRooms): a starter house's box
+ * still as made is a placeholder, not a drawn room (ai_wizard.has_fabric_rooms).
  */
 export function hasFabricRooms(state) {
-  return !!(state.model && state.model.room_geometry_m
-    && Object.keys(state.model.room_geometry_m).length > 0);
+  return Object.keys(planRooms(state)).length > 0;
+}
+
+/** The rooms that count for the plan path (upload, scale, trace, Setup, the rooms helper; ai_wizard.plan_rooms is this
+ *  rule): the house's rooms but the starter house's boxes still as made (starterBoxes). Those are placeholders here and
+ *  nowhere else: positioning, devices in their rooms and every other screen read model.room_geometry_m whole. */
+export function planRooms(state) {
+  const boxes = starterBoxes(state);
+  return Object.fromEntries(Object.entries((state.model && state.model.room_geometry_m) || {}).filter(([r]) => !boxes[r]));
+}
+
+/** Any room at all on the house or traced on a plan, a starter house's boxes too (whether the starter house is offered,
+ *  and "Put my receivers in their rooms", which a box serves as any room does). */
+export function hasAnyRooms(state) {
+  return Object.keys((state.model && state.model.room_geometry_m) || {}).length > 0
+    || (hasMaps(state) && state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0));
 }
 
 /** hasFabricRooms first (the one true record), OR any per-map room_bounds — a
@@ -52,7 +68,7 @@ export function hasRooms(state) {
 export function planRoomed(state, m) {
   if (!m) return false;
   if (Object.keys(m.room_bounds || {}).length) return true;
-  const geo = Object.values((state.model && state.model.room_geometry_m) || {});
+  const geo = Object.values(planRooms(state));             // a starter house's untouched box is no room here
   if (!m.floor_id) return geo.some(r => r && r.source_map_id === m.id);
   return geo.some(r => r && r.floor_id === m.floor_id)
     || ((state.maps && state.maps.list) || []).some(o => o && o.floor_id === m.floor_id && Object.keys(o.room_bounds || {}).length);
@@ -92,9 +108,9 @@ export function hasCalibration(state) {
  *  "Put it on the map" copies it to the house); else null. A room traced only on a plan with no scale is not drawn yet. */
 export function roomDrawn(state, name) {
   const m = (hasMaps(state) ? state.maps.list : []).find(p => p && (p.room_bounds || {})[name] && planHasScale(state, p.id));
-  // A box of the starter house that has been traced on a plan since: the traced outline is what goes on the map
-  // ("Put it on the map" replaces the box).
-  if (((state.model && state.model.room_geometry_m) || {})[name] && !(m && starterBoxes(state)[name])) return { house: true, map: null };
+  // A box of the starter house still as made is a placeholder, not drawn: once traced on a plan, the traced outline is
+  // what goes on the map ("Put it on the map" replaces the box).
+  if (planRooms(state)[name]) return { house: true, map: null };
   return m ? { house: false, map: m } : null;
 }
 

@@ -15,7 +15,7 @@
 // stored (settings.setup_progress, cleaned by setup_checks.clean_setup_progress).
 
 const STATUS = await import(`./setup_status.js${new URL(import.meta.url).search}`);
-const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors, firstOpenStep } = STATUS;
+const { hasAnyRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors, firstOpenStep } = STATUS;
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
@@ -357,7 +357,7 @@ function _block(ctx, opts, p) {
   const { el } = ctx.helpers;
   const st = ctx.state;
   const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(ctx, p.skipped);
-  const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
+  const rooms = hasAnyRooms(st);                    // any rooms, drawn by hand, by the helper or the starter house's boxes (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;
     // Every receiver the server knows is placed already: nothing to say. The "once they are in Home Assistant" line only

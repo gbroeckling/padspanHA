@@ -296,6 +296,11 @@ quadratischen Kasten für jeden Home-Assistant-Bereich darauf, benannt wie der B
 erscheinen sofort in ihren Räumen, wie bei jedem Raum. Sonst ändert sich nichts: kein
 Kalibrierpunkt, kein Empfänger und keine Wand wird angefasst, und ein zweiter Druck legt nichts an.
 
+Die Kästen sind Platzhalter fürs Zeichnen der Räume: Bis du sie umformst oder ersetzt, bleibt der Schritt
+**Räume zeichnen** der Einrichtung offen, ein echter Plan dieser Etage öffnet mit seinem Räume-Werkzeug, und
+**Let Claude draw your rooms** wird dafür weiter angeboten. Für alles andere (wo Menschen und Geräte sind)
+sind sie Räume.
+
 Die Kästen sind ein Anfang. Der Hinweis auf dem groben Plan sagt, wie viele noch Kästen sind, mit zwei
 Wegen weiter:
 

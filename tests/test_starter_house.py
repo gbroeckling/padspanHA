@@ -314,3 +314,57 @@ def test_the_panel_harness():
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     out = json.loads(lines[-1])
     assert out["cases"] and not out["failures"], json.dumps(out["failures"], indent=1)
+
+
+# ═══ the boxes never block the plan path (coordinator, 2026-11-24) ═══════════
+# Untouched boxes are placeholders there: "Let Claude draw your rooms" is still offered once a real plan is uploaded
+# for the floor, Edit opens on Rooms (the JS harness), Setup's rooms step is still to do; a reshaped box is a room.
+# They stay rooms for positioning and devices (the fabric is not touched by any of this).
+
+_BOX = [[1.0, 1.0], [4.5, 1.0], [4.5, 4.5], [1.0, 4.5]]
+
+
+def test_the_rooms_helper_is_offered_over_a_rough_house_once_a_real_plan_is_there(monkeypatch):
+    from custom_components.padspan_ha import licence as L
+    from tests.test_ai_wizard import _NOW, _stuck_house
+    monkeypatch.setattr(L, "edition", lambda: "full")
+    base = W.facts(_stuck_house(), now=_NOW)               # a real plan on "main", no rooms: the helper's own baseline
+    want = (W.offer_reason(base, "push"), W.offer_reason(base, "pull"))
+    assert want[0] == "offer"
+    h = _stuck_house()
+    rough = {"id": "s1", "name": "Main (rough start)", "floor_id": "main", "kind": "blank", "created": "2026-01-01T00:00:00+00:00",
+             "receivers": [], "room_bounds": {}, "starter": {"made": "2026-01-01", "rooms": {"Kitchen": _BOX}}}
+    h.data[DOMAIN][DATA_MAPS].data["maps"].insert(0, rough)
+    h.data[DOMAIN][DATA_FABRIC].data["floors"] = {"main": {"rooms": {"Kitchen": {"type": "poly", "points_m": [list(p) for p in _BOX],
+                                                                                  "floor_id": "main", "committed_by": "external_import"}}}}
+    f = W.facts(h, now=_NOW)
+    assert f["rooms"] is False and f["floor_no_rooms"] is True and f["indoor_plans"] == 1, "the rough plan is no plan to read, its box no room"
+    assert (W.offer_reason(f, "push"), W.offer_reason(f, "pull")) == want
+    assert W.stuck_word(W.setup_state(h)) == "plan_no_rooms"
+    # The rough plan alone: nothing for the helper to read.
+    only = _stuck_house()
+    only.data[DOMAIN][DATA_MAPS].data["maps"] = [dict(rough)]
+    only.data[DOMAIN][DATA_FABRIC].data["floors"] = h.data[DOMAIN][DATA_FABRIC].data["floors"]
+    assert W.offer_reason(W.facts(only, now=_NOW), "push") == "no_plan"
+    # The box reshaped (Mapping → Layout): a room, and the helper leaves the house alone as for any room.
+    h.data[DOMAIN][DATA_FABRIC].data["floors"]["main"]["rooms"]["Kitchen"]["points_m"] = [[1, 1], [5, 1], [5, 4.5], [1, 4.5]]
+    f = W.facts(h, now=_NOW)
+    assert f["rooms"] is True and f["floor_no_rooms"] is False and W.offer_reason(f, "push") == "has_rooms"
+
+
+def test_a_real_plans_trace_wins_over_a_box_however_old_the_rough_plan_is():
+    """The floor's layout takes a room name from the oldest plan that traces it. A box is no trace (the rough plan's
+    room_bounds are empty), so a real plan's trace is the room's candidate even beside an older rough plan; a room
+    the person traced ON the rough plan is a real trace, and the existing rule stands."""
+    from custom_components.padspan_ha import fabric_truth as FT
+    tf = {"s1": {"scale_x_m": 10.0, "scale_y_m": 8.0, "origin_x_m": 0.0, "origin_y_m": 0.0, "rotation_rad": 0.0, "shear_rad": 0.0},
+          "r1": {"scale_x_m": 12.0, "scale_y_m": 9.0, "origin_x_m": 0.0, "origin_y_m": 0.0, "rotation_rad": 0.0, "shear_rad": 0.0}}
+    mdl = SimpleNamespace(map_transform=lambda mid: tf.get(mid),
+                          map_frac_to_metres=lambda fx, fy, mid: FT.placement_metres(tf[mid], fx, fy))
+    rough = {"id": "s1", "floor_id": "main", "created": "2026-01-01T00:00:00", "room_bounds": {}, "starter": {"rooms": {"Kitchen": _BOX}}}
+    real = {"id": "r1", "floor_id": "main", "created": "2026-11-24T00:00:00",
+            "room_bounds": {"Kitchen": {"type": "poly", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]]}}}
+    got = FT.rooms_from_transforms([rough, real], mdl)
+    assert got["Kitchen"]["source_map_id"] == "r1"
+    traced = dict(rough, room_bounds={"Kitchen": {"type": "poly", "points": [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4]]}})
+    assert FT.rooms_from_transforms([traced, real], mdl)["Kitchen"]["source_map_id"] == "s1", "a trace on the rough plan is a trace"

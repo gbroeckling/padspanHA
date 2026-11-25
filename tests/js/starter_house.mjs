@@ -235,6 +235,33 @@ const mapsCtx = (st) => {
   }
 }
 
+// ── the boxes never block the plan path (coordinator, 2026-11-24) ───────────
+{
+  const AIW = await import(pathToFileURL(join(WWW, "views", "ai_wizard.js")).href);
+  const st = made();
+  st.model.map_transforms.s1.reference_measurements = [{ source: "blank" }];
+  const d = S.deriveSetup(st);
+  check("plan path: after the rough house, Setup's rooms step is still to do (its boxes are placeholders there)",
+    d.steps.find(x => x.id === "plan").done && d.steps.find(x => x.id === "scale").done && !d.steps.find(x => x.id === "rooms").done && d.current === "rooms", d.steps);
+  check("plan path: but it isn't offered again", !RP.starterOffered(mkCtx(st).ctx) && ST.hasAnyRooms(st) && !ST.hasRooms(st));
+  check("plan path: an untouched box is not drawn", ST.roomDrawn(st, "Kitchen") === null && ST.undrawnAreaNames(st).includes("Kitchen"));
+  const real = { id: "r1", name: "Ground floor plan", floor_id: "ground", image: { width: 1000, height: 800 }, receivers: [], room_bounds: {}, created: "2026-11-25" };
+  st.maps.list.push(real);
+  st.model.map_transforms.r1 = { scale_x_m: 10, scale_y_m: 8, origin_x_m: 0, origin_y_m: 0, rotation_rad: 0, shear_rad: 0 };
+  check("plan path: a real plan on the rough floor has no rooms yet", ST.planRoomed(st, real) === false && ST.planRoomed(st, st.maps.list[0]) === false);
+  const plans = AIW.plansOf(st).map(m => m.id);
+  check("plan path: the rooms helper reads the real plan, never the rough one", JSON.stringify(plans) === '["r1"]', plans);
+  const open = (state) => { const c = mapsCtx(Object.assign(state, { mapsTab: "edit", activeMapId: "r1", _dataModeKnown: true })); MAPS.render(c.ctx); return c.ctx.state.maps._mode; };
+  check("plan path: Edit opens the real plan on Rooms, as on a floor with no rooms", open(st) === "rooms", st.maps._mode);
+  const reshaped = made();
+  reshaped.maps.list.push({ ...real });
+  reshaped.model.map_transforms.r1 = { ...st.model.map_transforms.r1 };
+  reshaped.model.room_geometry_m.Hall = { ...reshaped.model.room_geometry_m.Hall, points_m: [[6, 1], [10, 1], [10, 4.5], [6, 4.5]], committed_by: "correction" };
+  check("plan path: a reshaped box is a room: the plan's floor has rooms, Edit opens on Radios as before",
+    ST.planRoomed(reshaped, real) === true && open(reshaped) === "receivers" && JSON.stringify(Object.keys(ST.planRooms(reshaped))) === '["Hall"]');
+  check("plan path: the boxes are rooms everywhere else (the house's own record is untouched)", Object.keys(st.model.room_geometry_m).length === 2);
+}
+
 // ── "Put it on the map": a traced room takes a box's place, never a reshaped room's ──
 {
   const st = made();

@@ -50,7 +50,7 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
         undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers,
         setupSteps: _setupSteps, nextStep: _nextSetupStep, stepDone: _stepDone, STEP_ABOUT: _STEP_ABOUT,
-        planRoomed: _planRoomed, setupDone: _setupDone, firstOpenStep: _firstOpenStep, starterBoxes: _starterBoxes } =
+        planRoomed: _planRoomed, setupDone: _setupDone, firstOpenStep: _firstOpenStep, starterBoxes: _starterBoxes, planRooms: _planRooms } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
 // Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
@@ -1955,7 +1955,7 @@ function _wizardFinish(ctx, map, w){
   // helper's), receivers by setup_status.placedReceivers, and "next" from the one step list.
   const fid = (map && map.floor_id) || "main";
   const rooms = map ? new Set([...Object.keys(map.room_bounds || {}),
-    ...(map.floor_id ? Object.entries((st.model && st.model.room_geometry_m) || {}).filter(([, g]) => g && g.floor_id === map.floor_id).map(([n]) => n) : [])]).size : 0;
+    ...(map.floor_id ? Object.entries(_planRooms(st)).filter(([, g]) => g && g.floor_id === map.floor_id).map(([n]) => n) : [])]).size : 0;
   const scanners = map ? _placedReceivers(st, fid).size : 0;
   const skipped = (st.settings && st.settings.setup_progress && st.settings.setup_progress.skipped) || [];
   const next = _firstOpenStep(st, Array.isArray(skipped) ? skipped : []), say = _FINISH_NEXT[next];

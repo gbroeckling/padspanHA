@@ -265,6 +265,10 @@ where the area has more than four devices, at most 6 m. Your devices show in the
 they do for any room. Nothing else changes: no calibration point, receiver or wall is touched, and a
 second press makes nothing.
 
+The boxes are placeholders for drawing the rooms: until you reshape or replace them, Setup's **Draw the
+rooms** step stays to do, a real plan of that floor opens on its Rooms tool, and **Let Claude draw your
+rooms** is still offered for it. For everything else (where people and devices are) they are rooms.
+
 The boxes are a starting point. The rough plan's note says how many are still boxes, with two ways
 on:
 

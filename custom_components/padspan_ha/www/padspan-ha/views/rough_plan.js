@@ -25,7 +25,7 @@ const { btn, P, MUTED, row } = PM;
 // Its words in the panel's language (views/i18n.js; English is the key): the lists below are functions, read when drawn.
 const { t, tn } = await import(`./i18n.js${V}`);
 // The starter house's boxes still as made, and whether the house has rooms (setup_status.js: the one rule each).
-const { starterBoxes, hasRooms } = await import(`./setup_status.js${V}`);
+const { starterBoxes, hasAnyRooms } = await import(`./setup_status.js${V}`);
 
 export const LINK = () => t("No floor plan? Ways to get one");
 export const KINDS = Object.freeze(["have", "scan", "vacuum", "sketch", "blank"]);
@@ -341,7 +341,7 @@ export const isStarter = (m) => !!(m && m.starter && typeof m.starter === "objec
 /** Whether to offer it: the house's own data, an administrator, not a wall screen, and no rooms drawn anywhere yet. */
 export function starterOffered(ctx) {
   const st = ctx.state;
-  return st.dataMode === "live" && !st.kioskMode && !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin === false) && !hasRooms(st);
+  return st.dataMode === "live" && !st.kioskMode && !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin === false) && !hasAnyRooms(st);
 }
 
 const _names = (xs) => xs.length > 6 ? t("{names} and {more} more", { names: xs.slice(0, 6).join(", "), more: xs.length - 6 }) : xs.join(", ");
