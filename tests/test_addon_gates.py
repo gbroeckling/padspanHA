@@ -16,6 +16,10 @@ keeps what it had. For each install (free, free with one add-on, Bright, Pro):
   looks       the four panel themes; Showcase, its themes, the forest and the Look presets, never placement
   forensics   recording, forensics_enabled
   insights    Busy Times and Locate, locate_self_key — "Presence insights", never the free Insights tab
+  maps        Advanced map creation, NOT ON SALE YET (it comes with the free 3D house): AI plan reading (the Plans
+              tool, Line up plans, Rooms from plans, the rooms helper), reading a photo, a RoomPlan scan into the
+              3D house, Furniture from scans: Pro or maps now; the basic LiDAR scan -> floor plan stays everyone's
+              until maps is on sale; nothing offers it until then
 
 Run in node: tests/js/addon_gates.mjs (editions, lights_map, settings, devices,
 busy_times, locate) and tests/js/lights_panel_lifecycle.mjs (the sidebar's
@@ -37,6 +41,7 @@ from custom_components.padspan_ha import licence
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from tests import golden_settings as gs
 from tests.test_settings_refusals import send
+from tests.test_house3d_edit import disk  # noqa: F401  (the 3D house's on-disk store fixture)
 
 _ROOT = Path(__file__).resolve().parents[1]
 _PKG = _ROOT / "custom_components" / "padspan_ha"
@@ -318,3 +323,107 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
                 "(PadSpan Pro or the Climate map add-on)", "(PadSpan Pro or the Vacation Mode & presets add-on)",
                 "(PadSpan Pro or the Time travel add-on)", "Audio (PadSpan Pro or the Audio add-on)"):
         assert tag in help_src, tag
+
+
+# ── Advanced map creation (maps): not on sale yet ───────────────────────────
+
+
+def test_maps_is_known_and_not_on_sale_in_both_halves(gates) -> None:
+    """editions.js on_sale: false and licence.NOT_ON_SALE say the same; nothing offers it: not the licence card, not
+    the site."""
+    assert "maps" in ADDONS and licence.NOT_ON_SALE == ("maps",) and not licence.addon_on_sale("maps")
+    assert all(licence.addon_on_sale(a) for a in ADDONS if a != "maps")
+    assert gates["onSale"] == {a: a != "maps" for a in ADDONS}
+    assert '{ name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,' in _src("views/editions.js")
+    assert gates["offered"]["free"] == [a for a in ADDONS if a != "maps"]
+    assert gates["offered"]["audio"] == [a for a in ADDONS if a not in ("audio", "maps")]
+    site = (_ROOT / "site" / "index.html").read_text(encoding="utf-8")
+    assert 'data-addon="maps"' not in site and "padspan-addon-maps" not in site
+
+
+def test_the_free_floor_plan_from_a_scan_stays_free_until_maps_is_on_sale(gates) -> None:
+    gate = gates["mapsGate"]
+    assert all(gate.values()), gate            # not on sale: everyone's, as it always was
+    assert ('const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true && _addonGate(ctx.state.settings, "maps");'
+            in _src("views/maps.js"))
+
+
+def _roomplan_floor(start: dict, on_sale: bool, monkeypatch) -> dict:
+    from tests.test_roomplan_import import _B64, _hass, _rp
+    if on_sale:
+        monkeypatch.setattr(licence, "NOT_ON_SALE", ())
+    h = _hass(True)
+    h.data[DOMAIN][DATA_SETTINGS].data.update(start)
+    return _rp(h, _B64)
+
+
+@pytest.mark.parametrize("start, now, later", [
+    ({}, True, False),                       # free: kept until maps is on sale, then refused
+    (_addon_key("audio"), True, False),      # another add-on: the same
+    (_addon_key("maps"), True, True),
+    (_PRO_KEY, True, True),
+])
+def test_the_basic_scan_import_gate(monkeypatch, start: dict, now: bool, later: bool) -> None:
+    from custom_components.padspan_ha import ws_floorplan_import as WFI
+    got = _roomplan_floor(start, False, monkeypatch)
+    assert ("error" not in got) is now, got
+    got = _roomplan_floor(start, True, monkeypatch)
+    assert ("error" not in got) is later, got
+    if not later:
+        assert got["error"] == WFI.ROOMPLAN_ADDON_CODE and got["message"] == WFI.ROOMPLAN_ADDON_MESSAGE
+
+
+@pytest.mark.parametrize("who, roomplan, sh3d", [
+    ("pro", True, True), ("maps", True, False), ("audio", False, False), ("free", False, False),
+])
+def test_a_scan_into_the_3d_house_is_maps_a_design_file_stays_pro(disk, tmp_path, who, roomplan, sh3d) -> None:
+    """A RoomPlan scan's doors, windows, furniture and stairs into the 3D house: Pro or maps. A .sh3d (a design
+    program's file, not a scan) stays the 3D house's own, Pro."""
+    from custom_components.padspan_ha import ws_house3d as W3
+    from tests.test_house3d_edit import _on
+    from tests.test_house3d_import import _preview
+    from tests.test_house3d_store import _run
+    from custom_components.padspan_ha import ws_house3d_import as WI
+
+    def ask(fmt: str) -> bool:
+        h, conn = _on(tmp_path, tier="free" if who == "free" else "pro")
+        if who in ("maps", "audio"):
+            h.data[DOMAIN][DATA_SETTINGS].data.update(license_tier="free", license_addons=[who])
+        if fmt == "sh3d":
+            out = _preview(h, conn)
+        else:
+            _run(WI.ws_house3d_import_preview(h, conn, {"id": 9, "type": "padspan_ha/house3d_import_preview",
+                                                        "sh3d_base64": "e30=", "format": "roomplan"}))
+            out = {"error": conn.send_error.call_args[0][1]} if conn.send_error.called else {}
+        return out.get("error") != W3.OFF_CODE
+    assert ask("roomplan") is roomplan and ask("sh3d") is sh3d
+
+
+def test_ai_plan_reading_photos_and_scan_furniture_are_pro_or_maps(gates) -> None:
+    pkg = {n: (_PKG / n).read_text(encoding="utf-8") for n in ("plan_ai.py", "ws_plan_ai.py", "ws_house3d_photo.py",
+                                                             "ws_house3d.py", "ai_wizard.py")}
+    assert pkg["plan_ai.py"].count('if not hass_addon_allowed(self.hass, "maps"):') == 2       # both read guards
+    assert '_tier_at_least(self.hass, "pro")' not in pkg["plan_ai.py"]
+    # The plan guard still needs the 3D house on (house3d_on), as before.
+    assert pkg["plan_ai.py"].count("if not house3d_on(self.hass)") >= 1
+    assert 'if not hass_addon_allowed(hass, "maps"):\n        connection.send_error(msg["id"], OFF_CODE, prefix + PRO_MESSAGE)' in pkg["ws_plan_ai.py"]
+    assert 'and hass_addon_allowed(hass, "maps"):' in pkg["ws_plan_ai.py"] and "_tier_at_least" not in pkg["ws_plan_ai.py"]
+    assert 'if not hass_addon_allowed(hass, "maps"):' in pkg["ws_house3d_photo.py"] and "_tier_at_least" not in pkg["ws_house3d_photo.py"]
+    assert 'sp = scan_pieces(hass) if hass_addon_allowed(hass, "maps") else None' in pkg["ws_house3d.py"]
+    assert '"maps": hass_addon_allowed(hass, "maps"),' in pkg["ai_wizard.py"]
+    assert 'const scanLoad = scr && host.house3d && hostAddon(host, "maps") &&' in _src("views/lights_map.js")
+    # The rooms helper (Let Claude draw your rooms): offered to Pro or maps, the trial otherwise.
+    assert gates["helper"] == {"pro": "start", "maps": "start", "free": "no_pro", "trial": "trial"}, gates["helper"]
+
+
+@pytest.mark.parametrize("start, allowed", [
+    ({}, False), (_addon_key("maps"), True), (_addon_key("insights"), False), (_PRO_KEY, True), (_BRIGHT_KEY, False),
+])
+def test_the_rooms_helper_and_the_plans_read_with_pro_or_maps(start: dict, allowed: bool) -> None:
+    from custom_components.padspan_ha import ai_wizard as AW
+    h = _hass(start)
+    assert licence.hass_addon_allowed(h, "maps") is allowed
+    f = {"admin": True, "live": True, "kiosk": False, "edition": "full", "rooms": False, "room_bounds": False,
+         "indoor_plans": 1, "plan_age_days": 18.0, "wizard": {}, "now": 1.8e9, "tool_used": False,
+         "tier": licence.hass_tier(h), "maps": allowed, "trial_offerable": False, "plan_scaled": True}
+    assert (AW.offer_reason(f, "push") == "offer") is allowed

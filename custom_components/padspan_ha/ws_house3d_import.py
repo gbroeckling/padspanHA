@@ -48,6 +48,7 @@ from homeassistant.core import HomeAssistant
 from .house3d_store import DOOR_MIN_M, WINDOW_MIN_M, enabled
 from .roomplan_import import RoomPlanParseError, parse_roomplan
 from .sh3d_import import Sh3dParseError, parse_sh3d_furniture
+from .licence import hass_addon_allowed
 from .ws_common import _tier_at_least
 from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DEFAULT_FLOOR_ID, DOMAIN, refusal
 from .ws_floorplan_import import MAX_SH3D_BYTES, ROOMPLAN_OFF_CODE
@@ -433,11 +434,12 @@ def preview_roomplan(data: bytes) -> dict[str, Any]:
 async def ws_house3d_import_preview(hass: HomeAssistant, connection, msg) -> None:
     """A .sh3d's doors, windows and furniture (or a RoomPlan scan's
     doors, windows, openings, furniture and stairs) as candidates. Writes
-    nothing."""
+    nothing. A .sh3d is the 3D house's own (PadSpan Pro); a RoomPlan scan is
+    Advanced map creation's (PadSpan Pro or the maps add-on)."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
-    if not _tier_at_least(hass, "pro"):
+    if not (hass_addon_allowed(hass, "maps") if msg.get("format") == "roomplan" else _tier_at_least(hass, "pro")):
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return
     b64 = msg.get("sh3d_base64") or ""

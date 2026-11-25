@@ -1056,7 +1056,7 @@ def test_commit_and_undo_refuse_with_the_switch_live_aboard_or_pro_off(monkeypat
     elif off == "house3d":
         st["atlas_3d_enabled"] = False
     else:
-        monkeypatch.setattr(W, "_tier_at_least", lambda hass, t: False)
+        monkeypatch.setattr(W, "hass_addon_allowed", lambda hass, name: False)   # neither PadSpan Pro nor Advanced map creation
     raw = _file(tmp_path).read_bytes()
     want = {"switch": "ai_plans_off", "house3d": "house3d_off", "pro": "house3d_off"}[off]
     assert _commit(h, conn, sid, sess["rev"], {"sug_id": sug["id"], "v": "new", "final": _final(sug)})["error"] == want

@@ -12,6 +12,7 @@
 //   settings.js                    Settings → Atlas's Heatmap and Audio rows, the Theme card's locked looks
 //   devices.js                     Door Openers and the relay wizard's kinds
 //   busy_times.js, locate.js       the gate card or the screen
+//   maps (not on sale yet)         addonOnSale, addonGate, the licence card's offer, the rooms helper's intro
 //
 // Run:  node tests/js/addon_gates.mjs <repo-root>
 import { pathToFileURL } from "node:url";
@@ -25,6 +26,7 @@ const SET = await import(pathToFileURL(V + "settings.js").href);
 const DEV = await import(pathToFileURL(V + "devices.js").href);
 const BUSY = await import(pathToFileURL(V + "busy_times.js").href);
 const LOC = await import(pathToFileURL(V + "locate.js").href);
+const AIW = await import(pathToFileURL(V + "ai_wizard.js").href);
 
 const out = {};
 const fail = [];
@@ -133,6 +135,25 @@ run("insights", () => {
     const l = LOC.render(ctxFor(s, { followAddr: "AA:TAG" }));
     const gate = (n) => (n.textContent || "").includes("needs PadSpan Pro or the Presence insights add-on ($5.56 CAD)");
     out.insights[k] = { busyGate: gate(b), locateGate: gate(l) };
+  }
+});
+
+// ── Advanced map creation (maps): not on sale yet ────────────────────────
+run("maps", () => {
+  out.onSale = Object.fromEntries(ED.ADDONS.map(a => [a.name, ED.addonOnSale(a.name)]));
+  out.mapsGate = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => [k, ED.addonGate(s, "maps")]));
+  // The licence card offers the add-ons an install lacks, never one that isn't on sale.
+  out.offered = {};
+  for (const k of ["free", "audio"]) {
+    const root = SET.render(ctxFor(INSTALLS[k], { _settingsTab: "features" }));
+    out.offered[k] = all(root).filter(n => n.getAttribute && n.getAttribute("data-addon")).map(n => n.getAttribute("data-addon"));
+  }
+  // The rooms helper's intro, by the backend's answer (ai_wizard.py: tier, maps, trial_offerable), Claude ready.
+  const build = { unlock: { ok: true, display: "Claude" } };
+  out.helper = {};
+  for (const [k, info] of Object.entries({ pro: { tier: "pro", maps: true }, maps: { tier: "free", maps: true },
+                                           free: { tier: "free", maps: false }, trial: { tier: "free", maps: false, trial_offerable: true } })) {
+    out.helper[k] = AIW.introBlock(info, build);
   }
 });
 

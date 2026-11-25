@@ -10,7 +10,7 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
-        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice } =
+        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -12428,8 +12428,10 @@ function _roomsTab(ctx, maps) {
   {
     const importRow = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px" });
     // Apple RoomPlan JSON (roomplan_import.py) only while its setting is on;
-    // off, the picker and its button are exactly the .sh3d ones.
-    const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true;
+    // off, the picker and its button are exactly the .sh3d ones. Advanced map
+    // creation's once that add-on is on sale (editions.js addonGate); until
+    // then everyone's, as it always was.
+    const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true && _addonGate(ctx.state.settings, "maps");
     const fileInput = document.createElement("input");
     fileInput.type = "file"; fileInput.accept = roomplanOn ? ".sh3d,.json,.usdz" : ".sh3d"; fileInput.style.display = "none";
     const importStatus = el("span", { class: "muted", style: "font-size:11px" }, "");

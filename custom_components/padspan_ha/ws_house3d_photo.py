@@ -67,7 +67,8 @@ from . import ai_usage as U
 from . import house3d_builders as B
 from .const import DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled
-from .ws_common import admin_if_enhanced_security, _tier_at_least
+from .licence import hass_addon_allowed
+from .ws_common import admin_if_enhanced_security
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 from .quiet_errors import note as _quiet_error
 
@@ -1030,11 +1031,11 @@ async def _read_furniture(hass: HomeAssistant, ai: dict[str, Any], raw: bytes, m
 @admin_if_enhanced_security
 async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
     """Read one photo with the chosen AI Task (or, with no photo, say which
-    AI Task would). Stores nothing."""
+    AI Task would). Stores nothing. PadSpan Pro or Advanced map creation (the maps add-on)."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
-    if not _tier_at_least(hass, "pro"):
+    if not hass_addon_allowed(hass, "maps"):
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return
     await B.async_data(hass)

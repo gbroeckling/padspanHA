@@ -3461,6 +3461,7 @@ const ADDON_WORDS = {
   audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
   climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
+  maps: () => t("Advanced map creation"),
 };
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 // What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
@@ -3672,7 +3673,8 @@ function _settingsLicence(ctx, el){
   }
   // The add-ons, in one list beside Pro, to an install without Pro: the ones
   // it can't use yet, each linking to the site's #addons (editions.js ADDONS).
-  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => !addonAllowed(s, a.name));
+  // Never one that isn't on sale yet (on_sale: false).
+  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => a.on_sale !== false && !addonAllowed(s, a.name));
   if (addonOffer.length) {
     const offer = el("div", { class: "addon-offer", style: "font-size:12px;margin-top:8px;line-height:1.6" });
     offer.appendChild(el("div", { style: "color:#cbd5e1" },

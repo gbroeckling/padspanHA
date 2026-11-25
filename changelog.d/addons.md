@@ -11,6 +11,7 @@
   - **Looks pack** ($4.25): the Graphite, Ocean, Dusk and Day themes, and on the Atlas Showcase with its themes, the West Coast Forest and the Look presets.
   - **Forensics** ($5.56): Forensics recording.
   - **Presence insights** ($5.56): Busy Times and Locate.
+- **Coming with the free 3D house: Advanced map creation** ($8.65 CAD), not on sale yet: AI plan reading (the Plans tool, Line up plans, Rooms from plans and Let Claude draw your rooms), reading a photo, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan. PadSpan Pro includes it. Until it is on sale nothing changes for anyone: the first of these stay PadSpan Pro's, and a floor plan from a LiDAR scan stays free.
 - **Audio on the classic layout.** Settings → Atlas → Audio, off by default, does for the whole house what the ⋯ list's Audio line does per screen on the new layout: a speaker beside a playing room's name, and Audio in the room's card with Match rooms for an administrator. It shows where Audio is allowed.
 
 ### Changed

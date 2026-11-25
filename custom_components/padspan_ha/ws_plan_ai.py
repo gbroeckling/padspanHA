@@ -81,7 +81,8 @@ from . import plan_ai_write as C
 from . import ws_house3d_photo as P
 from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled as house3d_on
-from .ws_common import _tier_at_least
+# PadSpan Pro or Advanced map creation (the owner, 2026-11-25): reading plans with AI is the maps add-on's.
+from .licence import hass_addon_allowed
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
 from .ws_house3d_stairs import NOT_PLACED_CODE, PLANS_OFF_CODE, PLANS_OFF_MESSAGE
 from .quiet_errors import note as _quiet_error
@@ -113,7 +114,7 @@ async def _refused(hass: HomeAssistant, connection, msg, prefix: str = "", need_
     if need_3d and not house3d_on(hass):
         connection.send_error(msg["id"], OFF_CODE, prefix + OFF_MESSAGE)
         return None
-    if not _tier_at_least(hass, "pro"):
+    if not hass_addon_allowed(hass, "maps"):
         connection.send_error(msg["id"], OFF_CODE, prefix + PRO_MESSAGE)
         return None
     if not A.enabled(hass) and not _helper(msg):
@@ -588,7 +589,7 @@ async def ws_plan_build_info(hass: HomeAssistant, connection, msg) -> None:
                     if not hass.data.setdefault(DOMAIN, {}).get("_aiw_undo_scale_logged"):
                         hass.data[DOMAIN]["_aiw_undo_scale_logged"] = True
                         _LOGGER.warning("PadSpan rooms helper: whether its undo takes the scale back couldn't be worked out", exc_info=True)
-    if out["on"] and (house3d_on(hass) or not _need_3d(msg)) and _tier_at_least(hass, "pro"):
+    if out["on"] and (house3d_on(hass) or not _need_3d(msg)) and hass_addon_allowed(hass, "maps"):
         store = await A.async_get_store(hass)
         if A.sweep_abandoned(hass, store):
             await store.async_save()

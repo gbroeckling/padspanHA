@@ -91,7 +91,8 @@ def offer_reason(f: dict[str, Any], surface: str) -> str:
         # Someone already found the Plans tool (Line up / Rooms from plans): not pushed a beginner's helper. The pull
         # surfaces offer it all the same (review 2026-11-12): there the person is stuck at Scale or Rooms right now.
         return "tool_used"
-    if f["tier"] != "pro" and not f["trial_offerable"]:
+    # PadSpan Pro, or the Advanced map creation add-on (facts "maps"), or the trial to try it with.
+    if not (f["tier"] == "pro" or f.get("maps")) and not f["trial_offerable"]:
         return "no_pro_path"                       # a lapsed key, or the trial already used
     if not SCALE_BUILT and not f["plan_scaled"]:
         return "no_scale"
@@ -315,7 +316,7 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     """What offer_reason reads. `live`: the panel's word (Sample mode, a demo);
     the house's data_mode decides when it isn't given. The plan AI's store is
     read only if loaded (async_get_store first, where it matters)."""
-    from .licence import edition, hass_tier  # noqa: PLC0415
+    from .licence import edition, hass_addon_allowed, hass_tier  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
     st = dom.get(DATA_SETTINGS)
     settings: dict[str, Any] = (st.data if st else {}) or {}
@@ -338,6 +339,8 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
             # The Plans tool's own sessions only: the helper's rooms and scale sessions are kept in the same store (via "wizard").
             "tool_used": bool(plan_ai.get("lineups")) or any(isinstance(r, dict) and r.get("via") != "wizard" for r in (plan_ai.get("rooms") or {}).values()),
             "tier": tier, "trial_offerable": trial_offerable(bool(str(settings.get("forensics_license_key") or "").strip()), tier),
+            # PadSpan Pro or Advanced map creation (the maps add-on): what the helper's reading needs (plan_ai guard).
+            "maps": hass_addon_allowed(hass, "maps"),
             "plan_scaled": has_scale(s), "state": s}
 
 
@@ -826,7 +829,8 @@ async def ws_ai_wizard_info(hass: HomeAssistant, connection, msg) -> None:
     store = await async_get_store(hass)            # "tool_used" reads its sessions
     f = facts(hass, kiosk=msg["kiosk"], live=msg.get("live"))
     reason = offer_reason(f, msg["surface"])
-    out = {"reason": reason, "offer": reason == "offer", "wizard": clean_wizard(f["wizard"]), "tier": f["tier"], "trial_offerable": f["trial_offerable"]}
+    out = {"reason": reason, "offer": reason == "offer", "wizard": clean_wizard(f["wizard"]), "tier": f["tier"], "maps": f["maps"],
+           "trial_offerable": f["trial_offerable"]}
     if msg["surface"] == "pull" and not msg["kiosk"]:
         from .ws_plan_ai import helper_undo  # noqa: PLC0415 — the plan writer's own module answers it
         out["undo"] = await helper_undo(hass, store)   # Setup's Draw the rooms row offers the helper's later undo (owner, 2026-11-12)

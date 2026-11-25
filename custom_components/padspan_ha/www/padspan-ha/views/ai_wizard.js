@@ -120,7 +120,8 @@ export const claudeState = OFFER.claudeState;
 export function introBlock(info, build) {
   const c = claudeState(build).why;
   if (c !== "ok" && c !== "available_unchosen") return "connect";
-  if (!info || info.tier !== "pro") return info && info.trial_offerable ? "trial" : "no_pro";
+  // PadSpan Pro or Advanced map creation (the maps add-on; the backend's own answer, ai_wizard.py facts "maps").
+  if (!info || !(info.tier === "pro" || info.maps === true)) return info && info.trial_offerable ? "trial" : "no_pro";
   return "start";
 }
 

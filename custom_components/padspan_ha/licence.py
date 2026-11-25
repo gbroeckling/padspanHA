@@ -57,7 +57,17 @@ _RANK = {t: i for i, t in enumerate(TIERS)}
 # The add-ons this PadSpan knows. Sent with every validate (licence_homes.home_params);
 # views/editions.js ADDONS has their words and prices.
 ADDONS: tuple[str, ...] = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics",
-                           "insights")
+                           "insights", "maps")
+# Add-ons not on sale yet (the owner, 2026-11-25): "maps" (Advanced map creation) goes on sale with the free 3D
+# house, the December 1 free-basics switch. PadSpan Pro includes it meanwhile; nothing offers it (views/editions.js
+# ADDONS on_sale: false says the same), and a feature that is free today and moves into it stays everyone's until it
+# is on sale (hass_addon_gate), so nobody loses one before it can be bought.
+NOT_ON_SALE: tuple[str, ...] = ("maps",)
+
+
+def addon_on_sale(name: str) -> bool:
+    """Whether add-on `name` is sold now (a known add-on not in NOT_ON_SALE)."""
+    return name in ADDONS and name not in NOT_ON_SALE
 
 
 def normalize_addons(value: Any) -> list[str]:
@@ -219,3 +229,9 @@ def hass_addon_allowed(hass: Any, name: str) -> bool:
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     settings = (st.data if st else {}) or {}
     return addon_allowed(settings, bool(_pro_expiry_state(hass)["active"]), name)
+
+
+def hass_addon_gate(hass: Any, name: str) -> bool:
+    """The gate of a feature that was free and moves into add-on `name`: everyone's while the add-on is not on sale
+    (addon_on_sale; nobody could buy it), then hass_addon_allowed. views/editions.js addonGate is its twin."""
+    return not addon_on_sale(name) or hass_addon_allowed(hass, name)

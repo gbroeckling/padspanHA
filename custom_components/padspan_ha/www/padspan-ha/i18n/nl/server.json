@@ -240,5 +240,6 @@
 "The time must be HH:MM": "De tijd moet HH:MM zijn",
 "That is not a notification target": "Dat is geen meldingsdoel",
 "Only an administrator can match players to rooms": "Alleen een beheerder kan spelers aan kamers koppelen",
-"The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "De noodverlichtingstest vereist PadSpan Pro of de add-on “Alarm en beveiliging”. Vul een sleutel in bij Instellingen → Functies → PadSpan-licentie, of haal er een op https://padspan.traks.ca/#addons"
+"The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "De noodverlichtingstest vereist PadSpan Pro of de add-on “Alarm en beveiliging”. Vul een sleutel in bij Instellingen → Functies → PadSpan-licentie, of haal er een op https://padspan.traks.ca/#addons",
+"A floor plan from a LiDAR scan needs PadSpan Pro or the Advanced map creation add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Een plattegrond uit een LiDAR-scan vereist PadSpan Pro of de add-on “Geavanceerd kaarten maken”. Vul een sleutel in bij Instellingen → Functies → PadSpan-licentie, of haal er een op https://padspan.traks.ca/#addons"
 }

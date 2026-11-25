@@ -88,9 +88,13 @@ export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
 // licence card. A buyer's add-ons share one key (tier "free", each add-on with
 // its own end); PadSpan Pro includes them all. One entry per add-on: its name
 // (licence.ADDONS, the licence server's $PSPAN_ADDONS), words, price and one
-// line on what it unlocks. tests/test_site_claims.py pins every entry to the
-// site's #addons box and its PayPal form; settings.js says the words in the
-// panel's language (ADDON_WORDS). A new add-on is a line here and there.
+// line on what it unlocks. tests/test_site_claims.py pins every entry on sale
+// to the site's #addons box and its PayPal form; settings.js says the words in
+// the panel's language (ADDON_WORDS). A new add-on is a line here and there.
+// on_sale: false (the owner, 2026-11-25): not sold yet, so nothing offers it
+// (the licence card, the site); Pro includes it meanwhile, and a feature that
+// was free and moves into it stays everyone's until it is (addonGate).
+// licence.NOT_ON_SALE says the same for the backend.
 export const ADDON_TERM = "2 years";
 export const ADDONS_URL = "https://padspan.traks.ca/#addons";
 export const ADDONS = Object.freeze([
@@ -103,12 +107,25 @@ export const ADDONS = Object.freeze([
   { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
   { name: "forensics", words: "Forensics", price: "$5.56 CAD", desc: "Which Bluetooth devices were near a scanner in any time window" },
   { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Busy Times and Locate" },
+  // Goes on sale with the free 3D house (the December 1 free-basics switch).
+  { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,
+    desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
 ]);
+/** Whether add-on `name` is sold now: a known add-on whose entry is not on_sale: false. */
+export function addonOnSale(name) {
+  const a = ADDONS.find(x => x.name === name);
+  return !!a && a.on_sale !== false;
+}
 /** Whether add-on `name`'s features may be used: always on Pro, else the
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
 export function addonAllowed(settings, name) {
   const s = settings || {};
   return currentTier(s) === "pro" || (Array.isArray(s.addons_licensed) && s.addons_licensed.includes(name));
+}
+/** The gate of a feature that was free and moves into add-on `name`: everyone's while the add-on is not on sale
+ *  (nobody could buy it), then addonAllowed. licence.hass_addon_gate is its twin. */
+export function addonGate(settings, name) {
+  return !addonOnSale(name) || addonAllowed(settings, name);
 }
 /** An add-on's price as the site sells it ("$8.65 CAD"), "" for no such add-on: what a refusal says beside the
  *  add-on's name ("PadSpan Pro or the Climate map add-on ($8.65 CAD)"), never written out there. */

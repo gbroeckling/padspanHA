@@ -75,6 +75,12 @@ async def ws_floorplan_import_sh3d(hass: HomeAssistant, connection, msg) -> None
 
 # Off until the user turns on "RoomPlan import" in Settings -> Features.
 ROOMPLAN_OFF_CODE = "roomplan_import_off"
+# A floor plan from a phone's LiDAR scan is Advanced map creation's (the maps add-on; the owner, 2026-11-25) once that
+# is on sale (licence.hass_addon_gate): until then it stays everyone's, as it always was.
+ROOMPLAN_ADDON_CODE = "addon_required"
+ROOMPLAN_ADDON_MESSAGE = ("A floor plan from a LiDAR scan needs PadSpan Pro or the Advanced map creation add-on. "
+                          "Enter a key in Settings → Features → PadSpan licence, or get one at "
+                          "https://padspan.traks.ca/#addons")
 
 
 @websocket_api.websocket_command({
@@ -94,6 +100,10 @@ async def ws_floorplan_import_roomplan(hass: HomeAssistant, connection, msg) -> 
     if not (st and st.data.get("roomplan_import_enabled") is True):
         connection.send_error(msg["id"], ROOMPLAN_OFF_CODE,
                               "RoomPlan import is off (Settings -> Features)")
+        return
+    from .licence import hass_addon_gate  # noqa: PLC0415
+    if not hass_addon_gate(hass, "maps"):
+        connection.send_error(msg["id"], ROOMPLAN_ADDON_CODE, ROOMPLAN_ADDON_MESSAGE)
         return
     b64 = msg.get("roomplan_base64") or ""
     max_b64_len = (MAX_SH3D_BYTES * 4) // 3 + 4

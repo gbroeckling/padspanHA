@@ -1106,14 +1106,14 @@ class Runner:
         """At every read boundary: the switch, the 3D house, the tier, and
         every plan as it was. A failed check ends the session, cancelled."""
         from .house3d_store import enabled as house3d_on  # noqa: PLC0415
-        from .ws_common import _tier_at_least  # noqa: PLC0415
+        from .licence import hass_addon_allowed  # noqa: PLC0415
         if self.job.cancel or self.store.session(self.job.sid) is None:   # None: a restore or a reset took the session away
             return "user"
         if not enabled(self.hass):
             return "switch_off"
         if not house3d_on(self.hass):
             return "house3d_off"
-        if not _tier_at_least(self.hass, "pro"):
+        if not hass_addon_allowed(self.hass, "maps"):        # PadSpan Pro or Advanced map creation
             return "licence"
         for pl in self.sess.get("plans") or []:
             now = plan_now(self.hass, pl["map_id"])
@@ -2939,7 +2939,7 @@ class LineupRunner(Runner):
         """At every read boundary: the switches, Claude unlocked, Live Aboard,
         Pro, and every plan as it was (design 3.9)."""
         from .house3d_store import enabled as house3d_on  # noqa: PLC0415
-        from .ws_common import _tier_at_least  # noqa: PLC0415
+        from .licence import hass_addon_allowed  # noqa: PLC0415
         if self.job.cancel or not self.sess:             # gone: a restore or a reset took the session (a rooms session too)
             return "user"
         if self.sess.get("via") != "wizard" and (not enabled(self.hass) or not build_switch(self.hass)):
@@ -2951,7 +2951,7 @@ class LineupRunner(Runner):
             return "ai_changed"
         if not house3d_on(self.hass) and self.sess.get("via") != "wizard":    # the rooms helper reads rooms only: Live Aboard may be off
             return "house3d_off"
-        if not _tier_at_least(self.hass, "pro"):
+        if not hass_addon_allowed(self.hass, "maps"):        # PadSpan Pro or Advanced map creation
             return "licence"
         return self.plan_guard()
 

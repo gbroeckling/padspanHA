@@ -4470,7 +4470,8 @@ export function buildLightsMapCard(hostIn){
   // A scanned plan's furniture (the ⋯ list's "Furniture from scans") comes beside the 3D file, and is for every house:
   // read through the host's own loader whether or not Live Aboard is on, but ONLY once this screen has the line ticked
   // (off unless ticked: with nothing on, nothing is fetched, as ever).
-  const scanLoad = scr && host.house3d && typeof host.house3d.load === "function" ? host.house3d.load : null;
+  // Furniture from scans is Advanced map creation's (PadSpan Pro or the maps add-on; house3d_get hands its pieces only then).
+  const scanLoad = scr && host.house3d && hostAddon(host, "maps") && typeof host.house3d.load === "function" ? host.house3d.load : null;
   const scanOn = () => !!scanLoad && flatShow("scan_furniture") === true;
   if (abLive || abFile) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
   else if (scr) { _abRedraw.delete(abSlot); if (_AB) _AB.liveLayer(abSlot).clear(); }
