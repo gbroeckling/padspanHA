@@ -188,6 +188,20 @@ Die Zeile oben wechselt zwischen vier Modi:
   oder zieh die Zeitleiste. Jedes Gerät wird da gezeichnet, wo die Live-Ortung es in diesem Moment
   hingesetzt hat, oder in der Mitte seines Raums, wenn es keine Position gab. **Export CSV** und
   **Export JSON** speichern die Bilder.
+  - **Wiedergabe teilen** macht aus dem gewählten Zeitraum einen Clip von 10 bis 30 Sekunden, in dem
+    sich Menschen durchs Haus bewegen, fertig zum Posten. Namen werden zu **Person 1**, **Person 2**
+    (oder Initialen); Gerätenamen, Adressen und Signalwerte bleiben weg; Raumnamen bleiben, wie sie
+    sind, oder werden allgemein (**Schlafzimmer**, **Raum 3**); Etagen sind nummeriert, nie benannt,
+    und nur die Uhrzeit ist zu sehen, nicht das Datum. Der Clip wird aus den Umrissen deiner Räume
+    gezeichnet, also sind kein Grundrissbild, keine Adresse und keine Koordinaten darin, und er
+    beginnt dort, wo die erste Person den Raum wechselt. Der Dialog spielt den Clip ab und zeigt, was
+    er verbirgt (und jeden Namen und Raum so, wie er erscheinen wird), bevor du **Clip speichern**
+    drückst. Wähl **Breit** oder **Hochkant** und **MP4** (am besten für Reddit und X; Chrome und Edge
+    können es), **WebM** (Firefox) oder **GIF**. Ein kleines Zeichen **gemacht mit PadSpan** steht in
+    einer Ecke; nimm den Haken weg, dann fehlt es. Der Clip entsteht in deinem Browser und wird auf
+    deinem Computer gespeichert: Nichts wird hochgeladen. Ein Video wird in Echtzeit aufgenommen,
+    lass den Tab also im Vordergrund, bis es gespeichert ist. Es spielt auf dem Etagenstapel; das
+    3D-Haus kommt später. In jeder Ausgabe kostenlos.
   - **Full house activity** (PadSpan Pro) spielt dasselbe auf deinem Atlas ab, und mit
     **💡 Devices** auch das Haus: Lichter, Schlösser, Bewegung, Türen und Fenster und Messwerte von
     Sensoren, aus dem Recorder von Home Assistant.
