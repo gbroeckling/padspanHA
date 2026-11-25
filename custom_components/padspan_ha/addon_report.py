@@ -43,7 +43,7 @@ LICENCE_WORDS: tuple[str, ...] = ("free", "trial", "pro_year", "pro_pass", "pro_
 DAYS_WORDS: tuple[str, ...] = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
 MOVED_WORDS: tuple[str, ...] = ("emergency_test", "power_teams", "circadian", "lidar")
 # The add-ons, and Advanced smart lighting (circadian and power teams), which is everyone's until it is sold.
-USED_WORDS: tuple[str, ...] = ADDONS + ("lighting",)
+USED_WORDS: tuple[str, ...] = tuple(dict.fromkeys(ADDONS + ("lighting",)))   # once, now that lighting is an add-on too
 # Whole-house audio by the integration that runs the player (an integration's name starts with one of these:
 # russound_rio, denonavr, yamaha_musiccast, anthemav, nuvo_serial, triad_ams ...).
 AUDIO_SYSTEMS: tuple[str, ...] = ("control4", "crestron", "savant", "russound", "nuvo", "monoprice", "xantech", "triad",
