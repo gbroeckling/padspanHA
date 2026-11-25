@@ -64,9 +64,12 @@ def test_trial_start_calls_the_same_licence_server_as_a_purchase() -> None:
     # display-only trial flag — one gate, no parallel tier logic.
     assert "forensics_license_key=" in handler
     assert "forensics_license_expires=" in handler
-    assert "license_tier=normalize_tier(" in handler
-    # A reply without a tier counts as Pro: the server issues trials as Pro (2026-10-27).
-    assert 'license_tier=normalize_tier(data.get("tier"), default="pro")' in handler
+    # A reply without a tier counts as Pro: the server issues trials as Pro
+    # (2026-10-27). licence.answer_tier, the one reading of every path's answer
+    # (an add-on key's answer alone reads free).
+    assert "license_tier=answer_tier(data)" in handler
+    from custom_components.padspan_ha.licence import answer_tier
+    assert answer_tier({"ok": True, "key": "PSPAN-X"}) == "pro" and answer_tier({"tier": "pro"}) == "pro"
     assert "license_is_trial=True" in handler
 
 

@@ -82,26 +82,39 @@ export function proLifetimeWords(now = Date.now()) {
 }
 // Lifetime is on sale until PRO_PASS_FROM, then never again.
 export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
-// The Audio add-on (the owner, 2026-11-25): volume, mute and off for each
-// room's players on the map, for an install without Pro. Like NeonPlan's Sound
-// & Cinema add-on, 30% cheaper: one payment covers AUDIO_ADDON_TERM, no
-// subscription, up to three homes, entered in the licence card. Its key reads
-// tier "free" with "audio" in license_addons; PadSpan Pro includes it. Pinned to
-// the site's PayPal form (#audio) by tests/test_site_claims.py.
-export const AUDIO_ADDON_PRICE = "$6.45 CAD";
-export const AUDIO_ADDON_TERM = "2 years";
-export const AUDIO_BUY_URL = "https://padspan.traks.ca/#audio";
-/** Whether the Audio add-on's controls may be used: Pro, or the backend's
- *  own answer for the key (settings.audio_licensed, licence.audio_allowed). */
-export function audioAllowed(settings) {
+// PadSpan add-ons (the owner, 2026-11-25): one feature each, for an install
+// without Pro, structured like NeonPlan's Sound & Cinema add-on: one payment
+// covers ADDON_TERM, no subscription, up to three homes, the key entered in the
+// licence card. A buyer's add-ons share one key (tier "free", each add-on with
+// its own end); PadSpan Pro includes them all. One entry per add-on: its name
+// (licence.ADDONS, the licence server's $PSPAN_ADDONS), words, price and one
+// line on what it unlocks. tests/test_site_claims.py pins every entry to the
+// site's #addons box and its PayPal form; settings.js says the words in the
+// panel's language (ADDON_WORDS). A new add-on is a line here and there.
+export const ADDON_TERM = "2 years";
+export const ADDONS_URL = "https://padspan.traks.ca/#addons";
+export const ADDONS = Object.freeze([
+  { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map" },
+  { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm in the emergency button, locks, garage and gate openers on the map, and Alert pulse. A triggered alarm always shows, free" },
+  { name: "wifi", words: "Wi-Fi coverage", price: "$6.45 CAD", desc: "The UniFi Wi-Fi coverage map" },
+  { name: "climate", words: "Climate map", price: "$8.65 CAD", desc: "The Heatmap: rooms by temperature, humidity and CO₂" },
+  { name: "timetravel", words: "Time travel", price: "$7.55 CAD", desc: "The day replayed on the Atlas map (Playback on the Atlas)" },
+  { name: "vacation", words: "Vacation Mode & presets", price: "$4.25 CAD", desc: "Vacation Mode and Whole House Presets" },
+  { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
+  { name: "forensics", words: "Forensics", price: "$5.56 CAD", desc: "Which Bluetooth devices were near a scanner in any time window" },
+  { name: "insights", words: "Insights", price: "$5.56 CAD", desc: "Busy Times and Locate" },
+]);
+/** Whether add-on `name`'s features may be used: always on Pro, else the
+ *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
+export function addonAllowed(settings, name) {
   const s = settings || {};
-  return currentTier(s) === "pro" || s.audio_licensed === true;
+  return currentTier(s) === "pro" || (Array.isArray(s.addons_licensed) && s.addons_licensed.includes(name));
 }
-/** Whether this install's key is an Audio add-on key (not a Pro key), lapsed or not. */
-export function audioKey(settings) {
-  const s = settings || {};
-  return s.pro_has_key === true && String(s.license_tier || "").toLowerCase() === "free"
-    && Array.isArray(s.license_addons) && s.license_addons.includes("audio");
+/** Whether this install's key is an add-on key (not a Pro key), lapsed or
+ *  not: the backend's own answer (settings.addon_key, licence.is_addon_key).
+ *  pro_has_key stays "a licence key is on this install". */
+export function addonKey(settings) {
+  return !!settings && settings.addon_key === true;
 }
 // "Pro for life ends Dec 15", the one Overview card about it (panel.js
 // _launchPriceCard; the owner, 2026-11-24). It took the place of the launch
@@ -156,14 +169,14 @@ export const WHATSNEW_URL = "https://padspan.traks.ca/?hl=en#whatsnew";
 //   lapsed  -> what stopped (Forensics stops recording; what it recorded
 //              stays searchable), and that nothing was lost.
 //
-// An Audio add-on key is not a Pro licence: it is pitched as free, lapsed or not.
+// An add-on key is not a Pro licence: it is pitched as free, lapsed or not.
 //
 // Pure on purpose: it takes the settings payload and returns text, so the rule
 // can be tested without a browser (tests/js/pro_pitch.mjs).
 export function proPitch(settings) {
   const st = settings || {};
   const tier = String(st.tier || "free").toLowerCase();
-  const hasKey = !!st.pro_has_key && !audioKey(st);
+  const hasKey = !!st.pro_has_key && !addonKey(st);
   const lapsed = st.pro_active === false;
 
   if (hasKey && lapsed) {

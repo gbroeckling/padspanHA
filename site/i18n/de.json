@@ -571,40 +571,92 @@
    "de": "Ein Schlüssel, keine zusätzliche Installation"
   },
   {
-   "en": "Audio add-on",
-   "de": "Audio-Add-on"
+   "en": "Add-ons",
+   "de": "Add-ons"
   },
   {
-   "en": "For PadSpan HA without Pro · its own key",
-   "de": "Für PadSpan HA ohne Pro · ein eigener Schlüssel"
+   "en": "For PadSpan HA without Pro · one feature each",
+   "de": "Für PadSpan HA ohne Pro · je eine Funktion"
   },
   {
-   "en": "$6.45 <small style=\"font-size:13px;font-weight:600\">CAD, 2 years</small>",
-   "de": "6,45 <small style=\"font-size:13px;font-weight:600\">CAD, 2 Jahre · ca. 4,30 €</small>"
+   "en": "Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.",
+   "de": "Jedes Add-on ist eine Zahlung, die 2 Jahre gilt, kein Abo. Bis zu 3 Haushalte, Updates inklusive, funktioniert auch offline. Gib den Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein; kaufst du ein weiteres mit derselben E-Mail, kommt es auf diesen Schlüssel. PadSpan Pro enthält sie alle."
   },
   {
-   "en": "<b>Volume, mute and off</b> for each room's players, on the map",
-   "de": "<b>Lautstärke, Stummschalten und Ausschalten</b> für die Player jedes Raums, auf der Karte"
+   "en": "Buy",
+   "de": "Kaufen"
   },
   {
-   "en": "One payment covers 2 years, no subscription",
-   "de": "Eine Zahlung gilt 2 Jahre, kein Abo"
+   "en": "Audio <span style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span>",
+   "de": "Audio <span style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span>"
   },
   {
-   "en": "Up to 3 homes, updates included, keeps working offline",
-   "de": "Bis zu 3 Haushalte, Updates inklusive, funktioniert auch offline"
+   "en": "Volume, mute and off for each room's players on the map",
+   "de": "Lautstärke, Stummschalten und Ausschalten für die Player jedes Raums auf der Karte"
   },
   {
-   "en": "Enter the key in Settings → Features → PadSpan licence",
-   "de": "Gib den Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein"
+   "en": "Alarm &amp; security <span style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span>",
+   "de": "Alarm &amp; Sicherheit <span style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span>"
   },
   {
-   "en": "PadSpan Pro includes it",
-   "de": "In PadSpan Pro enthalten"
+   "en": "Arm and disarm in the emergency button, locks, garage and gate openers on the map, and Alert pulse. A triggered alarm always shows, free",
+   "de": "Scharf- und Unscharfschalten im Notfall-Knopf, Schlösser, Garagen- und Toröffner auf der Karte und Alert pulse. Ein ausgelöster Alarm wird immer angezeigt, kostenlos"
   },
   {
-   "en": "Buy the Audio add-on",
-   "de": "Audio-Add-on kaufen"
+   "en": "Wi-Fi coverage <span style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span>",
+   "de": "WLAN-Abdeckung <span style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span>"
+  },
+  {
+   "en": "The UniFi Wi-Fi coverage map",
+   "de": "Die Karte der UniFi-WLAN-Abdeckung"
+  },
+  {
+   "en": "Climate map <span style=\"color:var(--mut);font-weight:600\">$8.65 CAD</span>",
+   "de": "Klimakarte <span style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span>"
+  },
+  {
+   "en": "The Heatmap: rooms by temperature, humidity and CO₂",
+   "de": "Die Heatmap: Räume nach Temperatur, Luftfeuchtigkeit und CO₂"
+  },
+  {
+   "en": "Time travel <span style=\"color:var(--mut);font-weight:600\">$7.55 CAD</span>",
+   "de": "Zeitreise <span style=\"color:var(--mut);font-weight:600\">7,55 CAD · ca. 5,00 €</span>"
+  },
+  {
+   "en": "The day replayed on the Atlas map (Playback on the Atlas)",
+   "de": "Der Tag noch einmal abgespielt auf der Atlas-Karte (Playback auf dem Atlas)"
+  },
+  {
+   "en": "Vacation Mode &amp; presets <span style=\"color:var(--mut);font-weight:600\">$4.25 CAD</span>",
+   "de": "Vacation Mode &amp; Presets <span style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span>"
+  },
+  {
+   "en": "Vacation Mode and Whole House Presets",
+   "de": "Vacation Mode und Whole House Presets"
+  },
+  {
+   "en": "Looks pack <span style=\"color:var(--mut);font-weight:600\">$4.25 CAD</span>",
+   "de": "Looks-Paket <span style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span>"
+  },
+  {
+   "en": "Day and three more themes, Showcase and the forest",
+   "de": "Day und drei weitere Designs, Showcase und der Wald"
+  },
+  {
+   "en": "Forensics <span style=\"color:var(--mut);font-weight:600\">$5.56 CAD</span>",
+   "de": "Forensics <span style=\"color:var(--mut);font-weight:600\">5,56 CAD · ca. 3,70 €</span>"
+  },
+  {
+   "en": "Which Bluetooth devices were near a scanner in any time window",
+   "de": "Welche Bluetooth-Geräte in einem beliebigen Zeitraum in der Nähe eines Scanners waren"
+  },
+  {
+   "en": "Insights <span style=\"color:var(--mut);font-weight:600\">$5.56 CAD</span>",
+   "de": "Insights <span style=\"color:var(--mut);font-weight:600\">5,56 CAD · ca. 3,70 €</span>"
+  },
+  {
+   "en": "Busy Times and Locate",
+   "de": "Busy Times und Locate"
   },
   {
    "en": "PadSpan Bright",

@@ -196,6 +196,7 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
     key = str(st.data.get("forensics_license_key") or "").strip()
     if not key:
         return
+    key = await _bring_back_kept_addons(hass, st) or key
     try:
         from .licence_homes import call, home_params  # noqa: PLC0415
         data = await call(hass, "validate", key, home_params(st.data))
@@ -205,7 +206,7 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         return
     expires = str(data.get("expires_at") or "").strip()
     if data.get("valid"):
-        from .licence import normalize_addons, normalize_tier  # noqa: PLC0415
+        from .licence import answer_tier, normalize_addons, normalize_addons_until  # noqa: PLC0415
         from .licence_homes import keep_token, keep_warning  # noqa: PLC0415
         await keep_token(st, data)
         await keep_warning(st, data)
@@ -215,9 +216,10 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         if expires and expires != str(st.data.get("forensics_license_expires") or ""):
             updates["forensics_license_expires"] = expires
         # A tier the server names is recorded; a server that does not name
-        # one changes nothing (an absent field is a Pro key — licence.py).
-        if data.get("tier"):
-            tier = normalize_tier(data.get("tier"), default="pro")
+        # one changes nothing (an absent field is a Pro key — licence.py). An
+        # add-on key's answer is always free (licence.answer_tier).
+        if data.get("tier") or data.get("plan") == "addons":
+            tier = answer_tier(data)
             if tier != str(st.data.get("license_tier") or ""):
                 updates["license_tier"] = tier
             # The add-ons come with the tier: an answer that names the tier
@@ -226,6 +228,9 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
             addons = normalize_addons(data.get("addons"))
             if addons != normalize_addons(st.data.get("license_addons")):
                 updates["license_addons"] = addons
+            until = normalize_addons_until(data.get("addons_until"))
+            if until != normalize_addons_until(st.data.get("license_addons_until")):
+                updates["license_addons_until"] = until
         # A trial key upgraded in place (bought, or the lifetime offer) stops
         # reading as a trial the day the server says so.
         if data.get("plan"):
@@ -285,6 +290,25 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
             now = now - _td(days=PRO_GRACE_DAYS, minutes=1)
         if exp is None or exp > now:
             await st.async_set(forensics_license_expires=now.isoformat())
+
+
+async def _bring_back_kept_addons(hass: HomeAssistant, st: Any) -> str:
+    """An add-on key kept aside while a Pro trial ran here (license_addons_kept,
+    ws_forensics.ws_trial_start) takes the trial key's place once the trial has
+    ended: the add-ons go on as before, with nothing to enter. Returns that key
+    ("" when nothing came back); the check that follows validates it."""
+    kept = st.data.get("license_addons_kept")
+    if not (isinstance(kept, dict) and str(kept.get("forensics_license_key") or "").strip() and st.data.get("license_is_trial")):
+        return ""
+    from .ws_common import _pro_expiry_state  # noqa: PLC0415
+    left = _pro_expiry_state(hass)["days_left"]
+    if not (isinstance(left, int) and left < 0):
+        return ""                                       # the trial is still running
+    from .licence import ADDON_KEY_FIELDS  # noqa: PLC0415
+    await st.async_set(**{k: kept.get(k) for k in ADDON_KEY_FIELDS}, license_is_trial=False, license_home_status="",
+                       license_homes_warning={}, license_addons_kept={})
+    _LOGGER.info("PadSpan: the trial has ended, and the add-on key kept aside for it is back")
+    return str(kept["forensics_license_key"]).strip()
 
 
 def _parse_utc(value: str):

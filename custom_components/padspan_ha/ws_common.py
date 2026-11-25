@@ -203,7 +203,7 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
         return {"data_mode": "sample"}
     out = dict(st.data)
     state = _pro_expiry_state(hass)
-    from .licence import audio_allowed as _audio, edition as _edition, effective_tier as _eff  # noqa: PLC0415
+    from .licence import addons_allowed as _addons, edition as _edition, effective_tier as _eff, is_addon_key as _addon_key  # noqa: PLC0415
     from .build_info import TIER_FLOOR as _floor  # noqa: PLC0415
     out["forensics_license_key"] = ""          # never leaves the backend
     out["license_home_token"] = ""             # nor this home's token (licence_homes.py)
@@ -243,8 +243,14 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     # The tier model (licence.py): the frontend reads these and never
     # re-implements the ladder.
     out["tier"] = _eff(st.data, bool(state["active"]))
-    # The Audio add-on: Pro, or an active key that carries it (licence.audio_allowed).
-    out["audio_licensed"] = _audio(st.data, bool(state["active"]))
+    # The add-ons this install may use: all of them on Pro, else the ones an
+    # active key carries (licence.addon_allowed); views/editions.js addonAllowed reads it.
+    out["addons_licensed"] = _addons(st.data, bool(state["active"]))
+    # pro_has_key stays "a licence key is on this install"; this says when that
+    # key is an add-on key, not a Pro key (licence.is_addon_key).
+    out["addon_key"] = _addon_key(st.data)
+    # An add-on key kept aside for a trial: never its key, only that there is one.
+    out["license_addons_kept"] = bool(out.get("license_addons_kept"))
     out["tier_floor"] = _floor
     out["edition"] = _edition()
     # The same Zigbee device in two integrations (zigbee_twins.py): which copy

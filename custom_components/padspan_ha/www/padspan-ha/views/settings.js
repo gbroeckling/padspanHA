@@ -18,7 +18,7 @@
  */
 const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, brightProOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
-        AUDIO_ADDON_PRICE, AUDIO_BUY_URL, audioAllowed, audioKey } =
+        ADDONS, ADDONS_URL, addonAllowed, addonKey } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
 // leaves the rest of Settings as it is.
@@ -3447,7 +3447,7 @@ export function homesWarningText(s){
 // Asked before the usage report goes off on a home whose key is on more than two homes; "" = no question.
 export function reportOffConfirmText(s){
   const n = Number((s && s.license_homes_used) || 0);
-  if (!s || !s.pro_has_key || !(n > 2)) return "";
+  if (!s || !s.pro_has_key || addonKey(s) || !(n > 2)) return "";   // an add-on key has no reports rule
   // A grace already running (a report off on another home) has its own date.
   const w = s.license_homes_warning || {};
   const lead = t("This key is used on {count} homes. With more than 2, every home must keep the report on.", { count: n });
@@ -3455,11 +3455,19 @@ export function reportOffConfirmText(s){
     ? t("If you turn it off here, the homes beyond your first two stop using Pro on {date} unless it's back on.", { date: _homesDate(w.grace_until) })
     : t("If you turn it off here, the homes beyond your first two stop using Pro within 14 days unless it's back on."));
 }
+// The add-ons' words in the panel's language: editions.js ADDONS has the
+// English (tests/test_addons.py holds the two equal).
+const ADDON_WORDS = {
+  audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
+  climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
+  looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Insights"),
+};
+const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
   box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, t("Homes")));
-  box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" }, audioKey(s)
-    ? t("The Audio add-on covers up to three homes (three Home Assistants). A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.")
+  box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" }, addonKey(s)
+    ? t("Add-ons cover up to three homes (three Home Assistants). A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.")
     : t("One licence covers up to five homes (five Home Assistants). The first two always count. With more than two, every home must keep its usage report on (Settings → Tracking → Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.")));
   if (HOME_REFUSED[s.license_home_status]) {
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]()));
@@ -3525,8 +3533,8 @@ function _settingsLicence(ctx, el){
   const keyProd = String(s.license_tier || "").toLowerCase() === "bright" ? "PadSpan Bright Pro" : "PadSpan Pro";
   const expiringSoon = typeof daysLeft === "number" && daysLeft >= 0 && daysLeft <= 14;
   const isTrial = !!s.license_is_trial;
-  // An Audio add-on key (editions.js audioKey): never called Pro here.
-  const isAudio = audioKey(s);
+  // An add-on key (editions.js addonKey): never called Pro here.
+  const isAddons = addonKey(s);
 
   const card = el("div", { class: "card", style: "margin-bottom:14px;border:1px solid #2d5a3d;background:#0f1a12" });
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
@@ -3542,17 +3550,26 @@ function _settingsLicence(ctx, el){
       ? t("No licence key on this install. Light placement, the 3D house and the wall screen are locked. Everything else is free and stays free.")
       : t("No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. Everything else is free and stays free.");
     colour = "#94a3b8";
-  } else if (isAudio) {
+  } else if (isAddons) {
     if (lapsed) {
-      line = "\u26A0 " + t("The PadSpan Audio add-on ended on {date}. Volume, mute and off for the players on the map are locked until you renew; nothing you set up is lost.", { date: exp });
+      line = "\u26A0 " + t("Your PadSpan add-ons ended on {date}. They are locked until you renew; nothing you set up is lost.", { date: exp });
       colour = "#fbbf24";
     } else if (typeof daysLeft === "number" && daysLeft < 0) {
       const graceLeft = Math.max(1, 14 + daysLeft);   // as below: the last day is still a day
-      line = "\u26A0 " + tn(graceLeft, "The PadSpan Audio add-on ended on {date}. The players' controls on the map keep working for {n} more day; renew to keep them.",
-        "The PadSpan Audio add-on ended on {date}. The players' controls on the map keep working for {n} more days; renew to keep them.", { date: exp });
+      line = "\u26A0 " + tn(graceLeft, "Your PadSpan add-ons ended on {date}. They keep working for {n} more day; renew to keep them.",
+        "Your PadSpan add-ons ended on {date}. They keep working for {n} more days; renew to keep them.", { date: exp });
       colour = "#fbbf24";
     } else {
-      line = "\u2713 " + t("PadSpan Audio add-on \u00B7 until {date}", { date: exp });
+      // Each add-on the key holds, with its own date (the licence server's addons_until).
+      const until = (s.license_addons_until && typeof s.license_addons_until === "object") ? s.license_addons_until : {};
+      const on = Array.isArray(s.license_addons) ? s.license_addons : [];
+      const today = new Date(Date.now()).toISOString().slice(0, 10);
+      const held = ADDONS.filter(a => typeof until[a.name] === "string" || on.includes(a.name)).map(a => {
+        const d = String(until[a.name] || exp).slice(0, 10);
+        return d >= today ? t("{addon} until {date}", { addon: addonWords(a), date: d })
+                          : t("{addon} ended on {date}", { addon: addonWords(a), date: d });
+      });
+      line = "\u2713 " + t("PadSpan add-ons: {list}", { list: held.join(" \u00B7 ") });
       colour = expiringSoon ? "#fbbf24" : "#a7f3d0";
     }
   } else if (lapsed) {
@@ -3614,12 +3631,12 @@ function _settingsLicence(ctx, el){
     } }, hasKey ? t("Replace licence key") : t("Enter licence key"));
   row.appendChild(enterBtn);
 
-  // An Audio add-on key is not Pro: Pro is offered to it as to a free install.
-  const canBuy = !hasKey || lapsed || isTrial || isAudio;
+  // An add-on key is not Pro: Pro is offered to it as to a free install.
+  const canBuy = !hasKey || lapsed || isTrial || isAddons;
   if (canBuy) {
     row.appendChild(el("a", { class: "btn inline", href: BUY_URL, target: "_blank", rel: "noopener",
       style: "font-size:12px;border-color:#52b788;color:#a7f3d0;text-decoration:none" },
-      (lapsed && !isAudio ? t("Renew PadSpan Pro — {price}", { price: proPrice() }) : t("Buy PadSpan Pro — {price}", { price: proPrice() }))));
+      (lapsed && !isAddons ? t("Renew PadSpan Pro — {price}", { price: proPrice() }) : t("Buy PadSpan Pro — {price}", { price: proPrice() }))));
   }
 
   if (hasKey) {
@@ -3647,17 +3664,26 @@ function _settingsLicence(ctx, el){
         proLifetimeOpen() ? t("Or PadSpan Pro for life — {price}.", { price: proLifetimeWords() })
                           : t("Or two years for {price}.", { price: PRO_PASS_PRICE }))));
   }
-  // The Audio add-on, once, beside Pro, to an install without it (editions.js).
-  if (!audioAllowed(s)) {
-    card.appendChild(el("div", { class: "audio-addon-offer", style: "font-size:12px;margin-top:8px" },
-      el("a", { href: AUDIO_BUY_URL, target: "_blank", rel: "noopener", style: "color:#a7f3d0;text-decoration:underline" },
-        t("Audio add-on — volume, mute and off for each room's players on the map: {price} once, covers 2 years. PadSpan Pro includes it.",
-          { price: AUDIO_ADDON_PRICE }))));
+  // The add-ons, in one list beside Pro, to an install without Pro: the ones
+  // it can't use yet, each linking to the site's #addons (editions.js ADDONS).
+  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => !addonAllowed(s, a.name));
+  if (addonOffer.length) {
+    const offer = el("div", { class: "addon-offer", style: "font-size:12px;margin-top:8px;line-height:1.6" });
+    offer.appendChild(el("div", { style: "color:#cbd5e1" },
+      t("Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:")));
+    const list = el("div", { style: "display:flex;flex-wrap:wrap;gap:2px 14px" });
+    for (const a of addonOffer) {
+      list.appendChild(el("a", { href: ADDONS_URL, target: "_blank", rel: "noopener", "data-addon": a.name,
+        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + a.price));
+    }
+    offer.appendChild(list);
+    card.appendChild(offer);
   }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
-  // offers, shown here while there is no key at all. Its own Buy link is off —
-  // this card already has one in the row above.
-  if (!hasKey) {
+  // offers, shown here while there is no key, or only an add-on key (kept
+  // aside for the trial). Its own Buy link is off — this card already has one
+  // in the row above.
+  if (!hasKey || isAddons) {
     const trial = trialOfferFromCtx(ctx, "settings", { buy: false });
     if (trial) card.appendChild(trial);
   }
@@ -3882,8 +3908,9 @@ function _settingsFeatures(ctx, el){
       // the backend's own gate (pro_active), so what's shown here and what is
       // enforced can never disagree. Use "Show licence key" to read it back
       // when moving the licence to another install (admins only).
-      // An Audio add-on key does not license Forensics: said as for no Pro key.
-      if(settings.pro_has_key && !audioKey(settings)){
+      // An add-on key is not a Pro key: said as for no Pro key (the Forensics
+      // add-on's own gate is addonAllowed).
+      if(settings.pro_has_key && !addonKey(settings)){
         const licExp = String(settings.forensics_license_expires || "").slice(0,10);
         const daysLeft = settings.pro_days_left;
         const lapsed = settings.pro_active === false;

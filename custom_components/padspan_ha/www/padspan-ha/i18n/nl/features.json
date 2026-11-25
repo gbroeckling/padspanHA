@@ -188,12 +188,22 @@
 "one": "Forensische gegevens verwijderd voor {n} adres",
 "other": "Forensische gegevens verwijderd voor {n} adressen"
 },
-"The PadSpan Audio add-on ended on {date}. Volume, mute and off for the players on the map are locked until you renew; nothing you set up is lost.": "De PadSpan Audio-add-on is verlopen op {date}. Volume, dempen en uit voor de spelers op de kaart zijn vergrendeld tot je verlengt; niets wat je hebt ingesteld gaat verloren.",
-"The PadSpan Audio add-on ended on {date}. The players' controls on the map keep working for {n} more days; renew to keep them.": {
-"one": "De PadSpan Audio-add-on is verlopen op {date}. De bediening van de spelers op de kaart blijft nog {n} dag werken; verleng om die te houden.",
-"other": "De PadSpan Audio-add-on is verlopen op {date}. De bediening van de spelers op de kaart blijft nog {n} dagen werken; verleng om die te houden."
+"Your PadSpan add-ons ended on {date}. They are locked until you renew; nothing you set up is lost.": "Je PadSpan-add-ons zijn verlopen op {date}. Ze zijn vergrendeld tot je verlengt; niets wat je hebt ingesteld gaat verloren.",
+"Your PadSpan add-ons ended on {date}. They keep working for {n} more days; renew to keep them.": {
+"one": "Je PadSpan-add-ons zijn verlopen op {date}. Ze blijven nog {n} dag werken; verleng om ze te houden.",
+"other": "Je PadSpan-add-ons zijn verlopen op {date}. Ze blijven nog {n} dagen werken; verleng om ze te houden."
 },
-"PadSpan Audio add-on · until {date}": "PadSpan Audio-add-on · tot {date}",
-"Audio add-on — volume, mute and off for each room's players on the map: {price} once, covers 2 years. PadSpan Pro includes it.": "Audio-add-on — volume, dempen en uit voor de spelers van elke kamer op de kaart: {price} eenmalig, geldig voor 2 jaar. PadSpan Pro bevat hem.",
-"The Audio add-on covers up to three homes (three Home Assistants). A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.": "De Audio-add-on dekt tot drie huizen (drie Home Assistants). Een opnieuw geïnstalleerde of vervangen Home Assistant neemt de plaats in van een huis dat zich 14 dagen niet heeft gemeld, en een huis dat 45 dagen stil is, geeft zijn plaats vanzelf vrij."
+"{addon} until {date}": "{addon} tot {date}",
+"{addon} ended on {date}": "{addon} verlopen op {date}",
+"PadSpan add-ons: {list}": "PadSpan-add-ons: {list}",
+"Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:": "Add-ons, elk eenmalig betaald en 2 jaar geldig. PadSpan Pro bevat ze allemaal:",
+"Add-ons cover up to three homes (three Home Assistants). A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself.": "Add-ons dekken tot drie huizen (drie Home Assistants). Een opnieuw geïnstalleerde of vervangen Home Assistant neemt de plaats in van een huis dat zich 14 dagen niet heeft gemeld, en een huis dat 45 dagen stil is, geeft zijn plaats vanzelf vrij.",
+"Audio": "Audio",
+"Alarm & security": "Alarm en beveiliging",
+"Wi-Fi coverage": "Wifi-dekking",
+"Climate map": "Klimaatkaart",
+"Time travel": "Tijdreis",
+"Vacation Mode & presets": "Vakantiemodus en presets",
+"Looks pack": "Looks-pakket",
+"Insights": "Inzichten"
 }

@@ -9,7 +9,7 @@
 //
 // usage: licence_card.mjs <views-dir>
 // prints one JSON line: { cases: { name: { buy, lifetime: {text, href} | null } },
-//   audio: { name: { status, buy, offer: {text, href} | null } }, failures }
+//   addons: { name: { status, buy, offer: { lead, items: [{ addon, text, href }] } | null } }, failures }
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
@@ -48,12 +48,14 @@ const KINDS = {
   annual:   { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "pro", pro_days_left: 300,
               forensics_license_expires: "2027-07-20" },
   lifetime: { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "pro", pro_days_left: 26000,
-              forensics_license_expires: "2099-12-31", audio_licensed: true },
-  // The Audio add-on's key (2026-11-25): tier free, "audio" in license_addons.
-  audio:    { tier: "free", pro_has_key: true, pro_active: true, license_tier: "free", license_addons: ["audio"],
-              audio_licensed: true, pro_days_left: 700, forensics_license_expires: "2028-11-25" },
-  audio_lapsed: { tier: "free", pro_has_key: true, pro_active: false, license_tier: "free", license_addons: ["audio"],
-              audio_licensed: false, pro_days_left: -40, forensics_license_expires: "2026-10-01" },
+              forensics_license_expires: "2099-12-31" },
+  // An add-on key (2026-11-25): tier free; Audio running, Climate map ended (its own date).
+  addons:   { tier: "free", pro_has_key: true, addon_key: true, pro_active: true, license_tier: "free", license_addons: ["audio"],
+              license_addons_until: { audio: "2028-11-25 10:00:00", climate: "2026-11-01 10:00:00" },
+              addons_licensed: ["audio"], pro_days_left: 700, forensics_license_expires: "2028-11-25" },
+  addons_lapsed: { tier: "free", pro_has_key: true, addon_key: true, pro_active: false, license_tier: "free", license_addons: [],
+              license_addons_until: { audio: "2026-10-01 10:00:00" }, addons_licensed: [], pro_days_left: -40,
+              forensics_license_expires: "2026-10-01" },
 };
 const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2026-12-01T09:00:00Z"),   // launch price, then $168
                pass: Date.parse("2026-12-16T09:00:00Z") };   // lifetime ended: the two-year pass in its place
@@ -77,7 +79,7 @@ function licenceCard(settings) {
 
 const realNow = Date.now;
 const cases = {};
-const audio = {};
+const addons = {};
 for (const [day, now] of Object.entries(DAYS)) {
   Date.now = () => now;
   try {
@@ -91,15 +93,21 @@ for (const [day, now] of Object.entries(DAYS)) {
           failures.push(`${kind}_${day}: the buy button says ${buyA.textContent}`);
         const life = links.find(a => /for life|two years for/.test(a.textContent));
         cases[`${kind}_${day}`] = { buy, lifetime: life ? { text: life.textContent, href: life.getAttribute("href") } : null };
-        // The status line under the title, the buy button's words, and the Audio add-on's one line.
+        // The status line under the title, the buy button's words, and the add-ons' one list.
         const all = licenceCard(settings)._all();
         const status = all.find(n => /margin:8px 0 10px/.test(n.getAttribute && n.getAttribute("style") || ""));
-        const offer = all.find(n => (n.className || "") === "audio-addon-offer");
-        const offerA = offer ? offer._all().find(n => n.localName === "a") : null;
-        audio[`${kind}_${day}`] = { status: status ? status.textContent : null, buy: buyA ? buyA.textContent : null,
-          offer: offerA ? { text: offerA.textContent, href: offerA.getAttribute("href") } : null };
+        const offer = all.find(n => (n.className || "") === "addon-offer");
+        addons[`${kind}_${day}`] = { status: status ? status.textContent : null, buy: buyA ? buyA.textContent : null,
+          offer: offer ? { lead: offer._all().find(n => n.localName === "div").textContent,
+            items: offer._all().filter(n => n.localName === "a").map(a => ({ addon: a.getAttribute("data-addon"),
+              text: a.textContent, href: a.getAttribute("href") })) } : null };
       } catch (e) { failures.push(`${kind}_${day}: ${e && e.message ? e.message : e}`); }
     }
   } finally { Date.now = realNow; }
 }
-process.stdout.write(JSON.stringify({ cases, audio, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)
+// Turning the usage report off asks first on a Pro key past two homes; an add-on key has no reports rule.
+if (!S.reportOffConfirmText({ pro_has_key: true, license_homes_used: 3 }))
+  failures.push("reportOffConfirmText: a Pro key on 3 homes is no longer asked");
+if (S.reportOffConfirmText({ ...KINDS.addons, license_homes_used: 3 }) !== "")
+  failures.push("reportOffConfirmText: an add-on key on 3 homes is asked about the reports rule");
+process.stdout.write(JSON.stringify({ cases, addons, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

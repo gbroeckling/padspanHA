@@ -281,24 +281,28 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             return
     from .settings_store import licence_key_hash as _lk_hash  # noqa: PLC0415
     if data.get("valid"):
-        from .licence import normalize_addons, normalize_tier  # noqa: PLC0415
+        from .licence import answer_tier, normalize_addons, normalize_addons_until  # noqa: PLC0415
         # The server names the tier it sold ("pro" / "bright"). A server that
-        # does not (yet) say is a Pro key — see licence.key_tier.
-        _tier = normalize_tier(data.get("tier"), default="pro")
+        # does not (yet) say is a Pro key — see licence.key_tier — unless the
+        # answer is an add-on key's, which is always free (licence.answer_tier).
+        _tier = answer_tier(data)
+        _addons = normalize_addons(data.get("addons"))
         await st.async_set(
             forensics_license_key=key,
             forensics_license_expires=str(data.get("expires_at") or ""),
             license_tier=_tier,
-            # The add-ons the key carries (the Audio add-on's key: tier free + "audio").
-            license_addons=normalize_addons(data.get("addons")),
+            # The add-ons the key carries (an add-on key: tier free, its add-ons, each one's end).
+            license_addons=_addons,
+            license_addons_until=normalize_addons_until(data.get("addons_until")),
             # A key typed in is whatever the server says it is: a trialist who
             # buys (or goes lifetime on the same key) is no longer on a trial.
             license_is_trial=str(data.get("plan") or "") == "trial",
-            # An add-on key on its own does not license Forensics: its switch stays as it was.
-            **({} if _tier == "free" else {"forensics_enabled": True}),
+            # An add-on key turns Forensics on only when it holds the Forensics add-on.
+            **({"forensics_enabled": True} if _tier != "free" or "forensics" in _addons else {}),
             license_home_status="",
-            # A new free licence holds the report on; any other new key lets go.
-            **({"report_locked_key": _lk_hash(key) if _free_new else ""} if new_key else {}),
+            # A new free licence holds the report on; any other new key lets go,
+            # and so does an add-on key kept aside for a trial (the owner chose this one).
+            **({"report_locked_key": _lk_hash(key) if _free_new else "", "license_addons_kept": {}} if new_key else {}),
             # Past two homes with a report off somewhere: the server's warning (or none).
             license_homes_warning=homes_warning(data),
             # A different key: a fresh home on it.
@@ -376,7 +380,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")
         return
     if data.get("ok"):
-        from .licence import normalize_tier  # noqa: PLC0415
+        from .licence import ADDON_KEY_FIELDS, answer_tier, is_addon_key  # noqa: PLC0415
         from .settings_store import licence_key_hash  # noqa: PLC0415
         from .telemetry import heard_ask_due  # noqa: PLC0415
         await st.async_set(
@@ -385,8 +389,11 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             forensics_license_expires=str(data.get("expires_at") or ""),
             # The server issues trials as Pro (2026-10-27) and says so; a reply
             # with no tier reads as Pro, licence.py's own rule for a bare key.
-            license_tier=normalize_tier(data.get("tier"), default="pro"),
-            license_addons=[],
+            license_tier=answer_tier(data),
+            license_addons=[], license_addons_until={},
+            # An add-on key on this install is kept aside, and comes back when
+            # the trial ends (update_check._revalidate_license).
+            license_addons_kept=({k: st.data.get(k) for k in ADDON_KEY_FIELDS} if is_addon_key(st.data) else {}),
             license_is_trial=True,
             # The usage report stays on until the trial ends (settings_store.report_locked_until).
             report_locked_key=licence_key_hash(str(data.get("key") or "")),

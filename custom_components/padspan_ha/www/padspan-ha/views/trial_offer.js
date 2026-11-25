@@ -75,16 +75,19 @@ export const TRIAL_EMAIL_NOTE = "Your email is only used to send your key; one t
 // With it off, the card asks in the same step, never switching it silently.
 export const TRIAL_OPTIN_TEXT = "Turn on the usage report (needed for the free trial). It stays on for the whole trial and can't be turned off until the trial ends. It sends anonymous counts of what is used and what breaks, never names, rooms or addresses; Settings → Tracking shows exactly what is sent.";
 export const TRIAL_NOT_ADMIN = "An administrator of this Home Assistant has to start the trial.";
+// An install with an add-on key (2026-11-25): the trial includes every add-on.
+export const TRIAL_ADDONS_NOTE = "Your add-on key is kept aside for the trial and comes back by itself when the trial ends.";
 
 const _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const _errText = (e) => String((e && (e.message || e.error)) || e || "unknown error");
 
-/** True when the trial may be offered: no key of any kind, and a tier below
- *  the lighting product. Unknown settings (not loaded yet) never offer it —
- *  a licensed house must not see a trial flash past on first paint. */
+/** True when the trial may be offered: no key, or only an add-on key (it is
+ *  kept aside for the trial and comes back when it ends), and a tier below the
+ *  lighting product. Unknown settings (not loaded yet) never offer it — a
+ *  licensed house must not see a trial flash past on first paint. */
 export function trialOfferable(settings) {
   const s = settings || {};
-  if (s.pro_has_key !== false) return false;
+  if (s.pro_has_key !== false && s.addon_key !== true) return false;
   return !tierAtLeast(currentTier(s), "bright");
 }
 
@@ -296,6 +299,9 @@ export function trialOfferCard(host, surface, opts = {}) {
     }
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, [input, go]));
     card.appendChild(el("div", { "data-trial": "note", class: "muted", style: "font-size:11px;margin-top:4px" }, TRIAL_EMAIL_NOTE));
+    if (host.settings && host.settings.addon_key === true) {
+      card.appendChild(el("div", { "data-trial": "addons", class: "muted", style: "font-size:11px;margin-top:2px" }, TRIAL_ADDONS_NOTE));
+    }
   }
   if (st.error) {
     card.appendChild(el("div", { "data-trial": "error", style: "font-size:12px;color:#f87171;margin-top:6px;line-height:1.5" }, st.error));

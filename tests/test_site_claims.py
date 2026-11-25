@@ -132,32 +132,42 @@ _SKUS = {
     # box from then). The server decides 'padspan' AND '2year' before the year,
     # so the SKU must never carry 'lifetime', 'upgrade' or 'bright'.
     "padspan-pro-2year":            (85.00, ("padspan", "2year"),      ("upgrade", "bright", "lifetime")),
-    # The Audio add-on (2026-11-25): the server decides 'padspan' AND 'audio'
-    # before every Pro tier, so the SKU never carries another tier's marker.
-    "padspan-audio-addon":          (6.45,  ("padspan", "audio"),      ("upgrade", "bright", "lifetime", "2year")),
+    # PadSpan add-ons (2026-11-25), one SKU each: the server decides any item with
+    # 'padspan' AND 'addon' as an add-on before every Pro tier, then matches it
+    # exactly, so an add-on SKU never carries another tier's marker.
+    **{f"padspan-addon-{name}": (price, ("padspan", "addon"), ("upgrade", "bright", "lifetime", "2year"))
+       for name, price in (("audio", 6.45), ("alarm", 6.45), ("wifi", 6.45), ("climate", 8.65), ("timetravel", 7.55),
+                           ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56))},
 }
 
 
-def test_the_audio_add_on_is_sold_as_the_panel_says(html: str) -> None:
-    """editions.js's price, term and buy link, and the site's #audio box and its
-    PayPal form, say the same thing; and the add-on is said to be in Pro."""
+def test_the_add_ons_are_sold_as_the_panel_says(html: str) -> None:
+    """editions.js's ADDONS (name, words, price, what it unlocks), its term and
+    link, and the site's #addons box with one PayPal form per add-on, say the
+    same thing; Audio is at #audio; and the add-ons are said to be in Pro."""
     from pathlib import Path
     ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
           / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
-    price = re.search(r'AUDIO_ADDON_PRICE = "\$(\d+\.\d\d) CAD"', ed).group(1)
-    term = re.search(r'AUDIO_ADDON_TERM = "(\d+) years"', ed).group(1)
-    assert re.search(r'AUDIO_BUY_URL = "https://padspan\.traks\.ca/#audio"', ed)
-    assert float(price) == _SKUS["padspan-audio-addon"][0] == 6.45
-    box = re.search(r'<div class="ed" id="audio"[^>]*>(.*?)</form>', html, re.S)
-    assert box, "the #audio box in #editions"
-    box = box.group(1)
-    assert f"${price} " in box and f"CAD, {term} years" in box and f"covers {term} years" in box
-    assert 'name="item_number" value="padspan-audio-addon"' in box and f'name="amount" value="{price}"' in box
-    assert "PadSpan Pro includes it" in box
-    editions = html[html.index('id="editions"'):]
-    assert editions.index('id="audio"') < editions.index("</section>"), "the box is in #editions"
-    # 30% under NeonPlan's EUR 5.90 at the Bank of Canada's 1.5679 for 2026-11-24.
-    assert float(price) <= 5.90 * 1.5679 * 0.70
+    table = re.findall(r'\{ name: "(\w+)", words: "([^"]+)", price: "\$(\d+\.\d\d) CAD", desc: "([^"]+)" \}', ed)
+    assert [n for n, *_ in table] == ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
+                                      "forensics", "insights"]
+    term = re.search(r'ADDON_TERM = "(\d+) years"', ed).group(1)
+    assert re.search(r'ADDONS_URL = "https://padspan\.traks\.ca/#addons"', ed)
+    box = html[html.index('<div class="ed" id="addons"'):]
+    box = box[:box.index('<div class="ed">')]
+    assert html.index('id="editions"') < html.index('id="addons"') < html.index('</section>', html.index('id="editions"'))
+    assert f"covers {term} years" in box and "PadSpan Pro includes them all" in box
+    for name, words, price, desc in table:
+        row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S)
+        assert row, name
+        row = row.group(0)
+        assert (' id="audio"' in row) == (name == "audio")
+        assert f'{words.replace("&", "&amp;")} <span' in row and f"${price} CAD</span>" in row, name
+        assert desc.replace("&", "&amp;") in row, name
+        assert f'name="item_number" value="padspan-addon-{name}"' in row and f'name="amount" value="{price}"' in row, name
+        assert float(price) == _SKUS[f"padspan-addon-{name}"][0], name
+    # The owner's price for Audio: 30% under NeonPlan's EUR 5.90 at the Bank of Canada's 1.5679 for 2026-11-24.
+    assert 6.45 <= 5.90 * 1.5679 * 0.70
 
 
 def test_the_lifetime_price_matches_the_panel_and_switches_on_the_same_date(html: str) -> None:

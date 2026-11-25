@@ -55,21 +55,34 @@ One key covers up to five Home Assistants (a cabin, a parent's house, a test ins
 **Show this key's homes** on the licence card lists them, lets you name this one and remove one you
 no longer use. If a home isn't counted, the licence card says why.
 
-## The Audio add-on
+## Add-ons
 
-For an install without Pro: **volume, mute and off for each room's players on the map**, for
-$6.45 CAD, one payment that covers 2 years. No subscription; buy it again with the same email and
-two more years are added to the same key. **PadSpan Pro includes it**, so a Pro key (a year, two
-years, lifetime, a trial or a tester's) never needs it.
+For an install without Pro, one feature at a time: each add-on is one payment that covers 2 years,
+no subscription. **PadSpan Pro includes them all**, so a Pro key (a year, two years, lifetime, a
+trial or a tester's) never needs one. Prices in CAD:
 
-- It's a key of its own: buy it at [padspan.traks.ca/#audio](https://padspan.traks.ca/#audio) and
-  enter it like any key, here. The licence card then says **PadSpan Audio add-on · until** its date.
-  It is not a Pro key and unlocks nothing else.
-- It needs a PadSpan that knows the add-on; an older one says to update PadSpan when the key is
-  entered.
+| Add-on | Price | What it unlocks |
+| --- | --- | --- |
+| Audio | $6.45 | Volume, mute and off for each room's players on the map |
+| Alarm & security | $6.45 | Arm and disarm in the emergency button, locks, garage and gate openers on the map, and Alert pulse (a triggered alarm always shows, free) |
+| Wi-Fi coverage | $6.45 | The UniFi Wi-Fi coverage map |
+| Climate map | $8.65 | The Heatmap: rooms by temperature, humidity and CO₂ |
+| Time travel | $7.55 | The day replayed on the Atlas map (Playback on the Atlas) |
+| Vacation Mode & presets | $4.25 | Vacation Mode and Whole House Presets |
+| Looks pack | $4.25 | Day and three more themes, Showcase and the forest |
+| Forensics | $5.56 | Which Bluetooth devices were near a scanner in any time window |
+| Insights | $5.56 | Busy Times and Locate |
+
+- Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Your add-ons share one
+  key of their own: buy another with the same email and it joins that key; buy one again and it runs
+  on from its own date. Enter the key here like any key. The licence card then lists each add-on with
+  its date. An add-on key is not a Pro key and unlocks nothing else.
+- It needs a PadSpan that knows add-ons; an older one says to update PadSpan when the key is entered.
 - One key covers up to three homes. The usage-report rule above is for Pro keys only.
-- Updates are included, and it keeps working when the internet is down, like any key.
-- Buying Pro later with the same email makes the same key Pro, from that day.
+- Updates are included, and it keeps working when the internet is down, like any key; each add-on
+  gets the same 14 days past its date that a key does.
+- You can still try Pro: the 90-day trial keeps your add-on key aside and puts it back by itself when
+  the trial ends. Buying Pro with the same email makes your add-on key Pro, from that day.
 
 ## Get Pro free by testing it
 
