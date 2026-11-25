@@ -57,7 +57,6 @@ from .const import (
     DATA_MODEL,
     DATA_FABRIC,
     DATA_OBJECTS,
-    DEFAULT_FLOOR_ID,
     DATA_MOVEMENT,
     DATA_TRACEBACK,
 )
@@ -159,6 +158,7 @@ from .ws_maps import (  # noqa: F401  (re-exported: registration, tests, callers
     ws_maps_scale_measure,
     ws_maps_scale_nudge_end,
     ws_maps_blank_create,
+    ws_maps_starter_house,
     ws_maps_scan_create,
     ws_maps_fit_suggest,
     ws_maps_update,
@@ -328,6 +328,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_maps_scale_measure)
     websocket_api.async_register_command(hass, ws_maps_scale_nudge_end)
     websocket_api.async_register_command(hass, ws_maps_blank_create)
+    websocket_api.async_register_command(hass, ws_maps_starter_house)
     websocket_api.async_register_command(hass, ws_maps_scan_create)
     websocket_api.async_register_command(hass, ws_maps_fit_suggest)
     websocket_api.async_register_command(hass, ws_floorplan_import_sh3d)
@@ -580,21 +581,9 @@ async def ws_version(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     """Return floors from HA floor registry, areas from HA area registry, and per-room metadata."""
-    # --- Floors: prefer HA floor registry (HA 2024.4+), fall back to ModelStore ---
-    floors: list[dict[str, Any]] = []
-    try:
-        from homeassistant.helpers import floor_registry as fr_helper
-        fr = fr_helper.async_get(hass)
-        floors = [
-            {"id": f.floor_id, "name": f.name, "level": getattr(f, "level", None)}
-            for f in sorted(fr.async_list_floors(), key=lambda x: (getattr(x, "level", 0) or 0, x.name))
-        ]
-    except Exception:
-        _quiet_error("websocket:model_get_floors")
-        pass
-    if not floors:
-        mdl_fb = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-        floors = mdl_fb.floors() if mdl_fb else [{"id": DEFAULT_FLOOR_ID, "name": "Main Floor"}]
+    # --- Floors: prefer HA floor registry (HA 2024.4+), fall back to ModelStore (the starter house reads the same) ---
+    from .starter_house import house_floors  # noqa: PLC0415
+    floors: list[dict[str, Any]] = house_floors(hass)
 
     # Overlay stored elevation data (ModelStore) onto the registry floors —
     # the registry knows names and levels, the ModelStore knows heights.

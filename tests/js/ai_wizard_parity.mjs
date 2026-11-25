@@ -20,7 +20,11 @@ const battery = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const S = await import(pathToFileURL(join(VIEWS, "setup_status.js")).href);
 const T = await import(pathToFileURL(join(VIEWS, "trial_offer.js")).href);
 
-const setup = battery.setup.map(state => Object.fromEntries(
-  ["hasMaps", "hasReceivers", "hasFabricRooms", "hasRooms", "hasScale", "hasCalibration"].map(fn => [fn, S[fn](state)])));
+const setup = battery.setup.map(state => ({
+  ...Object.fromEntries(["hasMaps", "hasReceivers", "hasFabricRooms", "hasRooms", "hasScale", "hasCalibration"].map(fn => [fn, S[fn](state)])),
+  // The rooms that count for the plan path (a starter house's untouched boxes left out), and each plan's "has rooms".
+  planRooms: Object.keys(S.planRooms(state)).sort(),
+  planRoomed: ((state.maps && state.maps.list) || []).map(m => S.planRoomed(state, m)),
+}));
 const trial = battery.trial.map(settings => T.trialOfferable(settings));
 console.log(JSON.stringify({ setup, trial }));

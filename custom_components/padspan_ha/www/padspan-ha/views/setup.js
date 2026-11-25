@@ -15,7 +15,7 @@
 // stored (settings.setup_progress, cleaned by setup_checks.clean_setup_progress).
 
 const STATUS = await import(`./setup_status.js${new URL(import.meta.url).search}`);
-const { hasRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors, firstOpenStep } = STATUS;
+const { hasAnyRooms, undrawnAreaNames, placedReceivers, receiverHeightsOk, stepDone, setupSteps, floorHasHeight, indoorFloors, firstOpenStep } = STATUS;
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Let Claude draw your rooms (experimental): one line under the scale and rooms steps, where the rule offers it.
@@ -26,6 +26,8 @@ const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`)
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // A receiver's room, picked where the receivers step says it has none (2026-11-21).
 const RR = await import(`./receiver_room.js${new URL(import.meta.url).search}`).catch(() => null);
+// "Start with a rough house from your Home Assistant rooms" (rough_plan.js starterOffer): at the top, while the house has no rooms.
+const ROUGH = await import(`./rough_plan.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // The steps, their names and their words are setup_status.js's: Getting started and the Setup Wizard read the same
 // (review 2026-11-13: one order, one vocabulary). setup_checks.SETUP_STEPS holds the same ids.
@@ -355,7 +357,7 @@ function _block(ctx, opts, p) {
   const { el } = ctx.helpers;
   const st = ctx.state;
   const n = (p.ready || []).length, undo = Number(p.undo) || 0, not = _whyWords(ctx, p.skipped);
-  const rooms = hasRooms(st);                       // any rooms, drawn by hand or by the helper (setup_status: the button is for everyone)
+  const rooms = hasAnyRooms(st);                    // any rooms, drawn by hand, by the helper or the starter house's boxes (setup_status: the button is for everyone)
   if (!n && !_rcv.said && !undo) {
     if ((opts && opts.quiet) || !rooms) return null;
     // Every receiver the server knows is placed already: nothing to say. The "once they are in Home Assistant" line only
@@ -523,6 +525,10 @@ export function render(ctx) {
     root.appendChild(card);
     return root;
   }
+
+  // No rooms drawn yet: a first map from Home Assistant's own floors and areas, on a press (the owner's gap pick 1).
+  const starter = ROUGH && ROUGH.starterOffer ? ROUGH.starterOffer(ctx) : null;
+  if (starter) { starter.style.marginTop = "10px"; card.appendChild(starter); }
 
   const dots = el("div", { style: "display:flex;gap:4px;margin:12px 0 4px" });
   for (const s of d.steps) {

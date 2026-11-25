@@ -268,7 +268,7 @@ class MapsStore:
             return None
         return fp
 
-    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False, scale_nudge: bool = False, kind: str | None = None) -> dict[str, Any]:
+    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False, scale_nudge: bool = False, kind: str | None = None, starter: dict[str, Any] | None = None) -> dict[str, Any]:
         """Create a new map from an uploaded PNG image.
 
         Writes the image file to disk, creates the metadata dict with default
@@ -288,6 +288,9 @@ class MapsStore:
         for a proper, to-scale plan unless they said otherwise: "sketch" (their
         own drawing, not to scale) or "blank" (no picture at all: a blank floor
         of the size they typed, blank_plan_png).
+
+        `starter`: a blank floor the starter house made (starter_house.py), a rough start: {made, rooms: {room:
+        corners in metres, as made}}. The panel reads it to say so and to tell its boxes from rooms drawn since.
         """
         raw = _decoded_png(png_base64, allow_empty=allow_no_image)
         no_image = allow_no_image and not raw
@@ -330,6 +333,8 @@ class MapsStore:
             info["scale_nudge"] = True
         if kind in PLAN_KINDS:
             info["kind"] = kind
+        if isinstance(starter, dict):
+            info["starter"] = starter
 
         self.data.setdefault("maps", [])
         self.data["maps"].append(info)

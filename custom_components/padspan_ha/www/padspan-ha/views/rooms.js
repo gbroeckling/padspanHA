@@ -36,7 +36,7 @@ const { currentEdition, surfacesForEdition } =
 // Basic's focused views: a link opens just the part it is about (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Whether a room is drawn: setup_status's one rule (review 2026-11-11, C3), and the one "Put it on the map".
-const { roomDrawn } = await import(`./setup_status.js${new URL(import.meta.url).search}`);
+const { roomDrawn, starterBoxes } = await import(`./setup_status.js${new URL(import.meta.url).search}`);
 const WB = await import(`./wizard_build.js${new URL(import.meta.url).search}`).catch(() => null);
 // What kind of space each room is (outdoor_space.js's one rule, from the
 // facts it reads of the house: a room of a higher floor over it, a gallery
@@ -182,8 +182,9 @@ export function roomGroups(ctx) {
       outline: !!drawn,
       // Drawn on a plan only, not on the house yet: {id, name, floorId} of that plan.
       onPlan: drawn && drawn.map ? { id: drawn.map.id, name: String(drawn.map.name || t("a floor plan")), floorId: String(drawn.map.floor_id || "main") } : null,
-      // The floor plan Edit opens on: one on the room's floor, else the first.
-      mapId: ((maps.find(mp => mp && String(mp.floor_id || "main") === r.floorId) || maps[0] || {}).id) || null,
+      // The floor plan Edit opens on: one on the room's floor (a real plan before the starter house's rough one), else the first.
+      mapId: ((maps.find(mp => mp && !mp.starter && String(mp.floor_id || "main") === r.floorId)
+        || maps.find(mp => mp && String(mp.floor_id || "main") === r.floorId) || maps[0] || {}).id) || null,
       areaM2: a == null ? null : Math.round(a * 10) / 10,
       heightM: m && m.height_m != null ? Number(m.height_m) : null,
       floorHeightM: Number(fl && fl.floor_to_floor_m) || 2.8,
@@ -278,10 +279,11 @@ async function _setColor(ctx, row, hex) {
 }
 
 /** A room drawn on a plan only, onto the map of the house: the Setup Wizard's "Put it on the map" for this one room
- *  (wizard_build.putOnMap: only a room the house doesn't have, never one it has). */
+ *  (wizard_build.putOnMap: only a room the house doesn't have, never one it has, but for a starter house's box still
+ *  as made, which the traced outline replaces). */
 function _putOnMap(ctx, row) {
   if (_isSample(ctx.state) || !WB) return;
-  return WB.putOnMap(ctx, { mapId: row.onPlan.id, floorId: row.onPlan.floorId, rooms: [row.name], scanners: [], readable: true },
+  return WB.putOnMap(ctx, { mapId: row.onPlan.id, floorId: row.onPlan.floorId, rooms: [row.name], scanners: [], readable: true, boxes: starterBoxes(ctx.state) },
     { refresh: () => ctx.actions.modelRefresh(), where: ctx.state.complexity === "basic" ? t("Edit outline opens it on its plan") : t("Mapping → Layout shows them") });
 }
 

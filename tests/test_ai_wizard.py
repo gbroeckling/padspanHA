@@ -504,13 +504,29 @@ _SETUP_BATTERY = [
      "model": {"room_geometry_m": {"Kitchen": {}}, "map_transforms": {"m1": {"reference_measurements": [{}]}}},
      "calibration": {"points": [1, 2, 3, 4, 5]}},
 ]
+# The starter house (starter_house.py, 2026-11-24): its boxes still as made are placeholders on the plan path, a box
+# reshaped since is a room, and a trace on a plan is a room whatever the boxes.
+_BOX = [[1, 1], [4.5, 1], [4.5, 4.5], [1, 4.5]]
+_ROUGH = {"id": "s1", "floor_id": "main", "kind": "blank", "receivers": [], "room_bounds": {}, "starter": {"rooms": {"Kitchen": _BOX, "Hall": _BOX}}}
+_REAL = {"id": "r1", "floor_id": "main", "receivers": [], "room_bounds": {}}
+_STARTER_BATTERY = [
+    {"maps": {"list": [_ROUGH]}, "model": {"room_geometry_m": {"Kitchen": {"floor_id": "main", "points_m": _BOX}}}, "calibration": {}},
+    {"maps": {"list": [_ROUGH, _REAL]}, "model": {"room_geometry_m": {"Kitchen": {"floor_id": "main", "points_m": _BOX},
+                                                                     "Hall": {"floor_id": "main", "points_m": [[1, 1], [4.5, 1], [4.5, 4.5], [1, 4.5005]]}}}, "calibration": {}},
+    {"maps": {"list": [_ROUGH, _REAL]}, "model": {"room_geometry_m": {"Kitchen": {"floor_id": "main", "points_m": _BOX},
+                                                                     "Hall": {"floor_id": "main", "points_m": [[1, 1], [5, 1], [5, 4.5], [1, 4.5]]}}}, "calibration": {}},
+    {"maps": {"list": [_ROUGH, {**_REAL, "room_bounds": {"Kitchen": {"points": [[0, 0], [1, 0], [1, 1]]}}}]},
+     "model": {"room_geometry_m": {"Kitchen": {"floor_id": "main", "points_m": _BOX}}}, "calibration": {}},
+    {"maps": {"list": [_ROUGH]}, "model": {"room_geometry_m": {"Kitchen": {"floor_id": "upper", "points_m": _BOX},
+                                                               "Hall": {"floor_id": "main", "type": "circle", "cx_m": 1, "cy_m": 1, "r_m": 1}}}, "calibration": {}},
+]
 _TRIAL_BATTERY = [{"pro_has_key": k, "tier": t} for k in (False, True, None) for t in ("free", "bright", "pro", "", "gold")]
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def test_the_python_copies_answer_as_setup_status_and_trial_offer_do(tmp_path):
     bat = tmp_path / "battery.json"
-    bat.write_text(json.dumps({"setup": _SETUP_BATTERY, "trial": _TRIAL_BATTERY}), encoding="utf-8")
+    bat.write_text(json.dumps({"setup": _SETUP_BATTERY + _STARTER_BATTERY, "trial": _TRIAL_BATTERY}), encoding="utf-8")
     res = subprocess.run([_NODE, str(_ROOT / "tests" / "js" / "ai_wizard_parity.mjs"), str(_VIEWS), str(bat)],
                          capture_output=True, text=True, encoding="utf-8", timeout=60)
     lines = [ln for ln in res.stdout.splitlines() if ln.startswith("{")]
@@ -518,12 +534,22 @@ def test_the_python_copies_answer_as_setup_status_and_trial_offer_do(tmp_path):
     js = json.loads(lines[-1])
     py = {"hasMaps": W.has_maps, "hasReceivers": W.has_receivers, "hasFabricRooms": W.has_fabric_rooms,
           "hasRooms": W.has_rooms, "hasScale": W.has_scale, "hasCalibration": W.has_calibration}
-    for state, want in zip(_SETUP_BATTERY, js["setup"]):
-        assert {k: fn(state) for k, fn in py.items()} == want, state
+    for state, want in zip(_SETUP_BATTERY + _STARTER_BATTERY, js["setup"]):
+        got = {k: fn(state) for k, fn in py.items()}
+        got["planRooms"] = sorted(W.plan_rooms(state))
+        got["planRoomed"] = [W.plan_roomed_in(state, m) for m in (state.get("maps") or {}).get("list") or []]
+        assert got == want, state
+    # The starter house's cases say what they are meant to: untouched boxes are no rooms on the plan path.
+    rough, both = js["setup"][-5], js["setup"][-4]
+    assert rough["hasRooms"] is False and rough["planRooms"] == [] and rough["planRoomed"] == [False]
+    assert both["planRooms"] == [] and both["planRoomed"] == [False, False], "a box a hair off is still the box (2 mm)"
+    assert js["setup"][-3]["planRooms"] == ["Hall"] and js["setup"][-3]["planRoomed"] == [True, True], "a reshaped box is a room"
+    assert js["setup"][-2]["hasRooms"] is True and js["setup"][-2]["planRoomed"] == [True, True], "a trace is a room"
+    assert js["setup"][-1]["planRooms"] == ["Hall", "Kitchen"], "a box on another floor, or a circle, is not the box"
     for settings, want in zip(_TRIAL_BATTERY, js["trial"]):
         # The panel's pro_has_key: false only when the server said there is no key.
         assert W.trial_offerable(settings["pro_has_key"] is not False, settings["tier"]) == want, settings
-    assert len(js["setup"]) == len(_SETUP_BATTERY) and len(js["trial"]) == len(_TRIAL_BATTERY)
+    assert len(js["setup"]) == len(_SETUP_BATTERY) + len(_STARTER_BATTERY) and len(js["trial"]) == len(_TRIAL_BATTERY)
 
 
 def test_the_report_reads_setup_through_the_ported_checks():

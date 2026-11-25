@@ -50,7 +50,7 @@ const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasContro
 const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasReceivers,
         undrawnAreaNames: _wizUndrawnAreas, planHasScale: _planHasScale, hasCalibration: _wizHasCal, placedReceivers: _placedReceivers,
         setupSteps: _setupSteps, nextStep: _nextSetupStep, stepDone: _stepDone, STEP_ABOUT: _STEP_ABOUT,
-        planRoomed: _planRoomed, setupDone: _setupDone, firstOpenStep: _firstOpenStep } =
+        planRoomed: _planRoomed, setupDone: _setupDone, firstOpenStep: _firstOpenStep, starterBoxes: _starterBoxes, planRooms: _planRooms } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
 // "Put my receivers in their rooms" (setup.js receiversBlock, the one block and command), where receivers are placed:
 // Edit's Radios tool, so the Setup Wizard's receivers step too (review 2026-11-13, break 3).
@@ -586,6 +586,9 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
 
   if(!maps.length){
     const empty = el("div",{style:"margin-top:14px;padding:18px;border-radius:10px;background:#0a1a12;border:1px solid #1a4228;text-align:center"});
+    // No drawing at all: a first map from Home Assistant's own floors and areas (rough_plan.js starterOffer), on a press.
+    { const o = ROUGH && ROUGH.starterOffer ? ROUGH.starterOffer(ctx, { onMade: (made) => { if (made[0]) ctx.state.activeMapId = made[0].id; } }) : null;
+      if (o) empty.appendChild(o); }
     empty.appendChild(el("div",{style:"font-weight:700;font-size:15px;margin-bottom:6px"}, "No floor plans yet"));
     empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:13px"},
       "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing receivers, one step at a time. " +
@@ -740,6 +743,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     ]);
     { const n = NUDGE && NUDGE.reminderLine(ctx, m, () => _openMeasure(ctx, m.id, "reminder")); if (n) left.appendChild(n); }
     { const c = CARRY && CARRY.line(ctx, m); if (c) left.appendChild(c); }
+    { const n = _starterNote(ctx, m, false); if (n) left.appendChild(n); }
 
     const actions = el("div",{style:"display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap"});
     actions.appendChild(el("button",{class:"btn inline", onclick:()=>_openForEdit(ctx, m.id)}, "Open"));
@@ -1189,6 +1193,23 @@ function _deleteMapModal(ctx, srcMap, allMaps){
 // DOM rebuilds (the file input element gets destroyed on re-render).
 /** The floors of the house, Outside left out: [[id, name]] (a scan and a blank floor are of a floor of the house). */
 const _houseFloors = (ctx) => ((ctx.state.model && ctx.state.model.floors) || []).filter(f => f.id !== OUTSIDE_FLOOR_ID).map(f => [f.id, f.name || f.id]);
+
+/** The starter house's rough-start note on its plan (rough_plan.js starterNote), with its two ways on: the boxes
+ *  reshaped where this mode reshapes rooms (Mapping → Layout on this floor; Basic has no Layout: the Setup Wizard's
+ *  rooms step on this plan, drawn over the box), or a real plan of this floor uploaded. `drawHere`: in the plan editor. */
+function _starterNote(ctx, map, drawHere){
+  if (!ROUGH || !ROUGH.starterNote || ctx.state.dataMode !== "live" || ctx.state.kioskMode || ctx.hass?.user?.is_admin === false) return null;
+  const basic = ctx.state.complexity === "basic";
+  return ROUGH.starterNote(ctx, map, {
+    drawHere,
+    reshape: drawHere && basic ? null : () => {
+      if (basic) { ctx.state.activeMapId = map.id; ctx.state._mapsWizard = { step: 3, mapId: map.id }; ctx.actions.renderRooms(); return; }
+      ctx.state.maps._roomsFloorId = map.floor_id || "main"; ctx.state.maps._roomsDraftFloorId = null;
+      ctx.state._mapsWizard = null; ctx.actions.setMapsTab("rooms");
+    },
+    upload: ctx.state._mapsWizard ? null : () => { ctx.state._mapsUploadFloorId = map.floor_id || "main"; ctx.actions.setMapsTab("upload"); },
+  });
+}
 
 /** A scan or a blank floor was saved (rough_plan.js): it has its scale, so on to its rooms, by the door the mode has. */
 async function _roughMade(ctx, map){
@@ -1934,7 +1955,7 @@ function _wizardFinish(ctx, map, w){
   // helper's), receivers by setup_status.placedReceivers, and "next" from the one step list.
   const fid = (map && map.floor_id) || "main";
   const rooms = map ? new Set([...Object.keys(map.room_bounds || {}),
-    ...(map.floor_id ? Object.entries((st.model && st.model.room_geometry_m) || {}).filter(([, g]) => g && g.floor_id === map.floor_id).map(([n]) => n) : [])]).size : 0;
+    ...(map.floor_id ? Object.entries(_planRooms(st)).filter(([, g]) => g && g.floor_id === map.floor_id).map(([n]) => n) : [])]).size : 0;
   const scanners = map ? _placedReceivers(st, fid).size : 0;
   const skipped = (st.settings && st.settings.setup_progress && st.settings.setup_progress.skipped) || [];
   const next = _firstOpenStep(st, Array.isArray(skipped) ? skipped : []), say = _FINISH_NEXT[next];
@@ -1956,6 +1977,7 @@ function _wizardFinish(ctx, map, w){
     rooms: Object.keys(map.room_bounds || {}),
     scanners: (map.receivers || []).map(r => r && r.source).filter(src => src && liveSources.has(src)),
     readable: TSP.tunePlacementReadable(((ctx.state.model || {}).map_transforms || {})[map.id]),
+    boxes: _starterBoxes(ctx.state),     // the starter house's boxes still as made: a room traced here replaces its box
   } : null;
   // The Tune planner, as Calibration → Tune saves: every plan that pins
   // these scanners is planned, and one pinned at different spots or floors
@@ -1994,7 +2016,8 @@ function _wizardFinish(ctx, map, w){
       box.appendChild(el("div",{style:"font-size:13px;margin-bottom:8px;line-height:1.5"},
         tn(plan.rooms.length + plan.scanners.length,
           "{what} is on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.",
-          "{what} are on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.", { what })));
+          "{what} are on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.", { what })
+        + ((k) => k ? " " + tn(k, "Except 1 rough box from your Home Assistant rooms: the room traced here takes its place.", "Except {n} rough boxes from your Home Assistant rooms: the rooms traced here take their place.") : "")(plan.rooms.filter(r => traced.boxes[r]).length)));
       // Re-reading the model redraws this step mid-write: the flag keeps the
       // new button in progress, so a second click can't start a second build.
       const building = !!ctx.state._wizardBuilding;
@@ -2930,6 +2953,27 @@ function _edit(ctx, map, allMaps, opts){
 
       const centroid = _centroid(b.points);
       _stageLabel(centroid[0], centroid[1], room, c);
+    }
+
+    // A plan the starter house made (rough_plan.js): the house's rooms on its floor, dashed, where nothing is traced
+    // here for them yet, so a box can be drawn over (and receivers placed in it). Drawn only; never saved from here.
+    if(ROUGH && ROUGH.isStarter(map)){
+      const tf = ((ctx.state.model && ctx.state.model.map_transforms) || {})[map.id];
+      const fid = String(map.floor_id || "main");
+      for(const [room, g] of Object.entries((ctx.state.model && ctx.state.model.room_geometry_m) || {})){
+        if(!tf || rb[room] || !g || g.type !== "poly" || String(g.floor_id || "main") !== fid || !Array.isArray(g.points_m)) continue;
+        const pts = g.points_m.map(p => metresToMapFrac(tf, Number(p[0]), Number(p[1]))).filter(Boolean);
+        if(pts.length < 3) continue;
+        const c = roomColor(room);
+        const poly = document.createElementNS("http://www.w3.org/2000/svg","polygon");
+        poly.setAttribute("points", pts.map(p=>`${clamp01(p[0])},${clamp01(p[1])}`).join(" "));
+        poly.setAttribute("fill", c); poly.setAttribute("fill-opacity","0.06");
+        poly.setAttribute("stroke", c); poly.setAttribute("stroke-width","0.003"); poly.setAttribute("stroke-dasharray","0.01 0.008");
+        poly.setAttribute("data-starter-box", room);
+        svg.appendChild(poly);
+        const cen = _centroid(pts);
+        _stageLabel(cen[0], cen[1], room, c);
+      }
     }
 
     // Fallback circles
@@ -4462,6 +4506,7 @@ function _edit(ctx, map, allMaps, opts){
   const _paintNext = (m)=>{ if(_nextBox){ const n = _nextLine(ctx, m); _nextBox.replaceChildren(...(n ? [n] : [])); } };
   _paintNext(map);
   if(_nextBox) card.appendChild(_nextBox);
+  { const n = _focused ? null : _starterNote(ctx, map, true); if (n) card.appendChild(n); }
   // A map restored from a backup that had no picture (maps_store
   // allow_no_image): its rooms, pins and calibration are all here, only the
   // picture is not. The new one is drawn at the stored size, so every

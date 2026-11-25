@@ -13,7 +13,11 @@
 // floor plan is never written to the fabric as a side effect of another save
 // (ws_fabric.py, the f3466fc incident), and a room or scanner the fabric
 // already has is never touched here: changing those stays Mapping → Rooms'
-// and Calibration → Tune's job. The writes are theirs, unchanged:
+// and Calibration → Tune's job. The one exception is a box of the starter
+// house still as it was made (traced.boxes, setup_status.starterBoxes: a
+// placeholder, never anyone's drawing): the outline traced for that room
+// replaces it, under the same name, so the room keeps its Home Assistant
+// area. The writes are theirs, unchanged:
 //   rooms     fabric_correct_room with the floor's map-placement layout
 //             (fabric_truth_candidates' "transforms"), provenance-stamped as
 //             Commit stamps an untouched room;
@@ -26,14 +30,16 @@
 // It imports nothing.
 
 /** What was traced that the house (the fabric) doesn't have yet.
- *  traced: {mapId, floorId, rooms: [name], scanners: [source], readable}
+ *  traced: {mapId, floorId, rooms: [name], scanners: [source], readable, boxes}
+ *  (boxes: {room: corners in metres}, the starter house's boxes still as made, which a traced room replaces)
  *  from maps.js — readable: the plan's placement converts to metres
  *  (tune_save_plan.js tunePlacementReadable, the backend's own test);
  *  scanners: only those Home Assistant hears now, never the demo house's.
  *  Returns {readable, rooms, scanners}: each room and scanner once. */
 export function planHouse(traced, model){
   const t = traced || {}, mdl = model || {};
-  const fabRooms = mdl.room_geometry_m || {};
+  const boxes = (t.boxes && typeof t.boxes === "object") ? t.boxes : {};
+  const fabRooms = Object.fromEntries(Object.entries(mdl.room_geometry_m || {}).filter(([r]) => !boxes[r]));
   const fabScanners = mdl.scanner_positions_m || {};
   const once = (list, have) => {
     const seen = new Set(), out = [];
@@ -46,6 +52,10 @@ export function planHouse(traced, model){
   };
   return { readable: !!t.readable, rooms: once(t.rooms, fabRooms), scanners: once(t.scanners, fabScanners) };
 }
+
+// The server's record is still the starter's box (to the 2 mm the store rounds to): nobody has reshaped it since.
+const sameBox = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length
+  && a.every((p, i) => Array.isArray(p) && Array.isArray(b[i]) && Math.abs(p[0] - b[i][0]) < 0.002 && Math.abs(p[1] - b[i][1]) < 0.002);
 
 const geomPayload = (g) => g.type === "circle"
   ? { type: "circle", cx_m: g.cx_m, cy_m: g.cy_m, r_m: g.r_m }
@@ -62,7 +72,7 @@ const geomPayload = (g) => g.type === "circle"
 export async function buildHouse(ctx, traced, deps){
   if (deps.refresh) await deps.refresh();
   const plan = planHouse(traced, ctx.state.model);
-  const out = { rooms: 0, scanners: 0, failed: [], notConvertible: [], otherPlan: [] };
+  const out = { rooms: 0, scanners: 0, replaced: 0, failed: [], notConvertible: [], otherPlan: [] };
   if (!plan.readable) return { ...out, notReadable: true };
   const floor_id = traced.floorId || "main";
 
@@ -70,8 +80,9 @@ export async function buildHouse(ctx, traced, deps){
     const res = await ctx.actions.wsCall("padspan_ha/fabric_truth_candidates", { floor_id });
     const cand = (res && res.transforms && res.transforms.rooms) || {};
     const have = (res && res.fabric && res.fabric.rooms) || {};   // the server's, as of now
+    const box = (room) => !!have[room] && sameBox(have[room].points_m, (traced.boxes || {})[room]);
     for (const room of plan.rooms) {
-      if (have[room]) continue;                                   // already on the map: never rewritten
+      if (have[room] && !box(room)) continue;                     // already on the map: never rewritten (a starter box: replaced)
       const g = cand[room];
       // The floor's layout takes each room name from one plan (the oldest
       // that has it): a room it takes from ANOTHER plan of this floor is not
@@ -81,10 +92,15 @@ export async function buildHouse(ctx, traced, deps){
         && (g.type === "circle" ? Number.isFinite(g.r_m) : Array.isArray(g.points_m) && g.points_m.length >= 3);
       if (!usable) { out.notConvertible.push(room); continue; }
       try {
+        const replacing = box(room);
         await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
           floor_id, room, geometry: geomPayload(g), source_map_id: traced.mapId,
         });
         out.rooms++;
+        if (replacing) {
+          out.replaced++;
+          if (ctx.actions.telemetryEvent && ctx.state.dataMode === "live") ctx.actions.telemetryEvent("starter_house:replaced");
+        }
       } catch (e) { out.failed.push(room); }
     }
   }

@@ -114,8 +114,41 @@ def has_receivers(s: dict) -> bool:
     return any(len(m.get("receivers") or []) > 0 for m in _maps(s))
 
 
+def _same_box(a: Any, b: Any) -> bool:
+    """setup_status.js's one test: the same corners, to the 2 mm the store rounds to."""
+    try:
+        return isinstance(a, list) and isinstance(b, list) and len(a) == len(b) and all(
+            abs(float(p[0]) - float(q[0])) < 0.002 and abs(float(p[1]) - float(q[1])) < 0.002 for p, q in zip(a, b))
+    except (TypeError, ValueError, IndexError):
+        return False
+
+
+def starter_boxes(s: dict) -> dict[str, Any]:
+    """setup_status.starterBoxes: the starter house's boxes still as it made them (starter_house.py; the plan it made
+    keeps each as made in map.starter.rooms), {room: corners}. A box reshaped or replaced since is a room someone drew."""
+    geo = (s.get("model") or {}).get("room_geometry_m") or {}
+    out: dict[str, Any] = {}
+    for m in _maps(s):
+        rooms = (m.get("starter") or {}).get("rooms") if isinstance(m.get("starter"), dict) else None
+        if not isinstance(rooms, dict):
+            continue
+        for room, pts in rooms.items():
+            g = geo.get(room)
+            if (isinstance(g, dict) and g.get("type") != "circle" and str(g.get("floor_id") or "main") == str(m.get("floor_id") or "main")
+                    and _same_box(g.get("points_m"), pts)):
+                out[room] = pts
+    return out
+
+
+def plan_rooms(s: dict) -> dict[str, Any]:
+    """setup_status.planRooms: the rooms that count for the plan path (upload, scale, trace, Setup, the rooms helper):
+    the house's rooms but the starter house's boxes still as made, which are placeholders there and nowhere else."""
+    boxes = starter_boxes(s)
+    return {r: g for r, g in ((s.get("model") or {}).get("room_geometry_m") or {}).items() if r not in boxes}
+
+
 def has_fabric_rooms(s: dict) -> bool:
-    return len((s.get("model") or {}).get("room_geometry_m") or {}) > 0
+    return len(plan_rooms(s)) > 0
 
 
 def has_rooms(s: dict) -> bool:
@@ -246,15 +279,24 @@ def _ts(iso: Any) -> float | None:
 
 def setup_state(hass: HomeAssistant) -> dict[str, Any]:
     """The panel's state shape, from the stores: plans, rooms (the fabric's, as
-    model_get's room_geometry_m), the plans' scale, calibration."""
+    model_get's room_geometry_m: each record with its floor), the plans' scale, calibration."""
     dom = hass.data.get(DOMAIN, {})
     fab = getattr(dom.get(DATA_FABRIC), "data", None) or {}
-    rooms = {r: 1 for f in (fab.get("floors") or {}).values() if isinstance(f, dict) for r in (f.get("rooms") or {})}
+    rooms = {r: {**(g if isinstance(g, dict) else {}), "floor_id": (g.get("floor_id") if isinstance(g, dict) else None) or fid}
+             for fid, f in (fab.get("floors") or {}).items() if isinstance(f, dict) for r, g in (f.get("rooms") or {}).items()}
     mdl = getattr(dom.get(DATA_MODEL), "data", None) or {}
     cal = getattr(dom.get(DATA_CALIBRATION), "data", None) or {}
     return {"maps": {"list": list((getattr(dom.get(DATA_MAPS), "data", None) or {}).get("maps") or [])},
             "model": {"room_geometry_m": rooms, "map_transforms": mdl.get("map_transforms") or {}},
             "calibration": {"points": cal.get("points") or [], "model": cal.get("model") or {}}}
+
+
+def plan_roomed_in(s: dict, m: dict) -> bool:
+    """setup_status.planRoomed over the state: plan_roomed with the rooms that count for the plan path (plan_rooms)."""
+    rooms = plan_rooms(s)
+    roomed = ({str(g.get("floor_id") or "main") for g in rooms.values() if isinstance(g, dict)}
+              | {str(x.get("floor_id")) for x in _maps(s) if x.get("room_bounds") and x.get("floor_id")})
+    return plan_roomed(m, roomed, list(rooms.values()))
 
 
 def plan_roomed(m: dict, roomed: set[str], rooms: list) -> bool:
@@ -279,7 +321,8 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     settings: dict[str, Any] = (st.data if st else {}) or {}
     now = time.time() if now is None else now
     s = setup_state(hass)
-    indoor = [m for m in _maps(s) if not is_outdoor_floor(m.get("floor_id"))]      # the one outdoors rule (Outside, Yard, Garden…)
+    # The one outdoors rule (Outside, Yard, Garden…); and never the starter house's rough plan, a blank grid with nothing to read.
+    indoor = [m for m in _maps(s) if not is_outdoor_floor(m.get("floor_id")) and not m.get("starter")]
     created = [t for t in (_ts(m.get("created")) for m in indoor) if t is not None]
     seen = settings.get("first_seen_ts")
     plan_since = min(created) if created else None
@@ -287,13 +330,9 @@ def facts(hass: HomeAssistant, *, admin: bool = True, kiosk: bool = False, live:
     plan_ai = getattr(dom.get(DATA_PLAN_AI), "data", None) or {}
     tier = hass_tier(hass)
     w = settings.get("ai_map_wizard")
-    fab = getattr(dom.get(DATA_FABRIC), "data", None) or {}
-    roomed = {str(fid) for fid, fl in (fab.get("floors") or {}).items() if isinstance(fl, dict) and fl.get("rooms")} \
-        | {str(m.get("floor_id")) for m in _maps(s) if m.get("room_bounds") and m.get("floor_id")}
-    fab_rooms = [r for fl in (fab.get("floors") or {}).values() if isinstance(fl, dict) for r in (fl.get("rooms") or {}).values()]
     return {"admin": admin, "live": settings.get("data_mode") == "live" and live is not False, "kiosk": kiosk,
             "edition": edition(), "rooms": has_fabric_rooms(s), "room_bounds": any(len(m.get("room_bounds") or {}) > 0 for m in _maps(s)),
-            "floor_no_rooms": any(not plan_roomed(m, roomed, fab_rooms) for m in indoor),
+            "floor_no_rooms": any(not plan_roomed_in(s, m) for m in indoor),
             "indoor_plans": len(indoor), "plan_since": plan_since, "plan_age_days": None if since is None else max(0.0, (now - since) / 86400),
             "wizard": w if isinstance(w, dict) else {}, "now": now,
             # The Plans tool's own sessions only: the helper's rooms and scale sessions are kept in the same store (via "wizard").
@@ -690,14 +729,14 @@ def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None =
 
 
 def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
-    """Home Assistant's areas: [{name, floor_id}]; none when the registry can't be read."""
+    """Home Assistant's areas: [{id, name, floor_id}]; none when the registry can't be read."""
     try:
         from homeassistant.helpers import area_registry  # noqa: PLC0415
         areas = list(area_registry.async_get(hass).async_list_areas())
     except Exception:  # noqa: BLE001
         _quiet_error("ai_wizard:ha_areas")
         return []
-    return [{"name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
+    return [{"id": str(getattr(a, "id", "") or ""), "name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
 
 
 # ── piece 2: "Also add this room to Home Assistant" (2026-11-10) ──────

@@ -24,6 +24,8 @@ const PM = await import(`./plan_measure.js${V}`);
 const { btn, P, MUTED, row } = PM;
 // Its words in the panel's language (views/i18n.js; English is the key): the lists below are functions, read when drawn.
 const { t, tn } = await import(`./i18n.js${V}`);
+// The starter house's boxes still as made, and whether the house has rooms (setup_status.js: the one rule each).
+const { starterBoxes, hasAnyRooms } = await import(`./setup_status.js${V}`);
 
 export const LINK = () => t("No floor plan? Ways to get one");
 export const KINDS = Object.freeze(["have", "scan", "vacuum", "sketch", "blank"]);
@@ -317,4 +319,148 @@ export function render(ctx, opts) {
   card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-top:10px;border-top:1px solid #12301f;padding-top:8px" },
     t("Have a picture now? Upload it with the form below.")));
   return card;
+}
+
+// ── Start with a rough house from your Home Assistant rooms (the owner's gap pick 1, 2026-11-23; starter_house.py) ──
+// No drawing at all: one box room per Home Assistant area, on a blank floor (the "blank" way above, made for each floor
+// that has no plan and no rooms yet), named as its area and sized from its devices. Offered at the top of Setup and on
+// Mapping's empty Library while the house has no rooms; a preview of what it will make (padspan_ha/maps_starter_house,
+// dry_run), then one confirm. Never by itself, nothing for a house that has rooms, free.
+// Afterwards the plan it made says it is a rough start (starterNote), with the two ways on: reshape the boxes (Mapping →
+// Layout; in Basic the Setup Wizard's rooms step, drawn over the box), or upload a real plan of the floor and trace the
+// rooms on it. Either way "Put it on the map" (wizard_build.js) puts the traced outline in place of the box, under the
+// same name, so the room keeps its Home Assistant area. Counted as words only (telemetry.STARTER_HOUSE_WORDS).
+const starterTel = (ctx, w) => { if (ctx.state.dataMode === "live" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("starter_house:" + w); };
+const sst = (ctx) => ctx.state._starter || (ctx.state._starter = { busy: false, preview: null, msg: "", to: "" });
+let _starterSeen = false;
+export function _resetStarter() { _starterSeen = false; }      // a test's new page
+
+/** A plan the starter house made. */
+export const isStarter = (m) => !!(m && m.starter && typeof m.starter === "object");
+
+/** Whether to offer it: the house's own data, an administrator, not a wall screen, and no rooms drawn anywhere yet. */
+export function starterOffered(ctx) {
+  const st = ctx.state;
+  return st.dataMode === "live" && !st.kioskMode && !(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin === false) && !hasAnyRooms(st);
+}
+
+const _names = (xs) => xs.length > 6 ? t("{names} and {more} more", { names: xs.slice(0, 6).join(", "), more: xs.length - 6 }) : xs.join(", ");
+// Why an area gets no box (starter_house.SKIPPED), each as a sentence with the rooms in it.
+const SKIP_WORDS = () => ({
+  drawn: (n) => t("Already drawn, left as they are: {names}.", { names: n }),
+  floor_has_plan: (n) => t("On a floor that already has a plan or rooms, so draw them there: {names}.", { names: n }),
+  outdoor: (n) => t("Outdoors, left out: {names}.", { names: n }),
+  too_big: (n) => t("Too many rooms for one floor, left out: {names}.", { names: n }),
+  no_floor: (n) => t("No indoor floor to put them on: {names}.", { names: n }),
+});
+
+async function starterAsk(ctx, dry) {
+  const s = sst(ctx);
+  s.busy = true; s.msg = ""; redraw(ctx);
+  let r;
+  try {
+    r = await ctx.actions.callWS({ type: "padspan_ha/maps_starter_house", dry_run: dry, ...(s.to ? { no_floor_to: s.to } : {}),
+      ...(dry ? {} : { label: t("rough start") }) });
+  } catch (e) { r = { ok: false, error: (e && e.message) || t("That didn't work. Try again in a moment.") }; }
+  s.busy = false;
+  return r || { ok: false };
+}
+
+async function starterPreview(ctx) {
+  const s = sst(ctx), r = await starterAsk(ctx, true);
+  if (r.error) { s.msg = r.error; redraw(ctx); return; }
+  s.preview = r;
+  if (r.no_floor && r.no_floor.to && !s.to) s.to = r.no_floor.to;
+  starterTel(ctx, r.ok ? "previewed" : "nothing");
+  redraw(ctx);
+}
+
+async function starterMake(ctx, opts) {
+  const s = sst(ctx), r = await starterAsk(ctx, false);
+  if (r.error || !r.ok) {
+    s.msg = r.error || t("Nothing was made: every floor has a plan or rooms now.");
+    if (!r.error) s.preview = r;
+    redraw(ctx);
+    return;
+  }
+  Object.assign(s, { preview: null, msg: "", to: "" });
+  const made = (r.rooms || []).length;
+  if (ctx.toast) ctx.toast(tn(made, "Rough house made: 1 room on the map.", "Rough house made: {n} rooms on the map.") + " " + t("Reshape them, or upload a real plan, whenever you like."));
+  if (ctx.actions.modelRefresh) await Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+  if (ctx.actions.mapsRefresh) await Promise.resolve(ctx.actions.mapsRefresh()).catch(() => {});
+  if (opts && opts.onMade) await opts.onMade(r.maps || []);
+  redraw(ctx);
+}
+
+/** What the preview says it will make, and the one confirm. */
+function starterPreviewBox(ctx, opts, p) {
+  const { el } = ctx.helpers, s = sst(ctx);
+  const box = el("div", { "data-starter": "preview", style: "margin-top:8px;padding:8px 10px;border:1px solid #2d6a4f;border-radius:8px;background:#071510" });
+  if (!p.ok) {
+    box.appendChild(P(ctx, t("Nothing to make: every floor already has a floor plan or rooms."), "color:#f59e0b"));
+  } else {
+    box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#e2e8f0" }, t("This is what it will make:")));
+    const ul = el("ul", { style: "margin:4px 0 6px 18px;padding:0;font-size:13px;color:#cbd5e1;line-height:1.55" });
+    for (const f of p.floors || []) {
+      ul.appendChild(el("li", { "data-starter": "floor" }, tn(f.rooms.length, "{floor}: a blank floor with 1 room ({names})", "{floor}: a blank floor with {n} rooms ({names})",
+        { floor: f.name, names: _names(f.rooms.map(r => r.name)) })));
+    }
+    box.appendChild(ul);
+    box.appendChild(MUTED(ctx, t("Each room is a square box named as its Home Assistant area: 3.5 m, bigger where the area has many devices. Your devices show in their rooms at once.")));
+    const nf = (p.no_floor && p.no_floor.rooms) || [];
+    if (nf.length && (p.choices || []).length) {
+      const sel = el("select", { class: "select", "data-starter": "no-floor", style: "max-width:100%" });
+      for (const [id, name] of p.choices) { const o = el("option", { value: id }, name); if (id === (s.to || p.no_floor.to)) o.selected = true; sel.appendChild(o); }
+      sel.addEventListener("change", () => { s.to = sel.value; starterPreview(ctx); });
+      box.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, tn(nf.length, "{names} has no floor in Home Assistant. Put it on:", "{names} have no floor in Home Assistant. Put them on:", { names: _names(nf) })), sel]));
+    }
+  }
+  const by = {};
+  for (const x of p.skipped || []) (by[x.why] = by[x.why] || []).push(x.room);
+  for (const [why, rooms] of Object.entries(by)) {
+    const say = SKIP_WORDS()[why];
+    if (say) box.appendChild(MUTED(ctx, say(_names(rooms))));
+  }
+  box.appendChild(row(ctx, [
+    ...(p.ok ? [btn(ctx, s.busy ? t("Making it…") : t("Make the rough house"), () => { if (!s.busy) starterMake(ctx, opts); }, { primary: true, disabled: s.busy, attrs: { "data-starter": "make" } })] : []),
+    btn(ctx, t("Cancel"), () => { Object.assign(s, { preview: null, msg: "", to: "" }); redraw(ctx); }, { disabled: s.busy, attrs: { "data-starter": "cancel" } }),
+  ]));
+  return box;
+}
+
+/** "Start with a rough house from your Home Assistant rooms": the offer, its preview and its confirm; null where it isn't
+ *  offered (starterOffered). opts.onMade(maps): the plans it made, after the house was read again. */
+export function starterOffer(ctx, opts = {}) {
+  if (!starterOffered(ctx)) return null;
+  const { el } = ctx.helpers, s = sst(ctx);
+  if (!_starterSeen) { _starterSeen = true; starterTel(ctx, "offered"); }
+  const card = el("div", { "data-starter": "offer", style: "margin:0 0 12px;padding:10px 12px;border:1px solid #2d6a4f;border-radius:8px;background:#0a1f14;text-align:left" });
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#a7f3d0" }, t("Start with a rough house from your Home Assistant rooms")));
+  card.appendChild(P(ctx, t("No drawing needed: PadSpan puts one box for each Home Assistant area on its floor, so every room is on the map in a minute. It is a rough start: drag and resize the boxes later, or upload a real plan and trace over it.")));
+  if (s.preview) card.appendChild(starterPreviewBox(ctx, opts, s.preview));
+  else card.appendChild(row(ctx, [btn(ctx, s.busy ? t("Reading your Home Assistant rooms…") : t("Show what it will make"), () => { if (!s.busy) starterPreview(ctx); },
+    { primary: true, disabled: s.busy, attrs: { "data-starter": "preview-go" } })]));
+  if (s.msg) card.appendChild(P(ctx, s.msg, "color:#f59e0b"));
+  return card;
+}
+
+/** The rough-start note on a plan the starter house made: how many boxes are still boxes, and the two ways on. null for
+ *  any other plan. opts: reshape() (where the boxes are reshaped from here; none: not offered), upload() (Upload, on this
+ *  plan's floor; none: not offered), drawHere (the plan editor: how to draw a room over its box). */
+export function starterNote(ctx, map, opts = {}) {
+  if (!isStarter(map)) return null;
+  const { el } = ctx.helpers, boxes = starterBoxes(ctx.state);
+  const left = Object.keys((map.starter && map.starter.rooms) || {}).filter(r => boxes[r]).length;
+  const note = el("div", { "data-starter": "note", style: "margin:6px 0;padding:6px 10px;border:1px dashed #2d6a4f;border-radius:8px;background:#071510;font-size:12px;color:#cbd5e1;line-height:1.5" });
+  note.appendChild(el("div", {}, left
+    ? tn(left, "Rough start: 1 room on this floor is still a box made from your Home Assistant rooms.", "Rough start: {n} rooms on this floor are still boxes made from your Home Assistant rooms.") + " " +
+      t("Drag and resize them, or upload a real plan of this floor and trace the rooms on it: each room you trace and put on the map takes the place of its box, and keeps its Home Assistant area.")
+    : t("Rough start: a blank floor made from your Home Assistant rooms. Upload a real plan of this floor whenever you have one.")));
+  if (opts.drawHere && left) note.appendChild(el("div", { style: "color:#94a3b8;margin-top:2px" },
+    t("To redraw a box here: choose its room and click its corners over the dashed box. \"Put it on the map\" (the Setup Wizard's last step, or the Rooms page) then puts your outline in its place.")));
+  const kids = [];
+  if (opts.reshape && left) kids.push(btn(ctx, t("Reshape the rooms"), () => { starterTel(ctx, "reshape"); opts.reshape(); }, { attrs: { "data-starter": "reshape" } }));
+  if (opts.upload) kids.push(btn(ctx, t("Upload a plan of this floor"), () => { starterTel(ctx, "upload"); opts.upload(); }, { attrs: { "data-starter": "upload" } }));
+  if (kids.length) note.appendChild(row(ctx, kids, "margin:4px 0 0"));
+  return note;
 }

@@ -277,6 +277,47 @@ Wenn jeder Schritt erledigt ist, sagt die Einrichtung **Dein Haus ist eingericht
 verschwindet aus dem Menü. Über den Knopf Einrichtung in Karten und über die Übersicht ist sie
 weiter da, wenn du einen Schritt ändern willst.
 
+## Mit einem groben Haus beginnen
+
+Kein Grundriss und keine Zeichnung? Die Einrichtung, und Karten, solange es keinen Grundriss hat,
+bieten **Mit einem groben Haus aus deinen Home-Assistant-Räumen beginnen** an, solange noch kein Raum
+gezeichnet ist. Es läuft nur, wenn du es drückst.
+
+1. Wähle **Zeigen, was angelegt wird**. Es listet jede Etage mit ihren Räumen und alles, was es
+   auslässt, mit dem Grund: ein Raum, der schon gezeichnet ist, eine Etage, die schon einen Plan oder
+   Räume hat, ein Bereich draußen.
+2. Ein Bereich, der in Home Assistant keine Etage hat, kommt auf die Etage, die du dort wählst (die
+   erste, wenn du keine wählst).
+3. Wähle **Grobes Haus anlegen**.
+
+Für jede Etage ohne Plan legt PadSpan eine leere Etage an, als „grober Anfang“ markiert, mit einem
+quadratischen Kasten für jeden Home-Assistant-Bereich darauf, benannt wie der Bereich. Ein Kasten ist
+3,5 m breit, etwas größer, wo der Bereich mehr als vier Geräte hat, höchstens 6 m. Deine Geräte
+erscheinen sofort in ihren Räumen, wie bei jedem Raum. Sonst ändert sich nichts: kein
+Kalibrierpunkt, kein Empfänger und keine Wand wird angefasst, und ein zweiter Druck legt nichts an.
+
+Die Kästen sind Platzhalter fürs Zeichnen der Räume: Bis du sie umformst oder ersetzt, bleibt der Schritt
+**Räume zeichnen** der Einrichtung offen, ein echter Plan dieser Etage öffnet mit seinem Räume-Werkzeug, und
+**Let Claude draw your rooms** wird dafür weiter angeboten. Für alles andere (wo Menschen und Geräte sind)
+sind sie Räume.
+
+Die Kästen sind ein Anfang. Der Hinweis auf dem groben Plan sagt, wie viele noch Kästen sind, mit zwei
+Wegen weiter:
+
+- **Räume umformen.** Im Modus Erweitert öffnet das **Karten → Aufteilung** auf dieser Etage:
+  verschiebe jeden Kasten, ändere seine Größe, dann **Korrekturen speichern**. Im Modus Einfach öffnet
+  es den Räume-Schritt des Einrichtungsassistenten auf dem groben Plan, wo die Kästen gestrichelt
+  gezeichnet sind: zeichne den Raum über seinen Kasten.
+- **Einen Plan dieses Stockwerks hochladen.** Hochladen, Maßstab festlegen und die Räume zeichnen
+  wie in den Schritten 1 bis 3. Der grobe Plan steht dabei nie im Weg.
+
+So oder so setzt **Auf die Karte setzen** (der Abschluss des Assistenten oder der eigene Knopf des
+Raums auf der Seite **Räume**) jeden gezeichneten Raum an die Stelle seines Kastens. Der Raum behält
+seinen Namen und bleibt so mit seinem Home-Assistant-Bereich verbunden. Einen Kasten, den du unter
+Aufteilung umgeformt hast, ersetzt nichts mehr: er gehört dir. Hat eine Etage ihren echten Plan,
+kannst du den groben Plan in der Bibliothek löschen. Seine Räume bleiben auf der Karte,
+ebenso die Kalibrierpunkte, die auf ihm aufgenommen wurden.
+
 ## Kein Grundriss?
 
 Beim Schritt zum Hochladen listet **Kein Grundriss? So bekommst du einen** fünf Wege, den besten

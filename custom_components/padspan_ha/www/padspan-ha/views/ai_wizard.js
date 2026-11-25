@@ -175,7 +175,8 @@ export function needsScale(state, plan) {
 const SS = await import(`./setup_status.js${V}`);
 export const { planRoomed } = SS;
 
-/** Plans the helper can read, best first: inside the house, with a scale or none at all yet (it measures that one first);
+/** Plans the helper can read, best first: inside the house (never the starter house's rough plan, a blank grid), with a
+ *  scale or none at all yet (it measures that one first);
  *  one on a floor with no rooms yet before one on a floor that has them (the next floor after a save), then a plan with
  *  a scale before one without, then the lowest floor, then the largest picture. */
 export function plansOf(state) {
@@ -186,7 +187,7 @@ export function plansOf(state) {
   const unscaled = (m) => (needsScale(state, m) ? 1 : 0);
   const done = (m) => (planRoomed(state, m) ? 1 : 0);
   return ((state.maps && state.maps.list) || [])
-    .filter(m => m && m.id && !isOutdoorFloorId(m.floor_id) && (!tfs[m.id] || Number(tfs[m.id].scale_x_m) > 0))
+    .filter(m => m && m.id && !m.starter && !isOutdoorFloorId(m.floor_id) && (!tfs[m.id] || Number(tfs[m.id].scale_x_m) > 0))
     .sort((a, b) => done(a) - done(b) || unscaled(a) - unscaled(b) || rank(a.floor_id) - rank(b.floor_id) || px(b) - px(a));
 }
 
