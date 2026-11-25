@@ -47,15 +47,17 @@ const CAP_H = 0.06, SETTLE_OP = 0.85, APRON_OP = 0.6, APRON_PAD = 2.4, APRON_BLU
 const DOWN_H = 2;                    // m: every wall down, what still stands in a room (people, a wardrobe) is under it
 const SNOW_SHADE = 0.86;             // settled snow: the weather's colour a little greyer, never a glare
 
+// Rain at 55% of its old opacity since 2026-11-24 (the owner: "the rain still looks like snow ... make it more
+// transparent"), as on the flat Atlas (atlas_weather.js RAIN_LAYERS); snow as it was.
 /** The layers. rain: speed m/s, len the streak (m), width (CSS px), minLen
  *  the shortest a streak is drawn on screen (CSS px: a far drop stays a
  *  streak, never a dot), op the streak's brightest alpha at strength 1.
  *  snow: size the flake (m), sway its gentle side-to-side (m). angle: the
  *  wind, degrees off vertical. */
 export const LAYERS = Object.freeze({
-  drizzle:  Object.freeze({ kind: "rain", angle: 8,  speed: 14, len: 0.45, width: 1.0, minLen: 7,  op: 0.7 }),
-  downpour: Object.freeze({ kind: "rain", angle: 17, speed: 21, len: 0.7,  width: 1.1, minLen: 10, op: 0.6 }),
-  splash:   Object.freeze({ kind: "rain", angle: 0,  op: 0.7 }),
+  drizzle:  Object.freeze({ kind: "rain", angle: 8,  speed: 14, len: 0.45, width: 1.0, minLen: 7,  op: 0.38 }),
+  downpour: Object.freeze({ kind: "rain", angle: 17, speed: 21, len: 0.7,  width: 1.1, minLen: 10, op: 0.33 }),
+  splash:   Object.freeze({ kind: "rain", angle: 0,  op: 0.38 }),
   flurry:   Object.freeze({ kind: "snow", angle: 3,  speed: 0.85, size: 0.09, sway: 0.28, op: 0.92 }),
   blizzard: Object.freeze({ kind: "snow", angle: 9,  speed: 1.3,  size: 0.07, sway: 0.38, op: 0.85 }),
 });

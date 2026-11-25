@@ -634,11 +634,13 @@ const BAKE = STRENGTH_MAX;
 // Rain is hairline streaks, short and many, falling fast on a slant; snow
 // slow soft dots (2026-11-06: rain "falls to slowly … looks a lot
 // like snow"). A tile is drawn once, so more streaks cost nothing per frame.
+// Lighter since 2026-11-24 (the owner: "the rain still looks like snow ... make it more transparent"): every rain
+// layer at 55% of its old opacity; the drizzle still well above the 11% that read as broken.
 export const RAIN_LAYERS = [
-  { id: "r0", tier: "base",  w: 240, h: 280, n: 52, len: 16, op: 0.4,  width: 1,   dur: 0.62 },   // drizzle, ~8°
-  { id: "r1", tier: "heavy", w: 200, h: 240, n: 70, len: 18, op: 0.26, width: 1,   dur: 0.46 },   // far sheet
-  { id: "r2", tier: "heavy", w: 260, h: 300, n: 42, len: 28, op: 0.34, width: 1,   dur: 0.36 },   // mid
-  { id: "r3", tier: "heavy", w: 320, h: 360, n: 20, len: 44, op: 0.42, width: 1.2, dur: 0.26 },   // near streaks
+  { id: "r0", tier: "base",  w: 240, h: 280, n: 52, len: 16, op: 0.22, width: 1,   dur: 0.62 },   // drizzle, ~8°
+  { id: "r1", tier: "heavy", w: 200, h: 240, n: 70, len: 18, op: 0.14, width: 1,   dur: 0.46 },   // far sheet
+  { id: "r2", tier: "heavy", w: 260, h: 300, n: 42, len: 28, op: 0.19, width: 1,   dur: 0.36 },   // mid
+  { id: "r3", tier: "heavy", w: 320, h: 360, n: 20, len: 44, op: 0.23, width: 1.2, dur: 0.26 },   // near streaks
 ];
 export const SNOW_LAYERS = [
   { id: "s0", tier: "base",  w: 240, h: 240, n: 34, rad: 1.3, op: 0.5,  blur: 0.35, dur: 26, sway: [7, 10] },
