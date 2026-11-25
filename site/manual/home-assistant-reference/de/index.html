@@ -523,6 +523,64 @@ kleingeschrieben, mit Leerzeichen als <code>_</code>. Die Topics können sich in
   <tr><td><code>padspan/devices/&lt;device&gt;/distance</code></td><td>The distance in metres. Not sent while away.</td></tr>
 </table>
 </div>
+<h2 id="licht-folgt-personen">Licht folgt Personen</h2>
+<p>PadSpan kann Raumlichter selbst schalten, ohne dass du eine Automation schreibst. Das ist kostenlos
+und aus, bis du es einschaltest: Einstellungen → Ortung → Home Assistant und Integrationen →
+<b>Licht folgt Personen</b>, Haken bei <b>Raumlichter ein- und ausschalten, wenn Personen sich
+bewegen</b>. Bis dahin wird nichts geschaltet.</p>
+<ul>
+<li><b>Wenn jemand hereinkommt</b>: Kommt eine Person mit einem benannten Handy, einer Uhr oder einem
+Tag in einen Raum, den du eingerichtet hast, gehen dessen Lichter an. Nur beim Hereinkommen: Ein
+Licht, das jemand später ausschaltet, wird nicht wieder eingeschaltet, und auch die Dämmerung,
+während jemand im Raum sitzt, schaltet es nicht ein.</li>
+<li><b>Wenn der Raum leer ist</b>: War so lange niemand im Raum, wie seine Ausschaltverzögerung sagt
+(2 Minuten, wenn du nicht 30 Sekunden bis eine Stunde wählst), gehen seine Lichter aus, einmal.
+Nur in einem Raum, in dem jemand Verfolgtes war: Ein Licht, das in einem Raum eingeschaltet
+wurde, in dem niemand Verfolgtes war, bleibt an. Wer das Haus verlässt, verlässt auch den Raum.</li>
+<li><b>Ein Licht, das von Hand ausgeschaltet wurde, bleibt aus</b>: Schaltet jemand die Lichter des
+Raums aus, während er darin ist (am Schalter, in Home Assistant oder durch eine andere
+Automation), lässt PadSpan sie aus, bis alle den Raum eine Minute lang verlassen haben und jemand
+wiederkommt. Ein Gang zur Tür und zurück ist kein Verlassen.</li>
+</ul>
+<p>Für jeden Raum, unter <b>Raum hinzufügen…</b>:</p>
+<ul>
+<li><b>Lichter</b>: beliebige Lichter und Schalter. Ein neuer Raum beginnt mit den Lichtern des
+Home-Assistant-Bereichs mit demselben Namen. Ein Raum wird gespeichert, sobald er ein Licht hat.</li>
+<li><b>Aus, wenn leer seit</b>: die Ausschaltverzögerung.</li>
+<li><b>Einschalten</b>: immer, nur wenn die Sonne untergegangen ist, oder nur wenn ein
+Helligkeitssensor weniger misst als ein Wert, den du einstellst (in Lux). Eine Sonne oder ein
+Helligkeitssensor, die sich nicht lesen lassen, zählen als dunkel.</li>
+<li><b>Ruhezeiten</b>: ein Zeitraum, in dem nichts eingeschaltet wird (er darf über Mitternacht gehen).
+Ist der Raum leer, gehen die Lichter trotzdem aus.</li>
+<li><b>Sensoren</b>: Bewegungs-, Belegungs- oder Anwesenheitssensoren im Raum. Ein Raumwechsel wartet
+auf die Verzögerung beim Raumwechsel (Einstellungen → Ortung → Räume und Zeiten), 20 bis 40
+Sekunden, das Licht käme also spät. Setzt PadSpans letzte Messung jemanden schon in einen Raum
+und sieht der eigene Sensor dieses Raums Bewegung, gehen die Lichter sofort an. Ein neuer Raum
+beginnt mit den Bewegungsmeldern seines Bereichs. Ein Sensor allein, ohne verfolgte Person,
+schaltet nichts ein.</li>
+</ul>
+<p><b>Personen</b>: Jedes Gerät, dem du einen Namen gegeben hast, zählt, außer Gast-Tags
+(<a href="/manual/tags-and-beacons/de/#gast-tags">Kapitel 7</a>). Nimm den Haken bei jedem weg, der keine Lichter
+schalten soll, und setz ihn bei einem Gast-Tag, der es soll. Ein Tag, das liegen bleibt
+(Schlüssel, eine Tasche), hält seinen Raum hell: Nimm dort den Haken weg.</p>
+<p>Was jeder Raum gerade hat (wer darin ist und ob ein Licht von Hand ausgeschaltet wurde), steht
+unter dem Raum. Der freiwillige Nutzungsbericht zählt, wie oft Lichter geschaltet wurden und warum
+nicht, nie einen Raum, einen Namen oder ein Licht
+(<a href="/manual/privacy/de/#der-nutzungsbericht-freiwillig">Kapitel 24</a>).</p>
+<h3 id="blueprints-für-eigene-automationen">Blueprints für eigene Automationen</h3>
+<p>Drei Blueprints für Home Assistant tun dasselbe mit den eigenen Automationen von Home Assistant,
+aus PadSpans Bereichssensoren. Importiere einen und erstelle daraus eine Automation unter
+Einstellungen → Automationen &amp; Szenen → Blueprints.</p>
+<ul>
+<li><a href="https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgbroeckling%2FpadspanHA%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fpadspan_ha%2Froom_lights_follow_people.yaml">Room lights follow people</a>: die Lichter eines Raums an für
+die erste Person, die hereinkommt, aus, wenn eine Weile niemand Gewähltes darin war.</li>
+<li><a href="https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgbroeckling%2FpadspanHA%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fpadspan_ha%2Flights_on_in_whichever_room.yaml">Lights on in whichever room you walk into</a>: eine
+Automation für das ganze Haus, über den Bereich, der wie der Raum heißt.</li>
+<li><a href="https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fgbroeckling%2FpadspanHA%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fpadspan_ha%2Froom_lights_off_when_empty.yaml">Lights off when a room is empty</a>: aus, wenn eine Weile
+weder ein Handy noch ein Bewegungsmelder jemanden gesehen hat.</li>
+</ul>
+<p>Die Blueprints sind auf Englisch. Sie liegen im Repository unter
+<code>blueprints/automation/padspan_ha/</code>.</p>
 <h2 id="drei-automationen">Drei Automationen</h2>
 <p>Jede ist eine ganze Automation: Füg sie in einer neuen Automation unter <b>In YAML bearbeiten</b> ein.
 Die Namen sind Beispiele; nimm deine eigenen Entitäts-IDs.</p>
