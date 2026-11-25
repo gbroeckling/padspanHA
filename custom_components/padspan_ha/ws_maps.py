@@ -978,7 +978,10 @@ SCAN_WORDS: dict[str, str] = {
     "outdoor": "A room scan is of a floor of the house, not the outdoors.",
     "empty": "No walls were found in this scan, so there is nothing to draw.",
     "too_big": "This scan is larger than a floor of a house (200 m at most, 3,000 walls), so it wasn't drawn.",
+    "width": "Type the drawing's width as a length, for example 12.5 m.",
 }
+# A plan's name when none is given, by the kind of file it was drawn from (plan_file_import's "file").
+SCAN_NAMES: dict[str, str] = {"easy_floorplan": "Easy Floorplan plan", "dxf": "DXF plan", "floorplanner": "Floorplanner plan"}
 SCAN_MAX_M, SCAN_MAX_WALLS, SCAN_MAX_OBJECTS = 200.0, 3000, 2000
 SCAN_CORNER_M = 0.35          # a room outline's corner this near a wall end is that wall end
 
@@ -1020,12 +1023,21 @@ async def ws_maps_fit_suggest(hass: HomeAssistant, connection, msg) -> None:
         "floor_id": str,
         vol.Required("file_base64"): str,
         vol.Optional("name", default=""): vol.All(str, vol.Length(max=120)),
+        # A plan file from another app (plan_file_import.py): the drawing's width, typed, for one with no unit, and
+        # which of the file's floors to draw (an id from the `levels` a "pick_level" answer gave).
+        vol.Optional("across", default=""): vol.All(str, vol.Length(max=40)),
+        vol.Optional("level"): vol.All(str, vol.Length(max=120)),
     }
 )
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
-    """{ok, map, rooms, heights_m, warnings} or {ok: false, message}: nothing is written unless the scan reads."""
+    """{ok, map, rooms, heights_m, warnings, file, skipped, scale} or {ok: false, code, message[, levels]}: nothing is
+    written unless the file reads. A room scan, or a plan file from another app (plan_file_import.parse_plan_file:
+    Easy Floorplan, DXF, Floorplanner), down the same path."""
+    from . import plan_ai_write as C  # noqa: PLC0415
+    from . import plan_file_import as PF  # noqa: PLC0415
+    from . import plan_geom as G  # noqa: PLC0415
     from . import roomplan_import as RP  # noqa: PLC0415
     from .maps_store import scan_plan_png  # noqa: PLC0415
     from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
@@ -1043,11 +1055,21 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
         return no("outdoor", SCAN_WORDS["outdoor"])
     if len(msg["file_base64"]) > SCAN_MAX_B64:
         return no("too_large", SCAN_WORDS["too_large"])
+    across = None
+    if str(msg.get("across") or "").strip():
+        across = G.parse_length(msg["across"], feet=C.feet_on(hass))
+        if across is None or not 0 < across <= SCAN_MAX_M:
+            return no("need_size", SCAN_WORDS["width"])
+    names: dict[str, str] = {}
+    try:  # an Easy Floorplan room linked to a Home Assistant area is named as that area
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+        names = {a.id: a.name for a in ar.async_get(hass).async_list_areas()}
+    except Exception:  # noqa: BLE001 — no names: the file's own are used
+        names = {}
 
     def read() -> tuple[dict, dict | None, tuple | None]:
         raw = base64.b64decode(msg["file_base64"])
-        parsed = RP.parse_roomplan(raw)
-        parsed["file"] = "usdz" if raw[:2] == b"PK" else "json"
+        parsed = PF.parse_plan_file(raw, across_m=across, level=msg.get("level"), floor_id=floor_id, area_names=names)
         frame = RP.plan_frame(parsed) if parsed.get("walls") else None
         if frame and (not (0 < frame["across_m"] <= SCAN_MAX_M and 0 < frame["down_m"] <= SCAN_MAX_M) or len(frame["walls"]) > SCAN_MAX_WALLS):
             raise _TooBig()
@@ -1057,6 +1079,11 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
 
     try:
         parsed, frame, pic = await hass.async_add_executor_job(read)
+    except PF.PlanFileError as err:
+        connection.send_result(msg["id"], {"ok": False, "code": err.code, "message": str(err),
+                                           **({"why": err.why} if err.why else {}),
+                                           **({"levels": [{"id": lv["id"], "name": lv["name"]} for lv in err.levels][:40]} if err.levels else {})})
+        return
     except RP.RoomPlanParseError as err:
         return no(err.code, str(err))
     except _TooBig:
@@ -1068,7 +1095,7 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     if not frame or not pic:
         return no("empty", SCAN_WORDS["empty"])
     png, w, h = pic
-    info = await ms.async_add_map(msg["name"].strip() or "Room scan", "room-scan.png", "image/png", w, h,
+    info = await ms.async_add_map(msg["name"].strip() or SCAN_NAMES.get(parsed["file"], "Room scan"), "room-scan.png", "image/png", w, h,
                                   base64.b64encode(png).decode("ascii"), floor_id, kind="scan")
     across, down = frame["across_m"], frame["down_m"]
     # The walls are what the phone measured; a scan's floor outline can run a little outside them (a sample's ran
@@ -1084,7 +1111,9 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     info["scan"] = {"rooms": [{"name": r.get("name"), "points": [frac(_on_wall(p)) for p in r["points_m"]]} for r in frame["rooms"]][:60],
                     "corners": [frac(e) for e in ends],
                     "heights_m": (parsed.get("heights_m") or [])[:40],
-                    "furniture": scan_furniture(frame)}
+                    "furniture": scan_furniture(frame),
+                    # Which kind of file it came from, and what of it was left out (said on the plan, rough_plan.js).
+                    "source": parsed["file"], "skipped": (parsed.get("skipped") or [])[:20]}
     await ms.store.async_save(ms.data)
     ref = {"p1": [0.0, 0.5], "p2": [1.0, 0.5], "distance_m": round(across, 4), "px_per_meter": round(w / across * 100) / 100,
            "angle_deg": 0, "date": _time.strftime("%Y-%m-%d", _time.gmtime()), "source": "scan"}
@@ -1119,4 +1148,5 @@ async def ws_maps_scan_create(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"ok": True, "map": info, "rooms": len(frame["rooms"]), "walls": len(frame["walls"]),
                                        **({"placed": placed} if placed is not None else {}),
                                        "heights_m": info["scan"]["heights_m"], "warnings": parsed.get("warnings") or [],
-                                       "file": parsed["file"], "named": any(r.get("name") for r in frame["rooms"])})
+                                       "file": parsed["file"], "named": any(r.get("name") for r in frame["rooms"]),
+                                       "skipped": info["scan"]["skipped"], "scale": parsed.get("scale") or "file"})

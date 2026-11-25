@@ -232,5 +232,71 @@
 "Rough start: a blank floor made from your Home Assistant rooms. Upload a real plan of this floor whenever you have one.": "Ruwe start: een lege verdieping uit je Home Assistant-kamers. Upload een echte plattegrond van deze verdieping zodra je er een hebt.",
 "To redraw a box here: choose its room and click its corners over the dashed box. \"Put it on the map\" (the Setup Wizard's last step, or the Rooms page) then puts your outline in its place.": "Een vak hier opnieuw tekenen: kies zijn kamer en klik zijn hoeken over het gestippelde vak. „Put it on the map” (de laatste stap van de installatiewizard, of de pagina Kamers) zet daarna je omtrek op zijn plaats.",
 "Reshape the rooms": "Kamers aanpassen",
-"Upload a plan of this floor": "Een plattegrond van deze verdieping uploaden"
+"Upload a plan of this floor": "Een plattegrond van deze verdieping uploaden",
+"Import a plan from another app": "Een plattegrond uit een andere app importeren",
+"Easy Floorplan, a DXF drawing or Floorplanner: drawn to scale, its rooms ready to link.": "Easy Floorplan, een DXF-tekening of Floorplanner: op schaal getekend, de kamers klaar om te koppelen.",
+"Easy Floorplan (the Home Assistant card): edit the card, open its code editor, copy all of it into a text file and save it ending in .yaml.": "Easy Floorplan (de Home Assistant-kaart): bewerk de kaart, open de code-editor, kopieer alles naar een tekstbestand en sla het op met de extensie .yaml.",
+"A drawing from a CAD program: save or export the floor as DXF (as text, not binary; not DWG). Each closed polyline becomes a room's outline, named by the text inside it.": "Een tekening uit een CAD-programma: sla de verdieping op of exporteer ze als DXF (als tekst, niet binair; geen DWG). Elke gesloten polylijn wordt de omtrek van een kamer, genoemd naar de tekst erin.",
+"Floorplanner: export the project (Quick Export, where your project offers it) and pick the .fml file from the zip, or the zip itself.": "Floorplanner: exporteer het project (Quick Export, waar je project dat aanbiedt) en kies het .fml-bestand uit de zip, of de zip zelf.",
+"Choose the floor it is and pick the file. Then choose each Home Assistant room and take its outline from the file: your rooms stay your Home Assistant areas.": "Kies de verdieping en het bestand. Kies daarna elke Home Assistant-kamer en neem de omtrek uit het bestand over: je kamers blijven je Home Assistant-ruimtes.",
+"{n} devices with their entities (PadSpan places its own receivers)": {
+"one": "1 apparaat met zijn entiteit (PadSpan plaatst zijn eigen ontvangers)",
+"other": "{n} apparaten met hun entiteiten (PadSpan plaatst zijn eigen ontvangers)"
+},
+"{n} pieces of furniture": {
+"one": "1 meubelstuk",
+"other": "{n} meubelstukken"
+},
+"{n} texts, labels and dimensions": {
+"one": "1 tekst, label of maat",
+"other": "{n} teksten, labels en maten"
+},
+"{n} closed shapes too small to be rooms": {
+"one": "1 gesloten vorm, te klein voor een kamer",
+"other": "{n} gesloten vormen, te klein voor kamers"
+},
+"{n} long thin shapes, drawn as walls instead of rooms": {
+"one": "1 lange, smalle vorm, als muur getekend in plaats van als kamer",
+"other": "{n} lange, smalle vormen, als muren getekend in plaats van als kamers"
+},
+"{n} curved lines, drawn straight": {
+"one": "1 gebogen lijn, recht getekend",
+"other": "{n} gebogen lijnen, recht getekend"
+},
+"{n} other designs of this floor": {
+"one": "1 ander ontwerp van deze verdieping",
+"other": "{n} andere ontwerpen van deze verdieping"
+},
+"{n} rooms past the 60 a plan keeps": {
+"one": "1 kamer boven de 60 die een plattegrond bewaart",
+"other": "{n} kamers boven de 60 die een plattegrond bewaart"
+},
+"{n} items that couldn't be read": {
+"one": "1 onderdeel dat niet gelezen kon worden",
+"other": "{n} onderdelen die niet gelezen konden worden"
+},
+"{n} other items PadSpan doesn't use": {
+"one": "1 ander onderdeel dat PadSpan niet gebruikt",
+"other": "{n} andere onderdelen die PadSpan niet gebruikt"
+},
+"Left out of the file: {list}.": "Uit het bestand weggelaten: {list}.",
+"This is a binary DXF. Save it again as an ASCII (text) DXF and pick that.": "Dit is een binaire DXF. Sla hem opnieuw op als ASCII-DXF (tekst) en kies die.",
+"This is a DWG drawing. Save or export it as DXF and pick that.": "Dit is een DWG-tekening. Sla hem op of exporteer hem als DXF en kies die.",
+"This is Floorplanner's older XML form of FML, which PadSpan doesn't read. Export the project again for the newer JSON form.": "Dit is de oudere XML-vorm van Floorplanners FML, die PadSpan niet leest. Exporteer het project opnieuw voor de nieuwere JSON-vorm.",
+"This is a Sweet Home 3D file. Import it in Mapping → Layout with 📐 Import floorplan.": "Dit is een Sweet Home 3D-bestand. Importeer het in Kaarten → Indeling met “📐 Import floorplan”.",
+"No Easy Floorplan card was found in this file. In the dashboard, edit the card, open its code editor and copy all of it into the file.": "Er is geen Easy Floorplan-kaart in dit bestand gevonden. Bewerk de kaart in het dashboard, open de code-editor en kopieer alles naar het bestand.",
+"This file has no unit. Type the drawing's width above (outside wall to outside wall) and pick the file again.": "Dit bestand heeft geen eenheid. Typ hierboven de breedte van de tekening (buitenmuur tot buitenmuur) en kies het bestand opnieuw.",
+"This file is too large (2.8 MB at most). Save only the floor plan, without other drawings or pictures, and try again.": "Dit bestand is te groot (hoogstens 2,8 MB). Sla alleen de plattegrond op, zonder andere tekeningen of afbeeldingen, en probeer het opnieuw.",
+"This drawing is larger than a floor of a house (200 m at most), so it wasn't drawn. Check its unit, or type its width above.": "Deze tekening is groter dan een verdieping van een huis (hoogstens 200 m), dus ze is niet getekend. Controleer de eenheid of typ hierboven de breedte.",
+"Nothing to draw: no walls or rooms were found in this file.": "Niets te tekenen: er zijn geen muren of kamers in dit bestand gevonden.",
+"This file couldn't be read as a plan. PadSpan reads Easy Floorplan YAML, DXF saved as text, and Floorplanner FML.": "Dit bestand kon niet als plattegrond gelezen worden. PadSpan leest Easy Floorplan-YAML, DXF opgeslagen als tekst en Floorplanner-FML.",
+"Plan read: {n} room outlines, drawn to scale.": {
+"one": "Plattegrond gelezen: 1 kameromtrek, op schaal getekend.",
+"other": "Plattegrond gelezen: {n} kameromtrekken, op schaal getekend."
+},
+"The file has no unit, so its scale was taken from its doors: measure one length to make it exact.": "Het bestand heeft geen eenheid, dus de schaal is van de deuren afgeleid: meet één lengte om hem exact te maken.",
+"Only for a file with no unit (Easy Floorplan, some DXF): the drawing's width, outside wall to outside wall. Leave it empty otherwise.": "Alleen voor een bestand zonder eenheid (Easy Floorplan, sommige DXF): de breedte van de tekening, buitenmuur tot buitenmuur. Laat het anders leeg.",
+"Reading the file…": "Bestand lezen…",
+"The plan file (.yaml, .dxf, .fml or .zip):": "Het plattegrondbestand (.yaml, .dxf, .fml of .zip):",
+"This file has several floors. Which one is the floor chosen above?": "Dit bestand heeft meerdere verdiepingen. Welke is de verdieping die hierboven gekozen is?"
 }

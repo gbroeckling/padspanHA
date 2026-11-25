@@ -1115,7 +1115,13 @@ function word(kind, k) {
         scan_walls_13_30: "a scan of 13 to 30 walls (a floor)", scan_walls_gt30: "a scan of over 30 walls", scan_named: "a scan whose rooms the phone had named",
         scan_phone: "a scan given from a phone or tablet", scan_snap: "a room corner landed on a scanned wall end",
         scan_room_used: "a scanned outline taken as a room's outline", scan_placed: "a scan placed on the drawn room it fits", scan_placed_both: "a scan placed, its outline fitting both ways round",
-        scan_unplaced: "a scan that couldn't be matched to the floor's rooms", scan_size_differs: "a drawn room over a tenth off the scan's measured size" }[b] || b}`;
+        scan_unplaced: "a scan that couldn't be matched to the floor's rooms", scan_size_differs: "a drawn room over a tenth off the scan's measured size",
+        file: "\"import a plan from another app\" opened", file_made: "a plan drawn from another app's file", file_easy_floorplan: "a plan read from Easy Floorplan YAML",
+        file_dxf: "a plan read from a DXF", file_floorplanner: "a plan read from Floorplanner FML", file_doors_scale: "a file's scale taken from its doors (no unit, no width typed)",
+        file_skipped: "a file with something left out", file_levels: "a file with several floors: which one asked", file_refused: "a plan file refused",
+        file_refused_size: "a plan file refused: too large", file_refused_need_size: "a plan file refused: no unit and no width typed",
+        file_refused_unreadable: "a plan file refused: not a plan file it reads", file_refused_empty: "a plan file refused: nothing to draw",
+        file_room_named: "a room given the outline the file names after it" }[b] || b}`;
       if (a === "wizard_draw") return `Drawing rooms: ${{ name: "a room's name pressed above the plan (Setup Wizard)", no_room: "the plan clicked with no room chosen",
         kept: "rooms or receivers saved by the Setup Wizard without Save Layout" }[b] || b}`;
       if (a === "plan_upload") return `Mapping → Upload: ${{ sketch: "uploaded as their own sketch, not to scale", picked: "a picture picked", no_file: "Upload pressed with no picture", ok: "uploaded", bad_picture: "the picture couldn't be read", pdf: "a PDF read and drawn as a picture", bad_pdf: "a PDF that couldn't be read",

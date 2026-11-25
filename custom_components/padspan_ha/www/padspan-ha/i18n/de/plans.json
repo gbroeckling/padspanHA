@@ -232,5 +232,71 @@
 "Rough start: a blank floor made from your Home Assistant rooms. Upload a real plan of this floor whenever you have one.": "Grober Anfang: ein leeres Stockwerk aus deinen Home-Assistant-Räumen. Lade einen echten Plan dieses Stockwerks hoch, sobald du einen hast.",
 "To redraw a box here: choose its room and click its corners over the dashed box. \"Put it on the map\" (the Setup Wizard's last step, or the Rooms page) then puts your outline in its place.": "Einen Kasten hier neu zeichnen: Wähle seinen Raum und klicke seine Ecken über dem gestrichelten Kasten. „Put it on the map“ (der letzte Schritt des Einrichtungsassistenten oder die Räume-Seite) setzt dann deinen Umriss an seine Stelle.",
 "Reshape the rooms": "Räume umformen",
-"Upload a plan of this floor": "Einen Plan dieses Stockwerks hochladen"
+"Upload a plan of this floor": "Einen Plan dieses Stockwerks hochladen",
+"Import a plan from another app": "Einen Plan aus einer anderen App importieren",
+"Easy Floorplan, a DXF drawing or Floorplanner: drawn to scale, its rooms ready to link.": "Easy Floorplan, eine DXF-Zeichnung oder Floorplanner: maßstabsgetreu gezeichnet, die Räume bereit zum Verknüpfen.",
+"Easy Floorplan (the Home Assistant card): edit the card, open its code editor, copy all of it into a text file and save it ending in .yaml.": "Easy Floorplan (die Home-Assistant-Karte): bearbeite die Karte, öffne ihren Code-Editor, kopiere alles in eine Textdatei und speichere sie mit der Endung .yaml.",
+"A drawing from a CAD program: save or export the floor as DXF (as text, not binary; not DWG). Each closed polyline becomes a room's outline, named by the text inside it.": "Eine Zeichnung aus einem CAD-Programm: speichere oder exportiere die Etage als DXF (als Text, nicht binär; nicht DWG). Jede geschlossene Polylinie wird zum Umriss eines Raums, benannt nach dem Text darin.",
+"Floorplanner: export the project (Quick Export, where your project offers it) and pick the .fml file from the zip, or the zip itself.": "Floorplanner: exportiere das Projekt (Quick Export, wo dein Projekt es anbietet) und wähle die .fml-Datei aus dem ZIP oder das ZIP selbst.",
+"Choose the floor it is and pick the file. Then choose each Home Assistant room and take its outline from the file: your rooms stay your Home Assistant areas.": "Wähle die Etage und die Datei. Wähle dann jeden Home-Assistant-Raum und übernimm seinen Umriss aus der Datei: deine Räume bleiben deine Home-Assistant-Bereiche.",
+"{n} devices with their entities (PadSpan places its own receivers)": {
+"one": "1 Gerät mit seiner Entität (PadSpan platziert seine eigenen Empfänger)",
+"other": "{n} Geräte mit ihren Entitäten (PadSpan platziert seine eigenen Empfänger)"
+},
+"{n} pieces of furniture": {
+"one": "1 Möbelstück",
+"other": "{n} Möbelstücke"
+},
+"{n} texts, labels and dimensions": {
+"one": "1 Text, Beschriftung oder Bemaßung",
+"other": "{n} Texte, Beschriftungen und Bemaßungen"
+},
+"{n} closed shapes too small to be rooms": {
+"one": "1 geschlossene Form, zu klein für einen Raum",
+"other": "{n} geschlossene Formen, zu klein für Räume"
+},
+"{n} long thin shapes, drawn as walls instead of rooms": {
+"one": "1 lange, schmale Form, als Wand statt als Raum gezeichnet",
+"other": "{n} lange, schmale Formen, als Wände statt als Räume gezeichnet"
+},
+"{n} curved lines, drawn straight": {
+"one": "1 gebogene Linie, gerade gezeichnet",
+"other": "{n} gebogene Linien, gerade gezeichnet"
+},
+"{n} other designs of this floor": {
+"one": "1 weiterer Entwurf dieser Etage",
+"other": "{n} weitere Entwürfe dieser Etage"
+},
+"{n} rooms past the 60 a plan keeps": {
+"one": "1 Raum über die 60 hinaus, die ein Plan behält",
+"other": "{n} Räume über die 60 hinaus, die ein Plan behält"
+},
+"{n} items that couldn't be read": {
+"one": "1 Element, das nicht gelesen werden konnte",
+"other": "{n} Elemente, die nicht gelesen werden konnten"
+},
+"{n} other items PadSpan doesn't use": {
+"one": "1 weiteres Element, das PadSpan nicht nutzt",
+"other": "{n} weitere Elemente, die PadSpan nicht nutzt"
+},
+"Left out of the file: {list}.": "Aus der Datei weggelassen: {list}.",
+"This is a binary DXF. Save it again as an ASCII (text) DXF and pick that.": "Das ist eine binäre DXF. Speichere sie noch einmal als ASCII-DXF (Text) und wähle diese.",
+"This is a DWG drawing. Save or export it as DXF and pick that.": "Das ist eine DWG-Zeichnung. Speichere oder exportiere sie als DXF und wähle diese.",
+"This is Floorplanner's older XML form of FML, which PadSpan doesn't read. Export the project again for the newer JSON form.": "Das ist die ältere XML-Form von Floorplanners FML, die PadSpan nicht liest. Exportiere das Projekt noch einmal für die neuere JSON-Form.",
+"This is a Sweet Home 3D file. Import it in Mapping → Layout with 📐 Import floorplan.": "Das ist eine Sweet-Home-3D-Datei. Importiere sie unter Karten → Aufteilung mit „📐 Import floorplan“.",
+"No Easy Floorplan card was found in this file. In the dashboard, edit the card, open its code editor and copy all of it into the file.": "In dieser Datei wurde keine Easy-Floorplan-Karte gefunden. Bearbeite die Karte im Dashboard, öffne ihren Code-Editor und kopiere alles in die Datei.",
+"This file has no unit. Type the drawing's width above (outside wall to outside wall) and pick the file again.": "Diese Datei hat keine Einheit. Gib oben die Breite der Zeichnung ein (Außenwand bis Außenwand) und wähle die Datei noch einmal.",
+"This file is too large (2.8 MB at most). Save only the floor plan, without other drawings or pictures, and try again.": "Diese Datei ist zu groß (höchstens 2,8 MB). Speichere nur den Grundriss, ohne andere Zeichnungen oder Bilder, und versuch es noch einmal.",
+"This drawing is larger than a floor of a house (200 m at most), so it wasn't drawn. Check its unit, or type its width above.": "Diese Zeichnung ist größer als eine Etage eines Hauses (höchstens 200 m), deshalb wurde sie nicht gezeichnet. Prüf ihre Einheit oder gib oben ihre Breite ein.",
+"Nothing to draw: no walls or rooms were found in this file.": "Nichts zu zeichnen: In dieser Datei wurden keine Wände oder Räume gefunden.",
+"This file couldn't be read as a plan. PadSpan reads Easy Floorplan YAML, DXF saved as text, and Floorplanner FML.": "Diese Datei konnte nicht als Plan gelesen werden. PadSpan liest Easy-Floorplan-YAML, als Text gespeicherte DXF und Floorplanner-FML.",
+"Plan read: {n} room outlines, drawn to scale.": {
+"one": "Plan gelesen: 1 Raumumriss, maßstabsgetreu gezeichnet.",
+"other": "Plan gelesen: {n} Raumumrisse, maßstabsgetreu gezeichnet."
+},
+"The file has no unit, so its scale was taken from its doors: measure one length to make it exact.": "Die Datei hat keine Einheit, deshalb wurde ihr Maßstab aus ihren Türen genommen: miss eine Länge, um ihn genau zu machen.",
+"Only for a file with no unit (Easy Floorplan, some DXF): the drawing's width, outside wall to outside wall. Leave it empty otherwise.": "Nur für eine Datei ohne Einheit (Easy Floorplan, manche DXF): die Breite der Zeichnung, Außenwand bis Außenwand. Sonst leer lassen.",
+"Reading the file…": "Datei wird gelesen…",
+"The plan file (.yaml, .dxf, .fml or .zip):": "Die Plandatei (.yaml, .dxf, .fml oder .zip):",
+"This file has several floors. Which one is the floor chosen above?": "Diese Datei hat mehrere Etagen. Welche ist die oben gewählte Etage?"
 }

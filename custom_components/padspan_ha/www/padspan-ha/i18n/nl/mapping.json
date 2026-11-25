@@ -478,5 +478,6 @@
 "Except {n} rough boxes from your Home Assistant rooms: the rooms traced here take their place.": {
 "one": "Behalve 1 ruw vak uit je Home Assistant-kamers: de hier getekende kamer komt in zijn plaats.",
 "other": "Behalve {n} ruwe vakken uit je Home Assistant-kamers: de hier getekende kamers komen in hun plaats."
-}
+},
+"Use the outline the file gives {room}": "De omtrek gebruiken die het bestand {room} geeft"
 }

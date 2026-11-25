@@ -139,11 +139,11 @@
 "Place receivers and set their heights": "Ontvangers plaatsen en hun hoogte instellen",
 "Track your phone or watch": "Je telefoon of horloge volgen",
 "Calibrate": "Kalibreren",
-"A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor.": "Een foto of scan van elke verdieping. Hij hoeft niet perfect te zijn. Geen plattegrond? Het volgende scherm heeft andere manieren: een kamerscan met een telefoon, je eigen schets of een lege verdieping.",
 "Measure one distance you know, a doorway or a wall, so the map is to scale.": "Meet één afstand die je kent, een deuropening of een muur, zodat de kaart op schaal is.",
 "How tall each floor is, so PadSpan can tell the floors apart.": "Hoe hoog elke verdieping is, zodat PadSpan de verdiepingen uit elkaar kan houden.",
 "Trace each Home Assistant room onto its floor plan.": "Teken elke Home Assistant-kamer over op zijn plattegrond.",
 "Put each Bluetooth receiver where it is mounted, and say how high.": "Zet elke Bluetooth-ontvanger waar hij hangt, en geef aan hoe hoog.",
 "Let PadSpan know the phone or watch you carry, so it can follow you and calibrate with it.": "Laat PadSpan weten welke telefoon of welk horloge je bij je draagt, zodat het je kan volgen en ermee kan kalibreren.",
-"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Loop met je telefoon door het huis, zodat PadSpan leert hoe elke plek klinkt."
+"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Loop met je telefoon door het huis, zodat PadSpan leert hoe elke plek klinkt.",
+"A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a plan file from another app, a phone's room scan, your own sketch or a blank floor.": "Een foto of scan van elke verdieping. Hij hoeft niet perfect te zijn. Geen plattegrond? Het volgende scherm heeft andere manieren: een plattegrondbestand uit een andere app, een kamerscan met een telefoon, je eigen schets of een lege verdieping."
 }

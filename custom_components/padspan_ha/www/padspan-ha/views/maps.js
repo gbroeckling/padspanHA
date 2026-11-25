@@ -3840,7 +3840,25 @@ function _edit(ctx, map, allMaps, opts){
             ctx.state.maps._scanPick = !picking; renderTools();
           }}, picking ? t("Cancel") : t("Use a scanned outline instead")) : null,
         ]));
+        // A plan from another app's file (rough_plan.js "file"): the outline the file names after the room chosen (an
+        // Easy Floorplan room linked to that Home Assistant area, or a room named as it), taken in one press.
+        const room = ctx.state.maps._selectedRoom;
+        const named = room && !ctx.state.maps._drawing && ROUGH.scanRoomNamed ? ROUGH.scanRoomNamed(map, room) : null;
+        if(named){
+          right.appendChild(el("div",{"data-scan-rooms":"named", style:"margin-top:6px"},[
+            el("button",{class:"btn inline", "data-scan-rooms":"use-named", style:"font-size:11px;padding:2px 10px", onclick:()=>{
+              ctx.state.maps._scanPick = false;
+              ctx.state.maps._draftRoomBounds[room] = { type:"poly", points: named.map(p=>[clamp01(p[0]), clamp01(p[1])]) };
+              ROUGH.fileRoomNamed(ctx);
+              renderAll(); refreshList(); renderTools();
+              _wizKeep(ctx);
+            }}, t("Use the outline the file gives {room}", { room })),
+          ]));
+        }
       }
+      // What the plan's file had that was left out, said where the rooms are drawn (rough_plan.js skippedLine).
+      { const left = ROUGH && ROUGH.skippedLine ? ROUGH.skippedLine(map) : "";
+        if(left) right.appendChild(el("div",{"data-scan-rooms":"skipped", style:"margin-top:6px;font-size:12px;color:#94a3b8"}, left)); }
 
       const r = ctx.state.maps._selectedRoom;
       if(r){

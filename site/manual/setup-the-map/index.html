@@ -311,29 +311,48 @@ its Home Assistant area. A box you have reshaped in Layout is yours: nothing rep
 floor has its real plan, you can delete the rough plan in the Library. Its rooms stay on the map, and so
 do the calibration points taken on it.</p>
 <h2 id="no-floor-plan">No floor plan?</h2>
-<p>On the upload step, <b>No floor plan? Ways to get one</b> lists five ways, best first. The further down
+<p>On the upload step, <b>No floor plan? Ways to get one</b> lists six ways, best first. The further down
 the list, the rougher the plan.</p>
 <ol>
-<li><b>Look for a drawing you already have.</b> The builder's or architect's drawings, the listing, the
+<li><p><b>Look for a drawing you already have.</b> The builder's or architect's drawings, the listing, the
 council file, an insurance report, the fire-escape plan on a wall. A PDF goes up as it is; for
-paper, a photo held straight over the page is enough.</li>
-<li><b>Scan the floor with an iPhone or iPad.</b> It needs a Pro model with LiDAR (iPhone 12 Pro or a
+paper, a photo held straight over the page is enough.</p></li>
+<li><p><b>Import a plan from another app.</b> A house already drawn elsewhere comes in drawn to scale:</p>
+<ul>
+<li><b>Easy Floorplan</b> (the Home Assistant card): edit the card, open its code editor, copy all of it
+into a text file ending in <code>.yaml</code>. Its walls, doors, windows and rooms come in; a room linked to a
+Home Assistant area is named after it. The card has no unit, so type the drawing's width (outside
+wall to outside wall) in the field above the file; left empty, the scale is taken from its doors
+(each taken as 85 cm), and you measure one length to make it exact.</li>
+<li><b>DXF</b> from a CAD program, saved as text (not binary, not DWG). Each closed polyline becomes a
+room, named by the text inside it; lines and open polylines are walls. The unit comes from the
+drawing's own setting (<code>$INSUNITS</code>); a drawing without one needs its width typed.</li>
+<li><b>Floorplanner</b>: export the project (Quick Export, where your project offers it) and pick the
+<code>.fml</code> file from the zip, or the zip itself. Its walls, doors, windows and rooms come in.</li>
+</ul>
+<p>Choose the floor and pick the file (2.8 MB at most). A file with several floors asks which one this
+is; an Easy Floorplan floor linked to the Home Assistant floor you chose is picked by itself. What
+PadSpan doesn't use (devices and their entities, furniture, texts, curves drawn straight) is listed,
+in the message and beside the rooms on the plan. The file's rooms are outlines, not new rooms: choose
+each Home Assistant room in the list and press <b>Use the outline the file gives</b> it (or <b>Use a
+scanned outline instead</b> and click inside one), so your rooms stay your Home Assistant areas.</p></li>
+<li><p><b>Scan the floor with an iPhone or iPad.</b> It needs a Pro model with LiDAR (iPhone 12 Pro or a
 newer Pro, iPad Pro 2020 or newer). Any room-scanning app that uses Apple's RoomPlan can share the
 scan as a USDZ file (some also offer RoomPlan JSON). Scan the whole floor in one go, doors open and
 lights on. Choose its floor, pick the file, and PadSpan draws the plan to scale, with nothing to
 measure. You still say where each room is. <b>Guide me step by step</b> shows the same steps one
-screen at a time, made for the phone, and gives you an address to send to whoever does the scan.</li>
-<li><b>Use your robot vacuum's map.</b> A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
+screen at a time, made for the phone, and gives you an address to send to whoever does the scan.</p></li>
+<li><p><b>Use your robot vacuum's map.</b> A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
 Turn on <b>Settings → Features → Experimental Features → Robot Vacuum Import</b>, then use
 <b>Mapping → Layout → 🤖 Import from a robot vacuum</b>, and <b>Add as a new map</b>. It becomes a floor plan with
-its rooms; rooms you already have are kept.</li>
-<li><b>Draw it yourself and photograph it.</b> On plain paper, the outside walls first, then the walls
+its rooms; rooms you already have are kept.</p></li>
+<li><p><b>Draw it yourself and photograph it.</b> On plain paper, the outside walls first, then the walls
 between rooms, with a gap for each door. Write the length of one long wall across and one down.
 Photograph it from straight above. <b>I have my sketch: upload it</b> ticks "my own sketch" on the
-form for you, and the scale step takes a length each way.</li>
-<li><b>Start from a blank floor.</b> Type the floor's width and depth (rough is fine), choose its floor
+form for you, and the scale step takes a length each way.</p></li>
+<li><p><b>Start from a blank floor.</b> Type the floor's width and depth (rough is fine), choose its floor
 and <b>Make the blank floor</b>. PadSpan makes an empty floor of that size with a line every metre;
-draw each room on it by its corners, counting the lines.</li>
+draw each room on it by its corners, counting the lines.</p></li>
 </ol>
 <p>Two more ways, in Advanced, on <b>Mapping → Layout</b>:</p>
 <ul>
