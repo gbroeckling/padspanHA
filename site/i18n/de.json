@@ -75,8 +75,8 @@
    "de": "<b>Der Atlas</b>Jedes Licht, jeder Sensor und jede Tür auf deinem echten Grundriss, als eigene Seite in der Seitenleiste von Home Assistant. Tipp auf ein Licht, um es zu schalten"
   },
   {
-   "en": "<b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental",
-   "de": "<b>Live Aboard</b>Das ganze Haus in 3D, so beleuchtet, wie es gerade wirklich ist. PadSpan Pro, experimentell"
+   "en": "<b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. <span data-until-basics>PadSpan Pro, experimental</span><span data-from-basics style=\"display:none\">Free, no key. Furniture, people and the 3D editor with PadSpan Pro</span>",
+   "de": "<b>Live Aboard</b>Das ganze Haus in 3D, so beleuchtet, wie es gerade wirklich ist. <span data-until-basics>PadSpan Pro, experimentell</span><span data-from-basics style=\"display:none\">Kostenlos, ohne Schlüssel. Möbel, Personen und der 3D-Editor mit PadSpan Pro</span>"
   },
   {
    "en": "<b>3D Multi-Floor Tracking</b>Live isometric view with tracked devices across 3 floors",
@@ -423,6 +423,18 @@
    "de": "Klick auf ein Licht, um es zu schalten"
   },
   {
+   "en": "<b>Place each light and device exactly</b> where it is, in metres: lights, fans, motion and temperature sensors, locks",
+   "de": "<b>Jedes Licht und Gerät genau platzieren</b>, wo es ist, in Metern: Lichter, Ventilatoren, Bewegungs- und Temperatursensoren, Schlösser"
+  },
+  {
+   "en": "<b>Wall mode</b>: the Atlas on a wall screen, sized for the room",
+   "de": "<b>Wandmodus</b>: der Atlas auf einem Wanddisplay, passend für den Raum"
+  },
+  {
+   "en": "<b>Live Aboard</b>: the house in 3D, built from the map you already drew. Turn, pan and zoom around your floors, rooms, walls and lights",
+   "de": "<b>Live Aboard</b>: das Haus in 3D, gebaut aus der Karte, die du schon gezeichnet hast. Drehe, verschiebe und zoome durch deine Etagen, Räume, Wände und Lichter"
+  },
+  {
    "en": "Never hidden: the Atlas is there whether or not you hold a key",
    "de": "Nie versteckt: Der Atlas ist da, ob du einen Schlüssel hast oder nicht"
   },
@@ -475,6 +487,10 @@
    "de": "<b>Live Aboard</b>: das ganze Haus in 3D, mit aufgeschnittenen Wänden zum Hineinsehen, Türen und Fenstern, Lichtern und LED-Streifen, Möbeln, Menschen und dem Wetter draußen (experimentell, aus, bis du es einschaltest)"
   },
   {
+   "en": "<b>Live Aboard</b>'s 3D editor, <b>Furnish</b> for furniture and devices, people figures, and the director that turns the view to a doorbell, door or alarm",
+   "de": "Der 3D-Editor von <b>Live Aboard</b>, <b>Furnish</b> für Möbel und Geräte, Personenfiguren und der Regisseur, der die Ansicht zu einer Türklingel, einer Tür oder einem Alarm dreht"
+  },
+  {
    "en": "A step-by-step guide builds the 3D house from the map you already have",
    "de": "Eine Schritt-für-Schritt-Anleitung baut das 3D-Haus aus der Karte, die du schon hast"
   },
@@ -485,6 +501,10 @@
   {
    "en": "The Atlas as your Overview, the first thing PadSpan opens",
    "de": "Der Atlas als deine Übersicht, das Erste, was PadSpan öffnet"
+  },
+  {
+   "en": "On a wall screen: night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake",
+   "de": "Auf einem Wanddisplay: Dimmen in der Nacht, Schutz vor Einbrennen, Etagen im Wechsel und Aufwecken per Bewegung mit Fully Kiosk"
   },
   {
    "en": "Editions",
@@ -531,6 +551,10 @@
    "de": "Lichter platzieren"
   },
   {
+   "en": "Exact light and device placement, the wall screen and the 3D house",
+   "de": "Lichter und Geräte genau platzieren, das Wanddisplay und das 3D-Haus"
+  },
+  {
    "en": "Forensics",
    "de": "Forensics"
   },
@@ -559,8 +583,16 @@
    "de": "<b>Lichter platzieren</b>, Formen, WLED, Showcase"
   },
   {
+   "en": "<b>Fixture shapes</b>, WLED, Showcase",
+   "de": "<b>Leuchtenformen</b>, WLED, Showcase"
+  },
+  {
    "en": "<b>Live Aboard</b>, the house in 3D",
    "de": "<b>Live Aboard</b>, das Haus in 3D"
+  },
+  {
+   "en": "<b>Live Aboard</b>'s editor, furniture and people",
+   "de": "Editor, Möbel und Personen von <b>Live Aboard</b>"
   },
   {
    "en": "Day and four more themes",
@@ -659,6 +691,30 @@
    "de": "Busy Times und Locate"
   },
   {
+   "en": "Advanced map creation <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$8.65 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$4.32 CAD</span>",
+   "de": "Erweiterte Kartenerstellung <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
+  },
+  {
+   "en": "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan",
+   "de": "Pläne lesen mit KI, Türen, Fenster, Möbel und Treppen aus einem LiDAR-Scan im 3D-Haus und Grundrisse aus einem LiDAR-Scan"
+  },
+  {
+   "en": "30% off ($6.05 CAD) if you already own Robot vacuum: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.",
+   "de": "30 % Rabatt (6,05 CAD · ca. 4,00 €), wenn du das Add-on Saugroboter schon hast: Kauf es über die Lizenzkarte in PadSpan (Einstellungen → Funktionen → PadSpan-Lizenz), mit der E-Mail, an die dein Schlüssel ging. Es gilt der bessere Preis: dieser Rabatt oder ein Sonderangebot, nie beides."
+  },
+  {
+   "en": "Robot vacuum <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$3.22 CAD</span>",
+   "de": "Saugroboter <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">3,22 CAD · ca. 2,15 €</span>"
+  },
+  {
+   "en": "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans",
+   "de": "Die Karte deines Saugroboters als Grundriss, der Roboter auf der Atlas-Karte und in 3D, Ortungsfahrten durch die Räume, die Fehlersuche und WLAN-Messung beim Saugen"
+  },
+  {
+   "en": "30% off ($4.51 CAD) if you already own Advanced map creation: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.",
+   "de": "30 % Rabatt (4,51 CAD · ca. 3,00 €), wenn du das Add-on Erweiterte Kartenerstellung schon hast: Kauf es über die Lizenzkarte in PadSpan (Einstellungen → Funktionen → PadSpan-Lizenz), mit der E-Mail, an die dein Schlüssel ging. Es gilt der bessere Preis: dieser Rabatt oder ein Sonderangebot, nie beides."
+  },
+  {
    "en": "PadSpan Bright",
    "de": "PadSpan Bright"
   },
@@ -679,6 +735,14 @@
    "de": "Lichter platzieren: Das ist Bright Pro"
   },
   {
+   "en": "Exact light and device placement",
+   "de": "Lichter und Geräte genau platzieren"
+  },
+  {
+   "en": "Fixture shapes, WLED and Showcase — <span data-until-pass>that is Bright Pro</span><span data-from-pass style=\"display:none\">that takes a Pro key</span>",
+   "de": "Leuchtenformen, WLED und Showcase: <span data-until-pass>Das ist Bright Pro</span><span data-from-pass style=\"display:none\">Dafür brauchst du einen Pro-Schlüssel</span>"
+  },
+  {
    "en": "PadSpan Bright Pro",
    "de": "PadSpan Bright Pro"
   },
@@ -693,6 +757,10 @@
   {
    "en": "<b>Light placement</b>, fixture shapes and sizes",
    "de": "<b>Lichter platzieren</b>, Leuchtenformen und -größen"
+  },
+  {
+   "en": "<b>Fixture shapes and sizes</b>",
+   "de": "<b>Leuchtenformen und -größen</b>"
   },
   {
    "en": "WLED, Showcase, Fit room",
@@ -711,8 +779,8 @@
    "de": "PadSpan Bright Pro kaufen"
   },
   {
-   "en": "<b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not alternatives — Pro is the whole product, Bright Pro is the lighting half of it at a lower price. There is never a reason to buy both, and if you start with Bright Pro and want the rest later, the upgrade is <a href=\"#pro\">$12</a> rather than a second full licence. <br><br> <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a lighting-only install for people who do not want presence tracking at all — is live: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. A Bright Pro licence works on either download — it unlocks light placement inside PadSpan HA if that's the free download you already use, or inside the standalone Bright edition if you install that instead.",
-   "de": "<b>PadSpan Pro enthält alles, was PadSpan Bright Pro kann.</b> Die beiden sind keine Alternativen: Pro ist das ganze Produkt, Bright Pro dessen Licht-Hälfte zu einem niedrigeren Preis. Es gibt nie einen Grund, beide zu kaufen. Fängst du mit Bright Pro an und willst später den Rest, kostet das Upgrade <a href=\"#pro\">12 CAD</a> (ca. 8 €) statt einer zweiten vollen Lizenz. <br><br> <b>Zum Download:</b> Die eigenständige Edition <i>PadSpan Bright</i>, eine reine Licht-Installation für alle, die gar keine Anwesenheitserkennung wollen, ist verfügbar: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. Eine Bright-Pro-Lizenz funktioniert mit beiden Downloads: Sie schaltet das Platzieren von Lichtern in PadSpan HA frei, wenn du diesen kostenlosen Download schon nutzt, oder in der eigenständigen Bright-Edition, wenn du stattdessen die installierst."
+   "en": "<b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not alternatives — Pro is the whole product, Bright Pro is the lighting half of it at a lower price. There is never a reason to buy both, and if you start with Bright Pro and want the rest later, the upgrade is <a href=\"#pro\">$12</a> rather than a second full licence. <br><br> <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a lighting-only install for people who do not want presence tracking at all — is live: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. A Bright Pro licence works on either download — it unlocks <span data-until-basics>light placement</span><span data-from-basics style=\"display:none\">fixture shapes and sizes, WLED and Showcase</span> inside PadSpan HA if that's the free download you already use, or inside the standalone Bright edition if you install that instead.",
+   "de": "<b>PadSpan Pro enthält alles, was PadSpan Bright Pro kann.</b> Die beiden sind keine Alternativen: Pro ist das ganze Produkt, Bright Pro dessen Licht-Hälfte zu einem niedrigeren Preis. Es gibt nie einen Grund, beide zu kaufen. Fängst du mit Bright Pro an und willst später den Rest, kostet das Upgrade <a href=\"#pro\">12 CAD</a> (ca. 8 €) statt einer zweiten vollen Lizenz. <br><br> <b>Zum Download:</b> Die eigenständige Edition <i>PadSpan Bright</i>, eine reine Licht-Installation für alle, die gar keine Anwesenheitserkennung wollen, ist verfügbar: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. Eine Bright-Pro-Lizenz funktioniert mit beiden Downloads: Sie schaltet <span data-until-basics>das Platzieren von Lichtern</span><span data-from-basics style=\"display:none\">Leuchtenformen und -größen, WLED und Showcase</span> in PadSpan HA frei, wenn du diesen kostenlosen Download schon nutzt, oder in der eigenständigen Bright-Edition, wenn du stattdessen die installierst."
   },
   {
    "en": "Phone &amp; Watch Tracking",
@@ -1019,8 +1087,8 @@
    "de": "Die Licht-Hälfte, für sich allein"
   },
   {
-   "en": "Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, with real placement, WLED control and RF-aware doors behind a key. <a href=\"https://github.com/gbroeckling/padspanBright\">PadSpan Bright on GitHub</a>.",
-   "de": "Jedes Licht, jeder Ventilator und Sensor, jedes Schloss, jede Tür und jedes Fenster auf demselben Grundriss wie die Räume: kostenlos nutzbar, mit echter Platzierung, WLED-Steuerung und Türen als Funkbarrieren mit Lizenzschlüssel. <a href=\"https://github.com/gbroeckling/padspanBright\">PadSpan Bright auf GitHub</a>."
+   "en": "Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, <span data-until-basics>with real placement, WLED control and RF-aware doors behind a key</span><span data-from-basics style=\"display:none\">with real placement too, and fixture shapes, WLED control and RF-aware doors behind a key</span>. <a href=\"https://github.com/gbroeckling/padspanBright\">PadSpan Bright on GitHub</a>.",
+   "de": "Jedes Licht, jeder Ventilator und Sensor, jedes Schloss, jede Tür und jedes Fenster auf demselben Grundriss wie die Räume: kostenlos nutzbar, <span data-until-basics>mit echter Platzierung, WLED-Steuerung und Türen als Funkbarrieren mit Lizenzschlüssel</span><span data-from-basics style=\"display:none\">auch mit echter Platzierung, und mit Lizenzschlüssel Leuchtenformen, WLED-Steuerung und Türen als Funkbarrieren</span>. <a href=\"https://github.com/gbroeckling/padspanBright\">PadSpan Bright auf GitHub</a>."
   },
   {
    "en": "Bright (free)",
@@ -1207,8 +1275,8 @@
    "de": "3D-Ansicht über mehrere Etagen"
   },
   {
-   "en": "<span class=\"yes\">✓</span> (the full 3D house, Live Aboard, is Pro)",
-   "de": "<span class=\"yes\">✓</span> (das ganze 3D-Haus, Live Aboard, ist Pro)"
+   "en": "<span class=\"yes\">✓</span> <span data-until-basics>(the full 3D house, Live Aboard, is Pro)</span><span data-from-basics style=\"display:none\">(the 3D house, Live Aboard, too; its editor, furniture and people are Pro)</span>",
+   "de": "<span class=\"yes\">✓</span> <span data-until-basics>(das ganze 3D-Haus, Live Aboard, ist Pro)</span><span data-from-basics style=\"display:none\">(auch das 3D-Haus, Live Aboard; sein Editor, Möbel und Personen sind Pro)</span>"
   },
   {
    "en": "<span class=\"no\">—</span> (has a Floor sensor)",
@@ -1343,12 +1411,24 @@
    "de": "<b>Lichter und Geräte auf dem Atlas platzieren</b> – jedes Licht und Gerät genau dort, wo es ist, mit Leuchtenformen und -größen, WLED, Automorph, Showcase und Fit room. Siehe <a href=\"#lights\">Licht</a>."
   },
   {
+   "en": "<b>Fixture shapes and sizes on the Atlas</b>, with WLED, Automorph, Showcase and Fit room. Placing each light and device exactly is free. See <a href=\"#lights\">Lighting</a>.",
+   "de": "<b>Leuchtenformen und -größen auf dem Atlas</b>, mit WLED, Automorph, Showcase und Fit room. Jedes Licht und Gerät genau zu platzieren ist kostenlos. Siehe <a href=\"#lights\">Licht</a>."
+  },
+  {
    "en": "<b>Live Aboard</b> — your house in 3D (still experimental), with <b>Furnish</b> for furniture, people and devices.",
    "de": "<b>Live Aboard</b> – dein Haus in 3D (noch experimentell), mit <b>Furnish</b> für Möbel, Personen und Geräte."
   },
   {
+   "en": "<b>Live Aboard's extras</b> — the 3D editor, <b>Furnish</b> for furniture and devices, people figures and the director. The house in 3D itself is free.",
+   "de": "<b>Die Extras von Live Aboard</b> – der 3D-Editor, <b>Furnish</b> für Möbel und Geräte, Personenfiguren und der Regisseur. Das Haus in 3D selbst ist kostenlos."
+  },
+  {
    "en": "<b>Wall mode</b> — the Atlas on a wall screen, sized for the room.",
    "de": "<b>Wandmodus</b> – der Atlas auf einem Wanddisplay, passend für den Raum."
+  },
+  {
+   "en": "<b>Wall mode's extras</b> — night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake. The plain wall screen is free.",
+   "de": "<b>Die Extras des Wandmodus</b> – Dimmen in der Nacht, Schutz vor Einbrennen, Etagen im Wechsel und Aufwecken per Bewegung mit Fully Kiosk. Das einfache Wanddisplay ist kostenlos."
   },
   {
    "en": "<b>The Atlas as your Overview</b>, and its <b>Heatmap</b> chip for temperature, humidity and CO₂.",
@@ -1383,12 +1463,8 @@
    "de": "49 <small style=\"font-size:13px;font-weight:600\">CAD / Jahr · ca. 33 €</small>"
   },
   {
-   "en": "Light placement — that takes a Pro key",
-   "de": "Lichter platzieren: Dafür brauchst du einen Pro-Schlüssel"
-  },
-  {
-   "en": "<b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a lighting-only install for people who do not want presence tracking at all — is live: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. A PadSpan Pro key works in it too: there it unlocks light placement.",
-   "de": "<b>Zum Download:</b> Die eigenständige Edition <i>PadSpan Bright</i>, eine reine Licht-Installation für alle, die gar keine Anwesenheitserkennung wollen, ist verfügbar: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. Ein PadSpan-Pro-Schlüssel funktioniert auch dort: Er schaltet das Platzieren der Lichter frei."
+   "en": "<b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a lighting-only install for people who do not want presence tracking at all — is live: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. A PadSpan Pro key works in it too: there it unlocks fixture shapes and sizes, WLED and Showcase.",
+   "de": "<b>Zum Download:</b> Die eigenständige Edition <i>PadSpan Bright</i>, eine reine Licht-Installation für alle, die gar keine Anwesenheitserkennung wollen, ist verfügbar: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. Ein PadSpan-Pro-Schlüssel funktioniert auch dort: Er schaltet Leuchtenformen und -größen, WLED und Showcase frei."
   },
   {
    "en": "<b>Test it.</b> Testers get a year of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.",

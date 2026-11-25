@@ -5496,7 +5496,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <p class="lede">Click any screenshot to view it full size.</p>
   <div class="grid">
     <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
-    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
+    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. <span data-until-basics>PadSpan Pro, experimental</span><span data-from-basics style="display:none">Free, no key. Furniture, people and the 3D editor with PadSpan Pro</span></div></a>
     <a class="shot" href="images/overview-3d-multifloor.jpg" target="_blank"><img src="images/overview-3d-multifloor.jpg" alt="3D multi-floor tracking" loading="lazy"><div class="cap"><b>3D Multi-Floor Tracking</b>Live isometric view with tracked devices across 3 floors</div></a>
     <a class="shot" href="images/overview-3d-heatmap.jpg" target="_blank"><img src="images/overview-3d-heatmap.jpg" alt="3D heatmap overlay" loading="lazy"><div class="cap"><b>3D Heatmap + Signal Overlay</b>RSSI heatmap crosshatch with live device positions</div></a>
     <a class="shot" href="images/maps-library-live.jpg" target="_blank"><img src="images/maps-library-live.jpg" alt="Maps library" loading="lazy"><div class="cap"><b>Maps Library</b>Uploaded floor plans organized by floor</div></a>
@@ -5617,7 +5617,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas builder</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));margin-bottom:22px">
     <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
-    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
+    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. <span data-until-basics>PadSpan Pro, experimental</span><span data-from-basics style="display:none">Free, no key. Furniture, people and the 3D editor with PadSpan Pro</span></div></a>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
     <div class="feat">
@@ -5626,16 +5626,19 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>The lighting map — rooms and floors drawn from your real geometry</li>
         <li>One marker per light, in the room it belongs to</li>
         <li>Click a light to switch it</li>
+        <li data-from-basics style="display:none"><b>Place each light and device exactly</b> where it is, in metres: lights, fans, motion and temperature sensors, locks</li>
+        <li data-from-basics style="display:none"><b>Wall mode</b>: the Atlas on a wall screen, sized for the room</li>
+        <li data-from-basics style="display:none"><b>Live Aboard</b>: the house in 3D, built from the map you already drew. Turn, pan and zoom around your floors, rooms, walls and lights</li>
         <li>Never hidden: the Atlas is there whether or not you hold a key</li>
       </ul>
     </div>
     <div class="feat">
       <h3>With a key</h3>
       <ul>
-        <li><b>Place each light exactly</b> where it hangs, in metres</li>
+        <li data-until-basics><b>Place each light exactly</b> where it hangs, in metres</li>
         <li>Fixture shapes and sizes — a strip is not a spot</li>
         <li>WLED strips, with brightness, colour and effect control, live</li>
-        <li>Fans, motion &amp; temperature sensors and locks placed the same way</li>
+        <li data-until-basics>Fans, motion &amp; temperature sensors and locks placed the same way</li>
         <li>Doors &amp; windows on a wall — live open/closed state, modelled as real RF barriers</li>
         <li>Motion flash and fade normalized across every sensor's hardware hold time</li>
         <li><b>Automorph</b> — a soft aura drawn on the map from each fixture into its room</li>
@@ -5647,10 +5650,12 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <div class="feat">
       <h3>With PadSpan Pro</h3>
       <ul>
-        <li><b>Live Aboard</b> — the whole house in 3D: walls cut away to see in, doors and windows, lights and LED strips, furniture, people and the weather outside (experimental, off until you turn it on)</li>
+        <li data-until-basics><b>Live Aboard</b> — the whole house in 3D: walls cut away to see in, doors and windows, lights and LED strips, furniture, people and the weather outside (experimental, off until you turn it on)</li>
+        <li data-from-basics style="display:none"><b>Live Aboard</b>'s 3D editor, <b>Furnish</b> for furniture and devices, people figures, and the director that turns the view to a doorbell, door or alarm</li>
         <li>A step-by-step guide builds the 3D house from the map you already have</li>
         <li>Mezzanines and galleries drawn inside a tall room, with a glass railing on the open edges you choose <span class="pill soon">Beta</span></li>
         <li>The Atlas as your Overview, the first thing PadSpan opens</li>
+        <li data-from-basics style="display:none">On a wall screen: night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake</li>
       </ul>
     </div>
   </div>
@@ -5673,7 +5678,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>Floor plans, 3D maps, calibration</li>
         <li>Follow mode, playback, occupancy</li>
         <li>The lighting map, view and switch</li>
-        <li class="x">Light placement</li>
+        <li class="x" data-until-basics>Light placement</li>
+        <li data-from-basics style="display:none">Exact light and device placement, the wall screen and the 3D house</li>
         <li class="x">Forensics</li>
       </ul>
       <a class="btn ghost" href="#install" style="margin-top:auto">Install free</a>
@@ -5686,8 +5692,10 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <ul>
         <li>Everything in PadSpan HA</li>
         <li><b>Forensics</b> — who was near which scanner, when</li>
-        <li><b>Light placement</b>, shapes, WLED, Showcase</li>
-        <li><b>Live Aboard</b>, the house in 3D</li>
+        <li data-until-basics><b>Light placement</b>, shapes, WLED, Showcase</li>
+        <li data-from-basics style="display:none"><b>Fixture shapes</b>, WLED, Showcase</li>
+        <li data-until-basics><b>Live Aboard</b>, the house in 3D</li>
+        <li data-from-basics style="display:none"><b>Live Aboard</b>'s editor, furniture and people</li>
         <li>Day and three more themes</li>
         <li>One key, no separate install</li>
       </ul>
@@ -5853,6 +5861,42 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
             <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
           </form>
         </div>
+        <div data-from-basics style="display:none"><div id="maps" data-addon="maps" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;height:100%">
+          <div style="font-weight:800">Advanced map creation <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $8.65)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan</div>
+          <div style="font-size:12px;color:var(--acc2);margin:-4px 0 10px">30% off ($6.05 CAD) if you already own Robot vacuum: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Advanced map creation — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-maps">
+            <input type="hidden" name="amount" value="8.65" data-half-amount="4.32">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div></div>
+        <div data-from-basics style="display:none"><div id="vacuum" data-addon="vacuum" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;height:100%">
+          <div style="font-weight:800">Robot vacuum <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans</div>
+          <div style="font-size:12px;color:var(--acc2);margin:-4px 0 10px">30% off ($4.51 CAD) if you already own Advanced map creation: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Robot vacuum — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-vacuum">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div></div>
       </div>
       <script>(function(){var b=document.getElementById("addons");if(!b)return;var n=Date.now();
         if(n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until")))return;
@@ -5867,8 +5911,9 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <ul>
         <li>A lighting-only download for people who want the map without the presence tracking</li>
         <li>Draws the house and the lights, switching only</li>
-        <li class="x" data-until-pass>Light placement — that is Bright Pro</li>
-        <li class="x" data-from-pass style="display:none">Light placement — that takes a Pro key</li>
+        <li class="x" data-until-basics data-until-pass>Light placement — that is Bright Pro</li>
+        <li data-from-basics style="display:none">Exact light and device placement</li>
+        <li class="x" data-from-basics style="display:none">Fixture shapes, WLED and Showcase — <span data-until-pass>that is Bright Pro</span><span data-from-pass style="display:none">that takes a Pro key</span></li>
       </ul>
       <a class="btn ghost" href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener" style="margin-top:auto">Install free</a>
     </div>
@@ -5877,7 +5922,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <div class="sub">Lighting licence</div>
       <div class="price">$35 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
       <ul>
-        <li><b>Light placement</b>, fixture shapes and sizes</li>
+        <li data-until-basics><b>Light placement</b>, fixture shapes and sizes</li>
+        <li data-from-basics style="display:none"><b>Fixture shapes and sizes</b></li>
         <li>WLED, Showcase, Fit room</li>
         <li>Works in PadSpan HA today</li>
         <li class="x">Forensics — that is PadSpan Pro</li>
@@ -5901,7 +5947,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a
     lighting-only install for people who do not want presence tracking at all — is live:
     <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
-    A PadSpan Pro key works in it too: there it unlocks light placement.
+    A PadSpan Pro key works in it too: there it unlocks fixture shapes and sizes, WLED and Showcase.
   </div>
   <div class="note" data-until-pass>
     <b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not
@@ -5913,7 +5959,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a
     lighting-only install for people who do not want presence tracking at all — is live:
     <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
-    A Bright Pro licence works on either download — it unlocks light placement inside
+    A Bright Pro licence works on either download — it unlocks <span data-until-basics>light placement</span><span data-from-basics style="display:none">fixture shapes and sizes, WLED and Showcase</span> inside
     PadSpan HA if that's the free download you already use, or inside the standalone
     Bright edition if you install that instead.
   </div>
@@ -5953,7 +5999,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <tr><td>Hardware</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, HA's own Bluetooth or a USB adapter, or ESPresense over MQTT once switched on</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters</td><td>Its own firmware on ESP32 nodes</td></tr>
     <tr><td>Floor plan needed?</td><td>No: rooms come from each scanner's HA area; the map is optional</td><td>No</td><td>No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator)</td></tr>
     <tr><td>Map of your home</td><td><span class="yes">✓</span> draw rooms on your floor plan</td><td class="no">—</td><td><span class="yes">✓</span> Companion</td></tr>
-    <tr><td>Multi-floor 3D view</td><td><span class="yes">✓</span> (the full 3D house, Live Aboard, is Pro)</td><td><span class="no">—</span> (has a Floor sensor)</td><td><span class="yes">✓</span> Companion</td></tr>
+    <tr><td>Multi-floor 3D view</td><td><span class="yes">✓</span> <span data-until-basics>(the full 3D house, Live Aboard, is Pro)</span><span data-from-basics style="display:none">(the 3D house, Live Aboard, too; its editor, furniture and people are Pro)</span></td><td><span class="no">—</span> (has a Floor sensor)</td><td><span class="yes">✓</span> Companion</td></tr>
     <tr><td>Position between scanners</td><td><span class="yes">✓</span> with 3+ scanners placed on a measured plan</td><td class="no">—</td><td><span class="yes">✓</span> Companion (X/Y/Z)</td></tr>
     <tr><td>Calibration</td><td>Walk-around fingerprints and per-scanner signal fit</td><td>Guided: global, per proxy and per device</td><td>Manual on each node; automatic in Companion</td></tr>
     <tr><td>Signal smoothing</td><td>Kalman filter plus a room vote</td><td>Averaging, a speed limit on moving away, and area hysteresis</td><td>Filtering on the node, Kalman on position (Companion)</td></tr>
@@ -6034,9 +6080,12 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <div class="feat">
       <h3>What Pro unlocks today</h3>
       <ul class="steps">
-        <li><b>Light and device placement on the Atlas</b> — place each light and device exactly where it is, with fixture shapes and sizes, WLED, Automorph, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
-        <li><b>Live Aboard</b> — your house in 3D (still experimental), with <b>Furnish</b> for furniture, people and devices.</li>
-        <li><b>Wall mode</b> — the Atlas on a wall screen, sized for the room.</li>
+        <li data-until-basics><b>Light and device placement on the Atlas</b> — place each light and device exactly where it is, with fixture shapes and sizes, WLED, Automorph, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
+        <li data-from-basics style="display:none"><b>Fixture shapes and sizes on the Atlas</b>, with WLED, Automorph, Showcase and Fit room. Placing each light and device exactly is free. See <a href="#lights">Lighting</a>.</li>
+        <li data-until-basics><b>Live Aboard</b> — your house in 3D (still experimental), with <b>Furnish</b> for furniture, people and devices.</li>
+        <li data-from-basics style="display:none"><b>Live Aboard's extras</b> — the 3D editor, <b>Furnish</b> for furniture and devices, people figures and the director. The house in 3D itself is free.</li>
+        <li data-until-basics><b>Wall mode</b> — the Atlas on a wall screen, sized for the room.</li>
+        <li data-from-basics style="display:none"><b>Wall mode's extras</b> — night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake. The plain wall screen is free.</li>
         <li><b>The Atlas as your Overview</b>, and its <b>Heatmap</b> chip for temperature, humidity and CO₂.</li>
         <li><b>Whole House Presets</b> and <b>Vacation Mode</b>.</li>
         <li><b>Busy Times</b> (the busiest rooms, by hour) and <b>Locate</b> (room-by-room directions to whoever you follow).</li>
@@ -6139,18 +6188,18 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="bright">
   <div class="kick">PadSpan Bright</div>
   <h2>The lighting half, on its own</h2>
-  <p class="lede">Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, with real placement, WLED control and RF-aware doors behind a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
+  <p class="lede">Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, <span data-until-basics>with real placement, WLED control and RF-aware doors behind a key</span><span data-from-basics style="display:none">with real placement too, and fixture shapes, WLED control and RF-aware doors behind a key</span>. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
   <div class="tablewrap">
   <table>
     <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th data-until-pass>Bright Pro</th><th data-from-pass style="display:none">Bright with a Pro key</th></tr>
     <tr><td>Floors &amp; rooms drawn as an isometric plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
     <tr><td>One marker per light, tap (or its row) to toggle</td><td class="yes">✓</td><td class="yes">✓</td></tr>
     <tr><td>Hide lights you don't want cluttering the map</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>Place each light at its real position on the floor plan</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Place each light at its real position on the floor plan</td><td class="no" data-until-basics>—</td><td class="yes" data-from-basics style="display:none">✓</td><td class="yes">✓</td></tr>
     <tr><td>Real shape, size (width × length) and rotation</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>WLED strip/series placement, sized and angled to the strip</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Brightness, colour and effect control per light, live</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Fans, motion sensors, temperature sensors and locks placed on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Fans, motion sensors, temperature sensors and locks placed on the map</td><td class="no" data-until-basics>—</td><td class="yes" data-from-basics style="display:none">✓</td><td class="yes">✓</td></tr>
     <tr><td>Doors &amp; windows linked to a wall, live open/closed state on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Closed doors modelled as real RF barriers (material-aware attenuation)</td><td class="no">—</td><td class="yes">✓</td></tr>
     <tr><td>Motion flash/fade normalized across every sensor's hardware hold time</td><td class="no">—</td><td class="yes">✓</td></tr>
@@ -6164,6 +6213,14 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <a class="shot" href="images/bright-wled-card.png" target="_blank"><img src="images/bright-wled-card.png" alt="WLED light control card" loading="lazy"><div class="cap"><b>WLED Control Card</b>Brightness, colour and effect, live against the real strip</div></a>
   </div>
 </section>
+
+<!-- From the start of December 1, 2026 (editions.js FREE_BASICS_FROM, the backend's const.FREE_BASICS_FROM_TS):
+     exact placement of lights and devices, the plain wall screen and the 3D house's basics are free, and the
+     Advanced map creation and Robot vacuum add-ons are on sale. The data-until-basics blocks go and the
+     data-from-basics ones show. Visitors without JavaScript keep seeing the blocks before it. -->
+<script>(function(){var from="2026-12-01T08:00:00Z";if(Date.now()<Date.parse(from))return;
+  document.querySelectorAll("[data-until-basics]").forEach(function(e){e.remove();});
+  document.querySelectorAll("[data-from-basics]").forEach(function(e){e.style.display="";});})();</script>
 
 <!-- From the end of December 15, 2026 (editions.js PRO_PASS_FROM, the licence server's PSPAN_LIFETIME_ENDS):
      no lifetime, no Bright Pro, Pro $49 a year or $85 for two years, testers a year. Visitors without
