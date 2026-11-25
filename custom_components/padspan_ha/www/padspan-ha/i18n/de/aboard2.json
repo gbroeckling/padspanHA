@@ -470,5 +470,10 @@
 "one": "Mit 1 Halt hier, der zehnmal so viel zählt",
 "other": "Mit {n} Halten hier, die zehnmal so viel zählen"
 },
-"Faint squares: its Wi-Fi taken every few seconds while it cleaned. They count a tenth of a stop's, so where it also stood, the stop decides.": "Blasse Quadrate: sein WLAN, beim Saugen alle paar Sekunden gemessen. Sie zählen ein Zehntel eines Halts; wo er auch stand, entscheidet der Halt."
+"Faint squares: its Wi-Fi taken every few seconds while it cleaned. They count a tenth of a stop's, so where it also stood, the stop decides.": "Blasse Quadrate: sein WLAN, beim Saugen alle paar Sekunden gemessen. Sie zählen ein Zehntel eines Halts; wo er auch stand, entscheidet der Halt.",
+"✕ Stop walking": "✕ Gehen beenden",
+"Back to the 3D view you came from (Esc)": "Zurück zur 3D-Ansicht, aus der du kamst (Esc)",
+"Walk: push the stick the way you want to go": "Gehen: Schieb den Stick in die Richtung, in die du gehen willst",
+"Stick to walk · drag to look": "Stick zum Gehen · Ziehen zum Umschauen",
+"W A S D or ↑ ↓ to walk · ← → to turn · drag to look · Shift to hurry · Esc to stop": "W A S D oder ↑ ↓ zum Gehen · ← → zum Drehen · Ziehen zum Umschauen · Umschalt für schneller · Esc zum Beenden"
 }

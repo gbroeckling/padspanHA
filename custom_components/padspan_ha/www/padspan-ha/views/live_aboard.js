@@ -135,6 +135,11 @@ const PERSON_HOME = await import(`./person_home.js${new URL(import.meta.url).sea
 // Frame rate, this browser only (optional: missing, there is no readout).
 const FPS = await import(`./live_aboard_fps.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_fps failed to load", err); return null; });
+// Walk-through (live_aboard_walk.js): the house at eye height, walked with the
+// keys or a stick, walls and closed doors in the way, stairs between floors
+// (optional: missing, there is no Walk).
+const WALK = await import(`./live_aboard_walk.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_walk failed to load", err); return null; });
 // The house itself (live_aboard_storey.js): a solid floor under each storey,
 // the roof, the openings stairs cut, how a door with no sensor stands
 // (optional: missing, the house is drawn as it was).
@@ -813,6 +818,8 @@ function createSlot(slotKey){
     sceneRow = null;
     try { if (fpsUi) fpsUi.dispose(); } catch (_) { /* gone with the view */ }
     fpsUi = null;
+    try { if (walkC) walkC.dispose(); } catch (_) { /* gone with the view */ }
+    walkC = null; walkSaved = null; walkMemo = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null; plansP = null;
@@ -921,16 +928,20 @@ function createSlot(slotKey){
     wbtn.classList.add("la3d-n");
     const abtn = seg(null, [[t("View ▾"), t("Angles, the floors, the whole house and your views"), () => openMenu(abtn, [
       ...ANGLES.map(([t, , n]) => ({ text: t, act: () => angle(n) })),
-      ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems()])]]);
+      ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems(),
+      ...(WALK ? [null, { text: t("Walk"), title: t("Walk through the house at eye height"), data: "la3d-walk", act: () => startWalk() }] : [])])]]);
     abtn.classList.add("la3d-n");
     abtn.setAttribute("data-la3d-view", "");
+    // Walk through the house at eye height (live_aboard_walk.js); on a narrow screen, in View ▾.
+    const walkB = WALK ? seg(null, [[t("Walk"), t("Walk through the house at eye height"), () => startWalk()]]) : null;
+    if (walkB) { walkB.classList.add("la3d-w"); walkB.setAttribute("data-la3d-walk", ""); }
     const full = seg(null, [["", "", () => toggleFull()]]);
     full.setAttribute("data-la3d-full", "");
     fullBtns = [...full.querySelectorAll("button")];
     full.style.display = "none";
     const left = d("span", "la3d-side"), right = d("span", "la3d-side");
     left.append(walls, wbtn, abtn, floor);
-    right.append(views, vbtn, full);
+    right.append(...(walkB ? [walkB] : []), views, vbtn, full);
     bar.append(left, right);
     // Furnish on a narrow screen: the plan or the 3D view (a wide one shows both).
     planSeg = seg(null, [["3D", t("The house in 3D"), () => setPlanOnly(false)], [t("Plan"), t("Straight down on the floor showing"), () => setPlanOnly(true)]]);
@@ -1268,6 +1279,7 @@ function createSlot(slotKey){
    *  now showing comes back (none kept yet: it stays where it is), and with
    *  the map alone the floor's name shows in the corner. */
   function followFloor(){
+    if (walking()) return;                                 // walking: every floor shows; caught up after
     // Kept by the floor's name, not its level: a floor deleted renumbers the levels.
     const s = floorSteps, key = s ? (s.all ? "all" : `floor:${s.names[s.at]}`) : null;
     if (key === floorKey) return;
@@ -1318,6 +1330,7 @@ function createSlot(slotKey){
   }
   /** How far Explode lifts each storey now (m): only with All picked and more than one floor. */
   function explodeGap(){
+    if (walking()) return 0;                                 // walking: every floor where it really is
     const s = floorSteps;
     return explodeOn() && s && s.all && s.names.length > 1 ? EXPLODE_M : 0;
   }
@@ -3582,7 +3595,7 @@ function createSlot(slotKey){
   const _v2 = new THREE.Vector3();
   function sizeNames(c, H){
     const xGapNow = explodeGap();
-    const persp = !!c.isPerspectiveCamera, k = persp ? 2 * Math.tan(FOV / 2 * D2R) / H : (c.top - c.bottom) / H;
+    const persp = !!c.isPerspectiveCamera, k = persp ? 2 * Math.tan((c.fov || FOV) / 2 * D2R) / H : (c.top - c.bottom) / H;   // (walking: a wider view)
     const mppAt = (v) => (persp ? c.position.distanceTo(v) * k : k);           // metres per px there
     // Drawn over the fixtures, a name must still not show through a wall
     // standing in front of it or a floor above it: one ray from the eye.
@@ -3983,7 +3996,8 @@ function createSlot(slotKey){
   function updateCutaway(){
     const topDown = cam.phi < 0.2;
     // Under the roof the walls stand (Cut is Up while it shows).
-    const mode = roofTick() && (wallMode === "cut" || wallMode === "glass") ? "up" : wallMode;
+    const roofed = roofTick();
+    const mode = walking() ? "up" : roofed && (wallMode === "cut" || wallMode === "glass") ? "up" : wallMode;   // walking: every wall stands
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
       // Glass with a room open: that room's floor's inside walls are glass too.
@@ -4191,6 +4205,7 @@ function createSlot(slotKey){
       };
     };
     canvas.addEventListener("pointerdown", guard((e) => {
+      if (walking()) { walkC.lookDown(e); return; }          // walking: a drag looks round
       if (spin) endSpin(true);                               // a finger on the house: no spin
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
       const onlyNorth = e === northDismissed;                // this tap put north back, nothing more
@@ -4232,6 +4247,7 @@ function createSlot(slotKey){
         ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null;
     }));
     canvas.addEventListener("pointermove", guard((e) => {
+      if (walking()) { walkC.lookMove(e); return; }
       if (pts.has(e.pointerId)) { moved(e); return; }
       // No button down: a mouse or pen over the house — what a click would land on.
       if (pts.size || e.pointerType === "touch") return;
@@ -4308,6 +4324,9 @@ function createSlot(slotKey){
     });
     canvas.addEventListener("pointerup", lift);
     canvas.addEventListener("pointercancel", lift);
+    const lookEnd = guard((e) => { if (walkC) walkC.lookUp(e); });
+    canvas.addEventListener("pointerup", lookEnd);
+    canvas.addEventListener("pointercancel", lookEnd);
     // The capture went (a poll moved the view): taken back while the
     // pointer is down. One the browser says is gone ends here, as a cancel.
     canvas.addEventListener("lostpointercapture", guard((e) => {
@@ -4320,6 +4339,7 @@ function createSlot(slotKey){
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener("wheel", guard((e) => {
       e.preventDefault();
+      if (walking()) return;                                 // walking: the wheel does nothing
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
       const f = Math.exp(Math.max(-200, Math.min(200, dy)) * 0.0015);
       if (planHere(e.clientX, e.clientY)) planZoomAt(e.clientX, e.clientY, f); else { cam.fly = null; zoomAt(e.clientX, e.clientY, f); afterZoom(f < 1); }
@@ -4572,7 +4592,7 @@ function createSlot(slotKey){
    *  whole (as Fit). On: a floor chosen frames it again, moved by hand or not (not one a flight to a person or home
    *  chose: keepCam); held, a new size or the house drawn again frames it at once. */
   function edgeSync(){
-    if (!camera || !canvas || failed) return;
+    if (!camera || !canvas || failed || walking()) return;
     const on = edgecutOn();
     if (on !== edgeWas) {
       const held = edgeHolds();
@@ -4585,6 +4605,106 @@ function createSlot(slotKey){
     if (!on || cam.needsFit) return;
     if (floorKey !== edgeFloor) { edgeFloor = floorKey; if (!keepCam) { edgeFrame(true); return; } }
     if (edgeHolds() && `${drawnW}x${drawnH}|${shellSig}` !== edgeKey) edgeFrame(false);
+  }
+  // ── Walk-through (live_aboard_walk.js) ────────────────────────────────────
+  // The owner's item 21 (2026-11-23): walk the house at eye height. Walk (the
+  // bar, or View ▾ on a narrow screen) puts the camera at eye height just
+  // inside the front door (or in the room open), every floor showing and none
+  // pulled apart, the walls up; the bars give way to Stop walking, a line
+  // saying how and, on a touch screen, a stick. Stop walking (or Esc) puts
+  // back the camera, the floors and the walls exactly as they were. Nothing
+  // else moves the camera meanwhile (a flight home, the director, Edgecut).
+  // Frames are drawn only while a key or the stick is held, a drag looks, or
+  // the eyes settle on a step: standing still, none.
+  let walkC = null, walkSaved = null, walkMemo = null;
+  const walking = () => !!(walkC && walkC.on);
+  /** The stairs as the walker meets them: each flight's steps and landings, on the floor it stands on. */
+  function walkStairs(){
+    if (!STOREY || !FURN || typeof FURN.stairFlights !== "function" || !house) return [];
+    const out = [];
+    for (const p of Object.values(piecesNow(viewData().pieces) || {})) {
+      if (!STOREY.isStairs(p)) continue;
+      const fid = house.canonAt ? house.canonAt(p.floor_id, p.x_m, p.y_m) : house.canon ? house.canon(p.floor_id) : String(p.floor_id);
+      const F = floorsUi.find(G => G.fl.id === fid);
+      if (!F) continue;
+      const rec = stairRecipe(p), S = PIECES.sizeOf(rec), L = FURN.stairFlights(S, rec.params || {});
+      out.push({ x: Number(p.x_m) || 0, y: Number(p.y_m) || 0, rot: Number(p.rotation) || 0, base: F.fl.elev + (Number(p.z_m) || 0),
+                 from: F.fl.id, w: S.w, d: S.d, boxes: [...L.steps, ...L.landings] });
+    }
+    return out;
+  }
+  /** The house to walk in, as drawn (worked out again when the house is built again). */
+  function walkWorld(){
+    if (walkMemo && walkMemo.gen === shellGen) return walkMemo.world;
+    const cuts = STOREY && house ? STOREY.stairCuts(viewData().pieces, house.floors, house.canon) : null;
+    const floors = floorsUi.map(F => ({ id: F.fl.id, elev: F.fl.elev, outdoor: !!F.fl.outdoor, rooms: F.rooms, holes: (cuts && cuts.get(F.fl.id)) || [], pieces: F.pieces }));
+    // A door's leaf stops you while it stands less than half open, as drawn; one the ⋯ list hides is not there.
+    const shut = (P) => {
+      const o = P.open, leaf = o && o.leaf ? o.leaf : P.els.find(e => e.leaf);
+      if (leaf && goneHere(P, leaf)) return false;
+      return !(o && o.at >= 0.5);
+    };
+    const world = WALK.walkWorld(floors, walkStairs(), { ground: house ? house.ground - HOUSE.SLAB_T : null, shut });
+    walkMemo = { gen: shellGen, world, floors };
+    return world;
+  }
+  /** The field of view, walking or not; the lights' glow keeps its size in the room with it. */
+  function walkFov(deg){
+    camera.fov = deg;
+    camera.updateProjectionMatrix();
+    for (const k of Object.keys(HALO)) if (shared && shared.haloMats[k]) shared.haloMats[k].size = HALO[k] / Math.tan(deg / 2 * D2R);
+  }
+  /** The camera where the walker's eyes are. */
+  function walkCam(){
+    const w = walkC && walkC.walker();
+    if (!w) return;
+    const c = WALK.camOf(w);
+    cam.fly = null; cam.needsFit = false; cam.moved = true;
+    cam.theta = c.theta; cam.phi = c.phi; cam.radius = c.radius; cam.target.fromArray(c.target);
+    applyCam();
+  }
+  function makeWalk(){
+    const coarse = () => (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0)
+      || (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
+    return WALK.createWalk({ root, canvas, guard, world: () => walkWorld(), apply: () => walkCam(), render: () => requestRender(),
+      stop: () => stopWalk(), countOnce: (name) => HOUSE.countHouse3dOnce(name, send), coarse });
+  }
+  /** Walk from here: false (and why, in a toast) when there is nothing to stand on, or a tool has the view. */
+  function startWalk(){
+    if (!WALK || walking() || !house || !camera || failed) return false;
+    if ((editor && editor.active) || furnishOn || quiet) { toast(t("Close the editor first to walk through the house")); return false; }
+    closeMenu(); closeRoomPanel(); if (use) use.clear(); dropPointers(); endSpin(true);
+    const room = openRoom && openRoom.r && openRoom.r.spot ? { floor: openRoom.F.fl.id, x: openRoom.r.spot.x, y: openRoom.r.spot.y } : null;
+    walkSaved = { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.clone(), moved: cam.moved, wall: wallMode };
+    cam.fly = null; closeRoom();
+    if (!walkC) walkC = makeWalk();
+    walkC.open({ x: 0, y: 0, foot: 0, yaw: cam.theta });         // on: every floor, none pulled apart, from the next draw
+    root.classList.add("la3d-walking");
+    redraw();
+    const spot = WALK.startSpot(walkWorld(), walkMemo.floors, room, cam.theta);
+    if (!spot) { stopWalk(); toast(t("Nothing to stand on yet: draw a room on the map first")); return false; }
+    walkC.open(spot);
+    walkFov(WALK.FOV_DEG);
+    walkCam();
+    HOUSE.countHouse3d("house3d_walk:start", send);
+    return true;
+  }
+  /** Back to the 3D view as it was: its camera, its floors (pulled apart or not), its walls. */
+  function stopWalk(quietly = false){
+    if (!walking()) return;
+    walkC.close();
+    if (root) root.classList.remove("la3d-walking");
+    walkFov(FOV);
+    const s = walkSaved;
+    walkSaved = null;
+    if (!quietly) redraw();
+    if (s) {
+      cam.fly = null; cam.needsFit = false; cam.moved = s.moved;
+      cam.theta = s.theta; cam.phi = s.phi; cam.radius = s.radius; cam.target.copy(s.target);
+      applyCam();
+    }
+    for (const F of floorsUi) for (const P of F.pieces) P.cut = null;   // the walls cut again from where the camera is
+    requestRender();
   }
   // ── flying the camera (a double-tap on a room, a saved view) ──────────────
   function flyTo(goal, inward){
@@ -5147,6 +5267,8 @@ function createSlot(slotKey){
       if (liveMs || wallSoft()) dirty = true;                // what moves carries on when it shows
       return;
     }
+    // Walking: the walker's step (the camera follows its eyes); no flight meanwhile.
+    if (walking()) { cam.fly = null; if (walkC.tick(performance.now())) walkCam(); }
     // A camera flight moves on every frame until it lands.
     if (cam.fly) { stepFly(performance.now()); dirty = true; }
     if (wakeK > 0 && (performance.now() >= wakeUntil || !roomSwitchOn())) { stepWake(performance.now()); if (wakeK > 0) requestRender(); }
@@ -5204,7 +5326,7 @@ function createSlot(slotKey){
         } else requestRender();
       }
     }
-    if ((liveMs || more || wallSoft()) && !pending) { pending = true; requestAnimationFrame(frame); }
+    if ((liveMs || more || wallSoft() || (walking() && walkC.moving())) && !pending) { pending = true; requestAnimationFrame(frame); }
   });
   // ── Furnish: the plan beside the 3D view (P2) ─────────────────────────────
   // Wide enough, the canvas is two views from the one renderer: the house in
@@ -5754,7 +5876,7 @@ function createSlot(slotKey){
   const ZOOM_STEP = 1.25;
   const zoomPctNow = () => (fitR && cam.radius > 0 ? Math.round(fitR / cam.radius * 100) : 100);
   function tellZoom(){
-    if (!zoomCb || !fitR) return;
+    if (!zoomCb || !fitR || walking()) return;
     const z = zoomPctNow();
     if (z === zoomShown) return;
     zoomShown = z;
@@ -5810,7 +5932,7 @@ function createSlot(slotKey){
       root, guard, slotKey, prefGet, prefSet,
       host: () => lastP,
       sidebar: () => mapOnly && !!stage && !failed,
-      busy: () => (editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) || (roomPanel && roomPanel.isOpen) ? "card"
+      busy: () => (walking() ? "walk" : editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) || (roomPanel && roomPanel.isOpen) ? "card"
         : director && director.showing() ? "director" : null),
       cam: () => ({ theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() }),
       floorNow: () => (selIds && selIds.size ? [...selIds].sort()[0] : null),
@@ -5842,7 +5964,7 @@ function createSlot(slotKey){
       // The host's states as they are now (the card's own are from its last draw).
       states: () => (lastP && typeof lastP.liveStates === "function" ? lastP.liveStates() : lastP && lastP.states) || {},
       sidebar: () => mapOnly && !!stage && !failed,
-      busy: () => (editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) || (roomPanel && roomPanel.isOpen) ? "card" : null),
+      busy: () => (walking() ? "walk" : editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) || (roomPanel && roomPanel.isOpen) ? "card" : null),
       following: () => panel.following(),
       touchedAt: () => panel.touchedAt(),
       fly: (eid) => panel.moveQuietly(() => findDevice(String(eid))),
@@ -6447,7 +6569,7 @@ function createSlot(slotKey){
     syncMarks(p, vd);
     if (raisedL) raisedL.touch();                            // what shows may have changed
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
-    const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
+    const t = walking() ? null : HOUSE.topFloorElev(house.floors, p.topFloorIds || null);   // walking: every floor shows
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
     // A floor chosen from every floor pulled apart (or All chosen, pulled
     // apart): the floors moved, so those showing are framed again from where
@@ -6565,7 +6687,7 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { fileLoad = null; freshShow = true; dirty = true; cam.fly = null; roomGo = null; dropPointers(); cancelNorth(); endScreen(); closeRoomPanel(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (fpsUi) fpsUi.sync(false); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; stopWalk(true); freshShow = true; dirty = true; cam.fly = null; roomGo = null; dropPointers(); cancelNorth(); endScreen(); closeRoomPanel(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (fpsUi) fpsUi.sync(false); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
@@ -6652,6 +6774,9 @@ function createSlot(slotKey){
                          // The floors: a camera kept for each one left, the corner's name.
                          floorKey, floorCams: [...floorCams.keys()], corner: { on: cornerOn && bare, text: cornerEl ? cornerEl.textContent : "" } },
                peopleClock: peopleTimer !== null, fps: fpsUi ? fpsUi.state() : null,
+               // Walking: the walker, the input, the field of view; and the camera it left (back on Stop walking).
+               walk: walkC ? { ...walkC.state(), fov: camera ? camera.fov : null, saved: walkSaved ? { theta: walkSaved.theta, phi: walkSaved.phi,
+                 radius: walkSaved.radius, target: walkSaved.target.toArray() } : null } : null,
                night: { k: nightK, top: topGlow.value, floor: floorsUi.map(F => (F.lift ? F.lift.material.opacity : 0)),
                         edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)), grid: gridLines ? gridLines.material.opacity : null,
                         ...offBulb() },
@@ -6715,6 +6840,9 @@ function createSlot(slotKey){
     },
     /** The wall panel (live_aboard_panel.js: the harness drives it). */
     _panel(){ return panel; },
+    /** The walk (the harness: what there is to walk in; the walker put somewhere). */
+    _walk(){ return walkC ? { world: () => walkWorld(), place: (x, y, foot, yaw = 0) => { const w = walkC.walker(); if (!w) return false;
+      Object.assign(w, { x, y, foot, eyeFoot: foot, yaw, pitch: 0 }); walkCam(); return true; } } : null; },
     /** The director (live_aboard_director.js: the harness drives it). */
     _director(){ return director; },
     /** The Furnish tool (the harness builds a piece of any kind through it). */
