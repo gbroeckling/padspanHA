@@ -260,6 +260,11 @@ await tryCase("audio", async () => {
   const c4 = () => rowOf(section(sheetNow(), "audio"), "media_player.c4_great_room");
   let got = await one(byAria(c4(), "Great Room volume up"));
   check("audio", JSON.stringify(got) === JSON.stringify([{ domain: "media_player", service: "volume_up", entity_id: "media_player.c4_great_room" }]), got);
+  // A player that steps itself (a Control4 room: 1 in 100 a press) shows only the level it reports, never a guess in
+  // tens, so the row is not drawn again under the finger before the next press.
+  s.update(apiOf(h, r.rc), lights);
+  const lvlNow = () => all(c4()).find(n => n.attributes["data-level"] !== undefined).textContent;
+  check("audio", lvlNow() === "35", lvlNow());
   got = await one(byAria(c4(), "Great Room volume down"));
   check("audio", JSON.stringify(got) === JSON.stringify([{ domain: "media_player", service: "volume_down", entity_id: "media_player.c4_great_room" }]), got);
   got = await one(byAria(c4(), "Mute Great Room"));
@@ -376,9 +381,15 @@ await tryCase("match", async () => {
   check("match", all(rowOf(card(), "media_player.denon_zone_2")).some(n => n._text === "First in this room"), "▼ did not move it");
   // The office's player to the kitchen; the HA speakers option stays off.
   const so = sel("media_player.c4_office"); so.value = "kitchen"; so.dispatchEvent({ type: "change" }); await tick();
-  await press(btn(card(), b => b.attributes["data-room-match-save"] !== undefined));
-  check("match", JSON.stringify(r.saved) === JSON.stringify([{ room_audio_matches: { great_room: ["media_player.denon_zone_2", "media_player.c4_great_room"], kitchen: ["media_player.c4_office"] }, room_audio_ha_speakers: false }]), r.saved);
-  check("match", !card() && r.counts.includes("match_saved"), r.counts);
+  // Every pick is kept as it is made (no Save to forget): its guesses as it opened, then ▼, then the office's room.
+  check("match", r.saved.length === 3 && JSON.stringify(r.saved[2]) === JSON.stringify({ room_audio_matches: { great_room: ["media_player.denon_zone_2", "media_player.c4_great_room"], kitchen: ["media_player.c4_office"] }, room_audio_ha_speakers: false }), r.saved);
+  { const m0 = r.saved[0].room_audio_matches;
+    check("match", Object.keys(m0).length === 2 && m0.great_room.join() === "media_player.c4_great_room,media_player.denon_zone_2" && m0.office.join() === "media_player.c4_office", r.saved[0]); }
+  const stat = () => all(card()).find(n => n.attributes && n.attributes["data-room-match-status"] !== undefined).textContent;
+  check("match", stat() === "Saved" && r.counts.filter(w => w === "match_saved").length === 1, [stat(), r.counts]);
+  check("match", !all(card()).some(n => n.localName === "button" && (n.textContent === "Save" || n.textContent === "Cancel")), "a Save or Cancel is still there");
+  await press(btn(card(), b => b.attributes["data-room-match-done"] !== undefined));
+  check("match", !card(), "Done left the card open");
   s.close(); reset();
   // Saved: the card opens on what was saved, not on guesses; a room without a player has no Audio now.
   const k = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Garage");

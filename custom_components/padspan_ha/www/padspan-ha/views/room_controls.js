@@ -267,8 +267,13 @@ export function createRoomControls(o){
     }
     const steps = has(s, VOLUME_STEP) || (has(s, VOLUME_SET) && lvl !== null);
     const step = Number(a.volume_step) > 0 ? Number(a.volume_step) : 0.1;   // what Home Assistant steps a VOLUME_SET player by
+    // A player that steps itself (VOLUME_STEP: a Control4 room moves 1 in 100 a press) shows only the level it reports:
+    // a guessed one counted in tens, and redrawing the row under a finger lost the next quick press (the owner, 2026-11-25:
+    // "Works sometime when not counting in tens"). Only a VOLUME_SET player, which Home Assistant steps by volume_step,
+    // shows its next level at once.
+    const guess = !has(s, VOLUME_STEP);
     const nudge = (dir) => () => {
-      if (lvl !== null) opt.set(p.eid, { ...(optOf(p.eid) || {}), level: Math.max(0, Math.min(1, lvl + dir * step)), until: Date.now() + OPTIMISTIC_MS });
+      if (guess && lvl !== null) opt.set(p.eid, { ...(optOf(p.eid) || {}), level: Math.max(0, Math.min(1, lvl + dir * step)), until: Date.now() + OPTIMISTIC_MS });
       call("media_player", dir > 0 ? "volume_up" : "volume_down", { entity_id: p.eid }, dir > 0 ? "up" : "down", p.name, () => opt.delete(p.eid));
     };
     ctl.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
@@ -432,6 +437,26 @@ export function createRoomControls(o){
       for (const a of Object.keys(draft)) { draft[a] = draft[a].filter(e => e !== eid); if (!draft[a].length) delete draft[a]; }
       if (aid) (draft[aid] = draft[aid] || []).push(eid);
     };
+    // Every pick is kept as it is made (the owner, 2026-11-25: a Save button left unpressed lost the matches): no Save,
+    // no Cancel, only Done. One write at a time, in order; the card's own line says whether the last one was kept.
+    let chain = Promise.resolve(), status = "", savedOnce = false;
+    const persist = () => {
+      const players = audioPlayers(H(), ha), listed = new Set(players.map(p => p.eid)), out = {};
+      for (const [aid, l] of Object.entries(draft)) { const keep = l.filter(e => listed.has(e)); if (keep.length && rooms.some(r => r.area_id === aid)) out[aid] = keep; }
+      const patch = { room_audio_matches: out, room_audio_ha_speakers: ha };
+      status = t("Saving…"); paintStatus();
+      chain = chain.then(() => o.save(patch)).then(() => {
+        if (!savedOnce) { savedOnce = true; count("match_saved"); }
+        status = t("Saved"); paintStatus();
+        try { o.redraw(); } catch (_) { /* gone */ }
+      }, (e) => {
+        status = t("Not saved"); paintStatus();
+        o.toast(t("Could not save the matches: {why}", { why: o.errorText(e) }), true);
+      });
+      return chain;
+    };
+    let statusEl = null;
+    const paintStatus = () => { if (statusEl) statusEl.textContent = status; };
     const draw = () => {
       box.replaceChildren();
       const players = audioPlayers(H(), ha);
@@ -446,7 +471,7 @@ export function createRoomControls(o){
       // Home Assistant's own speakers: off unless ticked.
       const lab = mk("label", "display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0 8px;cursor:pointer");
       const cb = mk("input"); cb.type = "checkbox"; cb.checked = ha; cb.setAttribute("data-ha-speakers", "");
-      cb.addEventListener("change", () => { ha = !!cb.checked; draw(); });
+      cb.addEventListener("change", () => { ha = !!cb.checked; draw(); persist(); });
       lab.appendChild(cb); lab.appendChild(mk("span", null, t("Include Home Assistant speakers (Music Assistant, ESPHome, Cast, TVs)")));
       box.appendChild(lab);
       if (!players.length) {
@@ -470,7 +495,7 @@ export function createRoomControls(o){
         for (const r of rooms) { const op = mk("option", null, r.name); op.value = r.area_id; sel.appendChild(op); }
         const at = roomOf(p.eid);
         sel.value = at;
-        sel.addEventListener("change", () => { move(p.eid, sel.value); draw(); });
+        sel.addEventListener("change", () => { move(p.eid, sel.value); draw(); persist(); });
         row.appendChild(sel);
         const list = at ? draft[at] : [];
         if (list.length > 1) {
@@ -480,7 +505,7 @@ export function createRoomControls(o){
             const b = mk("button", S.btn + ";min-width:34px;min-height:32px;font-size:12px" + (can ? "" : off), text);
             b.setAttribute("aria-label", aria); b.title = aria;
             if (!can) b.disabled = true;
-            else b.addEventListener("click", () => { const l = draft[at]; [l[i], l[j]] = [l[j], l[i]]; draw(); });
+            else b.addEventListener("click", () => { const l = draft[at]; [l[i], l[j]] = [l[j], l[i]]; draw(); persist(); });
             return b;
           };
           row.appendChild(arrow("▲", t("Earlier in this room"), i - 1, i > 0));
@@ -488,24 +513,20 @@ export function createRoomControls(o){
         }
         box.appendChild(row);
       }
-      const foot = mk("div", "display:flex;justify-content:flex-end;gap:8px;margin-top:12px");
-      const cancel = mk("button", S.quiet, t("Cancel")); cancel.addEventListener("click", close); foot.appendChild(cancel);
-      const save = mk("button", S.primary, t("Save"));
-      save.setAttribute("data-room-match-save", "");
-      save.addEventListener("click", () => {
-        const listed = new Set(players.map(p => p.eid)), out = {};
-        for (const [aid, l] of Object.entries(draft)) { const keep = l.filter(e => listed.has(e)); if (keep.length && rooms.some(r => r.area_id === aid)) out[aid] = keep; }
-        save.disabled = true;
-        Promise.resolve().then(() => o.save({ room_audio_matches: out, room_audio_ha_speakers: ha })).then(() => {
-          count("match_saved");
-          close();
-          try { o.redraw(); } catch (_) { /* gone */ }
-        }, (e) => { save.disabled = false; o.toast(t("Could not save the matches: {why}", { why: o.errorText(e) }), true); });
-      });
-      foot.appendChild(save);
+      const foot = mk("div", "display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px");
+      statusEl = mk("span", "font-size:12px;color:#94a3b8", status);
+      statusEl.setAttribute("data-room-match-status", "");
+      foot.appendChild(statusEl);
+      const done = mk("button", S.primary, t("Done"));
+      done.setAttribute("data-room-match-done", "");
+      done.addEventListener("click", close);
+      foot.appendChild(done);
       box.appendChild(foot);
     };
     draw();
+    // Nothing saved yet: the card's own suggestions (same names, same areas) are kept as soon as it opens, so what it
+    // shows is what the rooms use, even if Done is the only thing pressed.
+    if (!Object.keys(saved).length && Object.keys(draft).length) persist();
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     card = { overlay, close };

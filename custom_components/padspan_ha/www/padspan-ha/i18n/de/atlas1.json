@@ -293,8 +293,10 @@
 "First in this room": "Erster in diesem Raum",
 "Earlier in this room": "In diesem Raum weiter nach vorn",
 "Later in this room": "In diesem Raum weiter nach hinten",
-"Cancel": "Abbrechen",
-"Save": "Speichern",
+"Saving…": "Wird gespeichert…",
+"Saved": "Gespeichert",
+"Not saved": "Nicht gespeichert",
+"Done": "Fertig",
 "Could not save the matches: {why}": "Die Zuordnung konnte nicht gespeichert werden: {why}",
 "No players found. Audio knows Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha and Anthem players in Home Assistant.": "Keine Player gefunden. Audio kennt Player von Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha und Anthem in Home Assistant."
 }

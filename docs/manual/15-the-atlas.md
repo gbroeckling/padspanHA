@@ -132,8 +132,9 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
   player, by system, and a room for each, or **Not on the map**. The first time, it guesses from the
   player's Home Assistant area, else from its name. **Set up ›** on the **Audio** line in **⋯** opens
   it too, and ticking **Audio** with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
-  ▼ set their order, and the first is the one the map's speaker follows. Someone who isn't an
-  administrator sees the button greyed.
+  ▼ set their order, and the first is the one the map's speaker follows. Every pick is kept the
+  moment it's made (the card's guesses too, as it opens), so there is no Save: **Done** closes it.
+  Someone who isn't an administrator sees the button greyed.
 - **Which players**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. **Include Home
   Assistant speakers** on the matching card (off unless ticked) adds every other player with a

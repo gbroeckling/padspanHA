@@ -148,8 +148,9 @@ der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbil
   Namen. **Einrichten ›** in der Zeile **Audio** im **⋯** öffnet sie auch, und **Audio** anzuhaken,
   solange nichts zugeordnet ist, öffnet sie sofort. Mehrere
   Player können sich einen Raum teilen (etwa eine Control4-Zone und eine Denon-Zone): ▲ und ▼ legen
-  ihre Reihenfolge fest, und dem ersten folgt der Lautsprecher auf der Karte. Wer kein Administrator
-  ist, sieht den Knopf grau.
+  ihre Reihenfolge fest, und dem ersten folgt der Lautsprecher auf der Karte. Jede Wahl wird sofort
+  gespeichert (beim Öffnen auch die Vorschläge der Karte), also gibt es kein Speichern: **Fertig**
+  schließt sie. Wer kein Administrator ist, sieht den Knopf grau.
 - **Welche Player**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha und Anthem, nach der Integration in Home Assistant, aus der sie kommen.
   **Lautsprecher aus Home Assistant einbeziehen** auf der Zuordnungskarte (aus, bis angehakt) nimmt
