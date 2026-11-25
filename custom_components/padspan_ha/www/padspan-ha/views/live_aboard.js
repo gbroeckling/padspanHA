@@ -143,6 +143,10 @@ const STOREY = await import(`./live_aboard_storey.js${new URL(import.meta.url).s
 // An outdoor room's surface (outdoor_space.js): grey paving tiles, laid from its own corner.
 const SURF = await import(`./outdoor_space.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: outdoor_space failed to load", err); return null; });
+// Floors and walls chosen in Furnish (live_aboard_finish.js): a room's floor
+// material and wall colours, a floor's outside walls; drawn in Classic and
+// Studio. The draft's module loads it too, so it is never missing here.
+const FIN = await import(`./live_aboard_finish.js${new URL(import.meta.url).search}`);
 
 // West Coast Forest's trees (live_aboard_forest.js): fetched the first time a
 // view follows the Atlas with that theme on (syncForest); otherwise never.
@@ -492,6 +496,21 @@ function compose(x, y, z, yaw, sx, sy, sz){
   _q.setFromAxisAngle(Y_AXIS, yaw); _p.set(x, y, z); _s.set(sx, sy, sz);
   return _m.compose(_p, _q, _s);
 }
+// Floors and walls: a wall's two faces each their own colour (live_aboard_finish.js
+// wallSides). The instance colour is its front's (the box's +z face), aBack.rgb
+// its back's (-z); aBack.a says what its ends and top take: 0 the front's, 1 the
+// back's (the outside face's, so a corner reads as one colour from outside), 2
+// each half its own side's; below 0, one colour all round, as before.
+const TWO_FACES_GLSL = `#ifdef USE_INSTANCING_COLOR
+  if (aBack.w > -0.5) {
+    float la3dSide = normal.z < -0.5 ? 1.0 : normal.z > 0.5 ? 0.0 : (aBack.w > 1.5 ? step(position.z, 0.0) : aBack.w);
+    vec3 la3dCol = mix(instanceColor.xyz, aBack.xyz, la3dSide);
+    #ifdef USE_COLOR
+      la3dCol *= color.xyz;
+    #endif
+    vColor.xyz = la3dCol;
+  }
+#endif`;
 /** A colour from room_color.js's answer: "#rrggbb", or its "hsl(h s% l%)". */
 function colorOf(str){
   const s = String(str || "").trim();
@@ -571,9 +590,11 @@ function mergeGeometries(geos){
 /** A paved room's outline, flat (as the floor tiles: plan (x, y) to world
  *  (x, ·, y)), each point's uv its place in tiles from the room's own corner
  *  (outdoor_space.js paverFrame): the grid square to the room, true to scale. */
-function pavingGeometry(shapes, frame){
+function pavingGeometry(shapes, frame, tileM = null){
   const g = new THREE.ShapeGeometry(shapes), p = g.attributes.position, uv = g.attributes.uv;
-  for (let i = 0; i < p.count; i++) { const [u, v] = SURF.paverUv(frame, p.getX(i), p.getY(i)); uv.setXY(i, u, v); }
+  // tileM: a floor material's repeat (live_aboard_finish.js MATERIALS), in metres; none: a paver's.
+  const k = tileM ? SURF.PAVER_M / tileM : 1;
+  for (let i = 0; i < p.count; i++) { const [u, v] = SURF.paverUv(frame, p.getX(i), p.getY(i)); uv.setXY(i, u * k, v * k); }
   return g.rotateX(Math.PI / 2);
 }
 
@@ -668,6 +689,12 @@ function createSlot(slotKey){
   let atlas = null;
   // The Studio look (live_aboard_studio.js), made only while it is picked.
   let studio = null;
+  // Floors and walls (live_aboard_finish.js), as the house was last built
+  // with them (readFinish of the file or the draft). They show in Live
+  // Aboard's own looks, Classic and Studio (which share its colours); a
+  // Showcase theme, or the Atlas's look, keeps its own: the theme wins.
+  let finNow = FIN.readFinish(null);
+  const finishShown = () => !atlas && (!LOOKS || theme3d === LOOKS.SHOWCASE_LOOKS.classic);
   // What the house stands on as last built ({box, groundY, ground, grid}): Studio's stage goes there.
   let stageNow = null;
   // Studio could not be made on this slot (createStudio threw): the normal
@@ -1774,6 +1801,7 @@ function createSlot(slotKey){
       clearUse: () => { if (use) use.clear(); closeRoomPanel(); if (roomChips) roomChips.sync(); },
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
       FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
+      FIN,                                                   // Furnish's floors and walls (live_aboard_finish.js)
       STRIP, RUNS,                                           // the Strip tool (lights laid out along their runs)
       // Add data via plans (live_aboard_plans.js, experimental): loaded only when the editor asks (the master switch on).
       loadPlans: () => import(`./live_aboard_plans.js${new URL(import.meta.url).search}`),
@@ -1889,10 +1917,11 @@ function createSlot(slotKey){
           sh.uniforms.uTopGlow = topGlow;
           sh.vertexShader = "attribute float aTop;\nvarying float vTop;\n"
             + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTop = aTop;");
+          if (spec.two) sh.vertexShader = "attribute vec4 aBack;\n" + sh.vertexShader.replace("#include <color_vertex>", "#include <color_vertex>\n" + TWO_FACES_GLSL);
           sh.fragmentShader = "uniform float uTopGlow;\nvarying float vTop;\n"
             + sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n  totalEmissiveRadiance += vec3(vTop * uTopGlow);");
         };
-        m.customProgramCacheKey = () => "la3d-walltop";
+        m.customProgramCacheKey = () => (spec.two ? "la3d-walltop-two" : "la3d-walltop");
       }
       shared.mats.set(key, m);
     }
@@ -1921,6 +1950,62 @@ function createSlot(slotKey){
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
     return (shared.pavingMat = new THREE.MeshLambertMaterial({ map: t, color: SURF.PAVER_JOINT, transparent: true, depthWrite: false,
       side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -3 }));
+  }
+  /** A floor material's lines (live_aboard_finish.js MATERIALS), drawn here in
+   *  code like the paving's, no picture fetched: clear but for its joints in
+   *  the material's joint colour; planks, staggered, with a little grain, or a
+   *  grid of joints, with flecks for stone and concrete. One repeat is the
+   *  material's tile_m; one material each, made the first time it is drawn. */
+  function finishMat(fm){
+    const key = `finishMat:${fm}`;
+    if (shared[key]) return shared[key];
+    const M = FIN.MATERIALS[fm], N = 128, c = document.createElement("canvas"); c.width = c.height = N;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff";
+    if (M.pattern === "planks") {
+      // Eight planks across the repeat, each with a joint along it, an end joint where the last one stopped, and grain.
+      const w = N / 8;
+      for (let i = 0; i < 8; i++) {
+        const y = i * w, end = ((i * 37) % 8) * (N / 8);
+        g.globalAlpha = 0.85; g.fillRect(0, y, N, 2); g.fillRect(end, y, 2, w);
+        g.globalAlpha = 0.14;
+        for (let k = 1; k < 4; k++) g.fillRect(0, y + k * w / 4 + ((i + k) % 2), N, 1);
+      }
+    } else {
+      // A grid of joints along two edges of the repeat (it repeats into a grid), and flecks for stone and concrete.
+      g.globalAlpha = 0.8; g.fillRect(0, 0, N, 3); g.fillRect(0, 0, 3, N);
+      if (M.flecks && SURF.PAVER_FLECKS) for (const [u, v, sz, a] of SURF.PAVER_FLECKS) { g.globalAlpha = a * 0.7; g.fillRect(u * N, (1 - v - sz) * N, sz * N, sz * N); }
+    }
+    g.globalAlpha = 1;
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return (shared[key] = new THREE.MeshLambertMaterial({ map: t, color: M.joint, transparent: true, depthWrite: false,
+      side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -3 }));
+  }
+  /** A painted wall's two colours as its box takes them (HOUSE.wallElements'
+   *  pos, neg, out; front: the box's +z face is on the wall's normal side):
+   *  col its front's, back its back's, cap what its ends and top take
+   *  (TWO_FACES_GLSL). Nothing painted: nothing (the wall as before). */
+  function faces(e, front){
+    if (!e.pos) return null;
+    return { col: front ? e.pos : e.neg, back: front ? e.neg : e.pos, cap: !e.out ? 2 : (e.out === 1) === front ? 0 : 1 };
+  }
+  /** The walls' box with each wall's back colour beside it (aBack), for a
+   *  floor with a wall of two colours. Its points, normals, shading and tops
+   *  are the shared box's own, so Studio's darker foot shows on it too. */
+  function twoFaces(list){
+    const W = shared.wallBox, g = new THREE.BufferGeometry(), back = new Float32Array(list.length * 4);
+    g.setIndex(W.index);
+    for (const k of Object.keys(W.attributes)) g.setAttribute(k, W.attributes[k]);
+    list.forEach((e, i) => {
+      if (!e.back) { back[i * 4 + 3] = -1; return; }
+      _c.set(e.back);
+      back[i * 4] = _c.r; back[i * 4 + 1] = _c.g; back[i * 4 + 2] = _c.b; back[i * 4 + 3] = e.cap;
+    });
+    g.setAttribute("aBack", new THREE.InstancedBufferAttribute(back, 4));
+    // Let go of only its own: three frees every buffer a geometry holds, and the shared box's stay in use.
+    shellRes.push({ dispose: () => { g.setIndex(null); for (const k of Object.keys(W.attributes)) g.deleteAttribute(k); g.dispose(); } });
+    return g;
   }
 
   // ── the house ─────────────────────────────────────────────────────────────
@@ -1997,6 +2082,9 @@ function createSlot(slotKey){
    *  Showcase look's mix, Classic 0.38, a deck more); paved, the pavers' grey. */
   function tileTop(r, paved, k){
     if (paved) return atlas ? new THREE.Color(atlas.floor).lerp(new THREE.Color(SURF.PAVER_GREY), 0.5) : new THREE.Color(SURF.PAVER_GREY);
+    // A floor material chosen in Furnish: its own colour, never calmed (it is no longer the room's colour).
+    const fm = finishShown() ? FIN.floorOf(finNow, r.name) : null;
+    if (fm) return new THREE.Color(FIN.MATERIALS[fm].base);
     const c = colorOf(r.color), lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, tm = theme3d ? theme3d.tile : 0.38;
     c.lerp(new THREE.Color(lum, lum, lum), k);
     return atlas ? new THREE.Color(atlas.floor).lerp(c, r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
@@ -2006,6 +2094,10 @@ function createSlot(slotKey){
     clearShell();
     shellGen++; work.shells++;
     house = h;
+    // Floors and walls, from the file or the draft as it is now; only in Classic and Studio.
+    finNow = FIN.readFinish(viewData());
+    const fin = finishShown() && FIN.hasFinish(finNow) ? finNow : null;
+    if (fin) HOUSE.countHouse3dOnce("house3d_finish:drawn", send);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const r of h.rooms) {
       if (r.floor.outdoor) continue;
@@ -2025,7 +2117,7 @@ function createSlot(slotKey){
       floorsUi.push(F);
       // Floor tiles: each room extruded down by its slab — the room's colour
       // on top, the Atlas's beige on the sides — merged into one per floor.
-      const geos = [], paving = [], spans = [], caps = [];
+      const geos = [], paving = [], spans = [], caps = [], laid = {};
       // How much furniture covers each room: a bare floor is calmer (calmFloors).
       const covers = HOUSE.roomCovers(per.rooms, fl.id, piecesNow(viewData().pieces), h.canonAt, STOREY && STOREY.isStairs);
       F.bare = covers.map(c => HOUSE.bareness(c));            // and its motion glow fainter (live_aboard_motion.js)
@@ -2040,6 +2132,9 @@ function createSlot(slotKey){
         // and their joints laid over it from the room's own corner (pavingGeometry).
         const paved = !!SURF && SURF.paved(r.outdoor, r.surface);
         if (paved) paving.push(pavingGeometry(shapes, SURF.paverFrame(r.pts)).translate(0, (i % 8) * 0.0005 + 0.002, 0));
+        // A floor material's planks or joints, laid the same way from the room's longest wall (finishMat).
+        const fm = fin && !paved && SURF ? FIN.floorOf(fin, r.name) : null, fmat = fm ? FIN.MATERIALS[fm] : null;
+        if (fmat && fmat.pattern) (laid[fm] ||= []).push(pavingGeometry(shapes, SURF.paverFrame(r.pts), fmat.tile_m).translate(0, (i % 8) * 0.0005 + 0.002, 0));
         const top = tileTop(r, paved, HOUSE.floorCalm(covers[i]));
         const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : atlas ? atlas.side : SLAB_SIDE);
         if (!r.outdoor) { tileSum.r += top.r; tileSum.g += top.g; tileSum.b += top.b; tileSum.n++; }
@@ -2095,6 +2190,17 @@ function createSlot(slotKey){
           F.paving.renderOrder = 1;
           group.add(F.paving);
         }
+        // Each floor material's lines, one mesh per material on this floor, as the paving's.
+        F.finishes = Object.entries(laid).map(([fm, list]) => {
+          const fg = mergeGeometries(list);
+          list.forEach(g => g.dispose());
+          fg.translate(0, fl.elev, 0);
+          shellRes.push(fg);
+          const m = new THREE.Mesh(fg, finishMat(fm));
+          m.renderOrder = 1; m.userData.material = fm;
+          group.add(m);
+          return m;
+        });
         // ...and each room's outline in its own colour, as the flat Atlas draws it
         // (at night; with the Atlas's look, always).
         const eg = edgeRibbons(per.rooms, fl.elev + 0.012, atlas);
@@ -2109,6 +2215,8 @@ function createSlot(slotKey){
       }
       // Walls: the derived pieces, each drawn bottom to top (wallElements).
       const solids = [], glasses = [];
+      // Floors and walls: each wall's two faces in the colours chosen (FIN.wallSides), on its floor as stored.
+      const finWalls = fin && FIN.hasWalls(fin), finFloor = HOUSE.wholeFloorId(fl.id);
       for (const pc of per.pieces) {
         if (Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0) < 0.02) continue;
         // Lengthened only at its wall's own corners, so joints close and a
@@ -2119,13 +2227,19 @@ function createSlot(slotKey){
           const nx = Number(pc.nx) || 0, ny = Number(pc.ny) || 0;
           return HOUSE.roomAt(per.rooms, span.mx + nx * 0.4, span.my + ny * 0.4) || HOUSE.roomAt(per.rooms, span.mx - nx * 0.4, span.my - ny * 0.4) || null;
         };
-        const els = HOUSE.wallElements(pc, fl.h).map(e => ({ ...e, list: e.glass ? glasses : solids, room: e.glass ? paneRoom() : null }));
+        // Which way the box's front (+z) faces on the plan (compose: yawOf), against the wall's normal: its two colours to the right faces.
+        const yaw = HOUSE.yawOf([pc.x1 - pc.x0, pc.y1 - pc.y0]), front = Math.sin(yaw) * (Number(pc.nx) || 0) + Math.cos(yaw) * (Number(pc.ny) || 0) >= 0;
+        const els = HOUSE.wallElements(pc, fl.h, finWalls ? FIN.wallSides(pc, per.rooms, fin, finFloor) : null)
+          .map(e => ({ ...e, list: e.glass ? glasses : solids, room: e.glass ? paneRoom() : null, ...faces(e, front) }));
         for (const e of els) { e.i = e.list.length; e.list.push(e); }
-        F.pieces.push({ pc, mx: span.mx, my: span.my, yaw: HOUSE.yawOf([pc.x1 - pc.x0, pc.y1 - pc.y0]),
+        F.pieces.push({ pc, mx: span.mx, my: span.my, yaw,
                         len: span.len, els, cut: null, lights: [] });
       }
       const inst = (list, geo, spec, cast) => {
         if (!list.length) return null;
+        // A floor with a wall of two colours: the walls' own geometry with each one's back colour beside it (twoFaces).
+        const two = list.some(e => e.back);
+        if (two) { geo = twoFaces(list); spec = { ...spec, two: 1 }; }
         const im = new THREE.InstancedMesh(geo, mat(spec), list.length);
         im.userData.spec = spec;
         im.castShadow = cast; im.receiveShadow = true; im.frustumCulled = false;
@@ -6412,7 +6526,7 @@ function createSlot(slotKey){
     refitFloor = false;
     const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid) + (xGap ? `|explode:${xGap}` : "");
     const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
-    const sSig = mSig + DRAFT.openingsSignature(vd) + (STOREY ? STOREY.stairsSignature(vd.pieces) : "");
+    const sSig = mSig + DRAFT.openingsSignature(vd) + (STOREY ? STOREY.stairsSignature(vd.pieces) : "") + FIN.finishSignature(vd);
     const lSig = mlSig + DRAFT.heightsSignature(vd, "lights") + RUNS.runsSignature(vd);
     const xSig = mxSig + DRAFT.heightsSignature(vd, "devices");
     let rebuilt = false;
@@ -6656,6 +6770,18 @@ function createSlot(slotKey){
                         edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)), grid: gridLines ? gridLines.material.opacity : null,
                         ...offBulb() },
                wallMat: (floorsUi.find(F => F.solid) || { solid: null }).solid ? floorsUi.find(F => F.solid).solid.material : null,
+               // Floors and walls as drawn: whether they show in this look, each floor's material lines, and each wall
+               // drawn in two colours (its front, its back, what its ends take) with its floor and middle.
+               finish: { shown: finishShown(), rooms: Object.keys(finNow.rooms).length, floors: Object.keys(finNow.floors).length,
+                         laid: floorsUi.flatMap(F => (F.finishes || []).map(m => ({ floor: F.fl.id, material: m.userData.material, inGroup: m.parent === F.group,
+                                                                                   joint: "#" + m.material.color.getHexString() }))),
+                         two: floorsUi.map(F => ({ floor: F.fl.id, on: !!(F.solid && F.solid.userData.spec.two) })),
+                         walls: floorsUi.flatMap(F => F.pieces.flatMap(P => P.els.filter(e => e.back).map(e => ({
+                           floor: F.fl.id, mx: P.mx, my: P.my, fz: [Math.sin(P.yaw), Math.cos(P.yaw)], kind: P.pc.kind, cls: P.pc.cls,
+                           front: e.col, back: e.back, cap: e.cap, pos: e.pos, neg: e.neg })))),
+                         // Each floor's walls' colours as drawn (the instance colours), and its walls' program.
+                         cols: floorsUi.map(F => (F.solid && F.solid.instanceColor ? Array.from(F.solid.instanceColor.array, v => Math.round(v * 1e5) / 1e5) : null)),
+                         program: floorsUi.map(F => (F.solid ? F.solid.material.customProgramCacheKey() : null)) },
                // Paved rooms' joints as drawn, per floor: points (x, y, z), uv (tiles), the one material.
                paving: floorsUi.filter(F => F.paving).map(F => ({ floor: F.fl.id, inGroup: F.paving.parent === F.group, order: F.paving.renderOrder,
                  pos: Array.from(F.paving.geometry.attributes.position.array), uv: Array.from(F.paving.geometry.attributes.uv.array),
