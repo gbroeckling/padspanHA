@@ -90,7 +90,10 @@ GATHERED = frozenset({"padspan_ha.telemetry_counters", "padspan_ha.movement_hist
 _TRACE_SEGMENTS = "padspan_ha.traceback_segments"
 # Counted in a store, also when a command refuses: how often line-up stopped
 # because it needs an AI Task it does not have (plan_ai's "stall").
-COUNTED = {"padspan_ha.plan_ai": ("stall",)}
+COUNTED = {"padspan_ha.plan_ai": ("stall",),
+           # Written as the house runs: Yesterday at home's day told, stamped by its morning message in the
+           # background once an earlier message switched it on with a time already past (presence_coordinator).
+           "padspan_ha.settings": ("yesterday_home_sent_day",)}
 # A guest's stay goes on being watched: its live state and summary move on.
 _GUEST_LIVE = ("live", "summary")
 
