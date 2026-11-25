@@ -1510,12 +1510,15 @@ export function openAggregateSheet(api, spec, o = {}){
   const sheet = mk("div", into ? _S.inPanel : _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const greyed = ";opacity:.45;cursor:default";
   let drawn = null;
-  const fill = (api, { title, sub, who, items, actions }) => {
+  // before / after (room controls, room_controls.js, only while a screen has them on): {sig, draw()} parts drawn
+  // above the list and below it. Without them the sheet, and what it is compared by, are as they always were.
+  const fill = (api, { title, sub, who, items, actions, before, after }) => {
     // Drawn again only when something it shows changed: drawing it on every
     // update would take a Reset's "Yes, clear it" away while it is read.
-    const sig = JSON.stringify([title, sub || "", who || "", (actions || []).map(a => [a.label, !!a.primary]),
+    const base = [title, sub || "", who || "", (actions || []).map(a => [a.label, !!a.primary]),
       items.map(l => { const w = stateWordOf(l, api.floodLatches, api.doorInvertByEid);
-        return [l.entity_id, l.code, l.friendly_name, l.state, w && [w.text, w.lit, !!w.latched], !w && !!api.controlsFor(l)]; })]);
+        return [l.entity_id, l.code, l.friendly_name, l.state, w && [w.text, w.lit, !!w.latched], !w && !!api.controlsFor(l)]; })];
+    const sig = JSON.stringify(before || after ? [...base, before ? before.sig : null, after ? after.sig : null] : base);
     if (sig === drawn) return;
     drawn = sig;
     sheet.replaceChildren();
@@ -1534,6 +1537,7 @@ export function openAggregateSheet(api, spec, o = {}){
       }
       sheet.appendChild(row);
     }
+    if (before) { const n = before.draw(); if (n) sheet.appendChild(n); }
     for (const l of items) {
       const row = mk("div", _S.row);
       const col = classBorder(l, "#52b788");
@@ -1599,6 +1603,7 @@ export function openAggregateSheet(api, spec, o = {}){
       }
       sheet.appendChild(row);
     }
+    if (after) { const n = after.draw(); if (n) sheet.appendChild(n); }
   };
   fill(api, spec);
   if (overlay) { overlay.appendChild(sheet); document.body.appendChild(overlay); release = _holdKeys(sheet, { close, modal: true }); }
@@ -1670,6 +1675,9 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
     return { on: here.filter(e => byEid.get(e).state === "on"), off: here.filter(e => byEid.get(e).state !== "on") };
   };
   const lightSw = split(agg.lightEids), fanSw = split(agg.fanEids);
+  // Room controls (room_controls.js; api.roomControls only while this screen's ⋯ "Room controls" is ticked): a status
+  // line, Room off first in the row, Audio above the list, Shades and Climate below it. Never on the unplaced chip's sheet.
+  const rc = !only && api.roomControls ? api.roomControls.sheet(room, { lightsOn: lightSw.on, setMany: api.setMany }) : null;
   const parts = [];
   if (agg.lightsTotal) parts.push(t("Lights {on}/{n}", { on: agg.lightsOn, n: agg.lightsTotal }));
   if (agg.fansTotal) parts.push(t("Fans {on}/{n}", { on: agg.fansOn, n: agg.fansTotal }));
@@ -1677,6 +1685,7 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
   if (agg.airTotal) parts.push(t("Air {word}", { word: airQualityWord(agg.airWorst) }));
   if (agg.floodActive) parts.push(t("⚠ Emergency ×{n}", { n: agg.floodActive }));
   const actions = [];
+  if (rc && rc.roomOff) actions.push(rc.roomOff);
   if (lightSw.on.length) actions.push({ label: t("All lights off"), run: () => api.setMany(lightSw.on, false) });
   if (lightSw.off.length) actions.push({ label: t("All lights on"), primary: true, run: () => api.setMany(lightSw.off, true) });
   if (fanSw.on.length) actions.push({ label: t("Fans off"), run: () => api.setMany(fanSw.on, false) });
@@ -1692,7 +1701,9 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
       } });
     }
   }
-  return { title: only ? t("Unplaced in {room}", { room }) : room, sub: parts.join(" · "), who: only || api.peopleShown !== true ? null : who, items, actions };
+  const whoLine = only || api.peopleShown !== true ? null : who;
+  if (rc) return { title: room, sub: parts.join(" · "), who: [rc.status, whoLine].filter(Boolean).join(" · ") || null, items, actions, before: rc.before, after: rc.after };
+  return { title: only ? t("Unplaced in {room}", { room }) : room, sub: parts.join(" · "), who: whoLine, items, actions };
 }
 /** The room sheet. Returns its handle: the host hands every newer api and
  *  lights to update(api, lights) while it is open (false once closed), so
@@ -4176,6 +4187,9 @@ export function buildLightsMapCard(hostIn){
   // Edgecut (⋯ list, per screen): the rooms fill the screen, as far in as every button stays whole on it (edgecutFit).
   // A display screen's (the Atlas tab, the sidebar, a wall), never the builder's, which edits the whole house.
   const edgecutOn = () => DISPLAY && flatShow("edgecut") === true;
+  // Room controls (⋯ list, per screen, off unless ticked; room_controls.js through host.roomControls, the Atlas tab's):
+  // a speaker beside the name of a room whose player is on, and the room sheet's audio, shades and climate.
+  const roomControlsOn = () => DISPLAY && !!host.roomControls && flatShow("room_controls") === true;
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
@@ -4717,7 +4731,9 @@ export function buildLightsMapCard(hostIn){
         doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null,
         // The sidebar Atlas draws a chosen floor alone, as big as the screen; Mapping keeps the others, faded.
         // Unless this screen's ⋯ list has "Other floors, faded" ticked.
-        focusAlone: DISPLAY && flatShow("other_floors") !== true };
+        focusAlone: DISPLAY && flatShow("other_floors") !== true,
+        // Room controls on: {room: "on" | "muted"}, a speaker beside those rooms' names (nothing passed: none).
+        ...(roomControlsOn() ? { roomAudio: host.roomControls.looks() } : {}) };
     const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors, isoOpts);
     abNames = isoOpts.labelSpots;
@@ -4730,7 +4746,7 @@ export function buildLightsMapCard(hostIn){
         getFocusZ(view.focusIdx), view.floorGap, view.horizGap, view.zoom, V2, WALL, o.showcase, o.showcaseTheme, o.liveColours,
         o.fitRooms, o.isolux, o.sceneField, o.codeChip, o.hideCodes, o.classFilter, o.hitHalo, o.collapseUnplaced, o.dropMarker,
         o.labelScale, o.heatmap, o.barrierHit, o.automorph, o.automorphRoomPct, o.automorphHardness, o.automorphStyle,
-        o.automorphSubtlety, o.underlay ? o.underlay.length : 0, o.focusAlone]) }).full;
+        o.automorphSubtlety, o.underlay ? o.underlay.length : 0, o.focusAlone]) + (o.roomAudio ? JSON.stringify(o.roomAudio) : "") }).full;
     } else { isoDiv.innerHTML = svgStr; drawnWhole = true; }
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).
@@ -5676,7 +5692,7 @@ export function buildLightsMapCard(hostIn){
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
-            lines: () => ["light_taps", "other_floors", "edgecut", ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
+            lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
             ready: () => {
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);
@@ -5694,6 +5710,8 @@ export function buildLightsMapCard(hostIn){
             changed: (key) => { if (key === "light_taps") { if (typeof host.onShowLine === "function") host.onShowLine(key); return; }
               // Edgecut ticked: the hand's zoom is let go (the drawing below fits it; unticked, it goes back to the whole house).
               if ((key === "edgecut" || key === null) && edgecutOn()) view.zoomByHand = false;
+              // Room controls ticked with nothing matched yet: the matching card opens for an administrator.
+              if (key === "room_controls" && host.roomControls) host.roomControls.switched(roomControlsOn());
               // "Furniture from scans" ticked: its reader is fetched now, and the map drawn again when it arrives.
               if (key === "scan_furniture" && scanOn()) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
               if (sceneRow) sceneRow.update(scenesFlat()); rebuildISO(); } }) });

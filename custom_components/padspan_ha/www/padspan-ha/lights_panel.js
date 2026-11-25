@@ -42,6 +42,11 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
 // without it the button is as it was.
 const ALARM = await import(`./views/alarm_panel.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: alarm_panel failed to load", err); return null; });
+// Room controls (views/room_controls.js): the ⋯ list's "Room controls", a room's
+// players, shades and thermostats in its sheet. Optional: without it the line
+// is not offered and the sheet is as it was.
+const ROOMCTL = await import(`./views/room_controls.js${STAMP}`)
+  .catch(err => { console.warn("PadSpan: room_controls failed to load", err); return null; });
 // Escape, Tab and the focus for the emergency card and the page drawn again
 // (views/dialog_keys.js). Optional: without it they work as they did.
 const KEYS = await import(`./views/dialog_keys.js${STAMP}`)
@@ -492,6 +497,8 @@ class PadSpanLightsApp extends HTMLElement {
           atlas_3d_director: s.atlas_3d_director };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
+      // Room controls' matches (views/room_controls.js). A failed fetch keeps the last answer.
+      if (s.room_audio_matches !== undefined) this.state._roomAudio = { room_audio_matches: s.room_audio_matches || {}, room_audio_ha_speakers: s.room_audio_ha_speakers === true };
       // Layout v2 (2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
       // as showcase/automorph above, but renders its OWN DISPLAY variant
@@ -969,6 +976,35 @@ class PadSpanLightsApp extends HTMLElement {
   _kiosk(){ try { return new URLSearchParams(location.search).get("kiosk")==="1"; } catch (_) { return false; } }
 
   _isAdmin(){ return !!(this._hass && this._hass.user && this._hass.user.is_admin); }
+  // Room controls on this screen: the ⋯ list's "Room controls" ticked where the map has that list (Pro's display layout).
+  _roomControlsOn(){
+    return !!ROOMCTL && String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2 && screenShowLine("atlas","room_controls")===true;
+  }
+  // This page's room controls (views/room_controls.js), made once: functions only, read when used.
+  _roomCtl(){
+    if(!ROOMCTL) return null;
+    if(!this._rc) this._rc = ROOMCTL.createRoomControls({
+      hass: ()=>this._hass,
+      model: ()=>this.state.model,
+      settings: ()=>this.state._roomAudio || {},
+      admin: ()=>this._isAdmin(),
+      save: async (patch)=>{
+        const r = await this._ws({ type:"padspan_ha/settings_set", ...patch });
+        const st = (r && r.settings) || patch;
+        this.state._roomAudio = { room_audio_matches: st.room_audio_matches || {}, room_audio_ha_speakers: st.room_audio_ha_speakers === true };
+        return true;
+      },
+      toast: (m,e)=>this._toast(m,e),
+      errorText: (e)=>this._errorText(e),
+      // The opt-in report's room_controls:<word> (telemetry.py ROOM_CONTROLS_EVENTS), only while it is on.
+      count: (word)=>{
+        if(!this.state._telemetryOn || !this._hass) return;
+        Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:"room_controls:" + word })).catch(()=>{});
+      },
+      redraw: ()=>this._render(),
+    });
+    return this._rc;
+  }
   // The PadSpan panel's Basic / Advanced choice, kept in this browser (panel.js).
   _basicMode(){ try { return localStorage.getItem("padspan_complexity") === "basic"; } catch (_) { return false; } }
   // Deep-link into the builder: the panel reads ?view= (existing), ?tab= and
@@ -989,6 +1025,8 @@ class PadSpanLightsApp extends HTMLElement {
       kiosk:this._kiosk(),
       // Whether this screen shows people (Show people, and its ⋯ People line): the room sheet names no one otherwise.
       peopleShown: peopleShownOn("atlas", this.state._house3d, this.state._tier),
+      // Room controls in the room sheet: only while this screen's ⋯ "Room controls" is ticked.
+      roomControls: this._roomControlsOn() ? this._roomCtl() : null,
       toggle:(eid)=>this._toggle(eid),
       openControls:(eid)=>this._openWledDetail(eid),
       openActivity:(eid)=>openActivityCalendar(this._hass, eid),
@@ -1165,6 +1203,8 @@ class PadSpanLightsApp extends HTMLElement {
       // builder's own proTier, not the bright-or-pro `paid` above.
       layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
       displayMode: true,
+      // Room controls (views/room_controls.js): offered in the ⋯ list, drawn only while ticked there.
+      roomControls: this._roomCtl(),
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
       // The wall's own shape, as it is hung (a turned wall is tall): what its

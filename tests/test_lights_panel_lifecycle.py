@@ -282,3 +282,16 @@ def test_the_alarm_inside_the_emergency_button(result) -> None:
     # list notch; both, the emergency ring with its notch.
     assert a["aloneLook"] == ["lv-emerg-ring lv-emerg-ring-alarm lv-emerg-ring-alarm-disarmed", "Alarm: Disarmed", 0], a
     assert a["bothLook"] == ["lv-emerg-ring", "Alarm and emergency lights", 1], a
+
+
+def test_room_controls_through_the_panel(result) -> None:
+    """Room controls (views/room_controls.js), the owner, 2026-11-25 ("in the pulldown in atlas, add a volume for room
+    option"): with the ⋯ line not ticked, the map's drawing and a room's sheet are the same DOM as the panel without the
+    module, and nothing is counted; ticked on this screen, the speaker beside the room whose player is on, its sheet's
+    Audio, a press one service call (a household member's too, who cannot match rooms), counted on and up."""
+    r = result["roomCtl"]
+    assert r["offSvgSame"] and r["offSheetSame"] and r["offSent"] == [], r
+    assert r["onIcon"] and r["onAudio"], r
+    assert r["onSvc"] == ["media_player.volume_up:media_player.c4_kitchen"], r
+    assert r["onSent"] == ["room_controls:on", "room_controls:up"], r
+    assert r["nonAdmin"] == {"svc": ["media_player.volume_up:media_player.c4_kitchen"], "matchDisabled": True}, r

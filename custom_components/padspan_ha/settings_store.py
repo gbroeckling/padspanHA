@@ -57,6 +57,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lights_follow_enabled": False,
     "lights_follow_rooms": {},     # {room: {lights, off_delay_s, dark, lux_entity, lux_below, quiet, sensors}} — lights_follow.clean_rooms
     "lights_follow_people": {},    # {name (lower case): counts} — a name not here counts, unless a guest tag
+    # Room controls on the Atlas (views/room_controls.js): which media players are in which room, in each room's
+    # order ({area id: [media_player entity id, ...]}, ws_settings.clean_room_audio_matches), and whether Home
+    # Assistant's own speakers are offered beside the whole-house systems. An administrator's; nothing runs from them.
+    "room_audio_matches": {},
+    "room_audio_ha_speakers": False,
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
     # Enhanced security (ws_common.require_admin_if_enhanced): off = every
     # command as before; on = only an admin changes the home's shared setup.

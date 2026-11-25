@@ -42,6 +42,28 @@ _MAP = vol.All(dict, shallow, vol.Length(max=SETTINGS_LIST_MAX))
 
 _LOGGER = logging.getLogger(__name__)
 
+_MEDIA_PLAYER_RE = re.compile(r"^media_player\.[a-z0-9_]{1,200}$")
+
+
+def clean_room_audio_matches(raw: Any) -> dict[str, list[str]]:
+    """Room controls' matches as kept: {area id: [media_player entity id, ...]} in the room's order, each player in one
+    room only, rooms with none left out. Anything else is dropped."""
+    out: dict[str, list[str]] = {}
+    seen: set[str] = set()
+    if not isinstance(raw, dict):
+        return out
+    for aid, players in raw.items():
+        if not isinstance(aid, str) or not aid.strip() or len(aid) > 100 or not isinstance(players, list):
+            continue
+        keep = []
+        for eid in players[:20]:
+            if isinstance(eid, str) and _MEDIA_PLAYER_RE.match(eid) and eid not in seen:
+                seen.add(eid)
+                keep.append(eid)
+        if keep:
+            out[aid] = keep
+    return out
+
 # Shared whitelists — referenced both by the individual lights_automorph_style
 # / lights_showcase_theme setters below AND by the Showcase preset sanitizer
 # (a preset's saved "values" blob must never let a removed/renamed style or
@@ -805,6 +827,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_follow_enabled"): bool,          # lights_follow.py, off by default
         vol.Optional("lights_follow_rooms"): _MAP,             # cleaned by lights_follow.clean_rooms
         vol.Optional("lights_follow_people"): _MAP,            # cleaned by lights_follow.clean_people
+        vol.Optional("room_audio_matches"): _MAP,             # admin only; cleaned by clean_room_audio_matches
+        vol.Optional("room_audio_ha_speakers"): bool,         # admin only
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1382,6 +1406,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload["lights_follow_rooms"] = _lf_rooms(msg["lights_follow_rooms"])
             if "lights_follow_people" in msg:
                 payload["lights_follow_people"] = _lf_people(msg["lights_follow_people"])
+        # Room controls' matches (views/room_controls.js): an administrator's, as the frontend's Save is.
+        if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg:
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can match players to rooms")
+                return
+            if "room_audio_matches" in msg:
+                payload["room_audio_matches"] = clean_room_audio_matches(msg["room_audio_matches"])
+            if "room_audio_ha_speakers" in msg:
+                payload["room_audio_ha_speakers"] = bool(msg["room_audio_ha_speakers"])
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",

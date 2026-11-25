@@ -2751,6 +2751,20 @@ export const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34
 // Mapping's _floorZAtVb (maps.js) would count its plate as chosen.
 const GHOST_FLOOR_OPACITY = 0.25;
 
+/** The speaker beside a room's name on the map (room controls, room_controls.js): mdi:volume-high's shape drawn in the map's line, in the
+ *  room name's colour, `s` its half height; slashed (mdi:volume-off) while muted. Never takes a tap itself. */
+export function speakerMark(x, y, s, color, look){
+  const P = (px, py) => `${(x + px * s).toFixed(1)},${(y + py * s).toFixed(1)}`;
+  const arc = (r) => `M${P(0.25, -r)} A${(r * s).toFixed(1)},${(r * s).toFixed(1)} 0 0 1 ${P(0.25, r)}`;
+  const w = Math.max(0.8, s * 0.22).toFixed(2);
+  return `<g class="lroom-audio" data-look="${look === "muted" ? "muted" : "on"}" pointer-events="none" fill="none" stroke="${color}" `
+    + `stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" paint-order="stroke">`
+    + `<path d="M${P(-1, -0.35)} L${P(-0.55, -0.35)} L${P(-0.05, -0.85)} L${P(-0.05, 0.85)} L${P(-0.55, 0.35)} L${P(-1, 0.35)} Z" fill="${color}" fill-opacity="0.35"/>`
+    + `<path d="${arc(0.4)}"/><path d="${arc(0.8)}"/>`
+    + (look === "muted" ? `<path d="M${P(-1.05, -1)} L${P(1.05, 1)}" stroke="#071008" stroke-width="${(Number(w) * 2.6).toFixed(2)}"/><path d="M${P(-1.05, -1)} L${P(1.05, 1)}"/>` : "")
+    + `</g>`;
+}
+
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   // A wall screen sized for its room (lights_map, wall mode): room names grow
@@ -2807,6 +2821,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   //   size, for the people layer (atlas_aboard.js clearNames) to move a name a
   //   person's badge or a tag's name lands on. The markup is the same either way.
   const NAME_SPOTS = opts.labelSpots instanceof Map ? opts.labelSpots : null;
+  // roomAudio (room controls, room_controls.js looks; the flat Atlas while a screen has them on): {room: "on" |
+  //   "muted"}, a small speaker beside those rooms' names, inside the name's own tap target (its tap opens the room's
+  //   sheet, as the name's does). Not passed: the markup is the same as without it.
+  const ROOM_AUDIO = opts.roomAudio && typeof opts.roomAudio === "object" ? opts.roomAudio : null;
   // Automorph (2026-09-07): 0 disables it outright — see
   // automorphAuraSvg/automorphRing below, near perimeterSvg.
   const AUTOMORPH_PCT = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphRoomPct) || 0)) : 0;
@@ -6036,12 +6054,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         // much space" and needs to stay "somewhat transparent" over whatever
         // it crosses) — a thinner halo and a lower opacity so a marker or
         // boundary line underneath still reads through it.
-        const nameTxt=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
+        let nameTxt=`<text x="${Math.round(lix)}" y="${Math.round(liy)}" text-anchor="middle" dominant-baseline="middle" `+
           `fill="${color}" font-size="${rfs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="600" `+
           (SHOW?`letter-spacing="${THEME.roomLabelLetterSpacing}" `:``)+
           `paint-order="stroke" stroke="#071008" stroke-width="1.8" stroke-linejoin="round" `+
           `opacity="${SHOW?THEME.roomLabelOpacity:"0.78"}" pointer-events="none">`+
           `${escSVG(SHOW?(THEME.roomLabelUppercase?String(r.room).toUpperCase():String(r.room)):r.room)}</text>`;
+        // Room controls: a player on in this room, a speaker just right of its name, in the name's colour, drawn where
+        // the name is (over the markers when the name is); its tap circle in the name's tap box below.
+        const audioLook=ROOM_AUDIO && Object.prototype.hasOwnProperty.call(ROOM_AUDIO, r.room) ? ROOM_AUDIO[r.room] : null;
+        const audioS=rfs*0.62, audioX=lix+(rw-10)/2+audioS*1.9, audioY=liy;
+        if(audioLook){
+          nameTxt+=`<g opacity="${SHOW?THEME.roomLabelOpacity:"0.85"}">${speakerMark(audioX, audioY, audioS, color, audioLook)}</g>`;
+          s+=`<circle class="lroom-audio-hit" cx="${audioX.toFixed(1)}" cy="${audioY.toFixed(1)}" r="${Math.max(audioS*2.6, 9).toFixed(1)}" `+
+            `fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;
+        }
         // A room so full that no spot in it is clear (a small larder between
         // two strips, a closet its own strip runs the length of): its name is
         // drawn over the markers instead (namesOver), its halo keeping it

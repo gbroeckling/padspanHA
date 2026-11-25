@@ -140,6 +140,27 @@ await tryCase("lines: only what the flat Map honours, opened counted as the flat
     && tickOf(k, "other_floors").getAttribute("aria-checked") === "false"
     && tickOf(k, "edgecut").getAttribute("aria-checked") === "false", { rows, SENT });   // Edgecut: off unless ticked
 });
+// Room controls (2026-11-25): listed only where the host hands its room controls (the Atlas tab); off unless ticked, and
+// off the drawing is the one without them; ticked here, the speaker is drawn beside a room with a player on at once,
+// and the host hears it was switched on (the matching card's first opening); unticked, the drawing is as it was.
+await tryCase("lines: Room controls listed where the host hands them, off unless ticked; ticked, the speaker beside the room's name", async () => {
+  kept.clear();
+  const heard = [], looks = { Kitchen: "on" };
+  const rc = { looks: () => looks, switched: (on) => heard.push(on), sheet: () => null, openMatch() {} };
+  const plain = card(newView(), { slot: "flat-rc0" });
+  const k = card(newView(), { slot: "flat-rc", roomControls: rc });
+  const was = k.stage.innerHTML;
+  await openList(k); await openList(plain);
+  const listed = rowsOf(k), without = rowsOf(plain);
+  const off = tickOf(k, "room_controls").getAttribute("aria-checked");
+  click(tickOf(k, "room_controls"));
+  const on = k.stage.innerHTML;
+  click(tickOf(k, "room_controls"));
+  check("lines: Room controls listed where the host hands them, off unless ticked; ticked, the speaker beside the room's name",
+    listed.includes("room_controls") && !without.includes("room_controls") && off === "false" && was === plain.stage.innerHTML
+    && !was.includes("lroom-audio") && (on.match(/class="lroom-audio"/g) || []).length === 1 && /data-room="Kitchen"[^>]*>[\s\S]*?lroom-audio-hit/.test(on)
+    && JSON.stringify(heard) === "[true,false]" && k.stage.innerHTML === was, { listed, without, off, heard });
+});
 await tryCase("taps: never touched as ever; unticked here a tap on a light switches nothing; ticked again it switches", async () => {
   kept.clear();
   const k = card(newView(), { slot: "flat-d" });

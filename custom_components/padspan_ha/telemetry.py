@@ -94,6 +94,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         off by hand and so left off, an entry that left the lights alone
         (held, quiet hours, daylight), a switch that failed
         (LIGHTS_FOLLOW_EVENTS); never a room, a name or a light
+    room controls on the Atlas: on, the matching card opened and saved, a
+        volume up or down, mute, off, a setpoint, the shades, a Room off
+        (ROOM_CONTROLS_EVENTS); never a room, a player or a level
     Share a replay: its dialog opened, a clip saved by format and shape,
         the names and room choices and the mark switched off, a clip that
         failed (SHARE_REPLAY_EVENTS); never a name, a room or the clip
@@ -601,6 +604,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "robovac_card",                                 # the robot vacuum's card: a hold on it, on the Atlas or in 3D
     "robovac_findings",                             # its Find mistakes card: receivers the runs say are misplaced
     "alarm_panel",                                  # the house's alarm on the Atlas's emergency button, and in the banner
+    "room_controls",                                # room controls: a room's players, shades and thermostats in its sheet, the matching card
     "share_replay", "gif_encoder", "mp4_remux",     # Traceback's Share a replay: the dialog and clip, its GIF, its plain MP4
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
@@ -753,7 +757,7 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "lights", "glow", "strips", "fans", "scenes", "light_taps", "light_buttons", "room_switch", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "doors", "windows", "covers", "locks", "railings", "radios", "tags", "people", "trails", "codes",
-    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "room_row", "floor_outlines", "other_floors", "edgecut", "glass_walls", "roof",
+    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "room_row", "floor_outlines", "other_floors", "edgecut", "room_controls", "glass_walls", "roof",
     "rain", "theme", "forest",
 )
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
@@ -1385,6 +1389,12 @@ ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN
 # refused (a wrong code, most often). Counts only, never a code, a mode or which alarm.
 ALARM_BUTTON_WORDS: tuple[str, ...] = ("shown", "arm", "disarm", "refused")
 ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALARM_BUTTON_WORDS)
+# Room controls on the flat Atlas (views/room_controls.js, 2026-11-25, off unless a screen ticks it): on once per page
+# load while a screen has them on; the matching card opened and saved; a player's volume up or down, mute and off; a
+# thermostat's setpoint; the shades; a room's Room off. Counts only, never a room, a player, a system or a level.
+ROOM_CONTROLS_WORDS: tuple[str, ...] = ("on", "match_open", "match_saved", "up", "down", "mute", "off", "climate", "cover",
+                                        "room_off")
+ROOM_CONTROLS_EVENTS: frozenset[str] = frozenset(f"room_controls:{w}" for w in ROOM_CONTROLS_WORDS)
 # Lights follow people (lights_follow.py, 2026-11-24, off by default): on_today once a day while it is on with a
 # room set; lit a room's lights turned on as someone came in, sensor_entry when a room's own motion or occupancy
 # sensor let that happen before Room Change Delay; off_empty turned off once the room was empty for its delay;
@@ -1883,7 +1893,8 @@ def event_allowed(name: str) -> bool:
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
-            or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS or name in LIGHTS_FOLLOW_EVENTS or name in SHARE_REPLAY_EVENTS)
+            or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS or name in LIGHTS_FOLLOW_EVENTS or name in SHARE_REPLAY_EVENTS
+            or name in ROOM_CONTROLS_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

@@ -238,5 +238,6 @@
 "A Valetudo user name cannot contain a colon": "Ein Valetudo-Benutzername darf keinen Doppelpunkt enthalten",
 "Only an administrator can change Yesterday at home": "Nur ein Administrator kann „Gestern zu Hause“ ändern",
 "The time must be HH:MM": "Die Uhrzeit muss HH:MM sein",
-"That is not a notification target": "Das ist kein Benachrichtigungsziel"
+"That is not a notification target": "Das ist kein Benachrichtigungsziel",
+"Only an administrator can match players to rooms": "Nur ein Administrator kann Player Räumen zuordnen"
 }

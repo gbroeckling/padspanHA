@@ -761,4 +761,69 @@ if (Cls) {
   } catch (e) { fail("alarm inside the emergency button", "lifecycle", e); }
 }
 
-process.stdout.write(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor, alarm }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)
+// Room controls (views/room_controls.js), through the panel itself (the owner, 2026-11-25: "in the pulldown in atlas,
+// add a volume for room option"): with the ⋯ line not ticked, the map's drawing and a room's sheet are the same DOM as
+// the panel without the module at all; ticked (this screen's pref), the speaker is drawn beside the room whose player
+// is on, the room's sheet has its Audio, a press is one service call, a household member presses too, and the report
+// hears room_controls:on and :up.
+const roomCtl = {};
+if (Cls) {
+  const LMOD = await import(pathToFileURL(join(WWW, "views", "lights_map.js")).href);
+  const tree = (n) => (n ? { tag: n.localName, style: n.style ? n.style.cssText : "", text: n._text || "", a: n.attributes, kids: (n.children || []).map(tree) } : null);
+  const C4 = { "media_player.c4_kitchen": ST("media_player.c4_kitchen", "on", { friendly_name: "Kitchen", volume_level: 0.4, is_volume_muted: false, supported_features: 4 | 8 | 256 | 1024 }) };
+  const settings = { ...BASE, atlas_layout_v2: true, telemetry_enabled: true, pro_has_key: true, room_audio_matches: { kitchen: ["media_player.c4_kitchen"] }, room_audio_ha_speakers: false };
+  const open = async ({ admin = true, ticked = false, without = false } = {}) => {
+    if (ticked) localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ room_controls: true })); else localStorage.removeItem("padspan_la3d_show_atlas");
+    const hass = makeHass({ settings, admin, extraStates: C4 });
+    hass.entities = Object.fromEntries([...ENTITY_REG.map(e => [e.entity_id, e]), ["media_player.c4_kitchen", { entity_id: "media_player.c4_kitchen", platform: "control4", area_id: "kitchen" }]]);
+    hass.areas = Object.fromEntries(AREAS.map(a => [a.area_id, a]));
+    const real = hass.callWS, sent = [], svc = [];
+    hass.callWS = async (m) => { if (m.type === "padspan_ha/telemetry_event") sent.push(m.event); return real(m); };
+    hass.callService = async (domain, service, data) => { svc.push(`${domain}.${service}:${data && data.entity_id}`); };
+    const el = new Cls();
+    if (without) el._roomCtl = () => null;        // as if room_controls.js had not loaded
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush(); await flush();
+    el._render(); await flush();
+    const svg = () => el.shadowRoot.querySelector("#content")._all().map(n => n.innerHTML).find(h => typeof h === "string" && h.includes("<svg")) || "";
+    const lights = LMOD.gatherLights(hass.states, Object.fromEntries(ENTITY_REG.filter(e => e.area_id).map(e => [e.entity_id, AREAS.find(a => a.area_id === e.area_id).name])), {}, "pro");
+    const sheet = () => {
+      document.body.children.length = 0;
+      el._useApi(Object.fromEntries(lights.map(l => [l.entity_id, l])), lights).openRoom("Kitchen");
+      return document.body.children[document.body.children.length - 1];
+    };
+    return { el, hass, sent, svc, svg, sheet, done: () => { el.disconnectedCallback(); document.body.children.length = 0; } };
+  };
+  try {
+    let p = await open({ without: true });
+    const bareSvg = p.svg(), bareSheet = JSON.stringify(tree(p.sheet()));
+    p.done();
+    p = await open();
+    roomCtl.offSvgSame = p.svg() === bareSvg && bareSvg.length > 0;
+    roomCtl.offSheetSame = JSON.stringify(tree(p.sheet())) === bareSheet;
+    roomCtl.offSent = p.sent.filter(e => e.startsWith("room_controls:"));
+    p.done();
+    p = await open({ ticked: true });
+    const on = p.svg();
+    roomCtl.onIcon = (on.match(/class="lroom-audio"/g) || []).length === 1 && /data-room="Kitchen"[^>]*>[\s\S]*?lroom-audio-hit/.test(on);
+    const sh = p.sheet();
+    const audio = sh._all().find(n => n.attributes && n.attributes["data-room-controls"] === "audio");
+    roomCtl.onAudio = !!audio && audio._all().some(n => n._text === "Control4 · ") ;
+    const up = audio && audio._all().find(n => n.localName === "button" && n.attributes["aria-label"] === "Kitchen volume up");
+    if (up) { up.click(); await flush(); await flush(); }
+    roomCtl.onSvc = p.svc.slice();
+    roomCtl.onSent = p.sent.filter(e => e.startsWith("room_controls:"));
+    p.done();
+    p = await open({ ticked: true, admin: false });
+    const a2 = p.sheet()._all().find(n => n.attributes && n.attributes["data-room-controls"] === "audio");
+    const up2 = a2 && a2._all().find(n => n.localName === "button" && n.attributes["aria-label"] === "Kitchen volume up");
+    if (up2) { up2.click(); await flush(); }
+    const mb = a2 && a2._all().find(n => n.localName === "button" && n.attributes["data-room-match"] !== undefined);
+    roomCtl.nonAdmin = { svc: p.svc.slice(), matchDisabled: !!(mb && mb.disabled) };
+    p.done();
+    localStorage.removeItem("padspan_la3d_show_atlas");
+  } catch (e) { fail("room controls", "lifecycle", e); }
+}
+
+process.stdout.write(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor, alarm, roomCtl }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)
