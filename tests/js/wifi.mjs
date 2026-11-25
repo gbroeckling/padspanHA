@@ -15,6 +15,7 @@
 //   findings what to fix, on top; a click shows it on the plan; access points drawn, dragged, reset
 //   robot    the robot vacuum's floor-level layer: its own marks and details, on by default, off
 //            remembered per browser, never in the coverage colours, counts or findings; German words
+//   moving   its readings taken while it cleans: weighted 0.5 m cells as a faint tint, their own choice
 //
 // usage: wifi.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -357,6 +358,61 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
   check("robot: an access point's name is text, never markup", !/<img/.test(q(evil.root, '[data-wifi="map"]').innerHTML) && /&lt;img/.test(q(evil.root, '[data-wifi="map"]').innerHTML));
   const older = await open({ ...DATA, robot: { version: 1 } });
   check("robot: no readings list: no layer", !q(older.root, '[data-wifi-layer="robot"]'));
+  // Readings taken while it cleans (2026-11-25, kind "moving", weight 0.1): a faint tint in 0.5 m cells, weighted.
+  const MV = (x, y, own, o = {}) => ({ x, y, floor: "main", band: "2.4", own, ap: null, ap_side: null, ts: 1764000300, run: null, kind: "moving", weight: 0.1, ...o });
+  const STOP = { x: 5.1, y: 1.1, floor: "main", band: "2.4", own: -50, ap: null, ap_side: null, ts: 1764000000, run: "rr_2", kind: "stop", weight: 1.0 };
+  const withMoving = { ...DATA, robot: { version: 1, readings: [...ROBOT.readings, STOP,
+    MV(5.2, 1.3, -80), MV(5.4, 1.1, -80),                     // with the stop in its cell: the stop decides
+    MV(5.1, 4.1, -70), MV(5.3, 4.4, -74),                     // a cell of moving ones alone: their mean
+    MV(3.2, 3.2, -60, { floor: "upper" }), MV(3.2, 3.2, -60, { band: "5" })] } };
+  const cells = W.movingCells(W.robotReadings(withMoving), "main", "2.4");
+  const at = (x, y) => cells.find((c) => Math.abs(c.x - x) < 1e-9 && Math.abs(c.y - y) < 1e-9);
+  const withStop = at(5.25, 1.25), alone = at(5.25, 4.25);
+  const expect = (1 * -50 + 0.1 * -80 + 0.1 * -80) / 1.2;
+  check("moving: cells of 0.5 m on this floor and band, only where a reading was taken while it cleaned",
+    W.MOVING_CELL_M === 0.5 && cells.length === 2 && withStop && alone, cells);
+  check("moving: a weighted mean, so a cell with a stop is decided almost entirely by the stop",
+    Math.abs(withStop.v - expect) < 1e-9 && Math.abs(withStop.v - -50) < 5 && withStop.n === 2 && withStop.stops === 1, withStop);
+  check("moving: a cell of moving readings alone is their mean", Math.abs(alone.v - -72) < 1e-9 && alone.n === 2 && alone.stops === 0, alone);
+  check("moving: a reading without a kind is a stop at weight 1", W.isMoving(ROBOT.readings[0]) === false
+    && W.movingCells([{ x: 0.1, y: 0.1, floor: "main", band: "2.4", own: -50 }, MV(0.2, 0.2, -90)], "main", "2.4")[0].v === (-50 - 9) / 1.1);
+  const mo = await open(withMoving);
+  const html = q(mo.root, '[data-wifi="map"]').innerHTML;
+  const tint = (html.match(/<g data-wifi="robot-moving"[\s\S]*?<\/g>/) || [""])[0];
+  check("moving: drawn as a faint tint of small squares, one per cell, coloured by the weighted value",
+    /opacity="0\.55"/.test(tint) && (tint.match(/data-wifi="robot-cell"/g) || []).length === 2 && tint.includes(`fill="${W.colour(withStop.v)}"`)
+    && /width="0\.3"/.test(tint), tint);
+  check("moving: under the rooms' outlines, the devices and the stops' diamonds", html.indexOf('data-wifi="robot-moving"') < html.indexOf('fill="none" stroke="#3d5a48"')
+    && html.indexOf('data-wifi="robot-moving"') < html.indexOf('<g data-wifi="robot">'), html.slice(0, 300));
+  check("moving: stops stay diamonds, none for a moving reading", robotMarks(mo.root).length === 3, robotMarks(mo.root).length);
+  check("moving: details say how many while cleaning and the weighted value",
+    /While cleaning: 2 readings/.test(tint) && new RegExp(`Weighted: ${Math.round(withStop.v)} dBm at floor level`).test(tint)
+    && /With 1 stop here, which counts ten times as much/.test(tint), tint);
+  const mnote = text(q(mo.root, '[data-wifi="robot-note"]'));
+  check("moving: the layer note names both kinds", /Diamonds:/.test(mnote) && /Faint squares: its Wi-Fi taken every few seconds while it cleaned/.test(mnote), mnote);
+  check("moving: nothing else on the map changes", html.replace(/<g data-wifi="robot-moving"[\s\S]*?<\/g>/, "").replace(MARK, "")
+    === q(bare.root, '[data-wifi="map"]').innerHTML.replace(MARK, ""));
+  // Its own choice, shown with the layer on: hidden, remembered per browser; the stops stay.
+  const mtog = q(mo.root, '[data-wifi-layer="robot-moving"]');
+  check("moving: its own choice beside the layer's, on by default", mtog && text(mtog) === "While it cleaned" && /background:#1f3d2b/.test(mtog.getAttribute("style") || ""), mtog && text(mtog));
+  check("moving: no choice without moving readings", !q(on.root, '[data-wifi-layer="robot-moving"]'));
+  mtog.click();
+  const hid = W.render(mo.ctx);
+  check("moving: hidden: no tint, the stops still there, the choice still there",
+    localStorage.getItem("padspan_wifi_robot_moving") === "0" && !/data-wifi="robot-moving"/.test(q(hid, '[data-wifi="map"]').innerHTML)
+    && robotMarks(hid).length === 3 && !!q(hid, '[data-wifi-layer="robot-moving"]'));
+  const mo2 = await open(withMoving);
+  check("moving: hidden is remembered per browser", !/data-wifi="robot-moving"/.test(q(mo2.root, '[data-wifi="map"]').innerHTML) && robotMarks(mo2.root).length === 3);
+  q(mo2.root, '[data-wifi-layer="robot-moving"]').click();
+  check("moving: shown again", localStorage.getItem("padspan_wifi_robot_moving") === "1" && /data-wifi="robot-moving"/.test(q(W.render(mo2.ctx), '[data-wifi="map"]').innerHTML));
+  q(mo2.root, '[data-wifi-layer="robot"]').click();
+  const layerOff = W.render(mo2.ctx);
+  check("moving: the robot layer off takes the tint and its choice with it",
+    !/data-wifi="robot-moving"/.test(q(layerOff, '[data-wifi="map"]').innerHTML) && !q(layerOff, '[data-wifi-layer="robot-moving"]'));
+  localStorage.setItem("padspan_wifi_robot", "1");
+  const onlyMoving = await open({ ...DATA, robot: { version: 1, readings: [MV(3.1, 3.2, -70)] } });
+  check("moving: a floor with moving readings only is not said to have none",
+    !/None on this floor/.test(text(q(onlyMoving.root, '[data-wifi="robot-note"]'))) && /robot-cell/.test(q(onlyMoving.root, '[data-wifi="map"]').innerHTML));
   // In German (i18n/de/aboard2.json, the robot's words): the choice and the note.
   const I = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href + "?b=test");
   const realFetch = globalThis.fetch;
@@ -369,6 +425,11 @@ check("rooms: the floor's rooms from the floor model", up.map((r) => r.name).sor
     const de = await open(withRobot);
     check("robot: in German, the layer and its note", got === "de" && text(q(de.root, '[data-wifi-layer="robot"]')) === "Roboter (Bodenhöhe, 2.4 GHz)"
       && /Bodenhöhe/.test(text(q(de.root, '[data-wifi="robot-note"]'))) && /Roboter in Bodenhöhe: -62 dBm/.test(robotMarks(de.root)[0]), text(q(de.root, '[data-wifi-layer="robot"]')));
+    const dm = await open(withMoving);
+    const dtint = q(dm.root, '[data-wifi="map"]').innerHTML;
+    check("moving: in German, its choice, its note and its details", text(q(dm.root, '[data-wifi-layer="robot-moving"]')) === "Beim Saugen"
+      && /Blasse Quadrate/.test(text(q(dm.root, '[data-wifi="robot-note"]'))) && /Beim Saugen: 2 Messwerte/.test(dtint) && /Gewichtet: -\d+ dBm in Bodenhöhe/.test(dtint)
+      && /Mit 1 Halt hier, der zehnmal so viel zählt/.test(dtint) && !/While cleaning/.test(dtint), text(q(dm.root, '[data-wifi-layer="robot-moving"]')));
   } finally {
     await I.useLanguage({ locale: { language: "en" } });
     globalThis.fetch = realFetch;

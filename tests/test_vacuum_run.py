@@ -18,6 +18,7 @@ import base64
 import math
 import json
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -475,7 +476,8 @@ def test_status_reads_the_robot_from_valetudo_and_hides_the_login(monkeypatch, f
     conn = asyncio.run(_ws(wsv.ws_vacuum_robot_status, h, rooms=True))
     r = conn.result
     assert r["state"]["status"] == "idle" and r["state"]["battery"] == 87 and r["state"]["charging"] is False
-    assert r["robot"] == {"url": "http://192.168.1.50", "auth": True, "use": "full", "applied": None}   # the link's address, reused
+    assert r["robot"] == {"url": "http://192.168.1.50", "auth": True, "use": "full", "applied": None,   # the link's address, reused
+                          "wifi_moving": False, "wifi_moving_n": 0}                                # Wi-Fi while it cleans: off by default
     assert r["rooms"] == ["Kitchen", "Hall", "Closet", "Pantry"]
     assert r["link"]["valetudo"] is True and r["tag"]["address"] == "AA:BB:CC:DD:EE:FF"
     assert "s3cret" not in repr(r) and "robotuser" not in repr(r)
@@ -715,7 +717,9 @@ def test_each_spot_keeps_the_robots_wifi_for_other_integrations(monkeypatch, fas
     assert r["version"] == 1 and r["robot_ip"] == "192.168.1.50" and run["wifi"] == len(spots)
     assert len(r["readings"]) == len(spots)
     first = r["readings"][0]
-    assert set(first) == {"run_id", "ts", "ts_start", "ts_end", "x_m", "y_m", "floor_id", "room", "signal", "bssid", "frequency", "state"}
+    assert set(first) == {"run_id", "ts", "ts_start", "ts_end", "x_m", "y_m", "floor_id", "room", "signal", "bssid", "frequency", "state",
+                          "kind", "weight"}                                  # 2026-11-25, additive: a stop at 1.0
+    assert (first["kind"], first["weight"]) == ("stop", vr.STOP_WEIGHT) == ("stop", 1.0)
     assert first["ts_start"] <= first["ts"] <= first["ts_end"]
     assert (first["run_id"], first["floor_id"], first["room"], first["frequency"], first["state"]) == (run["id"], "main", "Kitchen", "5ghz", "connected")
     assert (first["x_m"], first["y_m"]) == (round(spots[0]["x"] / 100, 3), round(spots[0]["y"] / 100, 3))
@@ -1364,3 +1368,259 @@ def test_the_choice_and_the_fixes_are_counted_in_closed_words():
     for w in ("taken_over", "rx_samples_0_2", "rx_samples_30_plus", "sampled_every", "sampled_poll",
               "use_full", "use_fill", "use_none"):
         assert T.event_allowed(f"robot_run:{w}")
+
+
+# ── Wi-Fi while it cleans (vacuum_moving.py, 2026-11-25) ───────────────────
+# The owner: "the roaming/working robovac can also give wifi data, selectable, and a far lower weight than
+# standing still vac". Off by default; read only while Valetudo says cleaning, moving or returning; never a
+# command; a reading only with a position read close to its Wi-Fi; kept apart from the stops.
+
+from custom_components.padspan_ha import vacuum_moving as vm  # noqa: E402
+
+
+def _cleaning(monkeypatch, status="cleaning", wifi=_wifi_status, on=True, bumps=None):
+    rob = _Valetudo(wifi=wifi, status_after=(0, status))
+    h, vs, cal, _ = _house_with(monkeypatch, rob)
+    saves: list = []
+    vs.store = SimpleNamespace(async_save=AsyncMock(), async_delay_save=lambda fn, delay: saves.append((fn(), delay)))
+    vs.data["link"]["enabled"] = True
+    vs.data["robot"]["wifi_moving"] = on
+    monkeypatch.setattr(vm, "SAMPLE_EVERY_S", 0.0)
+    if bumps is not None:
+        from custom_components.padspan_ha import telemetry as T
+        monkeypatch.setattr(T, "bump", lambda hass, ev, n=1: bumps.append(ev) or True)
+    return rob, h, vs, saves
+
+
+async def _round(vs, t_pos, xy):
+    mw = vm.moving_for(vs)
+    mw.after_tick(t_pos, xy)
+    if mw._task is not None:
+        await mw._task
+    return mw
+
+
+def test_moving_wifi_is_off_by_default_and_reads_nothing(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch, on=False)
+    assert vi._default_data()["robot"].get("wifi_moving") is None          # nothing chosen for the owner
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert rob.log == [] and not vs.data["wifi"].get("moving")
+    st = asyncio.run(_ws(wsv.ws_vacuum_robot_status, h)).result
+    assert st["robot"]["wifi_moving"] is False and st["robot"]["wifi_moving_n"] == 0
+
+
+def test_the_switch_is_stored_per_house_by_the_admin_only_command(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch, on=False)
+    conn = asyncio.run(_ws(wsv.ws_vacuum_robot_set, h, wifi_moving=True))
+    assert conn.error is None and vs.data["robot"]["wifi_moving"] is True and conn.result["robot"]["wifi_moving"] is True
+    vs.store.async_save.assert_awaited()
+    asyncio.run(_ws(wsv.ws_vacuum_robot_set, h, wifi_moving=False))
+    assert vs.data["robot"]["wifi_moving"] is False
+    src = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
+    head = src[src.index('"type": "padspan_ha/vacuum_robot_set"'):src.index("async def ws_vacuum_robot_set")]
+    assert 'vol.Optional("wifi_moving"): bool' in head and "@websocket_api.require_admin" in head
+
+
+def test_while_it_cleans_wifi_and_position_are_read_together_and_kept_as_moving(monkeypatch):
+    rob, h, vs, saves = _cleaning(monkeypatch)
+    t = time.time()
+    asyncio.run(_round(vs, t, (1.0, 2.0)))
+    # The tick's own position for the first (no map read), then Wi-Fi and the map back to back for the second.
+    assert [p for _, p, _ in rob.log] == [vr.ATTRS_PATH, vr.WIFI_PATH, vr.WIFI_PATH, vr.MAP_PATH]
+    mv = vs.data["wifi"]["moving"]
+    assert len(mv) == 2 and all(r["kind"] == "moving" and r["weight"] == vr.MOVING_WEIGHT == 0.1 for r in mv)
+    assert set(mv[0]) == {"kind", "weight", "ts", "x_m", "y_m", "floor_id", "room", "signal", "bssid", "frequency", "state"}
+    assert (mv[0]["x_m"], mv[0]["y_m"], mv[0]["floor_id"]) == (1.0, 2.0, "main")
+    assert (mv[1]["x_m"], mv[1]["y_m"]) == (7.5, 3.5)                       # where the map put it: the dock's corner
+    assert mv[0]["signal"] == round(-40 - rob.pos[0] / 100) and mv[0]["bssid"] == "aa:bb:cc:00:11:22"
+    assert mv[0]["frequency"] == "5ghz" and mv[0]["state"] == "connected" and t - 1 <= mv[0]["ts"] <= time.time() + 1
+    assert "HomeNet" not in repr(vs.data["wifi"])                            # the SSID is not kept
+    assert vs.data["wifi"]["robot_ip"] == "192.168.1.50"
+    assert saves and all(d == vi.SAVE_DELAY_S == 60 for _, d in saves)        # one delayed write, not one per reading
+    vs.store.async_save.assert_not_awaited()
+
+
+@pytest.mark.parametrize("status", ["moving", "returning"])
+def test_moving_and_returning_are_read_too(monkeypatch, status):
+    rob, h, vs, _ = _cleaning(monkeypatch, status=status)
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert len(vs.data["wifi"]["moving"]) == 2
+
+
+@pytest.mark.parametrize("status", ["docked", "idle", "paused", "manual_control", "error"])
+def test_docked_or_idle_only_its_status_is_asked_and_not_again_for_a_minute(monkeypatch, status):
+    rob, h, vs, _ = _cleaning(monkeypatch, status=status)
+    mw = asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert [p for _, p, _ in rob.log] == [vr.ATTRS_PATH] and not vs.data["wifi"].get("moving")
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert len(rob.log) == 1                                                 # the next ticks ask nothing
+    mw._idle_until = 0.0
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert len(rob.log) == 2 and vm.IDLE_CHECK_S == 60.0
+
+
+def test_moving_wifi_never_sends_the_robot_a_command(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    for _ in range(3):
+        asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert rob.log and {m for m, _, _ in rob.log} == {"GET"} and {b for _, _, b in rob.log} == {None}
+    assert {p for _, p, _ in rob.log} <= {vr.ATTRS_PATH, vr.WIFI_PATH, vr.MAP_PATH}
+    src = (CC / "vacuum_moving.py").read_text(encoding="utf-8")
+    assert '"PUT"' not in src and "GOTO_PATH" not in src and "CONTROL_PATH" not in src
+    assert src.count("vr.robot_call(") == 1                                  # the one checked path to the robot
+
+
+def test_a_position_not_fresh_beside_its_wifi_is_skipped(monkeypatch):
+    bumps: list = []
+    rob, h, vs, _ = _cleaning(monkeypatch, bumps=bumps)
+    asyncio.run(_round(vs, time.time() - vm.FRESH_S - 2, (1.0, 2.0)))       # the tick's position 5 s old
+    mv = vs.data["wifi"]["moving"]
+    assert len(mv) == 1 and (mv[0]["x_m"], mv[0]["y_m"]) == (7.5, 3.5)         # only the one read with its own map
+    assert "robot_wifi:moving_skipped" in bumps and vm.FRESH_S == 3.0
+
+    # The tick's position 4 s before the Wi-Fi was read: skipped; half a second: kept.
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(vm.time, "time", lambda: clock["t"])
+    mw = vm.moving_for(vs)
+    asyncio.run(mw._sample(1000.0 - 4.0, (1.0, 2.0)))
+    asyncio.run(mw._sample(1000.0 - 0.5, (2.0, 2.0)))
+    assert [r["x_m"] for r in vs.data["wifi"]["moving"]] == [7.5, 2.0]
+
+
+def test_a_camera_link_reads_the_map_for_every_reading(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    vs.data["link"]["read"] = "camera_png"
+    calls = []
+    monkeypatch.setattr(vs, "async_read_payload", AsyncMock(return_value=rob.vmap), raising=False)
+    monkeypatch.setattr(vm.MovingWifi, "after_tick", lambda self, t, xy: calls.append((t, xy)))
+    asyncio.run(vs.async_tick())
+    assert calls and calls[0][0] is None                                     # a camera's picture: no time to pair with
+    vs.data["link"]["read"] = "url"
+    asyncio.run(vs.async_tick())
+    assert isinstance(calls[1][0], float) and abs(calls[1][0] - time.time()) < 5 and calls[1][1] == pytest.approx((7.5, 3.5))
+
+
+def test_no_reading_during_a_room_location_run(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    h.data[DOMAIN][vr.DATA_RUN] = SimpleNamespace(running=True, _starting=False)
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert rob.log == []
+    h.data[DOMAIN][vr.DATA_RUN] = SimpleNamespace(running=False, _starting=True)
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert rob.log == [] and not vs.data["wifi"].get("moving")
+    h.data[DOMAIN][vr.DATA_RUN] = SimpleNamespace(running=False, _starting=False)
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert len(vs.data["wifi"]["moving"]) == 2
+
+
+def test_a_run_starting_between_two_readings_ends_the_round(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    real = rob.call
+
+    async def call(hass, base, method, path, body=None, auth=None):
+        out = await real(hass, base, method, path, body, auth)
+        if path == vr.WIFI_PATH:                                             # a run started after the first reading
+            h.data[DOMAIN][vr.DATA_RUN] = SimpleNamespace(running=True, _starting=False)
+        return out
+    rob.call = call
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert [p for _, p, _ in rob.log] == [vr.ATTRS_PATH, vr.WIFI_PATH] and len(vs.data["wifi"]["moving"]) == 1
+
+
+@pytest.mark.parametrize("change", ["link_off", "no_address", "not_valetudo"])
+def test_nothing_is_read_without_a_linked_valetudo_robot(monkeypatch, change):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    if change == "link_off":
+        vs.data["link"]["enabled"] = False
+    elif change == "no_address":
+        vs.data["link"]["read"], vs.data["link"]["ref"] = "camera_png", "camera.robot_map"
+        vs.data["robot"]["url"] = ""
+    else:
+        vs.data["link"]["format"] = "attrs"
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert rob.log == []
+
+
+def test_moving_readings_are_capped_apart_from_the_stops(monkeypatch):
+    monkeypatch.setattr(vr, "MOVING_KEPT", 3)
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    vs.data["wifi"]["readings"] = [{"run_id": "rr_1", "ts": 1.0, "x_m": 0.0, "y_m": 0.0, "floor_id": "main", "signal": -60},
+                                   {"run_id": "rr_1", "ts": 2.0, "x_m": 1.0, "y_m": 0.0, "floor_id": "main", "signal": -61}]
+    for i in range(4):
+        asyncio.run(_round(vs, time.time(), (float(i), 2.0)))
+    assert len(vs.data["wifi"]["moving"]) == 3 and len(vs.data["wifi"]["readings"]) == 2   # the stops never pushed out
+    assert [r["x_m"] for r in vs.data["wifi"]["moving"]] == [7.5, 3.0, 7.5]                # the oldest dropped first
+    assert vr.WIFI_KEPT == 2000
+
+
+def test_the_real_cap_is_5000():
+    assert vr.MOVING_KEPT == 5000 and vr.STOP_WEIGHT == 1.0 and vr.MOVING_WEIGHT == 0.1
+
+
+def test_the_snapshot_stays_version_1_with_kind_and_weight_added(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    vs.data["wifi"]["readings"] = [{"run_id": "rr_1", "ts": time.time() - 100, "x_m": 0.0, "y_m": 0.0, "floor_id": "main",
+                                    "room": "Hall", "signal": -60, "bssid": None, "frequency": "2.4ghz", "state": "connected"}]
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    snap = vr.robot_wifi_snapshot(h)
+    assert snap == asyncio.run(_ws(wsv.ws_robot_wifi_readings, h)).result
+    assert snap["version"] == 1 and [r["kind"] for r in snap["readings"]] == ["stop", "moving", "moving"]
+    assert [r["weight"] for r in snap["readings"]] == [1.0, 0.1, 0.1]
+    assert [r["ts"] for r in snap["readings"]] == sorted(r["ts"] for r in snap["readings"])          # oldest first
+    assert "kind" not in vs.data["wifi"]["readings"][0]                       # the stored stop itself untouched
+    snap["readings"][1]["signal"] = 0
+    assert vs.data["wifi"]["moving"][0]["signal"] != 0                         # copies
+    doc = (CC / "vacuum_run.py").read_text(encoding="utf-8")                  # its docstring follows the __future__ import
+    assert '"kind": "stop", "weight": 1.0' in doc and "MOVING_WEIGHT (0.1)" in doc and "A reading without kind" in doc
+
+
+def test_failures_are_quiet_counts_only(monkeypatch):
+    bumps: list = []
+    from custom_components.padspan_ha import quiet_errors as Q
+    rob, h, vs, _ = _cleaning(monkeypatch, wifi=None, bumps=bumps)            # no Wi-Fi capability: 404
+    before = Q.COUNTS["vacuum_moving:read"]
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert not vs.data["wifi"].get("moving") and Q.COUNTS["vacuum_moving:read"] == before + 2
+    assert bumps.count("robot_wifi:moving_failed") == 2
+    rob2, h2, vs2, _ = _cleaning(monkeypatch, bumps=bumps)
+    rob2.fail_reads = {1}                                                     # its status unanswered
+    s0 = Q.COUNTS["vacuum_moving:status"]
+    asyncio.run(_round(vs2, time.time(), (1.0, 2.0)))
+    assert Q.COUNTS["vacuum_moving:status"] == s0 + 1 and not vs2.data["wifi"].get("moving")
+
+
+def test_the_report_counts_moving_wifi_in_closed_words(monkeypatch):
+    from custom_components.padspan_ha import telemetry as T
+    for w in ("moving_on", "moving_read_1", "moving_read_100", "moving_read_1000", "moving_skipped", "moving_failed"):
+        assert T.event_allowed(f"robot_wifi:{w}")
+    assert not T.event_allowed("robot_wifi:moving_read_7") and not T.event_allowed("robot_wifi:192.168.1.50")
+    bumps: list = []
+    rob, h, vs, _ = _cleaning(monkeypatch, bumps=bumps)
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    asyncio.run(_round(vs, time.time(), (1.0, 2.0)))
+    assert bumps.count("robot_wifi:moving_on") == 1                          # once a day
+    assert bumps.count("robot_wifi:moving_read_1") == 1 and "robot_wifi:moving_read_100" not in bumps
+    src = (CC / "vacuum_moving.py").read_text(encoding="utf-8")
+    assert set(re.findall(r'self\._bump\(("[a-z_]+"|f"[^"]+")', src)) == {'"moving_on"', '"moving_failed"', '"moving_skipped"',
+                                                                          'f"moving_read_{n}"'}
+    assert "if n in READ_BUCKETS:" in src
+
+
+def test_stopping_the_link_ends_a_round_going(monkeypatch):
+    rob, h, vs, _ = _cleaning(monkeypatch)
+    monkeypatch.setattr(vm, "SAMPLE_EVERY_S", 30.0)
+
+    async def go():
+        mw = vm.moving_for(vs)
+        mw.after_tick(time.time(), (1.0, 2.0))
+        while not vs.data["wifi"].get("moving"):
+            await asyncio.sleep(0)
+        task = mw._task
+        vs.stop()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        return task
+    task = asyncio.run(go())
+    assert task.cancelled() and len(vs.data["wifi"]["moving"]) == 1

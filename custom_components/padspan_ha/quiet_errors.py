@@ -576,6 +576,8 @@ vacation_mode:tick_bump
 vacation_mode:tick_wled_power
 vacation_mode:who_from_connection
 vacuum_import:tick
+vacuum_moving:read
+vacuum_moving:status
 vacuum_run:accuracy
 vacuum_run:home
 vacuum_run:run

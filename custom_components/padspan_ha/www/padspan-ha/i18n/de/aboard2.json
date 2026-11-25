@@ -452,5 +452,23 @@
 "one": "1 Stelle nur für Fehler finden behalten.",
 "other": "{n} Stellen nur für Fehler finden behalten."
 },
-"Placed on floor {placed}, yet it hears the robot on floor {here} about as strongly as the receivers placed there ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.": "Auf Etage {placed} platziert, hört den Roboter aber auf Etage {here} etwa so stark wie die dort platzierten Empfänger ({strong} Stellen, bis zu {dbm} dBm). Vielleicht steht er auf der falschen Etage."
+"Placed on floor {placed}, yet it hears the robot on floor {here} about as strongly as the receivers placed there ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.": "Auf Etage {placed} platziert, hört den Roboter aber auf Etage {here} etwa so stark wie die dort platzierten Empfänger ({strong} Stellen, bis zu {dbm} dBm). Vielleicht steht er auf der falschen Etage.",
+"Collect Wi-Fi while it cleans": "WLAN beim Saugen erfassen",
+"These readings are taken on the move, count far less than its standing-still ones, and add one small request to the robot every few seconds while it cleans.": "Diese Messwerte entstehen während der Fahrt, zählen viel weniger als die im Stillstand und schicken dem Roboter beim Saugen alle paar Sekunden eine kleine Anfrage.",
+"It reads only while the robot's live position is on, from its map imported from Valetudo.": "Gemessen wird nur, solange die Live-Position des Roboters an ist, mit seiner aus Valetudo importierten Karte.",
+"{n} readings kept so far.": {
+"one": "Bisher 1 Messwert behalten.",
+"other": "Bisher {n} Messwerte behalten."
+},
+"While it cleaned": "Beim Saugen",
+"While cleaning: {n} readings": {
+"one": "Beim Saugen: 1 Messwert",
+"other": "Beim Saugen: {n} Messwerte"
+},
+"Weighted: {dbm} dBm at floor level": "Gewichtet: {dbm} dBm in Bodenhöhe",
+"With {n} stops here, which count ten times as much": {
+"one": "Mit 1 Halt hier, der zehnmal so viel zählt",
+"other": "Mit {n} Halten hier, die zehnmal so viel zählen"
+},
+"Faint squares: its Wi-Fi taken every few seconds while it cleaned. They count a tenth of a stop's, so where it also stood, the stop decides.": "Blasse Quadrate: sein WLAN, beim Saugen alle paar Sekunden gemessen. Sie zählen ein Zehntel eines Halts; wo er auch stand, entscheidet der Halt."
 }

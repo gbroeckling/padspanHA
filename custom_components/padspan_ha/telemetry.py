@@ -1333,6 +1333,13 @@ ROBOT_RUN_EVENTS: frozenset[str] = frozenset(f"robot_run:{w}" for w in ROBOT_RUN
 # refused (a wrong code, most often). Counts only, never a code, a mode or which alarm.
 ALARM_BUTTON_WORDS: tuple[str, ...] = ("shown", "arm", "disarm", "refused")
 ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALARM_BUTTON_WORDS)
+# The robot's Wi-Fi while it cleans (vacuum_moving.py, 2026-11-25, off by default): moving_on once a day while the
+# owner's switch is on and the robot linked; moving_read_1/_100/_1000 once a day as the day's kept readings reach
+# each; moving_skipped a reading not kept (its position too old, or no position or signal); moving_failed a read
+# the robot did not answer. Counts only, never an SSID or BSSID, nor an address.
+ROBOT_WIFI_WORDS: tuple[str, ...] = ("moving_on", "moving_read_1", "moving_read_100", "moving_read_1000",
+                                     "moving_skipped", "moving_failed")
+ROBOT_WIFI_EVENTS: frozenset[str] = frozenset(f"robot_wifi:{w}" for w in ROBOT_WIFI_WORDS)
 # Drawing rooms (views/maps.js, 2026-11-15): a room's name pressed above the plan in the Setup Wizard, the plan clicked
 # with no room chosen, and rooms or receivers the wizard saved without Save Layout.
 WIZARD_DRAW_WORDS: tuple[str, ...] = ("name", "no_room", "kept")
@@ -1803,7 +1810,7 @@ def event_allowed(name: str) -> bool:
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
-            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS)
+            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
