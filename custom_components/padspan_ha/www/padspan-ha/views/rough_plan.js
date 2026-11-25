@@ -7,6 +7,8 @@
 // Mapping → Upload. Every picture uploaded is still taken for a proper, to-scale plan; this is only for the person who
 // says they have none. The kinds, in the order they are worth trying:
 //   have    a drawing that already exists somewhere (the builder's, the listing's)
+//   file    a plan another app already holds (plan_file_import.py: Easy Floorplan's card YAML, a DXF, Floorplanner's
+//           FML), read on the server by the scan's own command into a plan drawn to scale, its rooms as outlines
 //   scan    a room scan from an iPhone or iPad with LiDAR (Apple's RoomPlan: the .usdz every such app shares, or its
 //           JSON), read on the server (padspan_ha/maps_scan_create) into a plan drawn to scale, nothing to measure
 //   vacuum  a robot vacuum's map (its own import, behind its setting)
@@ -28,11 +30,12 @@ const { t, tn } = await import(`./i18n.js${V}`);
 const { starterBoxes, hasAnyRooms } = await import(`./setup_status.js${V}`);
 
 export const LINK = () => t("No floor plan? Ways to get one");
-export const KINDS = Object.freeze(["have", "scan", "vacuum", "sketch", "blank"]);
+export const KINDS = Object.freeze(["have", "file", "scan", "vacuum", "sketch", "blank"]);
 export const SCAN_MAX_BYTES = 2_800_000;      // the server's cap is on the base64 (ws_maps.SCAN_MAX_B64)
 
 const TITLES = () => ({
   have: [t("Look for a drawing you already have"), t("The quickest, and the most exact.")],
+  file: [t("Import a plan from another app"), t("Easy Floorplan, a DXF drawing or Floorplanner: drawn to scale, its rooms ready to link.")],
   // The scan gives the floor's walls, not its rooms (owner, 2026-11-16: in an open house a room is a matter of opinion).
   scan: [t("Scan the floor with an iPhone or iPad"), t("For a Pro model with LiDAR. Exact walls, and nothing to measure. You still say where each room is.")],
   vacuum: [t("Use your robot vacuum's map"), t("If the robot has already mapped the floor.")],
@@ -44,6 +47,12 @@ const STEPS = () => ({
     t("Places to look: the builder's or architect's drawings, the real-estate listing, the strata or council file, an insurance or appraisal report, the fire-escape plan on a wall."),
     t("A photo or a screenshot of it is enough. Hold the camera straight over the page so the drawing isn't slanted, and fill the frame with it."),
     t("Upload it with the form below. You'll set its scale from one length you know, then draw the rooms over it."),
+  ],
+  file: [
+    t("Easy Floorplan (the Home Assistant card): edit the card, open its code editor, copy all of it into a text file and save it ending in .yaml."),
+    t("A drawing from a CAD program: save or export the floor as DXF (as text, not binary; not DWG). Each closed polyline becomes a room's outline, named by the text inside it."),
+    t("Floorplanner: export the project (Quick Export, where your project offers it) and pick the .fml file from the zip, or the zip itself."),
+    t("Choose the floor it is and pick the file. Then choose each Home Assistant room and take its outline from the file: your rooms stay your Home Assistant areas."),
   ],
   scan: [
     t("You need an iPhone or iPad Pro with LiDAR (iPhone 12 Pro or newer Pro, iPad Pro 2020 or newer). Someone else's will do: they scan, and send you the file."),
@@ -105,6 +114,36 @@ export function scanRoomAt(map, x, y) {
   const hit = scanRooms(map).filter(r => inside(r.points)).sort((a, b) => area(a.points) - area(b.points))[0];
   return hit ? hit.points.map(p => [p[0], p[1]]) : null;
 }
+/** The outline a plan file names after `room` (an Easy Floorplan room linked to that area, or named as it), or null. */
+export function scanRoomNamed(map, room) {
+  const want = String(room || "").trim().toLowerCase();
+  const hit = want ? scanRooms(map).find(r => String(r.name || "").trim().toLowerCase() === want) : null;
+  return hit ? hit.points.map(p => [p[0], p[1]]) : null;
+}
+/** Counted: a room given the outline its plan file names after it. */
+export const fileRoomNamed = (ctx) => tel(ctx, "file_room_named");
+// What a plan file had that PadSpan left out, by kind (plan_file_import.SKIP_KINDS), in the panel's language.
+export const FILE_SKIP_WORDS = () => ({
+  devices: (n) => tn(n, "1 device with its entity (PadSpan places its own receivers)", "{n} devices with their entities (PadSpan places its own receivers)"),
+  furniture: (n) => tn(n, "1 piece of furniture", "{n} pieces of furniture"),
+  annotations: (n) => tn(n, "1 text, label or dimension", "{n} texts, labels and dimensions"),
+  small_shapes: (n) => tn(n, "1 closed shape too small to be a room", "{n} closed shapes too small to be rooms"),
+  thin_shapes: (n) => tn(n, "1 long thin shape, drawn as a wall instead of a room", "{n} long thin shapes, drawn as walls instead of rooms"),
+  curves: (n) => tn(n, "1 curved line, drawn straight", "{n} curved lines, drawn straight"),
+  other_designs: (n) => tn(n, "1 other design of this floor", "{n} other designs of this floor"),
+  rooms_over: (n) => tn(n, "1 room past the 60 a plan keeps", "{n} rooms past the 60 a plan keeps"),
+  bad: (n) => tn(n, "1 item that couldn't be read", "{n} items that couldn't be read"),
+  other: (n) => tn(n, "1 other item PadSpan doesn't use", "{n} other items PadSpan doesn't use"),
+});
+/** The line saying what a plan file had that was left out ([{what, n}], the server's `skipped`), or "". */
+export function skippedText(list) {
+  const words = FILE_SKIP_WORDS();
+  const parts = (Array.isArray(list) ? list : []).filter(s => s && words[s.what] && Number(s.n) > 0).map(s => words[s.what](Number(s.n)));
+  return parts.length ? t("Left out of the file: {list}.", { list: parts.join("; ") }) : "";
+}
+/** The same line for a plan drawn from a file, from what its record keeps (`scan.skipped`). */
+export const skippedLine = (map) => (map && map.kind === "scan" && map.scan ? skippedText(map.scan.skipped) : "");
+
 /** Counted: a corner landed on a scanned wall end (once a page), a scanned outline taken for a room. */
 export const scanCounted = (ctx, w) => (w === "scan_snap" ? once(ctx, w) : tel(ctx, w));
 export const SIZE_OFF = 0.1;      // a drawn room this far from the scan's measured size (either way) is said to be off
@@ -186,6 +225,79 @@ async function readScan(ctx, opts, file) {
   Object.assign(s, { open: false, kind: null });
   if (ctx.toast) ctx.toast(tn(r.walls, "Scan read: 1 wall, drawn to scale. Its scale is set.", "Scan read: {n} walls, drawn to scale. Its scale is set.") + where);
   await opts.onMade(r.map);
+}
+
+// A plan file refused, in the panel's language: by what the server says more of (`why`), else by its code.
+const FILE_WHY = () => ({
+  binary_dxf: t("This is a binary DXF. Save it again as an ASCII (text) DXF and pick that."),
+  dwg: t("This is a DWG drawing. Save or export it as DXF and pick that."),
+  fml_xml: t("This is Floorplanner's older XML form of FML, which PadSpan doesn't read. Export the project again for the newer JSON form."),
+  sh3d: t("This is a Sweet Home 3D file. Import it in Mapping → Layout with 📐 Import floorplan."),
+  no_card: t("No Easy Floorplan card was found in this file. In the dashboard, edit the card, open its code editor and copy all of it into the file."),
+});
+const FILE_CODE = () => ({
+  need_size: t("This file has no unit. Type the drawing's width above (outside wall to outside wall) and pick the file again."),
+  too_large: t("This file is too large (2.8 MB at most). Save only the floor plan, without other drawings or pictures, and try again."),
+  too_big: t("This drawing is larger than a floor of a house (200 m at most), so it wasn't drawn. Check its unit, or type its width above."),
+  empty: t("Nothing to draw: no walls or rooms were found in this file."),
+  unreadable: t("This file couldn't be read as a plan. PadSpan reads Easy Floorplan YAML, DXF saved as text, and Floorplanner FML."),
+});
+
+/** A plan file from another app, down the scan's own command (padspan_ha/maps_scan_create): `level`, which of the
+ *  file's floors, once it has said it has several (the file is kept until then, so it isn't picked twice). */
+async function readFile(ctx, opts, level) {
+  const s = st(ctx), f = s.file;
+  if (!f) return;
+  s.busy = true; s.msg = ""; redraw(ctx);
+  let r;
+  try { r = await ctx.actions.callWS({ type: "padspan_ha/maps_scan_create", floor_id: s.floor, file_base64: f.b64, name: f.name,
+    across: String(s.fileAcross || "").trim(), ...(level ? { level } : {}) }); }
+  catch (e) { r = { ok: false, message: (e && e.message) || t("That didn't work. Try again in a moment.") }; }
+  s.busy = false;
+  if (r && r.ok === false && r.code === "pick_level" && Array.isArray(r.levels) && r.levels.length) {
+    tel(ctx, "file_levels");
+    s.levels = r.levels; redraw(ctx); return;
+  }
+  if (!r || r.ok === false) {
+    const code = r && r.code;
+    tel(ctx, "file_refused");
+    if (code === "too_large") tel(ctx, "file_refused_size");
+    else if (code === "need_size") tel(ctx, "file_refused_need_size");
+    else if (code === "empty") tel(ctx, "file_refused_empty");
+    else tel(ctx, "file_refused_unreadable");
+    // The server's "too large" is either the file's size or a drawing larger than a house (its words say which).
+    const said = code === "too_large" && /larger than a floor/.test((r && r.message) || "") ? "too_big" : code;
+    s.msg = FILE_WHY()[r && r.why] || FILE_CODE()[said] || (r && r.message) || FILE_CODE().unreadable;
+    s.levels = null; redraw(ctx); return;
+  }
+  tel(ctx, "file_made");
+  if (r.file === "easy_floorplan") tel(ctx, "file_easy_floorplan");
+  else if (r.file === "dxf") tel(ctx, "file_dxf");
+  else if (r.file === "floorplanner") tel(ctx, "file_floorplanner");
+  if (r.scale === "doors") tel(ctx, "file_doors_scale");
+  if (Array.isArray(r.skipped) && r.skipped.length) tel(ctx, "file_skipped");
+  Object.assign(s, { open: false, kind: null, file: null, levels: null, fileAcross: "" });
+  const left = skippedText(r.skipped);
+  if (ctx.toast) ctx.toast(tn(r.rooms, "Plan read: 1 room outline, drawn to scale.", "Plan read: {n} room outlines, drawn to scale.")
+    + (r.scale === "doors" ? " " + t("The file has no unit, so its scale was taken from its doors: measure one length to make it exact.") : "")
+    + (left ? " " + left : "") + placedWords(ctx, r.placed));
+  await opts.onMade(r.map);
+}
+
+/** The plan file's picker: read once, then sent (again with a floor of the file, if it has several). */
+function planFile(ctx, opts) {
+  const { el } = ctx.helpers, s = st(ctx);
+  const file = el("input", { type: "file", accept: ".yaml,.yml,.json,.dxf,.fml,.zip", "data-rough": "plan-file", style: "font-size:14px;max-width:100%" });
+  if (s.busy) file.disabled = true;
+  file.addEventListener("change", async () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    if (f.size > SCAN_MAX_BYTES) { tel(ctx, "file_refused"); tel(ctx, "file_refused_size"); s.msg = FILE_CODE().too_large; redraw(ctx); return; }
+    s.file = { b64: await opts.toBase64(f), name: String(f.name || "").replace(/\.[^.]+$/, "").slice(0, 120) };
+    s.levels = null;
+    await readFile(ctx, opts, null);
+  });
+  return file;
 }
 
 /** "Which floor is it?": the floors of the house, starting on the one the upload form has chosen. */
@@ -286,6 +398,17 @@ function body(ctx, kind, opts) {
     hand.appendChild(row(ctx, [addr, btn(ctx, t("Copy"), () => { try { navigator.clipboard.writeText(walkLink()).then(() => ctx.toast && ctx.toast(t("Address copied"))).catch(() => {}); } catch (_e) { if (addr.select) addr.select(); } },
       { attrs: { "data-rough": "walk-copy" } })], "margin:4px 0"));
     wrap.appendChild(hand);
+  } else if (kind === "file") {
+    wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, t("Which floor is it?")), floorPick(ctx, opts)]));
+    const side = el("div", { style: "max-width:520px" });
+    PM.lengthField(ctx, side, s.fileAcross || "", { busy: s.busy, onInput: (v) => { s.fileAcross = v; }, key: "file-across",
+      label: t("Only for a file with no unit (Easy Floorplan, some DXF): the drawing's width, outside wall to outside wall. Leave it empty otherwise.") });
+    wrap.appendChild(side);
+    wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, s.busy ? t("Reading the file…") : t("The plan file (.yaml, .dxf, .fml or .zip):")), planFile(ctx, opts)]));
+    if (Array.isArray(s.levels) && s.levels.length && s.file) {
+      wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#e2e8f0" }, t("This file has several floors. Which one is the floor chosen above?")),
+        ...s.levels.map(lv => btn(ctx, String(lv.name || lv.id), () => { if (!s.busy) readFile(ctx, opts, lv.id); }, { disabled: s.busy, attrs: { "data-rough": "file-level" } }))]));
+    }
   } else if (kind === "sketch") {
     wrap.appendChild(row(ctx, [btn(ctx, t("I have my sketch: upload it"), () => { tel(ctx, "sketch_upload"); s.open = false; opts.onSketch(); }, { attrs: { "data-rough": "sketch-go" } })]));
   } else if (kind === "blank") {

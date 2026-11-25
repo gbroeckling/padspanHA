@@ -639,7 +639,10 @@ _PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "b
                                                     "scan_refused_size", "scan_refused_unreadable", "scan_refused_not_scan", "scan_refused_empty",
                                                     "scan_usdz", "scan_json", "scan_walls_1_4", "scan_walls_5_12", "scan_walls_13_30", "scan_walls_gt30",
                                                     "scan_named", "scan_phone", "scan_snap", "scan_room_used",
-                                                    "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs"))
+                                                    "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs",
+                                                    "file", "file_made", "file_easy_floorplan", "file_dxf", "file_floorplanner", "file_doors_scale",
+                                                    "file_skipped", "file_levels", "file_refused", "file_refused_size", "file_refused_need_size",
+                                                    "file_refused_unreadable", "file_refused_empty", "file_room_named"))
                 + tuple(f"plan_carry:{k}" for k in ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices", "moved_walls", "moved_beacons", "moved_zones"))
                 + ("fit_suggest:shown", "fit_suggest:none"))
 # "Start with a rough house from your Home Assistant rooms" (telemetry.STARTER_HOUSE_EVENTS, 2026-11-24).

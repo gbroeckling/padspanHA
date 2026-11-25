@@ -176,7 +176,7 @@ def test_the_counters_are_allowed_summed_and_labelled():
     # Mapping → Upload's own words (2026-11-15): the panel sends exactly the allowed ones, summed and labelled.
     up = {f"plan_upload:{k}" for k in T.PLAN_UPLOAD_WORDS}
     dr = {f"wizard_draw:{k}" for k in T.WIZARD_DRAW_WORDS}
-    rg = {f"rough_plan:{k}" for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN}
+    rg = {f"rough_plan:{k}" for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN + T.ROUGH_PLAN_FILE}
     assert T.PLAN_UPLOAD_EVENTS == up and T.WIZARD_DRAW_EVENTS == dr and T.ROUGH_PLAN_EVENTS == rg
     pc = {f"plan_carry:{k}" for k in T.PLAN_CARRY_WORDS}
     fs = {"fit_suggest:shown", "fit_suggest:none"}                # Align's "Suggest a fit"
@@ -202,7 +202,7 @@ def test_the_counters_are_allowed_summed_and_labelled():
     assert "export const scanCounted" in rj and all(f'ROUGH.scanCounted(ctx, "{w}")' in mj0 for w in ("scan_snap", "scan_room_used"))
     sent_rg |= {"scan_snap", "scan_room_used"}
     assert sent_rg == {e.split(":", 1)[1] for e in rg}, sorted(sent_rg ^ {e.split(":", 1)[1] for e in rg})
-    assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN) and 'a === "rough_plan"' in ib
+    assert all(f"{k}:" in ib for k in T.ROUGH_PLAN_WORDS + T.ROUGH_PLAN_WALK + T.ROUGH_PLAN_SCAN + T.ROUGH_PLAN_FILE) and 'a === "rough_plan"' in ib
     mj = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     part = mj[mj.index("const _upTel"):mj.index('"Upload & Convert"')]
     sent_up = set(re.findall(r'_upTel\("([a-z_]+)"\)', part)) | set(re.findall(r'"(too_large|bad_picture|failed)"', part))

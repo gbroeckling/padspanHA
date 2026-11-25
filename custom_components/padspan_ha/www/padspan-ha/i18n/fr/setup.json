@@ -139,11 +139,11 @@
 "Place receivers and set their heights": "Placer les récepteurs et régler leur hauteur",
 "Track your phone or watch": "Suivre votre téléphone ou votre montre",
 "Calibrate": "Étalonner",
-"A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor.": "Une photo ou un scan de chaque étage. Pas besoin qu’il soit parfait. Pas de plan ? L’écran suivant propose d’autres façons : un scan des pièces au téléphone, votre propre croquis ou un étage vierge.",
 "Measure one distance you know, a doorway or a wall, so the map is to scale.": "Mesurez une distance que vous connaissez, une porte ou un mur, pour que la carte soit à l’échelle.",
 "How tall each floor is, so PadSpan can tell the floors apart.": "La hauteur de chaque étage, pour que PadSpan puisse distinguer les étages.",
 "Trace each Home Assistant room onto its floor plan.": "Tracez chaque pièce Home Assistant sur son plan.",
 "Put each Bluetooth receiver where it is mounted, and say how high.": "Placez chaque récepteur Bluetooth là où il est fixé, et indiquez à quelle hauteur.",
 "Let PadSpan know the phone or watch you carry, so it can follow you and calibrate with it.": "Indiquez à PadSpan le téléphone ou la montre que vous portez, pour qu’il vous suive et s’en serve pour l’étalonnage.",
-"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Faites le tour de la maison avec votre téléphone pour que PadSpan apprenne la signature de chaque endroit."
+"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Faites le tour de la maison avec votre téléphone pour que PadSpan apprenne la signature de chaque endroit.",
+"A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a plan file from another app, a phone's room scan, your own sketch or a blank floor.": "Une photo ou un scan de chaque étage. Pas besoin qu’il soit parfait. Pas de plan ? L’écran suivant propose d’autres façons : un fichier de plan d’une autre application, un scan des pièces au téléphone, votre propre croquis ou un étage vierge."
 }

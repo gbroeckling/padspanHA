@@ -139,11 +139,11 @@
 "Place receivers and set their heights": "Empfänger platzieren und ihre Höhen festlegen",
 "Track your phone or watch": "Dein Handy oder deine Uhr verfolgen",
 "Calibrate": "Kalibrieren",
-"A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor.": "Ein Foto oder Scan jeder Etage. Er muss nicht perfekt sein. Kein Grundriss? Der nächste Bildschirm hat andere Wege: einen Raumscan mit dem Handy, deine eigene Skizze oder eine leere Etage.",
 "Measure one distance you know, a doorway or a wall, so the map is to scale.": "Miss eine Strecke, die du kennst, eine Tür oder eine Wand, damit die Karte maßstabsgetreu ist.",
 "How tall each floor is, so PadSpan can tell the floors apart.": "Wie hoch jede Etage ist, damit PadSpan die Etagen unterscheiden kann.",
 "Trace each Home Assistant room onto its floor plan.": "Zeichne jeden Home-Assistant-Raum auf seinem Grundriss nach.",
 "Put each Bluetooth receiver where it is mounted, and say how high.": "Setz jeden Bluetooth-Empfänger dorthin, wo er hängt, und gib an, wie hoch.",
 "Let PadSpan know the phone or watch you carry, so it can follow you and calibrate with it.": "Sag PadSpan, welches Handy oder welche Uhr du bei dir trägst, damit es dir folgen und damit kalibrieren kann.",
-"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle klingt."
+"Walk around the house with your phone so PadSpan learns what each spot sounds like.": "Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle klingt.",
+"A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a plan file from another app, a phone's room scan, your own sketch or a blank floor.": "Ein Foto oder Scan jeder Etage. Er muss nicht perfekt sein. Kein Grundriss? Der nächste Bildschirm hat andere Wege: eine Plandatei aus einer anderen App, einen Raumscan mit dem Handy, deine eigene Skizze oder eine leere Etage."
 }

@@ -478,5 +478,6 @@
 "Except {n} rough boxes from your Home Assistant rooms: the rooms traced here take their place.": {
 "one": "Sauf 1 carré approximatif tiré de vos pièces Home Assistant : la pièce dessinée ici prend sa place.",
 "other": "Sauf {n} carrés approximatifs tirés de vos pièces Home Assistant : les pièces dessinées ici prennent leur place."
-}
+},
+"Use the outline the file gives {room}": "Utiliser le contour que le fichier donne à {room}"
 }

@@ -196,7 +196,7 @@ export const STEP_LABELS = {
   get calibration() { return t("Calibrate"); },
 };
 export const STEP_ABOUT = {
-  get plan() { return t("A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a phone's room scan, your own sketch or a blank floor."); },
+  get plan() { return t("A photo or scan of each floor. It doesn't need to be perfect. No floor plan? The next screen has other ways: a plan file from another app, a phone's room scan, your own sketch or a blank floor."); },
   get scale() { return t("Measure one distance you know, a doorway or a wall, so the map is to scale."); },
   get floors() { return t("How tall each floor is, so PadSpan can tell the floors apart."); },
   get rooms() { return t("Trace each Home Assistant room onto its floor plan."); },

@@ -478,5 +478,6 @@
 "Except {n} rough boxes from your Home Assistant rooms: the rooms traced here take their place.": {
 "one": "Außer 1 grobem Kasten aus deinen Home-Assistant-Räumen: Der hier gezeichnete Raum tritt an seine Stelle.",
 "other": "Außer {n} groben Kästen aus deinen Home-Assistant-Räumen: Die hier gezeichneten Räume treten an ihre Stelle."
-}
+},
+"Use the outline the file gives {room}": "Den Umriss nehmen, den die Datei {room} gibt"
 }

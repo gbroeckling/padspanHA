@@ -1102,13 +1102,21 @@ ROUGH_PLAN_SCAN: tuple[str, ...] = ("scan_refused_size", "scan_refused_unreadabl
                                     # Autoplace: put on the room it fits (its outline fitting both ways round or one), or
                                     # not placed; and a drawn room over a tenth off the scan's measured size.
                                     "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs")
+# "Import a plan from another app" (views/rough_plan.js, plan_file_import.py; owner, 2026-11-23): the way opened, a
+# plan drawn from a file and which kind (Easy Floorplan, DXF, Floorplanner), its scale taken from its doors, something
+# left out of it, a file with several floors asked about, one refused and why (too large, no unit and no width typed,
+# not a plan file it knows, nothing to draw), and a room given the outline the file names after it. Words only: never
+# the file, its name, its rooms or a size.
+ROUGH_PLAN_FILE: tuple[str, ...] = ("file", "file_made", "file_easy_floorplan", "file_dxf", "file_floorplanner", "file_doors_scale",
+                                    "file_skipped", "file_levels", "file_refused", "file_refused_size", "file_refused_need_size",
+                                    "file_refused_unreadable", "file_refused_empty", "file_room_named")
 # Carry-along (views/plan_carry.js, plan_carry.py; 2026-11-16): a moved plan's line shown, its list opened, what was
 # ticked moved (and which kinds), left where it was, or a move refused (no backup). Words only.
 PLAN_CARRY_WORDS: tuple[str, ...] = ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices", "moved_walls", "moved_beacons", "moved_zones")
 PLAN_CARRY_EVENTS: frozenset[str] = frozenset(f"plan_carry:{k}" for k in PLAN_CARRY_WORDS)
 # Align's "Suggest a fit" (views/maps.js; the server's fit_to_floor): a fit shown, or none to suggest.
 FIT_SUGGEST_EVENTS: frozenset[str] = frozenset({"fit_suggest:shown", "fit_suggest:none"})
-ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS + ROUGH_PLAN_WALK + ROUGH_PLAN_SCAN)
+ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS + ROUGH_PLAN_WALK + ROUGH_PLAN_SCAN + ROUGH_PLAN_FILE)
 # "Start with a rough house from your Home Assistant rooms" (starter_house.py, views/rough_plan.js; 2026-11-24): the
 # offer shown (once a page), its preview asked for, nothing to make, the house made (the server's count, with how many
 # rooms as a band, and whether areas with no floor went on one), and afterwards which way on was taken from the

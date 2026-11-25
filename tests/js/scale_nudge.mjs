@@ -92,7 +92,18 @@ function house(o = {}) {
     "padspan_ha/maps_blank_create": (p) => { if (!/m$/.test(p.across) || !/m$/.test(p.down)) return { ok: false, code: "size", message: "Type the floor's width and depth." };
       const m = { id: "bl1", name: "Blank floor", floor_id: p.floor_id, kind: "blank", image: { width: 1200, height: 900 }, receivers: [], room_bounds: {} };
       state.maps.list.push(m); state.model.map_transforms.bl1 = { scale_x_m: 12, scale_y_m: 9, reference_measurements: [{}] }; return { ok: true, map: m }; },
-    "padspan_ha/maps_scan_create": (p) => { if (p.file_base64 !== "AAAAAAAAAAA=") return { ok: false, code: "not_scan", message: "Not a USDZ file (it could not be opened)" };
+    "padspan_ha/maps_scan_create": (p) => {
+      // A plan file from another app (views/rough_plan.js "file"): six bytes have no unit; three have two floors, then read.
+      if (p.file_base64 === "AAAAAAAA" && !p.across) return { ok: false, code: "need_size", message: "Easy Floorplan drawings have no unit" };
+      if (p.file_base64 === "AAAA" && !p.level) return { ok: false, code: "pick_level", message: "This file has several floors.", levels: [{ id: "ground", name: "Ground" }, { id: "upper", name: "Upper" }] };
+      if (p.file_base64 === "AAAA" || p.file_base64 === "AAAAAAAA") {
+        const skipped = [{ what: "devices", n: 2 }, { what: "furniture", n: 1 }];
+        const m = { id: "pf1", name: p.name, floor_id: p.floor_id, kind: "scan", image: { width: 900, height: 500 }, receivers: [], room_bounds: {},
+          scan: { source: "easy_floorplan", skipped, rooms: [{ name: "Kitchen", points: [[0.1, 0.1], [0.5, 0.1], [0.5, 0.9], [0.1, 0.9]] }] } };
+        state.maps.list.push(m); state.model.map_transforms.pf1 = { scale_x_m: 9, scale_y_m: 5, reference_measurements: [{}] };
+        return { ok: true, map: m, walls: 5, rooms: 2, heights_m: [], warnings: [], file: "easy_floorplan", named: true, skipped, scale: p.across ? "typed" : "doors" };
+      }
+      if (p.file_base64 !== "AAAAAAAAAAA=") return { ok: false, code: "not_scan", message: "Not a USDZ file (it could not be opened)" };
       const m = { id: "sc1", name: p.name || "Room scan", floor_id: p.floor_id, kind: "scan", image: { width: 500, height: 400 }, receivers: [], room_bounds: {} };
       state.maps.list.push(m); state.model.map_transforms.sc1 = { scale_x_m: 5, scale_y_m: 4, reference_measurements: [{}] }; return { ok: true, map: m, walls: 4, rooms: 1, heights_m: [2.5], warnings: [], file: "usdz", named: true, ...(o.placed ? { placed: o.placed } : {}) }; },
     "padspan_ha/receivers_to_rooms": () => ({ ok: true, ready: o.ready || [], skipped: [], undo: 0 }),
@@ -614,7 +625,7 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
   const g = house({ tab: "upload" });
   root = await render(g);
   q(root, '[data-rough="link"]').click(); root = await render(g);
-  check("no plan: the ways, in order", all(root, "[data-rough]").map(n => n.getAttribute("data-rough")).filter(k => k.startsWith("kind-")).join() === "kind-have,kind-scan,kind-vacuum,kind-sketch,kind-blank"
+  check("no plan: the ways, in order", all(root, "[data-rough]").map(n => n.getAttribute("data-rough")).filter(k => k.startsWith("kind-")).join() === "kind-have,kind-file,kind-scan,kind-vacuum,kind-sketch,kind-blank"
     && rough(g).join() === "seen,opened", [rough(g)]);
   q(root, '[data-rough="kind-have"]').click(); root = await render(g);
   { const kids = q(root, '[data-rough="card"]').parentNode.children;
@@ -677,6 +688,35 @@ for (const [name, o] of [["non-admin", { admin: false }], ["Sample", { dataMode:
     const toast = a.toasts.join(" ");
     check(`autoplace, ${name}: said, and counted`, says.every(w => toast.includes(w)) && words.every(w => rough(a).includes(w))
       && (name !== "placed" || (!toast.includes("is off") && !rough(a).includes("scan_size_differs"))), [toast, rough(a)]);
+  }
+  // A plan file from another app: a file with no unit asks for the width; one with several floors asks which; read, it says
+  // what it left out and how it was scaled, is counted by its kind, and opens on its rooms.
+  {
+    const f = house({ tab: "upload" });
+    f.state._mapsUploadFloorId = "main";
+    const planFile = (n) => ({ name: "Demo house.yaml", size: 100, arrayBuffer: async () => new ArrayBuffer(n) });
+    const pickPlan = async (root, file) => { const i = q(root, '[data-rough="plan-file"]'); i.files = [file]; i.dispatchEvent({ type: "change" }); for (let k = 0; k < 8; k++) await tick(); };
+    let fr = await render(f);
+    q(fr, '[data-rough="link"]').click(); fr = await render(f);
+    q(fr, '[data-rough="kind-file"]').click(); fr = await render(f);
+    check("a plan file: its steps, its floor, the width for a file with no unit, the file", !!q(fr, '[data-rough="steps-file"]') && q(fr, '[data-rough="steps-file"]').textContent.includes("Easy Floorplan")
+      && !!q(fr, '[data-rough="floor"]') && !!q(fr, '[data-aiw="file-across"]') && !!q(fr, '[data-rough="plan-file"]') && rough(f).includes("file"));
+    await pickPlan(fr, planFile(6)); fr = await render(f);
+    check("a plan file: no unit and no width is said, counted, nothing made", fr.textContent.includes("This file has no unit") && ["file_refused", "file_refused_need_size"].every(w => rough(f).includes(w))
+      && !f.state.maps.list.length, [fr.textContent.slice(0, 400), rough(f)]);
+    await pickPlan(fr, planFile(3)); fr = await render(f);
+    const lv = all(fr, '[data-rough="file-level"]');
+    check("a plan file with several floors: which one is asked, counted", lv.length === 2 && lv[0].textContent === "Ground" && rough(f).includes("file_levels"), [lv.length, rough(f)]);
+    lv[0].click(); for (let k = 0; k < 8; k++) await tick();
+    const fc = f.calls.filter(c => c.type === "padspan_ha/maps_scan_create").pop();
+    const toast = f.toasts.join(" ");
+    check("a plan file: sent again with the floor chosen, read, opened", fc && fc.level === "ground" && fc.name === "Demo house" && fc.floor_id === "main" && f.state.activeMapId === "pf1", fc);
+    check("a plan file: what was left out and the doors' scale are said", toast.includes("Plan read: 2 room outlines, drawn to scale.") && toast.includes("taken from its doors")
+      && toast.includes("Left out of the file: 2 devices with their entities (PadSpan places its own receivers); 1 piece of furniture."), toast);
+    check("a plan file: counted by its kind", ["file_made", "file_easy_floorplan", "file_doors_scale", "file_skipped"].every(w => rough(f).includes(w)), rough(f));
+    const pm = f.state.maps.list.find(m => m.id === "pf1");
+    check("a plan file's plan: its rooms named for linking, what was left out kept", JSON.stringify(RP.scanRoomNamed(pm, "kitchen")) === "[[0.1,0.1],[0.5,0.1],[0.5,0.9],[0.1,0.9]]"
+      && RP.scanRoomNamed(pm, "Hall") === null && RP.skippedLine(pm).startsWith("Left out of the file: 2 devices") && RP.skippedLine({ kind: "scan", scan: {} }) === "");
   }
   // The walk-through: the whole of Mapping while it runs, one step a screen, the floor chosen on its last, done said.
   const w = house({ tab: "library", complexity: "basic" });
