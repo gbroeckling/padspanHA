@@ -309,11 +309,11 @@ The **Training Hub** inside PadSpan has 16 animated walkthroughs covering every 
 
 ## Development
 
-I designed my house to be automated from the start, and I wanted more from it than "home" or "away." I wanted to see which room everyone was in, on a plan of the house, with the lights and doors on it too. Nothing out there did all of that, so I built it.
+I designed my house to be automated from the start. Home Assistant could tell me who was home or away, but I wanted to see which room everyone was in, on a plan of the house, with the lights and doors on it too. Nothing did all of that, so I built it.
 
-I love creating and experimenting. I've built new solutions to problems most of my working life, a lot of them in wireless and radio. Bluetooth presence is a radio problem, and I'm a ham.
+I love creating and experimenting. I've spent most of my working life building new solutions to problems, many of them in wireless and radio, and I'm a ham. That helps, because Bluetooth presence is a radio problem.
 
-AI has certainly made time-to-release a bizarre new process. I built PadSpan with the assistance of AI coding tools, mostly Claude. PadSpan is my design. I decide what it does and how it works, I test it in my own house, and I sign off on every release. I use good tools, and I'm the one who answers for what ships.
+I write PadSpan with the help of AI coding tools, mostly Claude. They've made getting from an idea to a release a bizarre new process, but PadSpan is still my design. I decide what it does and how it works, I test it in my own house, and I sign off on every release. I use good tools, and I'm the one who answers for what ships.
 
 -- [Garry Broeckling](https://github.com/gbroeckling)
 
