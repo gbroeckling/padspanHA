@@ -360,7 +360,7 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")
     assert 'const px = profileOf().dpr !== "device" || wallCapped ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;' in src
     assert "if (wallSoft() && !wallMoving()) dirty = true;" in src, "every pixel again once it stops, on the frame clock"
-    assert "if ((liveMs || more || wallSoft()) && !pending)" in src, "and only while it is soft: no frames at rest"
+    assert "if ((liveMs || more || wallSoft() || (walking() && walkC.moving())) && !pending)" in src, "and only while it is soft (or a walk moves): no frames at rest"
     assert 'if (step.use !== "high") wallMoves = wallCapped = false;' in src, "on Low nothing waits to go sharp"
     assert "HOUSE.wallNextTry(quality.setting, quality.measured)" in src
     # The scene row keeps its room on a wall (scene_row.js): it is what is tapped there.
