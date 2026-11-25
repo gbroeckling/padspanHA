@@ -7,7 +7,8 @@ Prints: installs by version / edition / tier / HA; environment distributions
 (scanners, floors, rooms, lights, IRKs, integrations); which features are on
 in how many installs; which tabs and tools are used and how much; how well
 the Apple Find My (AirTag) tools follow tags, where they run; power teams and
-every house's colour bulbs by brand (Hue and the rest); how many houses keep
+every house's colour bulbs by brand (Hue and the rest); the add-ons (licences,
+keys and their time left, offers to purchases, use, who could buy each); how many houses keep
 one screen on PadSpan 90% of the day or more; load and
 hardware (installs by board / CPUs / RAM, and per class how hard Home
 Assistant works and how many installs max out — Raspberry Pi classes
@@ -802,6 +803,226 @@ def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[st
     return out
 
 
+# Add-ons (the owner's, 2026-11-25). The report's top-level `addons` (custom_components/padspan_ha/addon_report.py: the
+# licence as one word, the add-ons a key carries and their time left, the features that moved from free into one, the
+# ones used, what the house has that an add-on is for) and the funnel in `usage` (telemetry.ADDON_EVENTS: offers by
+# place, the site opened, keys entered, add-ons gained and when against the sale, the sale card). Licence, holdings,
+# market and the moved cohort are each install's latest report; the funnel is summed over every report; use and licence
+# changes read each install's reports over the window. tests/test_addon_dashboards.py holds these lists to the sender's.
+_ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps")
+_ADDON_LICENCES = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
+                   "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
+_ADDON_DAYS = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
+_ADDON_NOT_SOLD = ("lighting",)     # Advanced smart lighting (circadian, power teams): everyone's until it is sold
+_ADDON_USED = _ADDONS + _ADDON_NOT_SOLD
+_ADDON_MOVED = (("emergency_test", "alarm"), ("power_teams", "lighting"), ("circadian", "lighting"), ("lidar", "maps"))
+_ADDON_OFFER_PLACES = {"licence_card": _ADDONS, "busy_times": ("insights",), "locate": ("insights",),
+                       "door_openers": ("alarm",), "emergency_test": ("alarm",), "themes": ("looks",),
+                       "showcase": ("looks",), "forensics": ("forensics",)}
+_ADDON_REFUSAL_PLACES = tuple(p for p in _ADDON_OFFER_PLACES if p != "licence_card")   # where a feature refuses it
+_ADDON_BUY_PLACES = ("licence_card",)
+_ADDON_KEY_WORDS = ("entered", "addon", "pro", "pro_from_addon", "needs_update", "invalid", "refused")
+_ADDON_SALE_WHEN = ("before",) + tuple(f"sale_w{i}" for i in range(1, 7)) + ("after",)
+_ADDON_SALE_CARD = ("shown", "clicked", "dismissed")
+_ADDON_MARKET = (("alarm", (("alarm", "alarm panels"), ("garage", "garage openers"), ("gate", "gate openers"),
+                            ("emergency", "emergency lights"))),
+                 ("climate", (("temp", "temperature sensors"), ("humidity", "humidity sensors"), ("co2", "CO2 sensors"))),
+                 ("lighting", (("wled", "WLED devices"), ("teams", "power teams"), ("colour_bulbs", "colour bulbs"))),
+                 ("maps", (("vacuum", "robot vacuums"),)))
+_ADDON_AUDIO = ("control4", "crestron", "savant", "russound", "nuvo", "monoprice", "xantech", "triad", "denon", "yamaha",
+                "anthem")
+_ADDON_C4_OS = ("2", "3", "other", "unknown")
+_ADDON_C4_ENTRY = ("loaded", "setup_error", "setup_retry", "not_loaded", "other")
+_ADDON_WIFI = (("utopia", "UniFi Utopia"), ("unifi", "UniFi Network"))
+_ADDON_HISTORY = ("none", "lt7d", "7_13d", "14_30d", "gt30d")
+
+
+def _addons(r: dict) -> dict:
+    """A report's `addons`; {} from older PadSpan, or where it is not the shape PadSpan sends (untrusted input)."""
+    a = r.get("addons")
+    return a if isinstance(a, dict) and isinstance(a.get("licence"), str) else {}
+
+
+def _dict(v) -> dict:
+    return v if isinstance(v, dict) else {}       # the receiver re-encodes an empty {} as []
+
+
+def _words(v) -> list[str]:
+    return [str(w) for w in v] if isinstance(v, list) else []
+
+
+def _holds(a: dict, addon: str) -> bool:
+    """An add-on key carries it and it has not ended: running, in its grace, or kept aside while a trial runs."""
+    return _dict(a.get("held")).get(addon) not in (None, "ended") and not str(a.get("licence")).startswith("lapsed_")
+
+
+def _on_pro(a: dict) -> bool:
+    return str(a.get("licence")).startswith("pro_")
+
+
+def addons_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+    told = {iid: _addons(r) for iid, r in latest.items()}
+    told = {iid: a for iid, a in told.items() if a}
+    lic = Counter(str(a["licence"]) for a in told.values())
+    use: Counter = Counter()
+    users: dict[str, set] = defaultdict(set)
+    used_by: dict[str, set] = defaultdict(set)              # add-on -> installs whose reports said it was used
+    moves: dict[tuple[str, str], set] = defaultdict(set)    # (licence before, after) -> installs
+    prev: dict[str, str] = {}
+    for r in reports:                                       # oldest first (load reads the days in order)
+        iid = r.get("install_id")
+        for k, v in (r.get("usage") or {}).items():
+            if str(k).startswith("addon_") and _num(v):
+                use[k] += int(_num(v))
+                users[k].add(iid)
+        a = _addons(r)
+        if not a:
+            continue
+        now = str(a["licence"])
+        for before in {prev.get(iid), a.get("was") if a.get("was") in _ADDON_LICENCES else None} - {None, now}:
+            moves[(before, now)].add(iid)
+        prev[iid] = now
+        for w in _words(a.get("used")):
+            used_by[w].add(iid)
+
+    def evs(names) -> str:
+        return ", ".join(f"{n.rsplit(':', 1)[1]} {use[n]} ({len(users[n])} installs)" for n in names if use[n]) or "none"
+
+    def pct(x: int, of: int) -> str:
+        return f"{100 * x // of}%" if of else "-"
+
+    out = ["Add-ons (addons: latest report per install; the funnel: usage events over the window, every report)",
+           f"  installs that say: {len(told)} of {len(latest)} (older PadSpan sends no add-ons section)"]
+    out.append("  licence: " + (", ".join(f"{w} {c}" for w, c in lic.most_common()) or "-"))
+    out.append(f"  on an add-on key: {lic['addon']}; on Pro: {sum(c for w, c in lic.items() if w.startswith('pro_'))};"
+               f" on a trial: {lic['trial']}, of them over a kept add-on key: {sum(1 for a in told.values() if a.get('kept') is True)}")
+    out.append("  add-ons held, by the time they have left (installs)")
+    out.append(f"    {'add-on':<11}{'held':>6}" + "".join(f"{d:>8}" for d in _ADDON_DAYS))
+    for addon in _ADDONS:
+        c = Counter(str(_dict(a.get("held")).get(addon)) for a in told.values())
+        held = sum(c[d] for d in _ADDON_DAYS)
+        if held:
+            out.append(f"    {addon:<11}{held:>6}" + "".join(f"{c[d]:>8}" for d in _ADDON_DAYS))
+    was = Counter((str(a["was"]), str(a["licence"])) for a in told.values() if a.get("was") in _ADDON_LICENCES)
+    out.append("  licence changed since the report before, on the latest report (installs): "
+               + (", ".join(f"{b} -> {n} {c}" for (b, n), c in was.most_common()) or "none"))
+    out.append("  licence changes across each install's reports over the window (installs): "
+               + (", ".join(f"{b} -> {n} {len(w)}" for (b, n), w in sorted(moves.items(), key=lambda kv: -len(kv[1])))
+                  or "none"))
+
+    out.append("  The funnel, per add-on and place (events over the window (installs))")
+    out.append(f"    {'add-on':<11}{'place':<16}{'offers':>12}{'buy clicks':>12}{'clicks/offers':>15}")
+    rows = 0
+    for addon in _ADDONS:
+        for place, names in _ADDON_OFFER_PLACES.items():
+            o, b = f"addon_offer:{place}:{addon}", f"addon_buy:{place}:{addon}"
+            if addon not in names or not (use[o] or use[b]):
+                continue
+            buys = place in _ADDON_BUY_PLACES
+            rows += 1
+            out.append(f"    {addon:<11}{place:<16}{f'{use[o]} ({len(users[o])})':>12}"
+                       f"{f'{use[b]} ({len(users[b])})' if buys else '-':>12}{pct(use[b], use[o]) if buys else '-':>15}")
+    if not rows:
+        out.append("    none reported")
+    out.append("  keys entered, and how they went: " + evs(f"addon_key:{w}" for w in _ADDON_KEY_WORDS))
+    out.append("  add-ons gained: " + evs(f"addon_gained:{a}" for a in _ADDONS))
+    out.append("  gained against the sale: " + evs(f"addon_gained_in:{w}" for w in _ADDON_SALE_WHEN))
+    out.append("  the sale card: " + evs(f"addon_sale_card:{w}" for w in _ADDON_SALE_CARD)
+               + f"; clicked per shown {pct(use['addon_sale_card:clicked'], use['addon_sale_card:shown'])}")
+
+    out.append("  Offered where a feature refused it (installs over the window; of them, still without it at their latest"
+               " report: no add-on key carrying it, not on Pro)")
+    rows = 0
+    for addon in _ADDONS:
+        places = [p for p in _ADDON_REFUSAL_PLACES if addon in _ADDON_OFFER_PLACES[p]]
+        who = set().union(*(users[f"addon_offer:{p}:{addon}"] for p in places))
+        if not who:
+            continue
+        rows += 1
+        latest_a = {iid: _addons(latest.get(iid) or {}) for iid in who}
+        without = sum(1 for a in latest_a.values() if not (_holds(a, addon) or _on_pro(a)))
+        out.append(f"    {addon:<11}{len(who):>5} installs, {without} still without it ("
+                   + ", ".join(f"{p} {use[f'addon_offer:{p}:{addon}']}" for p in places if use[f"addon_offer:{p}:{addon}"]) + ")")
+    if not rows:
+        out.append("    none reported")
+
+    out.append("  Used over the window, of the installs on it now (an add-on key carrying it, or Pro)")
+    out.append(f"    {'add-on':<11}{'on it':>7}{'used it':>9}")
+    for addon in _ADDON_USED:
+        if addon in _ADDON_NOT_SOLD:
+            on = set(told)
+            note = "  not sold yet: every install that says"
+        else:
+            on = {iid for iid, a in told.items() if _holds(a, addon) or _on_pro(a)}
+            note = ""
+        n_used = len(on & used_by[addon])
+        out.append(f"    {addon:<11}{len(on):>7}{n_used:>9}  {pct(n_used, len(on))}{note}")
+
+    out.append("  Moved from free (installs that had it in use when the move first ran; of them, now on the add-on it moved into)")
+    for w, addon in _ADDON_MOVED:
+        who = [a for a in told.values() if w in _words(a.get("moved"))]
+        tail = ("not sold yet" if addon in _ADDON_NOT_SOLD else
+                f"holding {addon} {sum(1 for a in who if _holds(a, addon))}, on Pro {sum(1 for a in who if _on_pro(a))}")
+        out.append(f"    {w + ' -> ' + addon:<28}{len(who):>5}  {tail}")
+
+    mk = {iid: _dict(a.get("market")) for iid, a in told.items()}
+
+    def on_it(who, addon: str) -> str:
+        if addon in _ADDON_NOT_SOLD:
+            return "not sold yet"
+        return f"{sum(1 for iid in who if _holds(told[iid], addon) or _on_pro(told[iid]))} already on it"
+
+    out.append("  The market each add-on is for (latest report per install: installs with any (devices in them, 99 = 99+))")
+    for addon, keys in _ADDON_MARKET:
+        bits, anyone = [], set()
+        for k, label in keys:
+            who = {iid for iid, m in mk.items() if (_num(m.get(k)) or 0) > 0}
+            if who:
+                bits.append(f"{label} {len(who)} ({sum(int(_num(mk[iid][k])) for iid in who)})")
+                anyone |= who
+        if addon == "maps":
+            plans = {w: {iid for iid, m in mk.items() if w in _words(m.get("plans"))} for w in _PLAN_SOURCES}
+            if any(plans.values()):
+                bits.append("plans by source: " + " ".join(f"{w} {len(who)}" for w, who in plans.items() if who))
+                anyone |= set().union(*plans.values())
+            for k, label in (("roomplan", "RoomPlan import on"), ("valetudo", "Valetudo")):
+                who = {iid for iid, m in mk.items() if m.get(k) is True}
+                if who:
+                    bits.append(f"{label} {len(who)}")
+                    anyone |= who
+        out.append(f"    {addon}: " + (", ".join(bits) + f"; any of them {len(anyone)} installs, {on_it(anyone, addon)}"
+                                       if bits else "none"))
+    audio, audio_who, audio_any = Counter(), Counter(), set()
+    for iid, m in mk.items():
+        for s, c in _dict(m.get("audio")).items():
+            if (_num(c) or 0) > 0:
+                audio[str(s)] += int(_num(c))
+                audio_who[str(s)] += 1
+                audio_any.add(iid)
+    out.append("    audio: " + (", ".join(f"{s} {c} ({audio[s]} players)" for s, c in audio_who.most_common())
+                                 + f"; any of them {len(audio_any)} installs, {on_it(audio_any, 'audio')}" if audio_any else "none"))
+    c4 = {iid: _dict(m.get("c4")) for iid, m in mk.items() if _dict(m.get("c4"))}
+    if c4:
+        out.append(f"    Control4: {len(c4)} installs, by the controller's OS and its config entry's state; the local token"
+                   f" override on {sum(1 for c in c4.values() if c.get('local') is True)}")
+        cells = Counter((str(c.get("os")), str(c.get("entry"))) for c in c4.values())
+        out.append(f"      {'OS':<9}" + "".join(f"{e:>13}" for e in _ADDON_C4_ENTRY))
+        for os_ in _ADDON_C4_OS:
+            if any(cells[(os_, e)] for e in _ADDON_C4_ENTRY):
+                out.append(f"      {os_:<9}" + "".join(f"{cells[(os_, e)]:>13}" for e in _ADDON_C4_ENTRY))
+        local = sum(1 for c in c4.values() if str(c.get("os")) == "2" and (c.get("entry") != "loaded" or c.get("local") is True))
+        out.append(f"      the Control4 OS 2 Local market (OS 2, its entry not loaded or the local override on): {local}")
+    else:
+        out.append("    Control4: none")
+    wifi = {w: {iid for iid, m in mk.items() if m.get("wifi") == w} for w, _ in _ADDON_WIFI}
+    out.append("    wifi: " + ", ".join(f"{label} {len(wifi[w])}" for w, label in _ADDON_WIFI)
+               + f"; {on_it(set().union(*wifi.values()), 'wifi')}")
+    hist = Counter(str(m.get("history")) for m in mk.values() if m.get("history") in _ADDON_HISTORY)
+    out.append("    timetravel, vacation (days of history the recorder keeps): "
+               + (", ".join(f"{w} {hist[w]}" for w in _ADDON_HISTORY if hist[w]) or "none"))
+    return out
+
+
 # One screen up all day (2026-11-22, the owner: "get it so people want it up on one screen all the time"; one display at
 # 90% or better is a dashboard adopted fully). env.top_screen of each install's latest report: the busiest single
 # screen's minutes against the report's window, all hours and 07:00-23:00 in the house's time zone. A window under
@@ -896,6 +1117,9 @@ def main() -> int:
         print(line)
     print()
     for line in power_teams_section(latest, reports):
+        print(line)
+    print()
+    for line in addons_section(latest, reports):
         print(line)
     print()
     for line in screen_up_section(latest, set(a.exclude_install_id)):
