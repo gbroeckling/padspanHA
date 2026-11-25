@@ -69,7 +69,8 @@ def test_the_key_refusals_stop_naming_bright_pro_at_the_switch() -> None:
     assert fabric.count("_PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS") == 3
     assert wled.count("TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS") == 3
     assert exact.count("W.TIER_MSG if time.time() < W.PRO_PASS_FROM_TS else W.TIER_MSG_FROM_PASS") == 2
-    assert '"bright_required", TIER_MSG)' not in wled + exact and '"pro_required", _PRO_REQUIRED_MSG)' not in fabric
+    assert '"bright_required", TIER_MSG)' not in wled and '"bright_required", W.TIER_MSG)' not in exact
+    assert '"pro_required", _PRO_REQUIRED_MSG)' not in fabric
 
 
 @pytest.fixture(scope="module")

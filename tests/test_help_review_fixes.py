@@ -51,14 +51,14 @@ def test_area_templates_skip_per_receiver_distance_sensors() -> None:
         assert "rejectattr('entity_id', 'search', '_distance_')" in nxt
 
 
-def _tour(paid: bool) -> list[dict]:
+def _tour(paid: bool, bright_pro_sold: bool = True) -> list[dict]:
     if _NODE is None:
         pytest.skip("node is not installed")
     src = _read(_WWW / "views" / "maps.js")
     a = src.index("function _lightsTourSteps(paid){")
     fn = src[a:src.index("\n}\n", a) + 2]
     m = re.search(r"export const LIGHT_CLASSES = (\[.*?\]);", _read(_WWW / "views" / "lights_map.js"))
-    js = (f"const _LIC_PATH = 'Settings → PadSpan licence'; const _lightsTourFindTable = () => null; const _brightProOpen = () => true;\n{fn}\n"
+    js = (f"const _LIC_PATH = 'Settings → PadSpan licence'; const _lightsTourFindTable = () => null; const _brightProOpen = () => {str(bright_pro_sold).lower()};\n{fn}\n"
           f"console.log(JSON.stringify({{steps: _lightsTourSteps({str(paid).lower()}).map(s => ({{title: s.title, body: s.body}})),"
           f" classes: {m.group(1)}}}));")
     res = subprocess.run([_NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -76,6 +76,13 @@ def test_the_free_tour_does_not_promise_placing_lights() -> None:
     chips = next(s["body"] for s in paid["steps"] if s["title"].startswith("Fans, motion"))
     labels = [label for _, label in paid["classes"]]
     assert all(lbl in chips for lbl in labels), labels
+
+
+def test_from_december_16_the_free_tour_names_pro_alone() -> None:
+    """Bright Pro is no longer sold from the end of December 15, 2026, so the tour
+    stops naming it (maps.js _lightsTourSteps, editions.js brightProOpen)."""
+    text = " ".join(s["body"] for s in _tour(False, bright_pro_sold=False)["steps"])
+    assert "needs a PadSpan Pro key" in text and "Bright Pro" not in text, text
 
 
 def test_a_support_report_says_where_it_goes() -> None:

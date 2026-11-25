@@ -76,7 +76,7 @@ in mehr als zwei Zuhause genutzt wird, braucht ihn in jedem davon ([Kapitel 25](
 
 ## Tester werden
 
-Solange der Bericht an ist, bietet seine Karte **Become a tester** an: PadSpan Pro zwei Jahre (ab dem 16. Dezember 2026 ein Jahr)
+Solange der Bericht an ist, bietet seine Karte **Become a tester** an: PadSpan Pro zwei Jahre (ein Jahr, wenn du ab dem 16. Dezember 2026 dazukommst)
 kostenlos, für Leute, die gern kontaktiert werden, um Neues auszuprobieren. Das ist die einzige
 Stelle, an der PadSpan nach Kontaktdaten fragt, deshalb ist sie in jeder Hinsicht vom anonymen
 Bericht getrennt: ein eigenes Einwilligungskästchen, ein eigener Knopf **Send sign-up**, eine eigene
