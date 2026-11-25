@@ -39,8 +39,8 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["systems", "prefill", "looks", "icon", "off", "sheet", "audio", "features", "climate", "covers",
-                                  "match", "first-time", "non-admin", "german"])
+@pytest.mark.parametrize("case", ["systems", "prefill", "looks", "icon", "icon-clear", "off", "sheet", "audio", "features", "quick", "climate", "covers",
+                                  "match", "first-time", "cleared", "kept", "non-admin", "german"])
 def test_room_controls(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -65,13 +65,14 @@ def test_the_counts_are_a_closed_list_and_carry_no_name():
 def test_the_settings_are_an_administrators_and_kept_clean():
     """Both the command's schema and its handler know the two keys; the matches keep players only, each in one room."""
     keys = {str(getattr(k, "schema", k)) for k in WS.ws_settings_set.ws_schema}
-    assert {"room_audio_matches", "room_audio_ha_speakers"} <= keys
+    assert {"room_audio_matches", "room_audio_ha_speakers", "room_audio_matched"} <= keys
     assert DEFAULT_SETTINGS["room_audio_matches"] == {} and DEFAULT_SETTINGS["room_audio_ha_speakers"] is False
+    assert DEFAULT_SETTINGS["room_audio_matched"] is False
     got = WS.clean_room_audio_matches({"great_room": ["media_player.c4", "light.x", "media_player.denon_zone_2", "media_player.c4"],
                                        "den": ["media_player.c4", "media_player.den"], "": ["media_player.z"], "hall": "junk", "x": [1]})
     assert got == {"great_room": ["media_player.c4", "media_player.denon_zone_2"], "den": ["media_player.den"]}
     src = (_ROOT / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
-    block = src[src.index('if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg:'):][:600]
+    block = src[src.index('if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg or "room_audio_matched" in msg:'):][:800]
     assert '"Only an administrator can match players to rooms"' in block
 
 
@@ -90,3 +91,21 @@ def test_the_module_asks_home_assistant_only_through_its_host_and_never_says_bri
     assert imports == ["i18n", "dialog_keys"], imports
     for f in ("views/room_controls.js", "../../../../tests/js/room_controls.mjs"):
         assert "Bright" not in (_WWW / f).read_text(encoding="utf-8"), f
+
+
+def test_the_classic_layout_has_one_switch_for_audio_in_3d_too():
+    """Off the display layout Settings → Atlas → Audio is the one switch: the 3D view gets no ⋯ Audio line of its own
+    (audio null) and the host's roomAudio answers looks only while Audio is on as the flat map has it; the view draws
+    what the host answers (asking only while ticked where the host offers the line)."""
+    lm = _src("views/lights_map.js")
+    assert "audio: DISPLAY ? audioSetup() : null," in lm
+    assert "roomAudio: host.roomControls ? () => (roomControlsOn() ? host.roomControls.looks() : null) : null," in lm
+    la = _src("views/live_aboard.js")
+    body = la[la.index("function syncAudio(p){"):][:700]
+    assert "(!p.audio || (showOn && showOn.room_controls === true))" in body
+
+
+def test_the_matching_card_goes_with_the_panel():
+    panel = _src("lights_panel.js")
+    body = panel[panel.index("disconnectedCallback(){"):][:1500]
+    assert "if(this._rc) this._rc.close();" in body

@@ -4353,11 +4353,12 @@ export function buildLightsMapCard(hostIn){
           goTo: typeof h3.goTo === "function" ? h3.goTo : null, kiosk: h3.kiosk === true,
           // The scene row on its bottom bar (scene_row.js): the same tiles and taps as under the flat map.
           scenes: scenesNow(),
-          // Audio's line in this view's ⋯ list, and its Set up › (the matching card over the map), where the host hands Audio.
-          audio: audioSetup(),
-          // And, with that line ticked on this screen, the flat map's speakers at the rooms' names (room_controls.js looks:
-          // {room: "on" | "muted"}), asked by the view only while it is ticked there.
-          roomAudio: host.roomControls ? () => host.roomControls.looks() : null,
+          // Audio's line in this view's ⋯ list, and its Set up › (the matching card over the map), where the host hands Audio
+          // on the display layout. The classic layout has one switch for it, Settings → Atlas → Audio: no line of its own here.
+          audio: DISPLAY ? audioSetup() : null,
+          // The flat map's speakers at the rooms' names (room_controls.js looks: {room: "on" | "muted"}) while Audio is on
+          // for this screen as the flat map has it (roomControlsOn: the ⋯ tick, or the classic layout's setting); else null.
+          roomAudio: host.roomControls ? () => (roomControlsOn() ? host.roomControls.looks() : null) : null,
           onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }

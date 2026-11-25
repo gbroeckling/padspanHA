@@ -2751,14 +2751,17 @@ export const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34
 // Mapping's _floorZAtVb (maps.js) would count its plate as chosen.
 const GHOST_FLOOR_OPACITY = 0.25;
 
-/** The speaker beside a room's name on the map (room controls, room_controls.js): mdi:volume-high's shape drawn in the map's line, in the
- *  room name's colour, `s` its half height; slashed (mdi:volume-off) while muted. Never takes a tap itself. */
+/** The speaker by a room's name on the map (room controls, room_controls.js): a round badge of its own, dark and edged in the room
+ *  name's colour (SPEAKER_R of `s` its radius), mdi:volume-high's shape inside in that colour, `s` its half height; slashed
+ *  (mdi:volume-off) while muted. Never takes a tap itself. */
+export const SPEAKER_R = 1.5;
 export function speakerMark(x, y, s, color, look){
   const P = (px, py) => `${(x + px * s).toFixed(1)},${(y + py * s).toFixed(1)}`;
   const arc = (r) => `M${P(0.25, -r)} A${(r * s).toFixed(1)},${(r * s).toFixed(1)} 0 0 1 ${P(0.25, r)}`;
   const w = Math.max(0.8, s * 0.22).toFixed(2);
   return `<g class="lroom-audio" data-look="${look === "muted" ? "muted" : "on"}" pointer-events="none" fill="none" stroke="${color}" `
     + `stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" paint-order="stroke">`
+    + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(s * SPEAKER_R).toFixed(1)}" fill="#071008" fill-opacity="0.85"/>`
     + `<path d="M${P(-1, -0.35)} L${P(-0.55, -0.35)} L${P(-0.05, -0.85)} L${P(-0.05, 0.85)} L${P(-0.55, 0.35)} L${P(-1, 0.35)} Z" fill="${color}" fill-opacity="0.35"/>`
     + `<path d="${arc(0.4)}"/><path d="${arc(0.8)}"/>`
     + (look === "muted" ? `<path d="M${P(-1.05, -1)} L${P(1.05, 1)}" stroke="#071008" stroke-width="${(Number(w) * 2.6).toFixed(2)}"/><path d="M${P(-1.05, -1)} L${P(1.05, 1)}"/>` : "")
@@ -6060,11 +6063,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `paint-order="stroke" stroke="#071008" stroke-width="1.8" stroke-linejoin="round" `+
           `opacity="${SHOW?THEME.roomLabelOpacity:"0.78"}" pointer-events="none">`+
           `${escSVG(SHOW?(THEME.roomLabelUppercase?String(r.room).toUpperCase():String(r.room)):r.room)}</text>`;
-        // Room controls: a player on in this room, a speaker just right of its name, in the name's colour, drawn where
-        // the name is (over the markers when the name is); its tap circle in the name's tap box below.
+        // Room controls: a player on in this room, its speaker a round badge of its own by the name, in the name's colour,
+        // drawn where the name is (over the markers when the name is); its tap circle in the name's tap box below. Right
+        // of the name, else left of it, above or below it: the first spot clear of a live reading's digits, another name
+        // and the fixtures (the owner, 2026-11-25: over the humidity, "the humidity looks like a volume indicator").
         const audioLook=ROOM_AUDIO && Object.prototype.hasOwnProperty.call(ROOM_AUDIO, r.room) ? ROOM_AUDIO[r.room] : null;
-        const audioS=rfs*0.62, audioX=lix+(rw-10)/2+audioS*1.9, audioY=liy;
+        const audioS=rfs*0.62;
+        let audioX=lix, audioY=liy;
         if(audioLook){
+          const br=audioS*SPEAKER_R, gap=Math.max(2, br*0.5), side=rw/2+gap+br, up=rh/2+gap+br;
+          let best=Infinity;
+          for(const [x,y] of [[lix+side,liy],[lix-side,liy],[lix,liy-up],[lix,liy+up]]){
+            const c=coverOf(x,y,br,br)+(placedLabels.some(p=>Math.abs(p.x-x)<p.w/2+br && Math.abs(p.y-y)<p.h/2+br)?LABEL_TEXT:0);
+            if(c<best){ best=c; audioX=x; audioY=y; }
+            if(c===0) break;
+          }
           nameTxt+=`<g opacity="${SHOW?THEME.roomLabelOpacity:"0.85"}">${speakerMark(audioX, audioY, audioS, color, audioLook)}</g>`;
           s+=`<circle class="lroom-audio-hit" cx="${audioX.toFixed(1)}" cy="${audioY.toFixed(1)}" r="${Math.max(audioS*2.6, 9).toFixed(1)}" `+
             `fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;

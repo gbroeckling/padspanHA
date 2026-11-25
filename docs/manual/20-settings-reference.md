@@ -345,6 +345,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `trial_nudge_done` | off | on or off | The trial card was answered. |
 | `tester_nudge_done` | off | on or off | The tester card was shown. |
 | `launch_card_done` | off | on or off | The launch-price card was shown. |
+| `room_audio_matched` | off | on or off | Audio's matching card kept its picks once: from then on it makes no guesses, so rooms cleared on purpose stay cleared. |
 | `lifetime_card_done` | off | on or off | The "Pro for life ends Dec 15" card was shown. |
 | `tester_signup` | empty |  | Your tester sign-up, so you can update or withdraw it. |
 | `pro_invite` | empty |  | An invite to free Pro, and your answer. |

@@ -113,19 +113,23 @@ off until a screen ticks it, and each screen (a phone, a wall) has its own tick.
 sheets are exactly as before. **Set up ›** on the same line opens the matching card (below) right
 there over the map, ticked or not, for an administrator, on a wall screen too.
 
-- **On the map**: a small speaker beside a room's name while one of its players is on, struck
-  through while the room's first player is muted. Nothing while they are all off, and no other new
-  marks. Tap it, or the name, for the room's sheet: a tap on the map never changes anything. The 3D
-  view shows the same speaker at the room's name (where the names are hidden, where the name would
-  be); a tap on it opens the room's panel.
+- **On the map**: a small round speaker badge beside a room's name while one of its players is on,
+  struck through while the room's first player is muted. It keeps clear of the name and of the
+  room's readings (temperature, humidity, air), so a reading never looks like a volume. Nothing
+  while they are all off, and no other new marks. Tap it, or the name, for the room's sheet: a tap
+  on the map never changes anything. The 3D view shows the same badge beside the room's name and
+  readings (where the names are hidden, beside the readings); a tap on it opens the room's panel,
+  which opens below the emergency button, never under it.
 - **The sheet**: under the room's name, its temperature and humidity (the middle reading of its
   sensors) and who is there. **Room off (n)** turns off the room's lights and its players, never a
   lock, a shade, the thermostat or a plug, and shows only while something is on. Then the scenes,
   as before, and:
   - **Audio**: a row for each player, named by its system ("Control4 · Great Room", "Denon · Zone
     2"), with whether it is on, off or muted, **Mute**, **−**, the level, **+** and ⏻ (that player
-    off), these five always on one line. What a player can't do is left out or greyed: a player that
-    is off shows its level as —.
+    off), these five always on one line. Each **−** or **+** moves the level shown at once, one step
+    a press (1 in 100 on a player that steps itself, such as a Control4 room), and quick presses add
+    up; the level Home Assistant reports is shown as soon as it reports one. What a player can't do
+    is left out or greyed: a player that is off shows its level as —.
   - the room's lights, as before;
   - **Shades**: one row for all the room's covers, **Open**, **Stop** and **Close** for all of them
     at once, and how far open they are. Garage doors, gates and doors stay on their door's card.
@@ -140,8 +144,11 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
   player's Home Assistant area, else from its name. **Set up ›** on the **Audio** line in **⋯** opens
   it too, and ticking **Audio** with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
   ▼ set their order, and the first is the one the map's speaker follows. Every pick is kept the
-  moment it's made (the card's guesses too, as it opens), so there is no Save: **Done** closes it.
-  Someone who isn't an administrator sees the button greyed.
+  moment it's made (the card's guesses too, the first time it opens), so there is no Save: **Done**
+  closes it. Once it has kept a pick it never guesses again, so players taken off the map stay off,
+  and a match to a player Home Assistant doesn't show right now (hidden, not loaded yet) or to a
+  room renamed on the map is kept as it was. Someone who isn't an administrator sees the button
+  greyed.
 - **Which players**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. **Include Home
   Assistant speakers** on the matching card (off unless ticked) adds every other player with a
@@ -150,7 +157,8 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
 Audio needs PadSpan Pro or the Audio add-on. The **⋯** list is part of the new layout, PadSpan
 Pro's; on the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Audio** (off by
 default, shown where Audio is allowed) does the same for the whole house: the speaker beside a
-playing room's name, and the sheet's Audio with **Match rooms**.
+playing room's name, in the 3D view too, and the sheet's Audio with **Match rooms**. It is the one
+switch there: the 3D view's **⋯** has no Audio line of its own.
 
 ## Heatmap (Pro or the Climate map add-on)
 

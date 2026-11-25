@@ -29,11 +29,14 @@
 //               lights and Shades and Climate below them (sheet).
 //   matching    which player is in which room, an administrator's (openMatch):
 //               settings room_audio_matches {area id: [player, ...]} in the
-//               room's order, and room_audio_ha_speakers.
+//               room's order, room_audio_ha_speakers, and room_audio_matched
+//               (the card kept a pick once: from then on no guess is made,
+//               so rooms cleared on purpose stay cleared).
 //
 // One press is one Home Assistant service call, from the browser with the
-// person's own login, as a light's is. Imports nothing but its words and the
-// cards' keys.
+// person's own login, as a light's is; a volume's number moves with each press
+// at once, in place (levelNow). Imports nothing but its words and the cards'
+// keys.
 
 const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
 const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`)
@@ -60,6 +63,9 @@ const NOT_SHADES = new Set(["garage", "gate", "door"]);
 const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
 // How long a pressed level or mute shows before Home Assistant's own state is shown again.
 const OPTIMISTIC_MS = 3000;
+// What one − / + press moves a player that steps itself (VOLUME_STEP: a Control4 room, 1 in 100) when its state
+// carries no volume_step of its own.
+const SELF_STEP = 0.01;
 
 /** A name as two systems may both write it: lower case, no apostrophes, spaces or punctuation
  *  (Control4's "Alex's office" and the map's "Alex's Office" are one). */
@@ -176,7 +182,7 @@ const mk = (tag, style, text) => { const n = document.createElement(tag); if (st
  * Room controls for one screen. o:
  *   hass()        Home Assistant now (states, entities, devices, areas, callService, user)
  *   model()       the map (room_geometry_m, areas)
- *   settings()    {room_audio_matches, room_audio_ha_speakers}
+ *   settings()    {room_audio_matches, room_audio_ha_speakers, room_audio_matched}
  *   save(patch)   writes those two (settings_set); resolves when Home Assistant kept them
  *   admin()       an administrator: may match rooms
  *   toast(m, err), errorText(e), count(word) (the report's room_controls:<word>), redraw() (the open sheet and the map)
@@ -184,13 +190,20 @@ const mk = (tag, style, text) => { const n = document.createElement(tag); if (st
  * data). canMatch(): may this person open the matching card (an administrator).
  */
 export function createRoomControls(o){
-  const opt = new Map();   // eid -> {level?, muted?, target?, until}: what a press shows until Home Assistant says
+  const opt = new Map();   // eid -> {muted?, target?, until}: what a press shows until Home Assistant says
+  // eid -> {from, level, until, timer}: the level − / + pressed to (from: what Home Assistant said at the first press),
+  // shown at once in the number alone, never by drawing the row again (a row drawn again under a finger lost the next
+  // quick press), until Home Assistant says or the window ends. levelEls: the number's node in the open sheet.
+  const vol = new Map(), levelEls = new Map();
   let counted = false;
   const H = () => o.hass() || {};
   const st = (eid) => (H().states || {})[eid];
   const settings = () => o.settings() || {};
   const haOn = () => settings().room_audio_ha_speakers === true;
   const matches = () => cleanMatches(settings().room_audio_matches);
+  // Set up: the card has kept its picks once (or, from before that was written down, some are kept). Only a house
+  // never set up gets the card's guesses, the card opening by itself and the prominent button in every room.
+  const setUp = () => settings().room_audio_matched === true || Object.keys(matches()).length > 0;
   const count = (w) => { try { o.count(w); } catch (_) { /* the report is never the error */ } };
   const optOf = (eid) => { const v = opt.get(eid); if (v && Date.now() < v.until) return v; opt.delete(eid); return null; };
   const roomArea = (room) => {
@@ -209,12 +222,13 @@ export function createRoomControls(o){
   };
   // The redraw after a press: at once (what was pressed), then once Home Assistant has had time to say.
   const later = () => { try { o.redraw(); } catch (_) { /* the sheet may be gone */ } setTimeout(() => { try { o.redraw(); } catch (_) { /* gone */ } }, OPTIMISTIC_MS + 100); };
-  // word: the report's (none for Room off's own calls: that press is counted once, as room_off).
-  const call = (domain, service, data, word, name, undo) => {
+  // word: the report's (none for Room off's own calls: that press is counted once, as room_off). redraw false: the
+  // press drew what it changed itself (a volume's number), nothing is drawn again.
+  const call = (domain, service, data, word, name, undo, redraw = true) => {
     if (word) count(word);
     const h = H();
     if (!h || typeof h.callService !== "function") return Promise.resolve(false);
-    later();
+    if (redraw) later();
     return Promise.resolve().then(() => h.callService(domain, service, data)).then(() => true, (e) => {
       if (undo) undo();
       o.toast(`${name}: ${o.errorText(e)}`, true);
@@ -222,6 +236,40 @@ export function createRoomControls(o){
       return false;
     });
   };
+
+  // ── a volume's number ──
+  const reported = (eid) => { const a = (st(eid) && st(eid).attributes) || {}; return typeof a.volume_level === "number" ? a.volume_level : null; };
+  /** The level a player's number shows: Home Assistant's, or for a while after − / + the level pressed to. Home
+   *  Assistant saying something new is shown, unless it is on its way there (between where it was and the pressed
+   *  level: the presses it has not caught up with yet are still coming). */
+  function levelNow(eid){
+    const r = reported(eid), v = vol.get(eid);
+    if (!v || Date.now() >= v.until) return r;
+    if (r === null || r === v.from) return v.level;
+    const want = v.level - v.from, got = r - v.from;
+    return want !== 0 && Math.sign(got) === Math.sign(want) && Math.abs(got) < Math.abs(want) ? v.level : r;
+  }
+  const levelText = (l) => (l === null ? "—" : String(Math.round(l * 100)));
+  /** The number as it is now, in place (the row is not drawn again). */
+  function paintLevel(eid){
+    const n = levelEls.get(eid);
+    if (n) { const s = levelText(levelNow(eid)); if (n.textContent !== s) n.textContent = s; }
+  }
+  /** One − / + press: the number moves one step at once (presses add up), then Home Assistant is asked. */
+  function nudgeLevel(p, dir, step){
+    const r = reported(p.eid), shown = levelNow(p.eid), v = vol.get(p.eid);
+    if (shown !== null) {
+      const going = !!v && Date.now() < v.until && shown === v.level;
+      if (v) clearTimeout(v.timer);
+      const level = Math.round(Math.max(0, Math.min(1, shown + dir * step)) * 10000) / 10000;
+      // When the window ends the number is Home Assistant's again, if it never said the pressed one.
+      vol.set(p.eid, { from: going ? v.from : r, level, until: Date.now() + OPTIMISTIC_MS,
+                       timer: setTimeout(() => paintLevel(p.eid), OPTIMISTIC_MS + 50) });
+      paintLevel(p.eid);
+    }
+    call("media_player", dir > 0 ? "volume_up" : "volume_down", { entity_id: p.eid }, dir > 0 ? "up" : "down", p.name,
+      () => { const w = vol.get(p.eid); if (w) clearTimeout(w.timer); vol.delete(p.eid); paintLevel(p.eid); }, false);
+  }
 
   /** {room name: "on" | "muted"} for the map: a room with a player on; muted while its first player is. */
   function looks(){
@@ -242,7 +290,7 @@ export function createRoomControls(o){
     const s = st(p.eid), a = (s && s.attributes) || {}, op = optOf(p.eid) || {};
     const na = !s || s.state === "unavailable", on = playerOn(s);
     const muted = typeof op.muted === "boolean" ? op.muted : a.is_volume_muted === true;
-    const lvl = typeof op.level === "number" ? op.level : (typeof a.volume_level === "number" ? a.volume_level : null);
+    const lvl = levelNow(p.eid);
     const row = mk("div", S.row);
     row.setAttribute("data-eid", p.eid);
     const label = mk("span", S.name);
@@ -266,19 +314,17 @@ export function createRoomControls(o){
       }, na));
     }
     const steps = has(s, VOLUME_STEP) || (has(s, VOLUME_SET) && lvl !== null);
-    const step = Number(a.volume_step) > 0 ? Number(a.volume_step) : 0.1;   // what Home Assistant steps a VOLUME_SET player by
-    // A player that steps itself (VOLUME_STEP: a Control4 room moves 1 in 100 a press) shows only the level it reports:
-    // a guessed one counted in tens, and redrawing the row under a finger lost the next quick press (the owner, 2026-11-25:
-    // "Works sometime when not counting in tens"). Only a VOLUME_SET player, which Home Assistant steps by volume_step,
-    // shows its next level at once.
-    const guess = !has(s, VOLUME_STEP);
-    const nudge = (dir) => () => {
-      if (guess && lvl !== null) opt.set(p.eid, { ...(optOf(p.eid) || {}), level: Math.max(0, Math.min(1, lvl + dir * step)), until: Date.now() + OPTIMISTIC_MS });
-      call("media_player", dir > 0 ? "volume_up" : "volume_down", { entity_id: p.eid }, dir > 0 ? "up" : "down", p.name, () => opt.delete(p.eid));
-    };
+    // One press: a player that steps itself (VOLUME_STEP: a Control4 room) moves 1 in 100 unless its state says its
+    // volume_step; Home Assistant steps a VOLUME_SET player by its volume_step (0.1 unless it says). The number shows
+    // the pressed level at once, in place (the owner, 2026-11-25: "The volume doesn't update fast enough"; before that,
+    // a guess counted in tens, and a row drawn again under the finger lost the next quick press).
+    const own = Number(a.volume_step) > 0 ? Number(a.volume_step) : 0;
+    const step = own || (has(s, VOLUME_STEP) ? SELF_STEP : 0.1);
+    const nudge = (dir) => () => nudgeLevel(p, dir, step);
     ctl.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
-    const lv = mk("span", S.level, lvl === null ? "—" : String(Math.round(lvl * 100)));
+    const lv = mk("span", S.level, levelText(lvl));
     lv.setAttribute("data-level", "");
+    levelEls.set(p.eid, lv);
     ctl.appendChild(lv);
     ctl.appendChild(btn("+", t("{name} volume up", { name: p.name }), nudge(1), na || !steps));
     if (has(s, TURN_OFF)) ctl.appendChild(btn("⏻", t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
@@ -382,12 +428,15 @@ export function createRoomControls(o){
       if (lightsOn.length && typeof setMany === "function") setMany(lightsOn, false);
       for (const p of onPlayers) call("media_player", "turn_off", { entity_id: p.eid }, null, p.name);
     } } : null;
-    // Audio: the room's players; the matching button after them. In a house where nothing is matched yet, the
-    // button alone, prominent, in every room (where else would one start).
-    const none = !Object.keys(matches()).length;
+    // Audio: the room's players; the matching button after them. In a house never set up, the button alone,
+    // prominent, in every room (where else would one start).
+    const none = !setUp();
     const offered = none ? audioPlayers(h, haOn()).length : 0;
+    // A level is not in the signature, only whether there is one: a new one goes into the number in place, so a row
+    // is never drawn again between quick presses.
     const audioSig = players.map(p => { const s = st(p.eid), a = (s && s.attributes) || {}, op = optOf(p.eid);
-      return [p.eid, p.system, p.name, s && s.state, a.volume_level, a.is_volume_muted, features(s), op && [op.level, op.muted]]; });
+      return [p.eid, p.system, p.name, s && s.state, typeof a.volume_level === "number", a.volume_step, a.is_volume_muted, features(s), op && op.muted]; });
+    for (const p of players) paintLevel(p.eid);
     const before = players.length || (none && offered) ? {
       sig: JSON.stringify([audioSig, none, offered, !!o.admin(), systemsPresent()]),
       draw: () => {
@@ -408,9 +457,9 @@ export function createRoomControls(o){
       } } : null;
     return { status, roomOff, before, after };
   }
-  /** The switch was ticked (on) on this screen: with nothing matched yet, the matching card opens for an administrator. */
+  /** The switch was ticked (on) on this screen: in a house never set up, the matching card opens for an administrator. */
   function switched(on){
-    if (on && o.admin() && !Object.keys(matches()).length) openMatch();
+    if (on && o.admin() && !setUp()) openMatch();
   }
 
   // ── The match card ──
@@ -418,11 +467,11 @@ export function createRoomControls(o){
   function openMatch(){
     if (card || !o.admin()) return;
     count("match_open");
-    const saved = matches();
+    const saved = matches(), fresh = !setUp();
     let ha = haOn();
     const rooms = mapRooms(o.model());
-    // The draft: {area_id: [eid...]} in each room's order.
-    let draft = Object.keys(saved).length ? JSON.parse(JSON.stringify(saved)) : prefill(audioPlayers(H(), ha), rooms, H());
+    // The draft: {area_id: [eid...]} in each room's order; the card's guesses only in a house never set up.
+    let draft = fresh ? prefill(audioPlayers(H(), ha), rooms, H()) : JSON.parse(JSON.stringify(saved));
     const overlay = mk("div", "position:fixed;inset:0;z-index:10001;background:rgba(3,8,5,.62);backdrop-filter:blur(6px);"
       + "-webkit-backdrop-filter:blur(6px);display:flex;justify-content:center;align-items:center;padding:12px;box-sizing:border-box");
     const box = mk("div", "width:100%;max-width:560px;max-height:86vh;overflow:auto;padding:14px 16px 16px;box-sizing:border-box;"
@@ -440,10 +489,11 @@ export function createRoomControls(o){
     // Every pick is kept as it is made (the owner, 2026-11-25: a Save button left unpressed lost the matches): no Save,
     // no Cancel, only Done. One write at a time, in order; the card's own line says whether the last one was kept.
     let chain = Promise.resolve(), status = "", savedOnce = false;
+    // The draft as it is, cleaned only: a player the card can't show now (hidden, not loaded yet, a Home Assistant
+    // speaker while those are not offered) or a room whose map name differs keeps its match (playersIn reads only
+    // what is there).
     const persist = () => {
-      const players = audioPlayers(H(), ha), listed = new Set(players.map(p => p.eid)), out = {};
-      for (const [aid, l] of Object.entries(draft)) { const keep = l.filter(e => listed.has(e)); if (keep.length && rooms.some(r => r.area_id === aid)) out[aid] = keep; }
-      const patch = { room_audio_matches: out, room_audio_ha_speakers: ha };
+      const patch = { room_audio_matches: cleanMatches(draft), room_audio_ha_speakers: ha, room_audio_matched: true };
       status = t("Saving…"); paintStatus();
       chain = chain.then(() => o.save(patch)).then(() => {
         if (!savedOnce) { savedOnce = true; count("match_saved"); }
@@ -494,7 +544,7 @@ export function createRoomControls(o){
         const none = mk("option", null, t("Not on the map")); none.value = ""; sel.appendChild(none);
         for (const r of rooms) { const op = mk("option", null, r.name); op.value = r.area_id; sel.appendChild(op); }
         const at = roomOf(p.eid);
-        sel.value = at;
+        sel.value = rooms.some(r => r.area_id === at) ? at : "";   // matched to an area not on the map: "Not on the map"
         sel.addEventListener("change", () => { move(p.eid, sel.value); draw(); persist(); });
         row.appendChild(sel);
         const list = at ? draft[at] : [];
@@ -524,9 +574,9 @@ export function createRoomControls(o){
       box.appendChild(foot);
     };
     draw();
-    // Nothing saved yet: the card's own suggestions (same names, same areas) are kept as soon as it opens, so what it
+    // Never set up: the card's own suggestions (same names, same areas) are kept as soon as it opens, so what it
     // shows is what the rooms use, even if Done is the only thing pressed.
-    if (!Object.keys(saved).length && Object.keys(draft).length) persist();
+    if (fresh && Object.keys(draft).length) persist();
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     card = { overlay, close };

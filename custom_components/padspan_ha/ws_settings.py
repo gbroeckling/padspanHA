@@ -831,6 +831,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lights_follow_people"): _MAP,            # cleaned by lights_follow.clean_people
         vol.Optional("room_audio_matches"): _MAP,             # admin only; cleaned by clean_room_audio_matches
         vol.Optional("room_audio_ha_speakers"): bool,         # admin only
+        vol.Optional("room_audio_matched"): bool,             # admin only; the matching card kept its picks once
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1410,7 +1411,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if "lights_follow_people" in msg:
                 payload["lights_follow_people"] = _lf_people(msg["lights_follow_people"])
         # Room controls' matches (views/room_controls.js): an administrator's, as the frontend's Save is.
-        if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg:
+        if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg or "room_audio_matched" in msg:
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
                 connection.send_error(msg["id"], "unauthorized", "Only an administrator can match players to rooms")
@@ -1419,6 +1420,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload["room_audio_matches"] = clean_room_audio_matches(msg["room_audio_matches"])
             if "room_audio_ha_speakers" in msg:
                 payload["room_audio_ha_speakers"] = bool(msg["room_audio_ha_speakers"])
+            if "room_audio_matched" in msg:
+                payload["room_audio_matched"] = bool(msg["room_audio_matched"])
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",

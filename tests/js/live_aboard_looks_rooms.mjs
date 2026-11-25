@@ -62,6 +62,8 @@ shim.install();
       return this.parentNode && this.parentNode.classList.contains("la3d-narrow") ? { x: 0, y: 330, left: 0, top: 330, right: 800, bottom: 600, width: 800, height: 270 }
         : { x: 440, y: 10, left: 440, top: 10, right: 790, bottom: 540, width: 350, height: 530 };
     }
+    // ☰ over the map alone shows only while the bars are hidden (display:none otherwise: no box).
+    if (this.classList && this.classList.contains("la3d-solo")) return { x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
     return rect.call(this);
   };
 }
@@ -516,6 +518,33 @@ await tryCase("panel: the room is framed in what the panel leaves clear: left of
   check("panel: the room is framed in what the panel leaves clear: left of it, or above the bottom sheet on a narrow screen",
     wide && wide[0] > 40 && wide[0] < 400 && narrow.narrow && narrow.open && narrow.at && narrow.at[1] > 20 && narrow.at[1] < 300,
     { wide, narrow });
+});
+await tryCase("panel: never under the emergency button: where the button floats over its corner it starts below it, and back up once the button is aside or gone", async () => {
+  // The owner, 2026-11-25: "the audio control card is trapped behind the emergency lighting button, so it can not be closed".
+  const emerg = document.createElement("div");
+  emerg.className = "lv-emerg";
+  let er = { x: 704, y: 14, left: 704, top: 14, right: 776, bottom: 86, width: 72, height: 72 };
+  emerg.getBoundingClientRect = () => er;
+  document.body.appendChild(emerg);
+  const slot = await newSlot("pn-emerg");
+  await tapName(slot, "Den");
+  const prop = (k) => (panelEl(slot) ? panelEl(slot).style.getPropertyValue(k) : null);
+  const out = { under: { open: S(slot).rooms.panel.open, top: prop("--la3d-roomt") } };
+  er = { x: 100, y: 14, left: 100, top: 14, right: 172, bottom: 86, width: 72, height: 72 };      // left of the panel: its own place
+  card(slot, "pn-emerg"); await settle(6);
+  out.aside = prop("--la3d-roomt");
+  er = { x: 704, y: 14, left: 704, top: 14, right: 776, bottom: 86, width: 72, height: 72 };
+  card(slot, "pn-emerg"); await settle(6);
+  out.back = prop("--la3d-roomt");
+  emerg.remove();
+  card(slot, "pn-emerg"); await settle(6);
+  out.gone = prop("--la3d-roomt");
+  // The CSS takes it (live_aboard_rooms.js): the panel's top, in the bars' and the map alone's place.
+  const css = (slot.element.querySelector("style[data-la3d-rooms-css]") || { textContent: "" }).textContent;
+  out.css = /\.la3d-room\{[^}]*top:var\(--la3d-roomt,10px\)/.test(css) && /\.la3d\.la3d-bare \.la3d-room\{top:var\(--la3d-roomt,62px\)/.test(css);
+  LA.releaseLiveAboardSlot("pn-emerg");
+  check("panel: never under the emergency button: where the button floats over its corner it starts below it, and back up once the button is aside or gone",
+    out.under.open && out.under.top === "94px" && out.aside === "" && out.back === "94px" && out.gone === "" && out.css, out);
 });
 await tryCase("panel: ✕ and Escape close it; Furnish, leaving the view and its floor hidden close it; the flight home waits while it is open", async () => {
   const out = {};
