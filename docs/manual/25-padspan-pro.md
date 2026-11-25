@@ -66,8 +66,8 @@ home isn't counted, the licence card says why.
 ## Get Pro free by testing it
 
 **Become a tester** (on the licence card, or under **Settings → Tracking → Help improve PadSpan**)
-gives you two years of PadSpan Pro free, for people happy to be contacted about trying new things
-before they ship. The usage report stays on for those two years: it can't be turned off while the
+gives you two years of PadSpan Pro free (one year if you join from December 16, 2026), for people happy to be contacted about trying new things
+before they ship. The usage report stays on for that time: it can't be turned off while the
 key runs. You give an email and can say what you'd like to test; you see exactly what goes before
 anything is sent, and **Stop being a tester** withdraws your sign-up at any time. What is sent and
 kept: [chapter 24](24-privacy.md#becoming-a-tester).

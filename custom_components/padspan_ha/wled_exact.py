@@ -1500,7 +1500,7 @@ def _public(hass: HomeAssistant, rec: dict, admin: bool) -> dict[str, Any]:
 
 async def _gate(hass: HomeAssistant, connection: Any, msg: dict, *, tier: bool = True) -> dict | None:
     if tier and not _tier_at_least(hass, W.TIER):
-        connection.send_error(msg["id"], "bright_required", W.TIER_MSG)
+        connection.send_error(msg["id"], "bright_required", W.TIER_MSG if time.time() < W.PRO_PASS_FROM_TS else W.TIER_MSG_FROM_PASS)
         return None
     ident = _identify(hass, entity_id=msg.get("entity_id"), device_id=msg.get("device_id"))
     if ident is None:
@@ -1727,7 +1727,7 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
     member's sync goes back to before the team (the card then sets the
     team's groups up again, as for a new team)."""
     if msg["mode"] == "padspan" and not _tier_at_least(hass, W.TIER):
-        connection.send_error(msg["id"], "bright_required", W.TIER_MSG)
+        connection.send_error(msg["id"], "bright_required", W.TIER_MSG if time.time() < W.PRO_PASS_FROM_TS else W.TIER_MSG_FROM_PASS)
         return
     sst = (hass.data.get(DOMAIN) or {}).get(DATA_SETTINGS)
     stored = list((sst.data if sst else {}).get("wled_teams") or [])

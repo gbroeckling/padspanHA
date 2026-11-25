@@ -75,8 +75,8 @@ das du nicht mehr nutzt. Wird ein Zuhause nicht gezählt, sagt die Lizenzkarte, 
 ## Pro kostenlos bekommen, indem du es testest
 
 **Become a tester** (auf der Lizenzkarte oder unter **Einstellungen → Ortung → Hilf, PadSpan besser
-zu machen**) gibt dir zwei Jahre PadSpan Pro kostenlos, für Leute, die gern kontaktiert werden, um
-Neues auszuprobieren, bevor es erscheint. Der Nutzungsbericht bleibt diese zwei Jahre an: Er lässt
+zu machen**) gibt dir zwei Jahre PadSpan Pro kostenlos (ein Jahr, wenn du ab dem 16. Dezember 2026 dazukommst), für Leute, die gern kontaktiert werden, um
+Neues auszuprobieren, bevor es erscheint. Der Nutzungsbericht bleibt so lange an: Er lässt
 sich nicht ausschalten, solange der Schlüssel läuft. Du gibst eine E-Mail-Adresse an und kannst
 sagen, was du gern testen würdest; du siehst genau, was hinausgeht, bevor etwas gesendet wird, und
 **Stop being a tester** zieht deine Anmeldung jederzeit zurück. Was gesendet und aufbewahrt wird:

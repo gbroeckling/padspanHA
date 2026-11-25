@@ -10052,16 +10052,20 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
 // same mechanism the sidebar's own one-time coach mark already uses for a
 // different surface (padspan_ha_lights_coach_seen, lights_panel.js).
 function _lightsTourSteps(paid){
+  // Which key it names: Bright Pro is no longer sold from the end of
+  // December 15, 2026 (editions.js brightProOpen), so from then Pro alone.
+  const brightPro = _brightProOpen();
+  const key = brightPro ? "a PadSpan Bright Pro or PadSpan Pro key" : "a PadSpan Pro key";
   const steps = [
     { title: "Welcome to the Atlas builder",
-      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs a PadSpan Bright Pro or PadSpan Pro key.",
+      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs " + key + ".",
       find: null },
     paid
       ? { title: "Place a light",
           body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
           find: (wrap) => wrap.querySelector(".lv-stage") }
       : { title: "Your lights on the map",
-          body: "Without a key, each light stays at the centre of its room and you can still switch it from the map. Dragging it to its real spot (or + Place in the list) needs a PadSpan Bright Pro or PadSpan Pro key.",
+          body: "Without a key, each light stays at the centre of its room and you can still switch it from the map. Dragging it to its real spot (or + Place in the list) needs " + key + ".",
           find: (wrap) => wrap.querySelector(".lv-stage") },
     ...(paid ? [{ title: "Give it a shape",
       body: "Click a light in the list below the map (or hold one still on the map itself) to select it. A panel opens underneath with Shape, size and rotation. Pick the glyph that matches the real fixture, or leave it on Auto for PadSpan's own guess.",
@@ -10078,7 +10082,7 @@ function _lightsTourSteps(paid){
       find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
   } else {
     steps.push({ title: "What a key adds",
-      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
+      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need " + (brightPro ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro") + ". " + _LIC_PATH + " is where a key goes once you have one.",
       find: null });
   }
   steps.push({ title: "You're set",

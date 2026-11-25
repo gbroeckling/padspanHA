@@ -42,17 +42,34 @@ def test_the_panel_and_the_update_check_switch_on_the_same_moment() -> None:
     moment = datetime.fromisoformat(_pass_from().replace("Z", "+00:00"))
     assert moment == datetime(2026, 12, 16, 8, 0, tzinfo=timezone.utc)
     assert update_check._PASS_FROM_TS == moment.timestamp()
+    from custom_components.padspan_ha import const
+    assert const.PRO_PASS_FROM_TS == moment.timestamp()
 
 
 @pytest.mark.parametrize("now, term", [(1797408000 - 1, "two years"), (1797408000, "one year")])
 def test_the_update_checks_tester_line_says_the_term_of_the_day(monkeypatch, now, term) -> None:
+    from custom_components.padspan_ha import licence
+    from tests.test_pro_invite import _house
+    monkeypatch.setattr(licence, "edition", lambda: "full")
     monkeypatch.setattr(update_check.time, "time", lambda: now)
-    data = {"edition": "full"}
-    monkeypatch.setattr(update_check, "offer_on", lambda d, k: True, raising=False)
-    src = Path(update_check.__file__).read_text(encoding="utf-8")
-    assert 'term = "one year" if time.time() >= _PASS_FROM_TS else "two years"' in src
-    assert f"Testers get PadSpan Pro free for {{term}}." in src
-    assert ("one year" if now >= update_check._PASS_FROM_TS else "two years") == term
+    line = update_check._tester_line(_house())
+    assert f"Testers get PadSpan Pro free for {term}." in line, line
+    assert ("two years" in line) == (term == "two years"), line
+
+
+def test_the_key_refusals_stop_naming_bright_pro_at_the_switch() -> None:
+    """What a refusal tells someone to get: Bright Pro is no longer sold from
+    the switch, so each gate picks its sentence by the clock where it sends it."""
+    from custom_components.padspan_ha import ws_fabric, ws_wled
+    assert "Bright Pro" in ws_fabric._PRO_REQUIRED_MSG and "Bright Pro" not in ws_fabric._PRO_REQUIRED_MSG_FROM_PASS
+    assert ws_fabric._PRO_REQUIRED_MSG_FROM_PASS == ws_fabric._PRO_REQUIRED_MSG.replace("PadSpan Bright Pro or PadSpan Pro", "PadSpan Pro")
+    assert "Bright Pro" in ws_wled.TIER_MSG and ws_wled.TIER_MSG_FROM_PASS == "The WLED Advanced tab needs a PadSpan Pro key."
+    pkg = _ROOT / "custom_components" / "padspan_ha"
+    fabric, wled, exact = ((pkg / f).read_text(encoding="utf-8") for f in ("ws_fabric.py", "ws_wled.py", "wled_exact.py"))
+    assert fabric.count("_PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS") == 3
+    assert wled.count("TIER_MSG if time.time() < PRO_PASS_FROM_TS else TIER_MSG_FROM_PASS") == 3
+    assert exact.count("W.TIER_MSG if time.time() < W.PRO_PASS_FROM_TS else W.TIER_MSG_FROM_PASS") == 2
+    assert '"bright_required", TIER_MSG)' not in wled + exact and '"pro_required", _PRO_REQUIRED_MSG)' not in fabric
 
 
 @pytest.fixture(scope="module")

@@ -27,15 +27,14 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, DATA_SETTINGS, VERSION
+from .const import DOMAIN, DATA_SETTINGS, PRO_PASS_FROM_TS, VERSION
 from .quiet_errors import note as _quiet_error
 
 _LOGGER = logging.getLogger(__name__)
 
-# 2026-12-16T08:00:00Z, the end of December 15: from then a new tester gets
-# one year of Pro, not two (editions.js PRO_PASS_FROM, the licence server's
-# PSPAN_LIFETIME_ENDS; tests/test_pricing_dec16.py holds them equal).
-_PASS_FROM_TS = 1797408000
+# The end of December 15, 2026: from then a new tester gets one year of Pro,
+# not two (const.PRO_PASS_FROM_TS).
+_PASS_FROM_TS = PRO_PASS_FROM_TS
 
 UPDATE_CHECK_URL = "https://padspan.traks.ca/api/version.php"
 _FIRST_DELAY_S = (300, 6 * 3600)  # the first check after a start: at random, 5 minutes to 6 hours in

@@ -182,3 +182,11 @@ LIGHT_TYPE_OVERRIDE_KINDS = frozenset({"wled", "partition", "plain", "fan"})
 OUTDOOR_FLOOR_NAMES = frozenset({
     OUTSIDE_FLOOR_ID, "outside", "outdoor", "outdoors", "exterior", "garden", "yard",
 })
+
+
+# The end of December 15, 2026 (BC): Pro for life and PadSpan Bright Pro are no
+# longer sold, a year of Pro is $49, and a new tester gets one year instead of
+# two (the owner, 2026-11-24). The panel's editions.js PRO_PASS_FROM and the
+# licence server's PSPAN_LIFETIME_ENDS are the same moment
+# (tests/test_pricing_dec16.py holds them equal).
+PRO_PASS_FROM_TS = 1797408000  # 2026-12-16T08:00:00Z

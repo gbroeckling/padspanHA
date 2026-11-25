@@ -58,7 +58,7 @@ def _tour(paid: bool) -> list[dict]:
     a = src.index("function _lightsTourSteps(paid){")
     fn = src[a:src.index("\n}\n", a) + 2]
     m = re.search(r"export const LIGHT_CLASSES = (\[.*?\]);", _read(_WWW / "views" / "lights_map.js"))
-    js = (f"const _LIC_PATH = 'Settings → PadSpan licence'; const _lightsTourFindTable = () => null;\n{fn}\n"
+    js = (f"const _LIC_PATH = 'Settings → PadSpan licence'; const _lightsTourFindTable = () => null; const _brightProOpen = () => true;\n{fn}\n"
           f"console.log(JSON.stringify({{steps: _lightsTourSteps({str(paid).lower()}).map(s => ({{title: s.title, body: s.body}})),"
           f" classes: {m.group(1)}}}));")
     res = subprocess.run([_NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=60)

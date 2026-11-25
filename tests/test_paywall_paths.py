@@ -54,7 +54,7 @@ def test_the_server_refusal_says_where_to_go() -> None:
     # and (2026-10-05) setting only its height.
     literals = s.count('"Light placement needs PadSpan Bright Pro or PadSpan Pro"')
     assert literals == 0, "a gate is still using its own literal message"
-    assert s.count('"pro_required", _PRO_REQUIRED_MSG') == 3, (
+    assert s.count('"pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)') == 3, (
         "expected exactly the three light-placement gates to use the shared message")
 
 
