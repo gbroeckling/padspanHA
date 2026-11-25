@@ -1554,6 +1554,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "trial_nudge_done": (None, "kept", "", "The trial card was answered."),
     "tester_nudge_done": (None, "kept", "", "The tester card was shown."),
     "launch_card_done": (None, "kept", "", "The launch-price card was shown."),
+    "room_audio_matched": (None, "kept", "", "Audio's matching card kept its picks once: from then on it makes no guesses, so rooms cleared on purpose stay cleared."),
     "lifetime_card_done": (None, "kept", "", "The \"Pro for life ends Dec 15\" card was shown."),
     "tester_signup": (None, "kept", "", "Your tester sign-up, so you can update or withdraw it."),
     "pro_invite": (None, "kept", "", "An invite to free Pro, and your answer."),

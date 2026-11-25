@@ -475,7 +475,7 @@ await tryCase("match", async () => {
   // The office's player to the kitchen; the HA speakers option stays off.
   const so = sel("media_player.c4_office"); so.value = "kitchen"; so.dispatchEvent({ type: "change" }); await tick();
   // Every pick is kept as it is made (no Save to forget): its guesses as it opened, then ▼, then the office's room.
-  check("match", r.saved.length === 3 && JSON.stringify(r.saved[2]) === JSON.stringify({ room_audio_matches: { great_room: ["media_player.denon_zone_2", "media_player.c4_great_room"], kitchen: ["media_player.c4_office"] }, room_audio_ha_speakers: false }), r.saved);
+  check("match", r.saved.length === 3 && JSON.stringify(r.saved[2]) === JSON.stringify({ room_audio_matches: { great_room: ["media_player.denon_zone_2", "media_player.c4_great_room"], kitchen: ["media_player.c4_office"] }, room_audio_ha_speakers: false, room_audio_matched: true }), r.saved);
   { const m0 = r.saved[0].room_audio_matches;
     check("match", Object.keys(m0).length === 2 && m0.great_room.join() === "media_player.c4_great_room,media_player.denon_zone_2" && m0.office.join() === "media_player.c4_office", r.saved[0]); }
   const stat = () => all(card()).find(n => n.attributes && n.attributes["data-room-match-status"] !== undefined).textContent;
@@ -515,6 +515,61 @@ await tryCase("first-time", async () => {
   r.rc.openMatch();
   check("first-time", document.body.children.length === 0 && r.counts.length === 0, "a non-administrator got the card");
   reset();
+});
+// ── cleared: every player taken off the map stays so: no guesses again, no card by itself, no button in every room ──
+await tryCase("cleared", async () => {
+  const h = house();
+  const r = controls(h, { matches: {} });
+  reset();
+  r.rc.openMatch(); await tick();
+  const card = () => document.body.children.find(n => all(n).some(x => x.attributes && x.attributes["data-room-match-card"] !== undefined));
+  const sels = () => all(card()).filter(n => n.localName === "select");
+  check("cleared", r.saved.length === 1 && r.saved[0].room_audio_matched === true && Object.keys(r.saved[0].room_audio_matches).length === 2, r.saved);
+  for (const sl of sels()) { sl.value = ""; sl.dispatchEvent({ type: "change" }); await tick(); }
+  const last = r.saved[r.saved.length - 1];
+  check("cleared", JSON.stringify(last) === JSON.stringify({ room_audio_matches: {}, room_audio_ha_speakers: false, room_audio_matched: true }), last);
+  r.rc.close();
+  const n = r.saved.length;
+  r.rc.openMatch(); await tick();
+  check("cleared", r.saved.length === n && sels().every(sl => sl.value === ""), [r.saved.length - n, sels().map(sl => sl.value)]);
+  r.rc.close(); reset();
+  r.rc.switched(true);
+  check("cleared", document.body.children.length === 0 && JSON.stringify(r.rc.looks()) === "{}", "the card opened by itself, or a speaker is back");
+  const sh = r.rc.sheet("Kitchen");
+  check("cleared", sh.before === null, "a cleared house shows the match button in every room again");
+  // A house from before the flag with matches kept is set up too: never the guesses.
+  const old = controls(house(), { matches: { great_room: ["media_player.c4_great_room"] } });
+  old.rc.openMatch(); await tick();
+  check("cleared", old.saved.length === 0, old.saved);
+  old.rc.close(); reset();
+});
+// ── kept: a pick never drops a match the card can't show now (a player gone for now, a hidden one, a Home Assistant
+// speaker while those are not offered, a room whose map name differs) ──
+await tryCase("kept", async () => {
+  const h = house();
+  h.hass.entities["media_player.c4_office"].hidden = true;
+  delete h.hass.states["media_player.denon_zone_2"];
+  const was = { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"], office: ["media_player.c4_office"],
+                kitchen: ["media_player.kitchen_speaker"], den_renamed: ["media_player.c4_den"] };
+  const r = controls(h, { matches: was });
+  r.settings.room_audio_matched = true;
+  reset();
+  r.rc.openMatch(); await tick();
+  const card = document.body.children.find(n => all(n).some(x => x.attributes && x.attributes["data-room-match-card"] !== undefined));
+  const sl = all(card).find(n => n.localName === "select" && rowOf(card, "media_player.c4_great_room") && rowOf(card, "media_player.c4_great_room").contains(n));
+  sl.value = "kitchen"; sl.dispatchEvent({ type: "change" }); await tick();
+  const got = r.saved[r.saved.length - 1].room_audio_matches;
+  check("kept", JSON.stringify(got) === JSON.stringify({ great_room: ["media_player.denon_zone_2"], office: ["media_player.c4_office"],
+    kitchen: ["media_player.kitchen_speaker", "media_player.c4_great_room"], den_renamed: ["media_player.c4_den"] }), got);
+  r.rc.close(); reset();
+  // A player matched to an area no room on the map is: its list says "Not on the map", never blank.
+  const h2 = house();
+  const r2 = controls(h2, { matches: { den_renamed: ["media_player.c4_office"] } });
+  r2.rc.openMatch(); await tick();
+  const c2 = document.body.children.find(n => all(n).some(x => x.attributes && x.attributes["data-room-match-card"] !== undefined));
+  const s2 = all(c2).find(n => n.localName === "select" && rowOf(c2, "media_player.c4_office").contains(n));
+  check("kept", s2.value === "" && s2.children[0].textContent === "Not on the map", s2.value);
+  r2.rc.close(); reset();
 });
 await tryCase("non-admin", async () => {
   const h = house();

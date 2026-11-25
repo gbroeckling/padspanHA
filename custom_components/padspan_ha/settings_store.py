@@ -62,6 +62,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Assistant's own speakers are offered beside the whole-house systems. An administrator's; nothing runs from them.
     "room_audio_matches": {},
     "room_audio_ha_speakers": False,
+    "room_audio_matched": False,   # the matching card kept its picks once: no more guesses (rooms cleared on purpose stay so)
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
     # Enhanced security (ws_common.require_admin_if_enhanced): off = every
     # command as before; on = only an admin changes the home's shared setup.

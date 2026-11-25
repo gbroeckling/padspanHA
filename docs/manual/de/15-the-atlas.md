@@ -161,8 +161,11 @@ der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbil
   solange nichts zugeordnet ist, öffnet sie sofort. Mehrere
   Player können sich einen Raum teilen (etwa eine Control4-Zone und eine Denon-Zone): ▲ und ▼ legen
   ihre Reihenfolge fest, und dem ersten folgt der Lautsprecher auf der Karte. Jede Wahl wird sofort
-  gespeichert (beim Öffnen auch die Vorschläge der Karte), also gibt es kein Speichern: **Fertig**
-  schließt sie. Wer kein Administrator ist, sieht den Knopf grau.
+  gespeichert (beim ersten Öffnen auch die Vorschläge der Karte), also gibt es kein Speichern:
+  **Fertig** schließt sie. Hat sie einmal eine Wahl gespeichert, schlägt sie nie wieder vor, also
+  bleiben Player, die von der Karte genommen wurden, weg, und eine Zuordnung zu einem Player, den
+  Home Assistant gerade nicht zeigt (ausgeblendet, noch nicht geladen), oder zu einem auf der Karte
+  umbenannten Raum bleibt, wie sie war. Wer kein Administrator ist, sieht den Knopf grau.
 - **Welche Player**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha und Anthem, nach der Integration in Home Assistant, aus der sie kommen.
   **Lautsprecher aus Home Assistant einbeziehen** auf der Zuordnungskarte (aus, bis angehakt) nimmt
@@ -171,8 +174,9 @@ der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbil
 Audio braucht PadSpan Pro oder das Add-on Audio. Die **⋯**-Liste gehört zum neuen Layout von
 PadSpan Pro; auf dem klassischen Layout macht **Einstellungen → Atlas → Atlas — Mapped Light Control
 → Audio** (ab Werk aus, da, wo Audio freigeschaltet ist) dasselbe für das ganze Haus: den
-Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, und Audio im Blatt mit **Räume
-zuordnen**.
+Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, auch in der 3D-Ansicht, und Audio im
+Blatt mit **Räume zuordnen**. Dort ist es der einzige Schalter: Das **⋯** der 3D-Ansicht hat keine
+eigene Audio-Zeile.
 
 ## Heatmap (Pro oder das Add-on Klimakarte)
 

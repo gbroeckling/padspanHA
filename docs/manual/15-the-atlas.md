@@ -144,8 +144,11 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
   player's Home Assistant area, else from its name. **Set up ›** on the **Audio** line in **⋯** opens
   it too, and ticking **Audio** with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
   ▼ set their order, and the first is the one the map's speaker follows. Every pick is kept the
-  moment it's made (the card's guesses too, as it opens), so there is no Save: **Done** closes it.
-  Someone who isn't an administrator sees the button greyed.
+  moment it's made (the card's guesses too, the first time it opens), so there is no Save: **Done**
+  closes it. Once it has kept a pick it never guesses again, so players taken off the map stay off,
+  and a match to a player Home Assistant doesn't show right now (hidden, not loaded yet) or to a
+  room renamed on the map is kept as it was. Someone who isn't an administrator sees the button
+  greyed.
 - **Which players**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. **Include Home
   Assistant speakers** on the matching card (off unless ticked) adds every other player with a
@@ -154,7 +157,8 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
 Audio needs PadSpan Pro or the Audio add-on. The **⋯** list is part of the new layout, PadSpan
 Pro's; on the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Audio** (off by
 default, shown where Audio is allowed) does the same for the whole house: the speaker beside a
-playing room's name, and the sheet's Audio with **Match rooms**.
+playing room's name, in the 3D view too, and the sheet's Audio with **Match rooms**. It is the one
+switch there: the 3D view's **⋯** has no Audio line of its own.
 
 ## Heatmap (Pro or the Climate map add-on)
 

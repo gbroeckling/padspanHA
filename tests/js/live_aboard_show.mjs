@@ -617,6 +617,8 @@ await tryCase("setup: Audio ticked, the flat map's speaker at a room's name in 3
   const hb = (S().audio.find(a => a.room === "Hall") || {}).box;
   const r0 = slot.element.querySelector("canvas"), box = r0 && r0.getBoundingClientRect ? r0.getBoundingClientRect() : { left: 0, top: 0 };
   const hit = hb ? slot._pick(box.left + (hb[0] + hb[2]) / 2, box.top + (hb[1] + hb[3]) / 2) : null;
+  // Only on the badge (2 px round it): 6 px off it, the press is what is there, never the speaker's.
+  const beside = hb ? slot._pick(box.left + hb[2] + 6, box.top + (hb[1] + hb[3]) / 2) : null;
   // The players all off: nothing; and unticked again: nothing, the looks not asked.
   H.looks = { Kitchen: "on" }; poll(); await settle();
   const one = S().audio.map(a => a.room);
@@ -629,8 +631,22 @@ await tryCase("setup: Audio ticked, the flat map's speaker at a room's name in 3
   const unticked = S().audio.length, askedAfter = H.asked - asked;
   store.delete("show_show-a"); H.audio = null; H.looks = null; H.top = null; poll(); await settle();
   check(name, off === 0 && askedOff === 0 && JSON.stringify(on) === JSON.stringify([["Hall", "on"], ["Kitchen", "on"], ["Loft", "muted"]]) && shown >= 1
-    && ownSpot && hit && hit.hit === "room:Hall" && JSON.stringify(one) === JSON.stringify(["Kitchen"]) && none === 0 && unticked === 0 && askedAfter === 0
-    && SHOW.SHOW_ITEMS.find(i => i.key === "room_controls").dflt === false, { off, askedOff, on, shown, badges, hb, hit, one, none, unticked, askedAfter });
+    && ownSpot && hit && hit.hit === "room:Hall" && hit.audio === true && !(beside && beside.audio) && JSON.stringify(one) === JSON.stringify(["Kitchen"]) && none === 0 && unticked === 0 && askedAfter === 0
+    && SHOW.SHOW_ITEMS.find(i => i.key === "room_controls").dflt === false, { off, askedOff, on, shown, badges, hb, hit, beside, one, none, unticked, askedAfter });
+});
+
+// The classic layout (no ⋯ line: the host hands no audio): one switch, Settings → Atlas → Audio, the host's. The view
+// draws what the host answers, whatever this screen's ⋯ ticks say, and nothing when it answers nothing.
+await tryCase("setup: with no Audio line (the classic layout) the speakers follow the host's answer alone", async () => {
+  const name = "setup: with no Audio line (the classic layout) the speakers follow the host's answer alone";
+  store.set("show_show-a", JSON.stringify({ room_controls: false }));
+  H.audio = null; H.looks = { Kitchen: "on" }; H.asked = 0; H.top = ["main"];
+  poll(); await settle(); await later(200, 20);
+  const drawn = S().audio.map(a => a.room), asked = H.asked;
+  H.looks = {}; poll(); await settle();
+  const none = S().audio.length;
+  store.delete("show_show-a"); H.looks = null; H.top = null; poll(); await settle();
+  check(name, JSON.stringify(drawn) === JSON.stringify(["Kitchen"]) && asked >= 1 && none === 0, { drawn, asked, none });
 });
 
 LA.releaseLiveAboardSlot("show-a");

@@ -259,6 +259,7 @@ VALUES: dict[str, list[tuple[str, Any]]] = {
     "room_audio_matches": one({"great_room": ["media_player.c4_great_room", "media_player.denon_zone_2", "light.kitchen"],
                                "den": ["media_player.c4_great_room", "media_player.den_speaker"], "": ["media_player.x"], "hall": "junk"}),
     "room_audio_ha_speakers": BOOL,
+    "room_audio_matched": BOOL,
     "enhanced_security": BOOL,
     "forensics_enabled": BOOL,
     "license_tier_override": one("Bright"),

@@ -503,7 +503,7 @@ class PadSpanLightsApp extends HTMLElement {
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Room controls' matches (views/room_controls.js). A failed fetch keeps the last answer.
-      if (s.room_audio_matches !== undefined) this.state._roomAudio = { room_audio_matches: s.room_audio_matches || {}, room_audio_ha_speakers: s.room_audio_ha_speakers === true };
+      if (s.room_audio_matches !== undefined) this.state._roomAudio = { room_audio_matches: s.room_audio_matches || {}, room_audio_ha_speakers: s.room_audio_ha_speakers === true, room_audio_matched: s.room_audio_matched === true };
       // Layout v2 (2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
       // as showcase/automorph above, but renders its OWN DISPLAY variant
@@ -1016,7 +1016,7 @@ class PadSpanLightsApp extends HTMLElement {
       save: async (patch)=>{
         const r = await this._ws({ type:"padspan_ha/settings_set", ...patch });
         const st = (r && r.settings) || patch;
-        this.state._roomAudio = { room_audio_matches: st.room_audio_matches || {}, room_audio_ha_speakers: st.room_audio_ha_speakers === true };
+        this.state._roomAudio = { room_audio_matches: st.room_audio_matches || {}, room_audio_ha_speakers: st.room_audio_ha_speakers === true, room_audio_matched: st.room_audio_matched === true };
         return true;
       },
       toast: (m,e)=>this._toast(m,e),
@@ -2077,6 +2077,7 @@ class PadSpanLightsApp extends HTMLElement {
     this._reconnectsStop = null; this._reconnectsConn = null;
     if(this._screen) this._screen.leave();
     if(this._emergCard) this._emergCard.close();
+    if(this._rc) this._rc.close();                 // Audio's matching card, over the page, goes with the panel
     clearTimeout(this._emergArmTimer);
   }
 }

@@ -5267,14 +5267,15 @@ function createSlot(slotKey){
       if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, live: T.live, label: T.label,
                                                         card: T.kind === "person" && panel ? panel.cardOf(T.key, T.card) : T.card } };
     }
-    // Audio: a room's speaker, drawn over everything, is pressed where it shows, as the room's name is: its panel (a
-    // tag's name on it still wins); never a light under it.
+    // Audio: a room's speaker, drawn over everything, is pressed on its badge (2 px round it, no more: a door, a marker
+    // or a readout beside it keeps its own press), as the room's name is: its panel (a tag's name on it still wins);
+    // never a light under it.
     for (const sp of audioUi) {
       if (!sp.visible || !sp.userData.F.group.visible || (tagHit && tagHit.d === 0)) continue;
       const q = labelQuad(sp), poly = q.map(v => screenPt(v, rect));
-      if (!poly.every(Boolean) || !nearPoly(clientX, clientY, poly, 8)) continue;
+      if (!poly.every(Boolean) || !nearPoly(clientX, clientY, poly, 2)) continue;
       const room = sp.userData.room;
-      return { hit: { kind: "room", key: "room:" + room, room, quad: q, label: roomWords(room) || t("{room} — opens its 0 devices", { room }) }, under: [] };
+      return { hit: { kind: "room", key: "room:" + room, room, quad: q, audio: true, label: roomWords(room) || t("{room} — opens its 0 devices", { room }) }, under: [] };
     }
     // "Lights as buttons": a button within reach is the target (a tag or a person nearer still wins); a light is
     // pressed by its button alone.
@@ -5965,7 +5966,8 @@ function createSlot(slotKey){
   }
   /** The card's p: the speakers as p.roomAudio() says while this screen's ⋯ Audio is ticked (true: they changed). */
   function syncAudio(p){
-    const on = !!(showOn && !showSuspended() && showOn.room_controls === true && p && typeof p.roomAudio === "function");
+    // The host's answer decides (null: none); where the host offers the ⋯ line (p.audio), it is asked only while ticked.
+    const on = !!(p && typeof p.roomAudio === "function" && !showSuspended() && (!p.audio || (showOn && showOn.room_controls === true)));
     const got = on ? p.roomAudio() : null, looks = got && typeof got === "object" && Object.keys(got).length ? got : null;
     const key = looks ? `${shellGen}|${JSON.stringify(looks)}` : null;
     if (key === audioKey) return false;
@@ -7220,7 +7222,7 @@ function createSlot(slotKey){
     },
     _pick(x, y){
       const r = pickAt(x, y);
-      return r && { hit: r.hit.key, under: r.under.map(u => u.key) };
+      return r && { hit: r.hit.key, under: r.under.map(u => u.key), ...(r.hit.audio ? { audio: true } : {}) };
     },
   };
 }

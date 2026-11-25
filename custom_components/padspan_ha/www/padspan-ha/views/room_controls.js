@@ -29,7 +29,9 @@
 //               lights and Shades and Climate below them (sheet).
 //   matching    which player is in which room, an administrator's (openMatch):
 //               settings room_audio_matches {area id: [player, ...]} in the
-//               room's order, and room_audio_ha_speakers.
+//               room's order, room_audio_ha_speakers, and room_audio_matched
+//               (the card kept a pick once: from then on no guess is made,
+//               so rooms cleared on purpose stay cleared).
 //
 // One press is one Home Assistant service call, from the browser with the
 // person's own login, as a light's is; a volume's number moves with each press
@@ -180,7 +182,7 @@ const mk = (tag, style, text) => { const n = document.createElement(tag); if (st
  * Room controls for one screen. o:
  *   hass()        Home Assistant now (states, entities, devices, areas, callService, user)
  *   model()       the map (room_geometry_m, areas)
- *   settings()    {room_audio_matches, room_audio_ha_speakers}
+ *   settings()    {room_audio_matches, room_audio_ha_speakers, room_audio_matched}
  *   save(patch)   writes those two (settings_set); resolves when Home Assistant kept them
  *   admin()       an administrator: may match rooms
  *   toast(m, err), errorText(e), count(word) (the report's room_controls:<word>), redraw() (the open sheet and the map)
@@ -199,6 +201,9 @@ export function createRoomControls(o){
   const settings = () => o.settings() || {};
   const haOn = () => settings().room_audio_ha_speakers === true;
   const matches = () => cleanMatches(settings().room_audio_matches);
+  // Set up: the card has kept its picks once (or, from before that was written down, some are kept). Only a house
+  // never set up gets the card's guesses, the card opening by itself and the prominent button in every room.
+  const setUp = () => settings().room_audio_matched === true || Object.keys(matches()).length > 0;
   const count = (w) => { try { o.count(w); } catch (_) { /* the report is never the error */ } };
   const optOf = (eid) => { const v = opt.get(eid); if (v && Date.now() < v.until) return v; opt.delete(eid); return null; };
   const roomArea = (room) => {
@@ -423,9 +428,9 @@ export function createRoomControls(o){
       if (lightsOn.length && typeof setMany === "function") setMany(lightsOn, false);
       for (const p of onPlayers) call("media_player", "turn_off", { entity_id: p.eid }, null, p.name);
     } } : null;
-    // Audio: the room's players; the matching button after them. In a house where nothing is matched yet, the
-    // button alone, prominent, in every room (where else would one start).
-    const none = !Object.keys(matches()).length;
+    // Audio: the room's players; the matching button after them. In a house never set up, the button alone,
+    // prominent, in every room (where else would one start).
+    const none = !setUp();
     const offered = none ? audioPlayers(h, haOn()).length : 0;
     // A level is not in the signature, only whether there is one: a new one goes into the number in place, so a row
     // is never drawn again between quick presses.
@@ -452,9 +457,9 @@ export function createRoomControls(o){
       } } : null;
     return { status, roomOff, before, after };
   }
-  /** The switch was ticked (on) on this screen: with nothing matched yet, the matching card opens for an administrator. */
+  /** The switch was ticked (on) on this screen: in a house never set up, the matching card opens for an administrator. */
   function switched(on){
-    if (on && o.admin() && !Object.keys(matches()).length) openMatch();
+    if (on && o.admin() && !setUp()) openMatch();
   }
 
   // ── The match card ──
@@ -462,11 +467,11 @@ export function createRoomControls(o){
   function openMatch(){
     if (card || !o.admin()) return;
     count("match_open");
-    const saved = matches();
+    const saved = matches(), fresh = !setUp();
     let ha = haOn();
     const rooms = mapRooms(o.model());
-    // The draft: {area_id: [eid...]} in each room's order.
-    let draft = Object.keys(saved).length ? JSON.parse(JSON.stringify(saved)) : prefill(audioPlayers(H(), ha), rooms, H());
+    // The draft: {area_id: [eid...]} in each room's order; the card's guesses only in a house never set up.
+    let draft = fresh ? prefill(audioPlayers(H(), ha), rooms, H()) : JSON.parse(JSON.stringify(saved));
     const overlay = mk("div", "position:fixed;inset:0;z-index:10001;background:rgba(3,8,5,.62);backdrop-filter:blur(6px);"
       + "-webkit-backdrop-filter:blur(6px);display:flex;justify-content:center;align-items:center;padding:12px;box-sizing:border-box");
     const box = mk("div", "width:100%;max-width:560px;max-height:86vh;overflow:auto;padding:14px 16px 16px;box-sizing:border-box;"
@@ -484,10 +489,11 @@ export function createRoomControls(o){
     // Every pick is kept as it is made (the owner, 2026-11-25: a Save button left unpressed lost the matches): no Save,
     // no Cancel, only Done. One write at a time, in order; the card's own line says whether the last one was kept.
     let chain = Promise.resolve(), status = "", savedOnce = false;
+    // The draft as it is, cleaned only: a player the card can't show now (hidden, not loaded yet, a Home Assistant
+    // speaker while those are not offered) or a room whose map name differs keeps its match (playersIn reads only
+    // what is there).
     const persist = () => {
-      const players = audioPlayers(H(), ha), listed = new Set(players.map(p => p.eid)), out = {};
-      for (const [aid, l] of Object.entries(draft)) { const keep = l.filter(e => listed.has(e)); if (keep.length && rooms.some(r => r.area_id === aid)) out[aid] = keep; }
-      const patch = { room_audio_matches: out, room_audio_ha_speakers: ha };
+      const patch = { room_audio_matches: cleanMatches(draft), room_audio_ha_speakers: ha, room_audio_matched: true };
       status = t("Saving…"); paintStatus();
       chain = chain.then(() => o.save(patch)).then(() => {
         if (!savedOnce) { savedOnce = true; count("match_saved"); }
@@ -538,7 +544,7 @@ export function createRoomControls(o){
         const none = mk("option", null, t("Not on the map")); none.value = ""; sel.appendChild(none);
         for (const r of rooms) { const op = mk("option", null, r.name); op.value = r.area_id; sel.appendChild(op); }
         const at = roomOf(p.eid);
-        sel.value = at;
+        sel.value = rooms.some(r => r.area_id === at) ? at : "";   // matched to an area not on the map: "Not on the map"
         sel.addEventListener("change", () => { move(p.eid, sel.value); draw(); persist(); });
         row.appendChild(sel);
         const list = at ? draft[at] : [];
@@ -568,9 +574,9 @@ export function createRoomControls(o){
       box.appendChild(foot);
     };
     draw();
-    // Nothing saved yet: the card's own suggestions (same names, same areas) are kept as soon as it opens, so what it
+    // Never set up: the card's own suggestions (same names, same areas) are kept as soon as it opens, so what it
     // shows is what the rooms use, even if Done is the only thing pressed.
-    if (!Object.keys(saved).length && Object.keys(draft).length) persist();
+    if (fresh && Object.keys(draft).length) persist();
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     card = { overlay, close };

@@ -197,8 +197,11 @@ player, by system, and a room for each, or <b>Not on the map</b>. The first time
 player's Home Assistant area, else from its name. <b>Set up ›</b> on the <b>Audio</b> line in <b>⋯</b> opens
 it too, and ticking <b>Audio</b> with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
 ▼ set their order, and the first is the one the map's speaker follows. Every pick is kept the
-moment it's made (the card's guesses too, as it opens), so there is no Save: <b>Done</b> closes it.
-Someone who isn't an administrator sees the button greyed.</p></li>
+moment it's made (the card's guesses too, the first time it opens), so there is no Save: <b>Done</b>
+closes it. Once it has kept a pick it never guesses again, so players taken off the map stay off,
+and a match to a player Home Assistant doesn't show right now (hidden, not loaded yet) or to a
+room renamed on the map is kept as it was. Someone who isn't an administrator sees the button
+greyed.</p></li>
 <li><p><b>Which players</b>: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
 Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. <b>Include Home
 Assistant speakers</b> on the matching card (off unless ticked) adds every other player with a
@@ -207,7 +210,8 @@ volume: Music Assistant, ESPHome, Cast, TVs.</p></li>
 <p>Audio needs PadSpan Pro or the Audio add-on. The <b>⋯</b> list is part of the new layout, PadSpan
 Pro's; on the classic layout, <b>Settings → Atlas → Atlas — Mapped Light Control → Audio</b> (off by
 default, shown where Audio is allowed) does the same for the whole house: the speaker beside a
-playing room's name, and the sheet's Audio with <b>Match rooms</b>.</p>
+playing room's name, in the 3D view too, and the sheet's Audio with <b>Match rooms</b>. It is the one
+switch there: the 3D view's <b>⋯</b> has no Audio line of its own.</p>
 <h2 id="heatmap-pro-or-the-climate-map-add-on">Heatmap (Pro or the Climate map add-on)</h2>
 <p><b>Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)</b>, off by default, adds a <b>♨ Heatmap</b> chip to the Atlas. Tap it to step through
