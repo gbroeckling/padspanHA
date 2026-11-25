@@ -85,11 +85,12 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
         return
     out = {"enabled": enabled(hass), "data": without_tokens(store.data), "writable": writable(store.data), "counts": store.counts()}
     # A scanned plan's furniture, beside the file and never in it (ws_house3d_import.scan_pieces): only where there is some,
-    # and with PadSpan Pro or Advanced map creation (the maps add-on: "Furniture from scans").
+    # and with PadSpan Pro or Advanced map creation (the maps add-on: "Furniture from scans"). Free for every house, as
+    # it was, while that add-on is not on sale (licence.hass_addon_gate).
     try:
-        from .licence import hass_addon_allowed  # noqa: PLC0415
+        from .licence import hass_addon_gate  # noqa: PLC0415
         from .ws_house3d_import import scan_pieces  # noqa: PLC0415
-        sp = scan_pieces(hass) if hass_addon_allowed(hass, "maps") else None
+        sp = scan_pieces(hass) if hass_addon_gate(hass, "maps") else None
         if sp:
             out["scan_pieces"] = sp
     except Exception:  # noqa: BLE001 — a guide to draw; the file is what the view came for

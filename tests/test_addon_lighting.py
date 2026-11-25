@@ -293,6 +293,14 @@ def test_an_add_on_key_is_told_by_its_plan_even_with_add_ons_new_to_this_padspan
     assert licence.key_tier({**newer, "license_tier": ""}) == "free", "never Pro, whatever else is stored"
     assert not licence.is_addon_key(_PRO) and licence.key_tier({**_PRO, "license_tier": ""}) == "pro"
     assert "license_plan" in licence.ADDON_KEY_FIELDS
+    # A key stored before the plan was kept, whose answer named the plan but no add-on (both lists empty): tier free,
+    # so an add-on key, never Pro (the card's "PadSpan Pro licensed", the trial hidden).
+    bare = {"forensics_license_key": "PSPAN-TEST-0000-0000-0008", "license_tier": "free", "forensics_license_expires": _EXP,
+            "license_addons": [], "license_addons_until": {}}
+    assert licence.key_tier(bare) == "free" and licence.is_addon_key(bare)
+    from custom_components.padspan_ha.ws_common import _get_settings
+    out = _get_settings(SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data=dict(bare))}}))
+    assert out["addon_key"] is True and out["pro_has_key"] is True and out["tier"] == "free"
 
 
 def test_activation_and_the_daily_check_keep_the_plan(monkeypatch) -> None:

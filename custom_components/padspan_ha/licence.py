@@ -188,12 +188,12 @@ def answer_tier(data: Any) -> str:
 def is_addon_key(settings: dict[str, Any] | None) -> bool:
     """Whether this install's key is an add-on key (not a Pro key), lapsed or
     not. The settings payload says it as addon_key, beside pro_has_key (which
-    stays "a licence key is on this install")."""
+    stays "a licence key is on this install"). Any stored key that resolves to
+    tier free is one (key_tier: the plan "addons", needs_update, or a free tier
+    with add-ons this PadSpan may not know, even none it can name): only add-on
+    keys are free, so it is never read as Pro, whatever add-ons it lists."""
     d = settings or {}
-    return (bool(str(d.get("forensics_license_key") or "").strip()) and key_tier(d) == "free"
-            and (str(d.get("license_plan") or "") == ADDON_PLAN   # the server said so: its add-ons may all be new to us
-                 or str(d.get("license_home_status") or "") == NEEDS_UPDATE   # likewise: update PadSpan to know them
-                 or bool(normalize_addons(d.get("license_addons")) or normalize_addons_until(d.get("license_addons_until")))))
+    return bool(str(d.get("forensics_license_key") or "").strip()) and key_tier(d) == "free"
 
 
 # An add-on key, as kept aside while a Pro trial runs on this install

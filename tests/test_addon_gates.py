@@ -414,9 +414,11 @@ def test_ai_plan_reading_photos_and_scan_furniture_are_pro_or_maps(gates) -> Non
     assert 'if not hass_addon_allowed(hass, "maps"):\n        connection.send_error(msg["id"], OFF_CODE, prefix + PRO_MESSAGE)' in pkg["ws_plan_ai.py"]
     assert 'and hass_addon_allowed(hass, "maps"):' in pkg["ws_plan_ai.py"] and "_tier_at_least" not in pkg["ws_plan_ai.py"]
     assert 'if not hass_addon_allowed(hass, "maps"):' in pkg["ws_house3d_photo.py"] and "_tier_at_least" not in pkg["ws_house3d_photo.py"]
-    assert 'sp = scan_pieces(hass) if hass_addon_allowed(hass, "maps") else None' in pkg["ws_house3d.py"]
+    # Furniture from scans was every house's (0.38.274): free while maps is not on sale (the gate of a free feature).
+    assert 'sp = scan_pieces(hass) if hass_addon_gate(hass, "maps") else None' in pkg["ws_house3d.py"]
     assert '"maps": hass_addon_allowed(hass, "maps"),' in pkg["ai_wizard.py"]
-    assert 'const scanLoad = scr && host.house3d && hostAddon(host, "maps") &&' in _src("views/lights_map.js")
+    assert ('const scanLoad = scr && host.house3d && addonGate({ tier: host.tier, addons_licensed: host.addons }, "maps")'
+            in _src("views/lights_map.js"))
     # The rooms helper (Let Claude draw your rooms): offered to Pro or maps, the trial otherwise.
     assert gates["helper"] == {"pro": "start", "maps": "start", "free": "no_pro", "trial": "trial"}, gates["helper"]
 
@@ -542,3 +544,22 @@ console.log(JSON.stringify(out));
     r = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert r.returncode == 0, r.stderr[-2000:]
     assert json.loads(r.stdout.strip().splitlines()[-1]) == {"pro": False, "free": True}
+
+
+@pytest.mark.parametrize("who, on_sale, gets", [("free", False, True), ("free", True, False), ("maps", True, True),
+                                                ("pro", True, True)])
+def test_furniture_from_scans_stays_free_until_maps_is_on_sale(disk, tmp_path, monkeypatch, who, on_sale, gets) -> None:
+    """house3d_get hands a scan's furniture to every house while Advanced map creation is not on sale (it was free in
+    0.38.274), and then to PadSpan Pro or the maps add-on only."""
+    from custom_components.padspan_ha import ws_house3d as W3
+    from custom_components.padspan_ha import ws_house3d_import as WI
+    from tests.test_house3d_edit import _on
+    from tests.test_house3d_store import _run
+    monkeypatch.setattr(licence, "NOT_ON_SALE", () if on_sale else ("maps",))
+    monkeypatch.setattr(WI, "scan_pieces", lambda hass: [{"kind": "sofa"}])
+    h, conn = _on(tmp_path, tier="free" if who == "free" else "pro")
+    if who == "maps":
+        h.data[DOMAIN][DATA_SETTINGS].data.update(license_tier="free", license_addons=["maps"])
+    _run(W3.ws_house3d_get(h, conn, {"id": 1, "type": "padspan_ha/house3d_get"}))
+    assert ("scan_pieces" in conn.send_result.call_args[0][1]) is gets
+

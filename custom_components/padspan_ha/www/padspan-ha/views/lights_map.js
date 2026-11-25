@@ -20,7 +20,7 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, addonAllowed, addonPrice, ADDONS_URL } =
+const { tierAtLeast, addonAllowed, addonGate, addonPrice, ADDONS_URL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
 // alone), the English with its {placeholders} filled.
@@ -4495,8 +4495,10 @@ export function buildLightsMapCard(hostIn){
   // A scanned plan's furniture (the ⋯ list's "Furniture from scans") comes beside the 3D file, and is for every house:
   // read through the host's own loader whether or not Live Aboard is on, but ONLY once this screen has the line ticked
   // (off unless ticked: with nothing on, nothing is fetched, as ever).
-  // Furniture from scans is Advanced map creation's (PadSpan Pro or the maps add-on; house3d_get hands its pieces only then).
-  const scanLoad = scr && host.house3d && hostAddon(host, "maps") && typeof host.house3d.load === "function" ? host.house3d.load : null;
+  // Furniture from scans is Advanced map creation's (PadSpan Pro or the maps add-on; house3d_get hands its pieces only then),
+  // and every house's, as it was, while that add-on is not on sale (editions.js addonGate).
+  const scanLoad = scr && host.house3d && addonGate({ tier: host.tier, addons_licensed: host.addons }, "maps")
+    && typeof host.house3d.load === "function" ? host.house3d.load : null;
   const scanOn = () => !!scanLoad && flatShow("scan_furniture") === true;
   if (abLive || abFile) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
   else if (scr) { _abRedraw.delete(abSlot); if (_AB) _AB.liveLayer(abSlot).clear(); }

@@ -205,15 +205,21 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         # Offline: a trial already past its date and its grace still gives the kept add-on key back.
         await _bring_back_kept_addons(hass, st, None)
         return
-    await _keep_answer(st, data)
+    if not await _keep_answer(st, data, key):
+        return                                          # another key is stored now: this answer was not about it
     # The trial key's answer is in: an add-on key kept aside for the trial comes back only now, and is then checked
     # in its turn (it is not a trial, so this happens once).
     if await _bring_back_kept_addons(hass, st, data):
         await _revalidate_license(hass)
 
 
-async def _keep_answer(st: Any, data: dict) -> None:
-    """Record the licence server's answer for the stored key (_revalidate_license)."""
+async def _keep_answer(st: Any, data: dict, key: str) -> bool:
+    """Record the licence server's answer for `key`, the key it was asked about (_revalidate_license), and only while
+    it is still the stored key: a second check running at the same time (the usage report switched, a trial's end)
+    may have put another key in its place meanwhile (the kept add-on key back), and this answer is not that key's.
+    False, recording nothing, when the stored key is another one now."""
+    if str(st.data.get("forensics_license_key") or "").strip() != key:
+        return False
     expires = str(data.get("expires_at") or "").strip()
     if data.get("valid"):
         from .licence import answer_tier, normalize_addons, normalize_addons_until  # noqa: PLC0415
@@ -281,7 +287,7 @@ async def _keep_answer(st: Any, data: dict) -> None:
             old_exp = _parse_utc(str(st.data.get("forensics_license_expires") or ""))
             if new_exp is not None and (old_exp is None or new_exp > old_exp):
                 await st.async_set(forensics_license_expires=expires)
-            return
+            return True
         # Explicitly revoked. Record it as expired-now rather than deleting
         # the key: the grace window still applies, the user keeps their data,
         # and re-activating a reinstated licence restores everything.
@@ -309,6 +315,7 @@ async def _keep_answer(st: Any, data: dict) -> None:
             now = now - _td(days=PRO_GRACE_DAYS, minutes=1)
         if exp is None or exp > now:
             await st.async_set(forensics_license_expires=now.isoformat())
+    return True
 
 
 # Answers that refuse nothing about the key itself (a pause on new homes, a home whose report is off, an add-on key
@@ -318,15 +325,18 @@ _NOT_A_REFUSAL = ("activation_rate", "needs_report", "needs_update")
 
 async def _bring_back_kept_addons(hass: HomeAssistant, st: Any, data: dict | None) -> bool:
     """An add-on key kept aside while a Pro trial ran here (license_addons_kept,
-    ws_forensics.ws_trial_start) takes the trial key's place once the trial has
+    ws_forensics.ws_trial_start) takes the key's place once that key has
     ended: the add-ons go on as before, with nothing to enter. Ended means,
-    after the trial key's own answer was recorded (data; None when the server
-    couldn't be asked): still a trial (license_is_trial) and past its date and
-    the grace any key gets, or refused by the server. A trial bought in place
-    reads as a trial no more, so its paid key stays; a trial inside its grace
-    keeps it. True when the kept key came back; the caller checks it."""
+    after the key's own answer was recorded (data; None when the server
+    couldn't be asked): past its date and the grace any key gets, or refused
+    by the server. A trial bought in place, or a Pro invite claimed during the
+    trial, is Pro: it keeps its place while it runs, and the kept add-on key
+    still comes back when that Pro key lapses past its grace, so a paid add-on
+    is never lost (a key typed in over it is the owner's choice and lets the
+    kept one go: ws_forensics_license_activate). A key inside its grace keeps
+    its place. True when the kept key came back; the caller checks it."""
     kept = st.data.get("license_addons_kept")
-    if not (isinstance(kept, dict) and str(kept.get("forensics_license_key") or "").strip() and st.data.get("license_is_trial")):
+    if not (isinstance(kept, dict) and str(kept.get("forensics_license_key") or "").strip()):
         return False
     refused = isinstance(data, dict) and data.get("valid") is False and str(data.get("status") or "") not in _NOT_A_REFUSAL
     from .ws_common import _pro_expiry_state  # noqa: PLC0415
@@ -335,7 +345,7 @@ async def _bring_back_kept_addons(hass: HomeAssistant, st: Any, data: dict | Non
     from .licence import ADDON_KEY_FIELDS  # noqa: PLC0415
     await st.async_set(**{k: kept.get(k) for k in ADDON_KEY_FIELDS}, license_is_trial=False, license_home_status="",
                        license_homes_warning={}, license_addons_kept={})
-    _LOGGER.info("PadSpan: the trial has ended, and the add-on key kept aside for it is back")
+    _LOGGER.info("PadSpan: the key that took its place has ended, and the add-on key kept aside is back")
     return True
 
 
