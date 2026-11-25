@@ -1,5 +1,0 @@
-# The robot's Wi-Fi on the Wi-Fi coverage map
-
-### New
-- **The robot vacuum's Wi-Fi on the Wi-Fi coverage map.** With UniFi Utopia's Wi-Fi survey (still a test build), the Wi-Fi readings the robot takes on its room location runs show on the Wi-Fi coverage screen as their own layer, "Robot (floor level, 2.4 GHz)": a small diamond at each spot where it stood, coloured by the signal the robot itself heard. Point at one to see that signal, the access point it was on, how strongly that access point heard the robot (when UniFi saw it within 45 seconds of the middle of its stop), and when. The readings are taken about 10 cm off the floor, so they read weaker than at hand height; they are kept apart from the phones' and devices' colours and from What to fix. The layer is there only when there are readings, on to start with, and turning it off is remembered in that browser.
-- **Other integrations can read the robot's Wi-Fi directly.** For integrations in the same Home Assistant, the readings the `padspan_ha/robot_wifi_readings` command gives are also available without the websocket (`vacuum_run.robot_wifi_snapshot`). UniFi Utopia uses it.
