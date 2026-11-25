@@ -70,6 +70,29 @@ und **More devices of the area**: was Home Assistant in diesem Bereich hat, das 
 zeigt. Auf einem breiten Bildschirm setzt **Room chips along the top** in **⋯** die Raumnamen
 stattdessen in eine Reihe.
 
+## Durchs Haus gehen
+
+**Gehen** (unten rechts; auf einem schmalen Bildschirm in **Ansicht ▾**) stellt dich in Augenhöhe
+ins Haus, direkt hinter die Haustür, oder in den Raum, den du offen hast. Solange du gehst, sind alle
+Etagen zu sehen, und alle Wände stehen.
+
+| Was | Wie |
+|---|---|
+| Gehen | **W A S D** oder **↑ ↓** auf einer Tastatur; auf einem Touchscreen den Stick (unten links) schieben |
+| Drehen | **← →**, oder ziehen |
+| Umschauen, nach oben und unten | Mit einem Finger oder der Maus ziehen |
+| Schneller | **Umschalt** halten |
+| Zurück zur 3D-Ansicht | **✕ Gehen beenden** (oben rechts), oder **Esc** |
+
+Wände, Geländer, Fensterbrüstungen und geschlossene Türen halten dich auf. Eine Tür mit Sensor geht
+auf, wenn der Sensor sie offen meldet; eine Tür ohne Sensor steht, wie ihr Blatt es sagt (innen
+angelehnt, an einer Außenwand zu). Treppen bringen dich auf die Etage, die sie erreichen, und wieder
+hinunter. Durch eine offene Außentür stehst du draußen auf dem Boden ums Haus. Möbel halten dich nicht
+auf. Der Stick erscheint auf einem Touchscreen, oder sobald du die Ansicht berührst.
+
+**Gehen beenden** stellt die Kamera, die Etagen (auseinandergezogen oder nicht) und die Wände zurück,
+wie sie waren. Wenn du stillstehst, zeichnet Live Aboard nichts, wie sonst auch.
+
 ## Das Haus lesen
 
 Was du siehst, hängt davon ab, wie nah du bist:
