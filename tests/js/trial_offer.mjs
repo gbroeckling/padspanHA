@@ -319,6 +319,34 @@ await check("the card sells all of Pro, and a Bright build's card leaves out For
   assert(/all of PadSpan Pro/.test(s) && /nothing you set up is deleted/i.test(s) && !/editing just goes back/.test(s), s);
 });
 
+await check("from the free basics the pitch and the milestone card name what Pro adds on top; before, word for word", () => {
+  // settings.free_basics from December 1 (editions.js freeBasics): placement, the plain wall and the 3D house are free.
+  const BEFORE = "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your floor plan, the 3D house (Live Aboard), the wall screen and Forensics.";
+  const BEFORE_BRIGHT = "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your floor plan, the 3D house (Live Aboard) and the wall screen.";
+  const FROM = "Try all of PadSpan Pro on your own house: each light's shape, size and Showcase look, the 3D editor, Furnish and people in 3D, and Forensics.";
+  const FROM_BRIGHT = "Try all of PadSpan Pro on your own house: each light's shape, size and Showcase look, the 3D editor and Furnish, and the wall screen's night dimming.";
+  for (const fb of [undefined, false]) {
+    assert(T.trialPitch("maps", undefined, { ...FREE, free_basics: fb }) === BEFORE, "before: " + fb);
+    assert(T.trialPitch("atlas", undefined, { ...FREE, edition: "bright", free_basics: fb }) === BEFORE_BRIGHT, "before, Bright: " + fb);
+    assert(T.trialMilestoneBody({ ...FREE, free_basics: fb }) === T.TRIAL_MILESTONE_BODY, "milestone before: " + fb);
+  }
+  assert(T.trialPitch("maps", undefined, { ...FREE, free_basics: true }) === FROM, "from");
+  assert(T.trialPitch("atlas", undefined, { ...FREE, edition: "bright", free_basics: true }) === FROM_BRIGHT, "from, Bright");
+  assert(T.TRIAL_MILESTONE_BODY === "Try all of PadSpan Pro on it: every light where it hangs on this map, the 3D house, the wall screen and Forensics. 90 days free, no card.",
+    "the milestone's words before the moment changed");
+  assert(T.trialMilestoneBody({ ...FREE, free_basics: true }) === "Try all of PadSpan Pro on it: each light's shape, size and Showcase look, the 3D editor, Furnish and people in 3D, and Forensics. 90 days free, no card.",
+    "milestone from: " + T.trialMilestoneBody({ ...FREE, free_basics: true }));
+  // The card itself reads its host's settings.
+  const h = makeHost({ answer: { ok: true } });
+  h.host.settings = { ...h.host.settings, free_basics: true };
+  const pitch = find(T.trialOfferCard(h.host, "maps"), "pitch").textContent;
+  assert(pitch === FROM, pitch);
+  // The surfaces whose words never named the free basics are the same either way.
+  for (const [surface, feature] of [["settings"], ["locate", "Locate"], ["ai_wizard"]]) {
+    assert(T.trialPitch(surface, feature, { ...FREE, free_basics: true }) === T.trialPitch(surface, feature, FREE), surface);
+  }
+});
+
 await check("a Pro gate's pitch says the trial unlocks that feature", () => {
   const p = T.trialPitch("locate", "Locate");
   assert(/The trial unlocks Locate/.test(p) && /PadSpan Pro/.test(p), p);

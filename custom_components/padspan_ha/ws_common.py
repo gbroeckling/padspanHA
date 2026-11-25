@@ -253,11 +253,15 @@ def _get_settings(hass: HomeAssistant, connection=None) -> dict:
     out["license_addons_kept"] = bool(out.get("license_addons_kept"))
     out["tier_floor"] = _floor
     out["edition"] = _edition()
-    # Features moved down the ladder (licence.FREE_BASICS): said only while
-    # the switch is on, so with it off this payload is what it always was.
+    # Features moved down the ladder (licence.free_basics, from December 1): said
+    # only while on, so before the moment this payload is what it always was.
+    # Read on every settings read, so the panel switches with its next one.
     from . import licence as _licence  # noqa: PLC0415
-    if _licence.FREE_BASICS:
+    if _licence.free_basics():
         out["free_basics"] = True
+    # The add-ons on sale now (licence.addons_on_sale): the panel's addonGate
+    # reads it, so a feature moving into an add-on is gated on this clock.
+    out["addons_on_sale"] = _licence.addons_on_sale()
     # The same Zigbee device in two integrations (zigbee_twins.py): which copy
     # the panel's lists leave out, for a caller only. Which pairs were told is
     # the backend's own.

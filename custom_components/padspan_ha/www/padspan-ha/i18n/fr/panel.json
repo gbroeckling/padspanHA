@@ -338,5 +338,8 @@
 "{name} is used now.": "{name} est utilisé maintenant.",
 "Could not switch to it: {why}": "Impossible de passer à celui-ci : {why}",
 "No room called \"{room}\" in this house.": "Aucune pièce nommée « {room} » dans cette maison.",
-"Night dimming, burn-in protection and showing each floor in turn come with PadSpan Pro (Settings → Features → PadSpan licence).": "L’atténuation la nuit, la protection contre le marquage et l’affichage de chaque étage à tour de rôle viennent avec PadSpan Pro (Paramètres → Fonctions → Licence PadSpan)."
+"Night dimming, burn-in protection and showing each floor in turn come with PadSpan Pro (Settings → Features → PadSpan licence).": "L’atténuation la nuit, la protection contre le marquage et l’affichage de chaque étage à tour de rôle viennent avec PadSpan Pro (Paramètres → Fonctions → Licence PadSpan).",
+"The 3D house is now free": "La maison en 3D est désormais gratuite",
+"Exact placement of your lights and devices, the plain wall screen and the 3D house (Live Aboard in the Atlas) are free now, with no key. PadSpan Pro adds Furnish, people in 3D and the 3D editor.": "Le placement exact de vos lumières et appareils, l’écran mural simple et la maison en 3D (Live Aboard dans l’Atlas) sont désormais gratuits, sans clé. PadSpan Pro y ajoute Furnish, les personnes en 3D et l’éditeur 3D.",
+"Got it": "Compris"
 }

@@ -91,6 +91,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "tester_nudge_done": False,     # the Overview "test it, get Pro free" card was shown; never again (views/pro_invite.js)
     "launch_card_done": False,      # the Overview "launch price ends November 30" card was shown (the card is gone; kept so old backups still read)
     "lifetime_card_done": False,    # the Overview "Pro for life ends Dec 15" card was shown; never again (panel.js _launchPriceCard)
+    "house3d_free_card_done": False,  # the Overview "The 3D house is now free" card was shown; never again (panel.js _freeHouseCard)
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the
@@ -473,6 +474,24 @@ def live_first_kept(live: dict[str, Any] | None, other: dict[str, Any] | None,
     return {"onboarding": ob}
 
 
+def free_basics_3d_once(data: dict[str, Any]) -> bool:
+    """Live Aboard on by default, once, while the 3D house's basics are on the
+    bottom rung (licence.free_basics, from December 1; before it, this does
+    nothing and the file is what it always was). A new install starts with it
+    on. An install with no licence key never had the 3D house to choose, so its
+    stored "off" was never a choice and turns on; one with a key keeps what it
+    has. A screen still opens on the flat map until someone picks 3D there, and
+    a screen too slow for it stays flat (lights_map.js). Whether it changed
+    anything (atlas_3d_default_v1_applied, its once)."""
+    from . import licence as _licence  # noqa: PLC0415
+    if not _licence.free_basics() or data.get("atlas_3d_default_v1_applied"):
+        return False
+    if not str(data.get("forensics_license_key") or "").strip():
+        data["atlas_3d_enabled"] = True
+    data["atlas_3d_default_v1_applied"] = True
+    return True
+
+
 def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None = None) -> dict[str, Any]:
     """The trial milestone's two per-install facts, kept through a settings
     restore, a factory reset and a Bright import (`other` is the settings
@@ -485,7 +504,8 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
     out: dict[str, Any] = {"trial_nudge_done": bool(a.get("trial_nudge_done") or b.get("trial_nudge_done")),
                            "tester_nudge_done": bool(a.get("tester_nudge_done") or b.get("tester_nudge_done")),
                            "launch_card_done": bool(a.get("launch_card_done") or b.get("launch_card_done")),
-                           "lifetime_card_done": bool(a.get("lifetime_card_done") or b.get("lifetime_card_done"))}
+                           "lifetime_card_done": bool(a.get("lifetime_card_done") or b.get("lifetime_card_done")),
+                           "house3d_free_card_done": bool(a.get("house3d_free_card_done") or b.get("house3d_free_card_done"))}
     seen = [v for v in (a.get("first_seen_ts"), b.get("first_seen_ts"))
             if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
     if seen:
@@ -641,18 +661,8 @@ class SettingsStore:
             self.data["lights_panel_enabled"] = True
             self.data["atlas_default_v1_applied"] = True
             _normalized = True
-        # Live Aboard on by default, once, while the 3D house's basics are on
-        # the bottom rung (licence.FREE_BASICS; off, this never runs and the
-        # file is what it always was). A new install starts with it on. An
-        # install with no licence key never had the 3D house to choose, so its
-        # stored "off" was never a choice and turns on; one with a key keeps
-        # what it has. A screen still opens on the flat map until someone picks
-        # 3D there, and a screen too slow for it stays flat (lights_map.js).
-        from . import licence as _licence  # noqa: PLC0415
-        if _licence.FREE_BASICS and not self.data.get("atlas_3d_default_v1_applied"):
-            if not str(self.data.get("forensics_license_key") or "").strip():
-                self.data["atlas_3d_enabled"] = True
-            self.data["atlas_3d_default_v1_applied"] = True
+        # Live Aboard on by default, once, from the free basics (free_basics_3d_once).
+        if free_basics_3d_once(self.data):
             _normalized = True
         # Faster room changes, once (see room_speed_v1_applied above).
         if not self.data.get("room_speed_v1_applied"):
@@ -685,6 +695,12 @@ class SettingsStore:
         except Exception:  # noqa: BLE001 - unsure: an existing install
             _quiet_error("settings_store:first_run")
             return False
+
+    async def async_free_basics_3d_once(self) -> None:
+        """free_basics_3d_once on a running install (ws_settings_get, every settings read): an install running across
+        the moment turns Live Aboard on with the panel's next read, no restart. Saved only when it changed."""
+        if free_basics_3d_once(self.data):
+            await self.store.async_save(self.data)
 
     async def async_room_walk_default_once(self, points: Any) -> None:
         """Run room_walk_default_stamp once the calibration store has loaded

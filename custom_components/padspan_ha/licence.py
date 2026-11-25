@@ -47,27 +47,43 @@ name in ADDONS (and a line in the licence server's and the site's tables).
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from .build_info import EDITION, TIER_FLOOR
-from .const import DATA_SETTINGS, DOMAIN
+from .const import DATA_SETTINGS, DOMAIN, FREE_BASICS_FROM_TS
 
 TIERS: tuple[str, ...] = ("free", "bright", "pro")
 _RANK = {t: i for i, t in enumerate(TIERS)}
 # The add-ons this PadSpan knows. Sent with every validate (licence_homes.home_params);
 # views/editions.js ADDONS has their words and prices.
 ADDONS: tuple[str, ...] = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics",
-                           "insights", "maps")
-# Add-ons not on sale yet (the owner, 2026-11-25): "maps" (Advanced map creation) goes on sale with the free 3D
-# house, the December 1 free-basics switch. PadSpan Pro includes it meanwhile; nothing offers it (views/editions.js
-# ADDONS on_sale: false says the same), and a feature that is free today and moves into it stays everyone's until it
-# is on sale (hass_addon_gate), so nobody loses one before it can be bought.
-NOT_ON_SALE: tuple[str, ...] = ("maps",)
+                           "insights", "maps", "vacuum")
+# Add-ons that go on sale at a moment (the owner, 2026-11-25): "maps" (Advanced map creation) and "vacuum" (Robot
+# vacuum) go on sale with the free basics, December 1 (const.FREE_BASICS_FROM_TS). PadSpan Pro includes them
+# meanwhile; nothing offers them (views/editions.js ADDONS on_sale_from says the same), and a feature that is free
+# today and moves into one stays everyone's until it is on sale (hass_addon_gate), so nobody loses one before it can
+# be bought. Read on every call: an install running across the moment switches by itself.
+ADDON_ON_SALE_FROM: dict[str, int] = {"maps": FREE_BASICS_FROM_TS, "vacuum": FREE_BASICS_FROM_TS}
+
+# The clock the moments here are read by (the tests pin it: tests/conftest.py).
+_clock = time.time
 
 
-def addon_on_sale(name: str) -> bool:
-    """Whether add-on `name` is sold now (a known add-on not in NOT_ON_SALE)."""
-    return name in ADDONS and name not in NOT_ON_SALE
+def _now(now: float | None = None) -> float:
+    """The time a moment is read at: `now` (a Unix time) when given, else the clock."""
+    return _clock() if now is None else float(now)
+
+
+def addon_on_sale(name: str, now: float | None = None) -> bool:
+    """Whether add-on `name` is sold at `now` (a known add-on whose ADDON_ON_SALE_FROM moment, if any, has come)."""
+    return name in ADDONS and _now(now) >= ADDON_ON_SALE_FROM.get(name, 0)
+
+
+def addons_on_sale(now: float | None = None) -> list[str]:
+    """Every add-on on sale at `now`, in ADDONS order: the settings payload's addons_on_sale, which the panel's
+    gates read (views/editions.js addonGate), so the panel and this side switch on one clock."""
+    return [a for a in ADDONS if addon_on_sale(a, now)]
 
 
 def normalize_addons(value: Any) -> list[str]:
@@ -155,17 +171,24 @@ def tier_at_least(tier: str, want: str) -> bool:
 # does not even say the switch exists (ws_common: free_basics only while on).
 # The frontend's mirror is views/editions.js (placementTier, wallTier,
 # house3dTier), which reads settings.free_basics. tests/test_free_basics.py.
-FREE_BASICS = False
+#
+# The switch is a moment (the owner, 2026-11-25): from const.FREE_BASICS_FROM_TS
+# (December 1, 00:00 Pacific) it is on, read on every call, so an install
+# running across the moment switches without a restart, and the panel with the
+# next settings read. tests/test_free_basics_dec1.py.
+def free_basics(now: float | None = None) -> bool:
+    """Whether the free basics are on at `now` (from const.FREE_BASICS_FROM_TS)."""
+    return _now(now) >= FREE_BASICS_FROM_TS
 
 
 def placement_tier() -> str:
     """The rung exact placement of lights and devices needs."""
-    return "free" if FREE_BASICS else "bright"
+    return "free" if free_basics() else "bright"
 
 
 def house3d_tier() -> str:
     """The rung the 3D house (Live Aboard) needs to show at all."""
-    return "free" if FREE_BASICS else "pro"
+    return "free" if free_basics() else "pro"
 
 
 def edition() -> str:

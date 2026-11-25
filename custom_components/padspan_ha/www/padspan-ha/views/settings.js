@@ -17,8 +17,8 @@
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
 const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, brightProOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
-        tierAtLeast, currentTier, house3dTier, wallTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
-        ADDONS, ADDONS_URL, addonAllowed, addonKey, addonPrice, addonPriceParts } =
+        tierAtLeast, currentTier, house3dTier, wallTier, freeBasics, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
+        ADDONS, addonAllowed, addonKey, addonPrice, addonOnSale, addonPriceFor, addonBuyUrl, vacuumAllowed } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
 // leaves the rest of Settings as it is.
@@ -3282,14 +3282,19 @@ function _tiersWizardFooter(ctx, w, opts){
 function _tiersWizardFree(ctx, w, isBright){
   const { el } = ctx.helpers;
   const wrap = el("div",{});
+  // From the free basics (editions.js freeBasics): placement, the plain wall and the 3D house are free; the key adds the rest.
+  const fb = freeBasics(ctx.state.settings);
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     isBright
-      ? t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below.")
+      ? (fb ? t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light placed exactly where it hangs on a map and switched on or off from here is free, no key, and so are the plain wall screen and the 3D house. Each light's shape, size and looks need a key — see below.")
+            : t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."))
       : t("This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, no key, forever.")));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
     (isBright
-      ? t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more.")
-      : t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more."))
+      ? (fb ? t("A PadSpan Pro key adds the paid features: the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish, the wall screen's night dimming and burn-in protection, and more.")
+            : t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more."))
+      : (fb ? t("A PadSpan Pro key adds the paid features: the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D editor, Furnish and people in 3D, the wall screen's night dimming and burn-in protection, Locate, Busy Times and more.")
+            : t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more.")))
     + " " + t("The free tier above is not a trial of anything — it stays free whether or not you ever add a key. To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.")));
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
@@ -3305,19 +3310,22 @@ function _tiersWizardLadder(ctx, w, isBright){
     ].filter(Boolean)),
     el("div",{style:"font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.5"}, desc),
   ]);
+  const fb = freeBasics(ctx.state.settings);   // placement, the plain wall and the 3D house free (editions.js)
   if (isBright) {
     wrap.appendChild(row(t("PadSpan Bright (free)"), null,
       t("Place lights on a map, control them. No key, no time limit.")));
     // Bright Pro is retired from the end of December 15; Pro's key does the same here (editions.js).
     wrap.appendChild(row(brightProOpen() ? "PadSpan Bright Pro" : "PadSpan Pro", brightProOpen() ? BRIGHT_PRICE : proPrice(),
-      t("Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs. Forensics needs presence tracking to report on, so it isn't part of this edition.")));
+      fb ? t("Fixture shapes and sizes, WLED, Showcase, Fit room — how each light looks; placing it is free. Forensics needs presence tracking to report on, so it isn't part of this edition.")
+         : t("Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs. Forensics needs presence tracking to report on, so it isn't part of this edition.")));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
       t("Want presence tracking too? That's a separate, full download — PadSpan HA — not an upgrade of this one.")));
   } else {
     wrap.appendChild(row(t("PadSpan HA (free)"), null,
       t("Presence tracking and everything else in this app except the paid features below. No key, no time limit.")));
     wrap.appendChild(row("PadSpan Pro", proPrice(),
-      t("Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install.")));
+      fb ? t("Adds the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor, Furnish and people in 3D, the wall screen's night dimming and burn-in protection, Forensics, Locate and Busy Times to this install.")
+         : t("Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install.")));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
       t("Only want lighting, not presence tracking? PadSpan Bright is a lighter, separate download built for exactly that.")));
   }
@@ -3461,7 +3469,7 @@ const ADDON_WORDS = {
   audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
   climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
-  maps: () => t("Advanced map creation"),
+  maps: () => t("Advanced map creation"), vacuum: () => t("Robot vacuum"),
 };
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 // What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
@@ -3470,11 +3478,16 @@ function proOrAddon(name){
   const a = ADDONS.find(x => x.name === name);
   return t("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: addonPrice(a.name) });
 }
-// An add-on's price as the licence card offers it, in the panel's language (editions.js addonPriceWords):
-// "$3.22 CAD — half off until January 1 (normally $6.45)" in the Black Friday sale, the price otherwise.
-function addonPriceSaid(name){
-  const p = addonPriceParts(name);
+// An add-on's price as the licence card offers it to this install, in the panel's language (editions.js
+// addonPriceFor): "$3.22 CAD — half off until January 1 (normally $6.45)" in the Black Friday sale, "$4.51 CAD — 30%
+// off with Advanced map creation (normally $6.45)" where the other of the two map add-ons is held, the price otherwise.
+function addonPriceSaid(name, settings){
+  const p = addonPriceFor(settings, name);
   if (!p) return "";
+  if (p.cross) {
+    const w = ADDONS.find(x => x.name === p.with);
+    return t("{price} — 30% off with {addon} (normally {normal})", { price: p.price, addon: addonWords(w), normal: p.normal });
+  }
   return p.half ? t("{price} — half off until January 1 (normally {normal})", { price: p.price, normal: p.normal }) : p.price;
 }
 function _licenceHomes(ctx, el, s){
@@ -3549,6 +3562,8 @@ function _settingsLicence(ctx, el){
   const isTrial = !!s.license_is_trial;
   // An add-on key (editions.js addonKey): never called Pro here.
   const isAddons = addonKey(s);
+  // From the free basics (editions.js freeBasics): placement, the plain wall and the 3D house are no longer what a key adds.
+  const fb = freeBasics(s);
 
   const card = el("div", { class: "card", style: "margin-bottom:14px;border:1px solid #2d5a3d;background:#0f1a12" });
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
@@ -3560,7 +3575,11 @@ function _settingsLicence(ctx, el){
   // Status — the backend's own answer, never re-derived here.
   let line, colour;
   if (!hasKey) {
-    line = edition === "PadSpan Bright"
+    line = fb
+      ? (edition === "PadSpan Bright"
+        ? t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. The lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish are locked. Everything else is free and stays free.")
+        : t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. The paid features are locked, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D editor, Furnish, people in 3D, Locate and Busy Times. Everything else is free and stays free."))
+      : edition === "PadSpan Bright"
       ? t("No licence key on this install. Light placement, the 3D house and the wall screen are locked. Everything else is free and stays free.")
       : t("No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. Everything else is free and stays free.");
     colour = "#94a3b8";
@@ -3589,7 +3608,10 @@ function _settingsLicence(ctx, el){
   } else if (lapsed) {
     const what = isTrial ? t("Your 90-day trial") : t("The {name} licence", { name: keyProd });
     line = "\u26A0 " + (exp ? t("{what} expired on {date}", { what, date: exp }) : t("{what} expired", { what })) + " \u2014 " +
-           (edition === "PadSpan Bright"
+           (fb ? (edition === "PadSpan Bright"
+               ? t("fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming are off. Lights stay where you placed them; the plain wall screen and the 3D house stay free.")
+               : t("fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times are off, and Forensics has stopped recording. Lights stay where you placed them; the plain wall screen and the 3D house stay free."))
+             : edition === "PadSpan Bright"
              ? t("light placement is read-only and the 3D house and the wall screen are off.")
              : t("light placement is read-only, Forensics has stopped recording, and the 3D house, the wall screen, Locate and Busy Times are off.")) +
            " " + (isTrial ? t("Nothing you set up is deleted: it all comes back as you left it when you buy.")
@@ -3600,7 +3622,12 @@ function _settingsLicence(ctx, el){
     const graceLeft = Math.max(1, 14 + daysLeft);   // days_left rounds down; the last day is still a day
     const what = isTrial ? t("Your trial") : t("The {name} licence", { name: keyProd });
     line = "\u26A0 " + (exp ? t("{what} expired on {date}", { what, date: exp }) : t("{what} expired", { what })) + " \u2014 " +
-           (edition === "PadSpan Bright"
+           (fb ? (edition === "PadSpan Bright"
+               ? tn(graceLeft, "fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming switch off in {n} day. Lights stay where you placed them.",
+                 "fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming switch off in {n} days. Lights stay where you placed them.")
+               : tn(graceLeft, "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} day. Lights stay where you placed them.",
+                 "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} days. Lights stay where you placed them."))
+             : edition === "PadSpan Bright"
              ? tn(graceLeft, "light placement goes read-only and the 3D house and the wall screen switch off in {n} day.",
                "light placement goes read-only and the 3D house and the wall screen switch off in {n} days.")
              : tn(graceLeft, "light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in {n} day.",
@@ -3679,19 +3706,25 @@ function _settingsLicence(ctx, el){
                           : t("Or two years for {price}.", { price: PRO_PASS_PRICE }))));
   }
   // The add-ons, in one list beside Pro, to an install without Pro: the ones
-  // it can't use yet, each linking to the site's #addons (editions.js ADDONS).
-  // Never one that isn't on sale yet (on_sale: false).
-  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => a.on_sale !== false && !addonAllowed(s, a.name));
+  // it can't use yet, each linking to the site's #addons (editions.js ADDONS),
+  // or at the cross discount straight to its payment (addonBuyUrl). Never one
+  // that isn't on sale yet (addonOnSale).
+  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => addonOnSale(a.name) && !addonAllowed(s, a.name));
   if (addonOffer.length) {
     const offer = el("div", { class: "addon-offer", style: "font-size:12px;margin-top:8px;line-height:1.6" });
     offer.appendChild(el("div", { style: "color:#cbd5e1" },
       t("Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:")));
     const list = el("div", { style: "display:flex;flex-wrap:wrap;gap:2px 14px" });
     for (const a of addonOffer) {
-      list.appendChild(el("a", { href: ADDONS_URL, target: "_blank", rel: "noopener", "data-addon": a.name,
-        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + addonPriceSaid(a.name)));
+      list.appendChild(el("a", { href: addonBuyUrl(s, a.name), target: "_blank", rel: "noopener", "data-addon": a.name,
+        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + addonPriceSaid(a.name, s)));
     }
     offer.appendChild(list);
+    // The 30% is the licence server's to check: it takes it from the email whose key holds the other add-on.
+    if (addonOffer.some(a => (addonPriceFor(s, a.name) || {}).cross)) {
+      offer.appendChild(el("div", { "data-addon-cross": "note", style: "color:#94a3b8" },
+        t("Pay with the email your key was sent to: the 30% off is for the key that holds the other add-on.")));
+    }
     card.appendChild(offer);
   }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
@@ -3725,7 +3758,10 @@ function _settingsLicence(ctx, el){
   }
 
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },
-    edition === "PadSpan Bright"
+    fb ? (edition === "PadSpan Bright"
+      ? t("A PadSpan Pro key unlocks the paid features, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor, Furnish and the wall screen's night dimming. A PadSpan Bright Pro key unlocks the lights' looks only. Light placement, the plain wall screen and the 3D house are free. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.")
+      : t("A PadSpan Pro key unlocks the paid features, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times. A PadSpan Bright Pro key unlocks the lights' looks only. Light placement, the plain wall screen and the 3D house are free. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew."))
+    : edition === "PadSpan Bright"
       ? t("A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house and the wall screen. A PadSpan Bright Pro key unlocks light placement only. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.")
       : t("A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D house, the wall screen, Locate and Busy Times. A PadSpan Bright Pro key unlocks light placement only. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.")));
   return card;
@@ -3779,6 +3815,8 @@ function _settingsFeatures(ctx, el){
       key: "vacuum_import_enabled",
       label: t("Robot Vacuum Import"),
       desc: t("Lets Mapping → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off."),
+      // The Robot vacuum add-on's once it is on sale (editions.js vacuumAllowed): what it needs, said here.
+      needs: vacuumAllowed(settings) ? "" : proOrAddon("vacuum"),
     },
     {
       key: "phone_wizard_enabled",
@@ -3817,6 +3855,8 @@ function _settingsFeatures(ctx, el){
       el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600;text-transform:uppercase"}, t("experimental")),
     ]));
     left.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.4"}, f.desc));
+    if (f.needs) left.appendChild(el("div",{"data-feature-needs":f.key,style:"font-size:11px;color:#fbbf24;margin-top:4px;line-height:1.4"},
+      t("Needs {what}. Enter a key in Settings → Features → PadSpan licence.", { what: f.needs })));
     const toggle = el("input",{type:"checkbox",style:"width:18px;height:18px;accent-color:#52b788;cursor:pointer;flex-shrink:0"});
     toggle.checked = on;
     toggle.addEventListener("change", async()=>{

@@ -536,6 +536,8 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.tier !== undefined) this.state._tier = String(s.tier);
       // And the add-ons it may use (licence.addon_allowed), kept the same way.
       if (s.addons_licensed !== undefined) this.state._addons = Array.isArray(s.addons_licensed) ? s.addons_licensed : [];
+      // And which add-ons are on sale (licence.addons_on_sale): a feature moving into one is gated from then (hostAddonGate).
+      if (s.addons_on_sale !== undefined) this.state._addonsOnSale = Array.isArray(s.addons_on_sale) ? s.addons_on_sale : [];
       // Features moved down the ladder (licence.FREE_BASICS): sent only while on. With the tier, so a failed fetch keeps both.
       if (s.tier !== undefined) this.state._freeBasics = freeBasics(s);
       // Enhanced security: on, only an administrator changes the house's setup (placing a device among it).
@@ -547,6 +549,8 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.pro_has_key !== undefined) {
         this.state._trialSettings = { pro_has_key: s.pro_has_key, addon_key: s.addon_key, tier: s.tier,
           edition: s.edition, bright_reveal_presence: s.bright_reveal_presence,
+          // The pitch names what Pro adds on top of the free basics (trial_offer.js trialPitch).
+          free_basics: s.free_basics,
           telemetry_enabled: !!s.telemetry_enabled };
         this.state._telemetryOn = !!s.telemetry_enabled;
       }
@@ -1261,6 +1265,7 @@ class PadSpanLightsApp extends HTMLElement {
       tier: this.state._tier,
       // The add-ons this install may use (lights_map.js hostAddon): Pro has them all.
       addons: this.state._addons || [],
+      addonsOnSale: this.state._addonsOnSale || [],
       // Placement and the 3D house's rungs (editions.js), read by lightsHostForTier.
       freeBasics: !!this.state._freeBasics,
       // Door/window/lock click-to-control (2026-09-22) — Alarm & security

@@ -73,6 +73,7 @@ VALUES: dict[str, list[tuple[str, Any]]] = {
     "tester_nudge_done": BOOL,
     "launch_card_done": BOOL,
     "lifetime_card_done": BOOL,
+    "house3d_free_card_done": BOOL,
     "whatsnew_seen_version": one("0.38.268"),
     "room_change_delay_s": one(45),
     "away_timeout_m": one(10),

@@ -91,11 +91,16 @@ export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
 // line on what it unlocks. tests/test_site_claims.py pins every entry on sale
 // to the site's #addons box and its PayPal form; settings.js says the words in
 // the panel's language (ADDON_WORDS). A new add-on is a line here and there.
-// on_sale: false (the owner, 2026-11-25): not sold yet, so nothing offers it
-// (the licence card, the site); Pro includes it meanwhile, and a feature that
-// was free and moves into it stays everyone's until it is (addonGate).
-// licence.NOT_ON_SALE says the same for the backend.
+// on_sale_from (the owner, 2026-11-25): not sold before that moment, so
+// nothing offers it until then (the licence card, the site); Pro includes it
+// meanwhile, and a feature that was free and moves into it stays everyone's
+// until it is (addonGate). licence.ADDON_ON_SALE_FROM says the same for the
+// backend.
 export const ADDON_TERM = "2 years";
+// December 1, 2026, 00:00 Pacific (the owner, 2026-11-25): the free basics (licence.free_basics; the panel reads the
+// backend's word, settings.free_basics), the "3D house is now free" card, and maps and vacuum on sale. The backend's
+// const.FREE_BASICS_FROM_TS is the same moment (tests/test_free_basics_dec1.py).
+export const FREE_BASICS_FROM = "2026-12-01T08:00:00Z";
 export const ADDONS_URL = "https://padspan.traks.ca/#addons";
 export const ADDONS = Object.freeze([
   { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map" },
@@ -107,14 +112,16 @@ export const ADDONS = Object.freeze([
   { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
   { name: "forensics", words: "Forensics", price: "$5.56 CAD", desc: "Which Bluetooth devices were near a scanner in any time window" },
   { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Busy Times and Locate" },
-  // Goes on sale with the free 3D house (the December 1 free-basics switch).
-  { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,
+  // These two go on sale with the free 3D house (the December 1 free basics, FREE_BASICS_FROM).
+  { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale_from: FREE_BASICS_FROM,
     desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
+  { name: "vacuum", words: "Robot vacuum", price: "$6.45 CAD", on_sale_from: FREE_BASICS_FROM,
+    desc: "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans" },
 ]);
-/** Whether add-on `name` is sold now: a known add-on whose entry is not on_sale: false. */
-export function addonOnSale(name) {
+/** Whether add-on `name` is sold at `now`: a known add-on whose on_sale_from, if any, has come. */
+export function addonOnSale(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
-  return !!a && a.on_sale !== false;
+  return !!a && (!a.on_sale_from || now >= Date.parse(a.on_sale_from));
 }
 /** Whether add-on `name`'s features may be used: always on Pro, else the
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
@@ -123,9 +130,17 @@ export function addonAllowed(settings, name) {
   return currentTier(s) === "pro" || (Array.isArray(s.addons_licensed) && s.addons_licensed.includes(name));
 }
 /** The gate of a feature that was free and moves into add-on `name`: everyone's while the add-on is not on sale
- *  (nobody could buy it), then addonAllowed. licence.hass_addon_gate is its twin. */
+ *  (nobody could buy it), then addonAllowed. licence.hass_addon_gate is its twin. Whether it is on sale is the
+ *  backend's word (settings.addons_on_sale, licence.addons_on_sale, every settings read), so the panel and the
+ *  backend switch on one clock, with the next poll; not said (settings not in yet) reads "not on sale". */
 export function addonGate(settings, name) {
-  return !addonOnSale(name) || addonAllowed(settings, name);
+  const s = settings || {};
+  return !(Array.isArray(s.addons_on_sale) && s.addons_on_sale.includes(name)) || addonAllowed(s, name);
+}
+/** The robot vacuum's features (the Robot vacuum add-on): addonGate, and a Bright key, which has had them all along
+ *  (never demoted). vacuum_import.licensed is its twin. */
+export function vacuumAllowed(settings) {
+  return addonGate(settings, "vacuum") || tierAtLeast(currentTier(settings), "bright");
 }
 // Black Friday (the owner, 2026-11-25): every add-on on sale at HALF its price, rounded down to the cent, from
 // ADDON_HALF_FROM (Friday November 27, 2026, 00:00 Pacific) until ADDON_HALF_UNTIL (the end of January 1, 2027,
@@ -147,7 +162,7 @@ export function halfPrice(price) {
 export function addonPriceParts(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
   if (!a) return null;
-  const half = addonHalfOff(now) && a.on_sale !== false;
+  const half = addonHalfOff(now) && addonOnSale(name, now);
   return { price: half ? halfPrice(a.price) : a.price, normal: a.price.replace(/ CAD$/, ""), half };
 }
 /** An add-on's price now, as the site sells it ("$8.65 CAD"; "$4.32 CAD" in the sale), "" for no such add-on: what a
@@ -163,6 +178,47 @@ export function addonPriceWords(name, now = Date.now()) {
   const p = addonPriceParts(name, now);
   if (!p) return "";
   return p.half ? `${p.price} — half off until January 1 (normally ${p.normal})` : p.price;
+}
+// Cross discount (the owner, 2026-11-25): an install that holds Advanced map creation pays 30% off Robot vacuum,
+// and one that holds Robot vacuum pays 30% off Advanced map creation, rounded down to the cent ($8.65 -> $6.05,
+// $6.45 -> $4.51). The better of that and the Black Friday half price, never both. The site can't know who holds
+// what, so it says the rule in words and charges the public price; the discounted purchase is the licence card's own
+// link (addonBuyUrl), and the licence server takes the lower amount only from an email whose key holds the other.
+export const ADDON_CROSS = Object.freeze({ maps: "vacuum", vacuum: "maps" });
+export const ADDON_CROSS_PERCENT = 30;
+const _cents = (price) => Math.round(Number(String(price).replace(/[^\d.]/g, "")) * 100);
+/** A price ("$6.45 CAD") less ADDON_CROSS_PERCENT, rounded down to the cent: "$4.51 CAD". */
+export function crossPrice(price) {
+  return `$${(Math.floor(_cents(price) * (100 - ADDON_CROSS_PERCENT) / 100) / 100).toFixed(2)} CAD`;
+}
+/** What add-on `name` costs THIS install at `now`: addonPriceParts, plus cross (true when the 30% is the better
+ *  price, `with` the add-on held), from the add-ons the backend says it holds (settings.addons_licensed; on Pro,
+ *  none: Pro includes them all and buys none), once `name` is on sale. null for no such add-on. The licence card's
+ *  one price. */
+export function addonPriceFor(settings, name, now = Date.now()) {
+  const p = addonPriceParts(name, now);
+  if (!p) return null;
+  const s = settings || {};
+  const other = ADDON_CROSS[name];
+  const held = !!other && addonOnSale(name, now) && currentTier(s) !== "pro" && Array.isArray(s.addons_licensed)
+    && s.addons_licensed.includes(other);
+  const cross = held ? crossPrice(ADDONS.find(x => x.name === name).price) : "";
+  if (!cross || _cents(cross) >= _cents(p.price)) return { ...p, cross: false };
+  return { price: cross, normal: p.normal, half: false, cross: true, with: other };
+}
+// The PayPal payment the licence card's link makes, field for field the site's #addons forms (site/index.html).
+const PAYPAL_URL = "https://www.paypal.com/cgi-bin/webscr";
+const PAYPAL_FIELDS = { cmd: "_xclick", business: "garry@bcmail.net", currency_code: "CAD", no_shipping: "1",
+  notify_url: "https://traks.ca/license/?action=ipn", return: "https://padspan.traks.ca/?bought=1" };
+/** Where the licence card's link for add-on `name` goes: at the cross discount, PayPal for that amount (item
+ *  padspan-addon-<name>, named as the site names it); at the public price, the site's #addons, which sells it so. */
+export function addonBuyUrl(settings, name, now = Date.now()) {
+  const p = addonPriceFor(settings, name, now);
+  if (!p || !p.cross) return ADDONS_URL;
+  const a = ADDONS.find(x => x.name === name);
+  const q = new URLSearchParams({ ...PAYPAL_FIELDS, item_name: `PadSpan add-on: ${a.words} \u2014 ${ADDON_TERM}`,
+    item_number: `padspan-addon-${name}`, amount: p.price.replace(/[^\d.]/g, "") });
+  return `${PAYPAL_URL}?${q.toString()}`;
 }
 /** Whether this install's key is an add-on key (not a Pro key), lapsed or
  *  not: the backend's own answer (settings.addon_key, licence.is_addon_key).
@@ -199,6 +255,18 @@ export function lifetimeCardDue(settings, now = Date.now()) {
   if (typeof s.pro_has_key !== "boolean") return false;            // not loaded yet: no flash
   return !s.pro_has_key || s.pro_active === false || !!s.license_is_trial || launchCardAnnual(s);
 }
+// "The 3D house is now free", the one Overview card about the free basics
+// (panel.js _freeHouseCard; the owner, 2026-11-25): once, to an administrator,
+// never on a wall, from the moment the backend says the basics are free
+// (settings.free_basics, licence.free_basics: December 1), to an install
+// without Pro (Pro had it all along). Its own flag (house3d_free_card_done),
+// saved the moment it first shows; a key an older backend does not send reads
+// as "not known", never as "due".
+export function freeHouseCardDue(settings) {
+  const s = settings || {};
+  if (!freeBasics(s) || !("house3d_free_card_done" in s) || s.house3d_free_card_done) return false;
+  return currentTier(s) !== "pro";
+}
 export const EDITIONS_URL = "https://padspan.traks.ca/#editions";
 // Where "what changed" lives. The same page the update-check manifest
 // points at (release.py sets notes_url to it), so the notification and the
@@ -224,6 +292,8 @@ export const WHATSNEW_URL = "https://padspan.traks.ca/?hl=en#whatsnew";
 //              stays searchable), and that nothing was lost.
 //
 // An add-on key is not a Pro licence: it is pitched as free, lapsed or not.
+// From the free basics (freeBasics: placement, the plain wall and the 3D house
+// free), each names only what a key adds on top of them.
 //
 // Pure on purpose: it takes the settings payload and returns text, so the rule
 // can be tested without a browser (tests/js/pro_pitch.mjs).
@@ -232,10 +302,16 @@ export function proPitch(settings) {
   const tier = String(st.tier || "free").toLowerCase();
   const hasKey = !!st.pro_has_key && !addonKey(st);
   const lapsed = st.pro_active === false;
+  const fb = freeBasics(st);
 
   if (hasKey && lapsed) {
     // A Bright build shows no Forensics, Locate or Busy Times: name only what it shows.
-    const off = currentEdition(st) === "bright"
+    const off = fb
+      ? (currentEdition(st) === "bright"
+        ? "fixture shapes, Showcase, the 3D editor, Furnish and the wall's night dimming are off; lights stay where you placed them. "
+        : "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall's night dimming, Locate and Busy Times are off, "
+          + "and Forensics has stopped recording (what it recorded stays searchable for its retention period). ")
+      : currentEdition(st) === "bright"
       ? "light placement is read-only and the 3D house and the wall screen are off. "
       : "light placement is read-only, Forensics has stopped recording (what it recorded stays searchable "
         + "for its retention period), and the 3D house, the wall screen, Locate and Busy Times are off. ";
@@ -251,7 +327,11 @@ export function proPitch(settings) {
   if (tier === "bright") {
     return {
       kind: "bright",
-      text: "Your key covers the lighting half. PadSpan Pro adds the 3D house (Live Aboard), the wall "
+      text: fb
+        ? "Your key covers the lights' looks. PadSpan Pro adds the 3D editor, Furnish and people in the 3D house, "
+          + "the wall screen's night dimming and burn-in protection, and Forensics — which Bluetooth devices were "
+          + "near a given scanner in any time window, with dwell time and CSV export. "
+        : "Your key covers the lighting half. PadSpan Pro adds the 3D house (Live Aboard), the wall "
           + "screen and Forensics — which Bluetooth devices were near a given scanner in any time window, "
           + "with dwell time and CSV export. ",
       cta: `PadSpan Pro — ${proPrice()}`,
@@ -260,7 +340,11 @@ export function proPitch(settings) {
   }
   return {
     kind: "free",
-    text: "What a licence adds, in case you have never hit it: light placement, which puts every "
+    text: fb
+      ? "What a licence adds, in case you have never hit it: each light's shape, size and Showcase look "
+        + "(placing it is free); the 3D editor, Furnish and people in the 3D house; the wall screen's night "
+        + "dimming; and Forensics, which answers which Bluetooth devices were near a scanner in any time window. "
+      : "What a licence adds, in case you have never hit it: light placement, which puts every "
         + "light exactly where it hangs instead of clustered in the middle of its room; the 3D house "
         + "(Live Aboard); the wall screen; and Forensics, which answers which Bluetooth devices were "
         + "near a scanner in any time window. ",

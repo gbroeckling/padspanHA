@@ -10,7 +10,7 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
-        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate,
+        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate, vacuumAllowed: _vacuumAllowed,
         placementTier: _placementTier, freeBasics: _freeBasics } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
@@ -1280,6 +1280,8 @@ function _upload(ctx, helpBtn, isBasic){
       floors: _houseFloors(ctx), floorId: () => ctx.state._mapsUploadFloorId || "", toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()),
       onMade: (m) => _roughMade(ctx, m), onSketch: () => { ctx.state._mapsUploadSketch = true; ctx.actions.renderRooms(); },
       vacuumOn: ctx.state.settings?.vacuum_import_enabled === true,
+      // The Robot vacuum add-on (editions.js vacuumAllowed): without it, what its way says it needs.
+      vacuumNeeds: _vacuumAllowed(ctx.state.settings) ? "" : _vacuumNeeds(),
     }));
   }
   const sketch = el("input",{type:"checkbox", "data-upload":"sketch"});
@@ -8662,6 +8664,11 @@ function _isPro(ctx) {
   const t = String(ctx.state.settings?.tier || "").toLowerCase();
   return t === "bright" || t === "pro";
 }
+// What the robot vacuum's features need, said once (the Robot vacuum add-on, once it is on sale).
+function _vacuumNeeds() {
+  return t("Your robot vacuum's map, the robot on the map, room location runs and the mistake finder need PadSpan Pro or the Robot vacuum add-on ({price}). Enter a key in Settings → Features → PadSpan licence.",
+    { price: _addonPrice("vacuum") });
+}
 // Placement on its own rung (editions.js placementTier): the lighting tier's,
 // as _isPro, unless it has moved down the ladder. Then the builder's drag,
 // select, place and save are everyone's, and what a device looks like
@@ -10986,6 +10993,7 @@ function _lightsTab(ctx, maps, active) {
     tier,
     // The add-ons this install may use (lights_map.js hostAddon): Pro has them all.
     addons: ctx.state.settings?.addons_licensed || [],
+    addonsOnSale: ctx.state.settings?.addons_on_sale || [],
     // Placement and the 3D house's rungs (editions.js), read by lightsHostForTier.
     freeBasics: _freeBasics(ctx.state.settings),
     byRoom,
@@ -12515,8 +12523,13 @@ function _roomsTab(ctx, maps) {
     // The robot-vacuum import only while its setting is on, and only for an
     // admin (every vacuum_* command is admin-only). A robot already linked
     // and showing live keeps its controls, so it can still be turned off.
+    // The Robot vacuum add-on's once that is on sale (editions.js vacuumAllowed):
+    // without it, what brings it back instead.
     const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true || !!ctx.state.live?.snapshot?.vacuum;
-    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId));
+    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) {
+      card.appendChild(_vacuumAllowed(ctx.state.settings) ? VACUUM.vacuumImportBlock(ctx, floorId)
+        : el("div", { class: "muted", "data-vacuum": "addon", style: "font-size:12px;margin:6px 0" }, _vacuumNeeds()));
+    }
 
     const importedRaw = mapState._roomsImportedRaw;
     if (importedRaw && importedRaw.levels.length > 1) {

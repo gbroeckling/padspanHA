@@ -22,10 +22,11 @@ const KEY = { tier: "free", pro_has_key: true, addon_key: true, pro_active: true
   license_addons_until: { audio: "2028-11-25 10:00:00", wifi: "2028-12-01 10:00:00" }, addons_licensed: ["audio", "wifi"] };
 const LAPSED = { ...KEY, pro_active: false, license_addons: [], addons_licensed: [] };
 
-// The table: ten add-ons, the owner's prices, words and a line each (maps: not on sale yet, 2026-11-25).
+// The table: eleven add-ons, the owner's prices, words and a line each (maps and vacuum: on sale from December 1).
 const want = { audio: "$6.45 CAD", alarm: "$6.45 CAD", wifi: "$6.45 CAD", climate: "$8.65 CAD", timetravel: "$7.55 CAD",
-  vacation: "$4.25 CAD", looks: "$4.25 CAD", forensics: "$5.56 CAD", insights: "$5.56 CAD", maps: "$8.65 CAD" };
-check("ten add-ons, in order", JSON.stringify(E.ADDONS.map(a => a.name)) === JSON.stringify(Object.keys(want)),
+  vacation: "$4.25 CAD", looks: "$4.25 CAD", forensics: "$5.56 CAD", insights: "$5.56 CAD", maps: "$8.65 CAD",
+  vacuum: "$6.45 CAD" };
+check("eleven add-ons, in order", JSON.stringify(E.ADDONS.map(a => a.name)) === JSON.stringify(Object.keys(want)),
   E.ADDONS.map(a => a.name));
 for (const a of E.ADDONS) {
   check(`${a.name}: its price`, a.price === want[a.name], a.price);

@@ -1,10 +1,12 @@
-"""Three features moved down the ladder by one switch (licence.FREE_BASICS).
+"""Three features moved down the ladder by one switch (licence.free_basics).
 
 Exact placement of lights and devices (from bright), the plain wall mode and
 the 3D house's basics (both from pro) move to the free rung together. The
-switch is a constant, off: with it off, every gate and every screen is what it
-was, which the first block here holds. The rest runs with it on (the
-`free_basics` fixture flips it for one test) and holds what moves and what
+switch is a moment, December 1 (const.FREE_BASICS_FROM_TS; the moment itself is
+tests/test_free_basics_dec1.py): before it, every gate and every screen is what
+it was, which the first block here holds (the suite's clock is before it,
+tests/conftest.py). The rest runs from it (the `free_basics` fixture sets the
+clock to the moment for one test) and holds what moves and what
 does not: a free placement keeps a device's stored looks (shape, size,
 rotation, colour stay the lighting tier's), Live Aboard comes on once for a
 house that never had it to choose, and the one-tap "place this room's
@@ -26,7 +28,7 @@ import pytest
 
 from custom_components.padspan_ha import licence
 from custom_components.padspan_ha import websocket as ws
-from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN, FREE_BASICS_FROM_TS
 from custom_components.padspan_ha.websocket import (
     ws_fabric_light_height_set,
     ws_fabric_light_position_set,
@@ -44,7 +46,7 @@ _NODE = shutil.which("node")
 
 @pytest.fixture
 def free_basics(monkeypatch):
-    monkeypatch.setattr(licence, "FREE_BASICS", True)
+    monkeypatch.setattr(licence, "_clock", lambda: float(FREE_BASICS_FROM_TS))
 
 
 def _settings_hass(**settings) -> MagicMock:
@@ -64,7 +66,7 @@ async def _place(mdl, *, pro: bool, **msg):
 # ═══ Off: nothing changed ══════════════════════════════════════════════════════
 
 def test_the_switch_ships_off_and_every_rung_is_where_it_was() -> None:
-    assert licence.FREE_BASICS is False
+    assert licence.free_basics() is False
     assert licence.placement_tier() == "bright"
     assert licence.house3d_tier() == "pro"
     assert licence.TIERS == ("free", "bright", "pro")

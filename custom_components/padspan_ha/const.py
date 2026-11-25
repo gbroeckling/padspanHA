@@ -190,3 +190,10 @@ OUTDOOR_FLOOR_NAMES = frozenset({
 # licence server's PSPAN_LIFETIME_ENDS are the same moment
 # (tests/test_pricing_dec16.py holds them equal).
 PRO_PASS_FROM_TS = 1797408000  # 2026-12-16T08:00:00Z
+# The start of December 1, 2026 (BC): the free basics (exact placement, the
+# plain wall screen, the 3D house's basics) and the Advanced map creation and
+# Robot vacuum add-ons go on sale (the owner, 2026-11-25). licence.free_basics
+# and licence.addon_on_sale read it on every call, so an install running across
+# the moment switches by itself; the panel's editions.js FREE_BASICS_FROM is the
+# same moment (tests/test_free_basics_dec1.py holds them equal).
+FREE_BASICS_FROM_TS = 1796112000  # 2026-12-01T08:00:00Z

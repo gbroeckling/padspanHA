@@ -1555,6 +1555,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "tester_nudge_done": (None, "kept", "", "The tester card was shown."),
     "launch_card_done": (None, "kept", "", "The launch-price card was shown."),
     "lifetime_card_done": (None, "kept", "", "The \"Pro for life ends Dec 15\" card was shown."),
+    "house3d_free_card_done": (None, "kept", "", "The \"The 3D house is now free\" card was shown."),
     "tester_signup": (None, "kept", "", "Your tester sign-up, so you can update or withdraw it."),
     "pro_invite": (None, "kept", "", "An invite to free Pro, and your answer."),
     "server_offers": (None, "kept", "", "Which free-Pro offers the update check last said are on."),

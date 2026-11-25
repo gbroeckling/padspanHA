@@ -60,18 +60,21 @@ const KINDS = {
 const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2026-12-01T09:00:00Z"),   // launch price, then $168
                pass: Date.parse("2026-12-16T09:00:00Z") };   // lifetime ended: the two-year pass in its place
 
-function licenceCard(settings) {
+function renderFeatures(settings, extraState = {}) {
   const ctx = {
     hass: { user: { is_admin: true }, states: {} },
     state: { view: "settings", complexity: "advanced", _settingsTab: "features", model: { floors: [], areas: [] },
-      settings: { ...settings, telemetry_enabled: false } },
+      settings: { ...settings, telemetry_enabled: false }, ...extraState },
     helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop },
       { get: (t, k) => (k in t ? t[k] : noop) }),
     actions: new Proxy({ wsCall: async () => ({}), renderRooms() {}, renderNav() {} },
       { get: (t, k) => (k in t ? t[k] : () => {}) }),
     toast() {},
   };
-  const root = S.render(ctx);
+  return S.render(ctx);
+}
+function licenceCard(settings) {
+  const root = renderFeatures(settings);
   const card = root._all().find(n => (n.className || "") === "card" && /^PadSpan licence/.test((n.textContent || "").trim()));
   if (!card) throw new Error("no PadSpan licence card on Settings → Features");
   return card;
@@ -110,4 +113,61 @@ if (!S.reportOffConfirmText({ pro_has_key: true, license_homes_used: 3 }))
   failures.push("reportOffConfirmText: a Pro key on 3 homes is no longer asked");
 if (S.reportOffConfirmText({ ...KINDS.addons, license_homes_used: 3 }) !== "")
   failures.push("reportOffConfirmText: an add-on key on 3 homes is asked about the reports rule");
+
+// The free basics (editions.js freeBasics; settings.free_basics from December 1): every sentence on the card and in
+// the tiers wizard that says what a key adds or what a lapsed key loses. Before (no free_basics) exactly the words it
+// always had; from it (free_basics: true) the new ones, which no longer call placement, the wall or the 3D house paid.
+const GRACE = { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "pro", pro_days_left: -3,
+                forensics_license_expires: "2026-11-20" };   // 11 days of grace left
+const statusOf = (s) => { const n = licenceCard(s)._all().find(x => /margin:8px 0 10px/.test(x.getAttribute && x.getAttribute("style") || "")); return n ? n.textContent : ""; };
+const footOf = (s) => { const n = licenceCard(s)._all().find(x => /font-size:11px;color:#94a3b8;margin-top:10px/.test(x.getAttribute && x.getAttribute("style") || "")); return n ? n.textContent : ""; };
+const wizardOf = (step) => (s) => renderFeatures(s, { _tiersWizard: { step } }).textContent;
+const BR = { edition: "bright" };
+const FB_SENTENCES = [
+  ["nokey", KINDS.nokey, statusOf,
+    "No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. Everything else is free and stays free.",
+    "No licence key on this install. Light placement, the plain wall screen and the 3D house are free. The paid features are locked, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D editor, Furnish, people in 3D, Locate and Busy Times. Everything else is free and stays free."],
+  ["nokey_bright", { ...KINDS.nokey, ...BR }, statusOf,
+    "No licence key on this install. Light placement, the 3D house and the wall screen are locked. Everything else is free and stays free.",
+    "No licence key on this install. Light placement, the plain wall screen and the 3D house are free. The lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish are locked. Everything else is free and stays free."],
+  ["lapsed", KINDS.lapsed, statusOf,
+    " — light placement is read-only, Forensics has stopped recording, and the 3D house, the wall screen, Locate and Busy Times are off. ",
+    " — fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times are off, and Forensics has stopped recording. Lights stay where you placed them; the plain wall screen and the 3D house stay free. "],
+  ["lapsed_bright", { ...KINDS.lapsed, ...BR }, statusOf,
+    " — light placement is read-only and the 3D house and the wall screen are off. ",
+    " — fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming are off. Lights stay where you placed them; the plain wall screen and the 3D house stay free. "],
+  ["grace", GRACE, statusOf,
+    " — light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in 11 days.",
+    " — fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in 11 days. Lights stay where you placed them."],
+  ["grace_bright", { ...GRACE, ...BR }, statusOf,
+    " — light placement goes read-only and the 3D house and the wall screen switch off in 11 days.",
+    " — fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming switch off in 11 days. Lights stay where you placed them."],
+  ["footer", KINDS.nokey, footOf,
+    "A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D house, the wall screen, Locate and Busy Times. A PadSpan Bright Pro key unlocks light placement only.",
+    "A PadSpan Pro key unlocks the paid features, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times. A PadSpan Bright Pro key unlocks the lights' looks only. Light placement, the plain wall screen and the 3D house are free."],
+  ["footer_bright", { ...KINDS.nokey, ...BR }, footOf,
+    "A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house and the wall screen. A PadSpan Bright Pro key unlocks light placement only.",
+    "A PadSpan Pro key unlocks the paid features, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor, Furnish and the wall screen's night dimming. A PadSpan Bright Pro key unlocks the lights' looks only. Light placement, the plain wall screen and the 3D house are free."],
+  ["wizard_free", KINDS.nokey, wizardOf(1),
+    "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more.",
+    "A PadSpan Pro key adds the paid features: the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D editor, Furnish and people in 3D, the wall screen's night dimming and burn-in protection, Locate, Busy Times and more."],
+  ["wizard_free_bright", { ...KINDS.nokey, ...BR }, wizardOf(1),
+    "Placing each one exactly where it hangs needs a key — see below.A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more.",
+    "and so are the plain wall screen and the 3D house. Each light's shape, size and looks need a key — see below.A PadSpan Pro key adds the paid features: the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish, the wall screen's night dimming and burn-in protection, and more."],
+  ["wizard_ladder", KINDS.nokey, wizardOf(2),
+    "Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install.",
+    "Adds the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor, Furnish and people in 3D, the wall screen's night dimming and burn-in protection, Forensics, Locate and Busy Times to this install."],
+  ["wizard_ladder_bright", { ...KINDS.nokey, ...BR }, wizardOf(2),
+    "Fixture shapes and sizes, WLED, Showcase, Fit room — light placement exactly where it hangs.",
+    "Fixture shapes and sizes, WLED, Showcase, Fit room — how each light looks; placing it is free."],
+];
+for (const [name, settings, read, before, from] of FB_SENTENCES) {
+  try {
+    const off = read(settings), on = read({ ...settings, free_basics: true });
+    if (!off.includes(before)) failures.push(`free basics ${name}: before the moment the words changed: ${off}`);
+    if (!on.includes(from)) failures.push(`free basics ${name}: from the moment not the new words: ${on}`);
+    if (on.includes(before)) failures.push(`free basics ${name}: from the moment the old words still show`);
+    if (read({ ...settings, free_basics: false }) !== off) failures.push(`free basics ${name}: free_basics false is not "before"`);
+  } catch (e) { failures.push(`free basics ${name}: ${e && e.message ? e.message : e}`); }
+}
 process.stdout.write(JSON.stringify({ cases, addons, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)
