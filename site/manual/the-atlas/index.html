@@ -152,6 +152,42 @@ placed light, and one for each Whole house preset whose lit lights are all on on
 <b>Preset</b>). A tile is a small map of the floor, showing which lights the scene uses. A tap runs it;
 when all its lights are already on, a tap turns them off. <b>+ New scene</b> and ✎ open Home
 Assistant's own scene editor, for an administrator, and never on a wall screen.</p>
+<h2 id="room-controls">Room controls</h2>
+<p>Tick <b>Room controls</b> in the map's <b>⋯</b> (Show on this screen, in the rail beside the map) and each
+room's sheet gains its music, shades and thermostat. It is off until a screen ticks it, and each
+screen (a phone, a wall) has its own tick. Off, the map and the sheets are exactly as before.</p>
+<ul>
+<li><p><b>On the map</b>: a small speaker beside a room's name while one of its players is on, struck
+through while the room's first player is muted. Nothing while they are all off, and no other new
+marks. Tap it, or the name, for the room's sheet: a tap on the map never changes anything.</p></li>
+<li><p><b>The sheet</b>: under the room's name, its temperature and humidity (the middle reading of its
+sensors) and who is there. <b>Room off (n)</b> turns off the room's lights and its players, never a
+lock, a shade, the thermostat or a plug, and shows only while something is on. Then the scenes,
+as before, and:</p>
+<ul>
+<li><b>Audio</b>: a row for each player, named by its system ("Control4 · Great Room", "Denon · Zone
+2"), with whether it is on, off or muted, <b>Mute</b>, <b>−</b>, the level, <b>+</b> and ⏻ (that player
+off). What a player can't do is left out or greyed: a player that is off shows its level as —.</li>
+<li>the room's lights, as before;</li>
+<li><b>Shades</b>: one row for all the room's covers, <b>Open</b>, <b>Stop</b> and <b>Close</b> for all of them
+at once, and how far open they are. Garage doors, gates and doors stay on their door's card.</li>
+<li><b>Climate</b>: each thermostat's temperature now, its setpoint with − and +, and its mode.</li>
+</ul>
+<p>Each press is one call to Home Assistant, with no question first. Anyone who can switch the lights
+can use them, on a wall screen too. If Home Assistant refuses, it says why in its own words.</p></li>
+<li><p><b>Matching the players to the rooms</b>: Home Assistant doesn't know which room a whole-house
+system's zone is in, so an administrator matches them once. <b>Match rooms</b> at the end of the
+Audio part (<b>Match Control4 to HA</b> where Control4 is the only system) opens a card with every
+player, by system, and a room for each, or <b>Not on the map</b>. The first time, it guesses from the
+player's Home Assistant area, else from its name. Ticking <b>Room controls</b> with nothing matched
+opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
+▼ set their order, and the first is the one the map's speaker follows. Someone who isn't an
+administrator sees the button greyed.</p></li>
+<li><p><b>Which players</b>: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
+Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. <b>Include Home
+Assistant speakers</b> on the matching card (off unless ticked) adds every other player with a
+volume: Music Assistant, ESPHome, Cast, TVs.</p></li>
+</ul>
 <h2 id="heatmap-pro">Heatmap (Pro)</h2>
 <p><b>Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)</b>, off by default, adds a <b>♨ Heatmap</b> chip to the Atlas. Tap it to step through
