@@ -8,8 +8,8 @@
 "The floor raise must be a number of metres, or empty.": "Die Bodenerhöhung muss eine Zahl in Metern sein oder leer.",
 "{room} is on an outdoor floor: it is outside ground.": "{room} liegt auf einer Etage im Freien: Es ist Gelände draußen.",
 "{room} is not a room on the map.": "{room} ist kein Raum auf der Karte.",
-"The WLED Advanced tab needs a PadSpan Bright Pro or PadSpan Pro key.": "Der Reiter WLED Advanced braucht einen Schlüssel für PadSpan Bright Pro oder PadSpan Pro.",
-"The WLED Advanced tab needs a PadSpan Pro key.": "Der Reiter WLED Advanced braucht einen Schlüssel für PadSpan Pro.",
+"The WLED Advanced tab needs PadSpan Bright Pro, PadSpan Pro or the Advanced smart lighting add-on.": "Der Reiter WLED Advanced braucht PadSpan Bright Pro, PadSpan Pro oder das Add-on „Erweiterte smarte Beleuchtung“.",
+"The WLED Advanced tab needs PadSpan Pro or the Advanced smart lighting add-on.": "Der Reiter WLED Advanced braucht PadSpan Pro oder das Add-on „Erweiterte smarte Beleuchtung“.",
 "That light isn't a WLED device in Home Assistant's WLED integration": "Dieses Licht ist kein WLED-Gerät in der WLED-Integration von Home Assistant",
 "There's no remembered look at that place in the history": "An dieser Stelle im Verlauf ist kein gemerkter Look",
 "Nothing to change": "Nichts zu ändern",
@@ -241,5 +241,7 @@
 "That is not a notification target": "Das ist kein Benachrichtigungsziel",
 "Only an administrator can match players to rooms": "Nur ein Administrator kann Player Räumen zuordnen",
 "The emergency lights test needs PadSpan Pro or the Alarm & security add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Der Notbeleuchtungstest braucht PadSpan Pro oder das Add-on „Alarm & Sicherheit“. Gib einen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein oder hol dir einen auf https://padspan.traks.ca/#addons",
-"A floor plan from a LiDAR scan needs PadSpan Pro or the Advanced map creation add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Ein Grundriss aus einem LiDAR-Scan braucht PadSpan Pro oder das Add-on „Erweiterte Kartenerstellung“. Gib einen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein oder hol dir einen auf https://padspan.traks.ca/#addons"
+"A floor plan from a LiDAR scan needs PadSpan Pro or the Advanced map creation add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Ein Grundriss aus einem LiDAR-Scan braucht PadSpan Pro oder das Add-on „Erweiterte Kartenerstellung“. Gib einen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein oder hol dir einen auf https://padspan.traks.ca/#addons",
+"Sleep and the day's light need PadSpan Pro or the Advanced smart lighting add-on. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Sleep und das Licht des Tages brauchen PadSpan Pro oder das Add-on „Erweiterte smarte Beleuchtung“. Gib einen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein oder hol dir einen auf https://padspan.traks.ca/#addons",
+"Making and changing power teams needs PadSpan Pro or the Advanced smart lighting add-on. The teams already made keep switching. Enter a key in Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons": "Power-Teams anlegen und ändern braucht PadSpan Pro oder das Add-on „Erweiterte smarte Beleuchtung“. Die schon angelegten Teams schalten weiter. Gib einen Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein oder hol dir einen auf https://padspan.traks.ca/#addons"
 }

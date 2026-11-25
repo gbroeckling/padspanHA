@@ -22,8 +22,10 @@ Mode and the heatmap need PadSpan Pro or their add-on.
 Without Pro, an add-on unlocks one part of the Atlas ([chapter 25](25-padspan-pro.md#add-ons)):
 **Audio**; **Alarm & security** (Arm and Disarm in the emergency button, the emergency lights test,
 and a door's card with its opener and lock); **Climate map** (the heatmap); **Vacation Mode &
-presets**; and the **Looks pack** (Showcase with its themes, the West Coast Forest and the presets
-bar, on the free map: placement stays Pro's).
+presets**; the **Looks pack** (Showcase with its themes, the West Coast Forest and the presets
+bar, on the free map: placement stays Pro's); and **Advanced smart lighting** (power teams that
+follow the day, sleep and wake you, WLED's Advanced controls, Automorph, Fit room, Light spread,
+Scene, Ripple, Hide untouched, fixture shapes and the type override; placement stays Pro's).
 
 ## Getting there
 
@@ -173,8 +175,16 @@ reading over an hour old isn't used.
 
 Smart colour bulbs in sockets fed by a wall dimmer or switch (Zigbee bulbs on a Control4 dimmer, say)
 go dark when someone turns the wall off, and come back in the wrong colour. A power team makes the
-dimmer and its bulbs one light in Home Assistant. Power teams are in the free edition: they need no
-PadSpan Pro key (PadSpan Bright has none, since it gives Home Assistant no entities).
+dimmer and its bulbs one light in Home Assistant. Making, changing and removing a team, and following
+the day, Sleep, the bedtime, the night light and the wake-up, need PadSpan Pro (or Bright Pro) or the
+Advanced smart lighting add-on ([chapter 25](25-padspan-pro.md#add-ons)); PadSpan Bright has no
+power teams, since it gives Home Assistant no entities.
+
+**Without the add-on**, a team already made keeps working as one light: on, off, dimming, its
+**Cut power** and **Power on**, each bulb and **Try again**. It doesn't follow the day, sleep or wake
+you, and nobody can change or remove it; Settings shows it as it is and offers the add-on. A wake-up
+or bedtime already fading when the licence ends finishes the fade it had started on the bulbs, then
+the lights stay as they are. With a key again, the day leads again by itself.
 
 **Make one**: **Settings → Atlas → Power teams**, **+ Add a team**. Name it ("Bedroom lights"), pick
 **Power from** (the wall dimmer or switch, or **None: these lights always have power** for colour
@@ -219,12 +229,16 @@ at once**, **Power on: the bulbs are starting**, **On · set by hand**, **Waking
   left alone. **Save the wake-up**;
 - **Advanced: the day's curve**.
 
-An administrator changes the wake-up and the curve. The sun curve is adapted from Adaptive Lighting.
+An administrator changes the wake-up and the curve (with Pro or the Advanced smart lighting add-on).
+The sun curve is adapted from Adaptive Lighting.
 
 ## Showcase, Automorph and presets (Pro)
 
 Showcase, its themes, the West Coast Forest and the presets bar also come with the Looks pack add-on,
-on the free map; Whole house presets with the Vacation Mode & presets add-on.
+on the free map; Whole house presets with the Vacation Mode & presets add-on. Automorph, Fit room,
+Light spread, Scene, Ripple and Hide untouched come with the Advanced smart lighting add-on, with
+Showcase in its Classic theme as their stage (its themes, the forest and the presets bar stay the
+Looks pack's).
 
 - **Showcase**: 20 themes for the whole map (colour, room edges, glow and light pools together).
   Pick one in the Atlas toolbar under **Presentation**.

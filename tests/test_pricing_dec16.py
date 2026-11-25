@@ -63,7 +63,7 @@ def test_the_key_refusals_stop_naming_bright_pro_at_the_switch() -> None:
     from custom_components.padspan_ha import ws_fabric, ws_wled
     assert "Bright Pro" in ws_fabric._PRO_REQUIRED_MSG and "Bright Pro" not in ws_fabric._PRO_REQUIRED_MSG_FROM_PASS
     assert ws_fabric._PRO_REQUIRED_MSG_FROM_PASS == ws_fabric._PRO_REQUIRED_MSG.replace("PadSpan Bright Pro or PadSpan Pro", "PadSpan Pro")
-    assert "Bright Pro" in ws_wled.TIER_MSG and ws_wled.TIER_MSG_FROM_PASS == "The WLED Advanced tab needs a PadSpan Pro key."
+    assert "Bright Pro" in ws_wled.TIER_MSG and ws_wled.TIER_MSG_FROM_PASS == "The WLED Advanced tab needs PadSpan Pro or the Advanced smart lighting add-on."
     pkg = _ROOT / "custom_components" / "padspan_ha"
     fabric, wled, exact = ((pkg / f).read_text(encoding="utf-8") for f in ("ws_fabric.py", "ws_wled.py", "wled_exact.py"))
     assert fabric.count("_PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS") == 3
@@ -143,7 +143,7 @@ def test_after_the_switch_the_page_sells_the_pass_and_the_year_only(site: str) -
     forms = re.findall(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", after, re.S)
     skus = sorted(re.search(r'name="item_number" value="([^"]+)"', f).group(1) for f in forms)
     addons = [s for s in skus if s.startswith("padspan-addon-")]
-    assert len(addons) == 9 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
+    assert len(addons) == 10 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
     assert 'name="amount" value="85.00"' in next(f for f in forms if "padspan-pro-2year" in f)
     sales = after[after.index('id="lights"'):after.index('id="donate"')]
     assert "Bright Pro" not in sales and "for life" not in sales and "$12" not in sales, \

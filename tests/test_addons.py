@@ -34,7 +34,7 @@ from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 
 _PKG = Path(licence.__file__).parent
 _VIEWS = _PKG / "www" / "padspan-ha" / "views"
-NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps")
+NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting")
 LATER = (datetime.now(timezone.utc) + timedelta(days=700)).strftime("%Y-%m-%d %H:%M:%S")
 KEY = {"forensics_license_key": "PSPAN-ADDO-NNNN-NNNN-0001", "license_tier": "free", "license_addons": ["audio"],
        "license_addons_until": {"audio": LATER}}
@@ -250,7 +250,7 @@ def test_every_place_a_licence_is_set_or_carried_has_the_add_ons() -> None:
     inv = _src("pro_invite.py")
     assert '"license_addons": normalize_addons(data.get("addons")),' in inv
     assert '"license_addons_until": normalize_addons_until(data.get("addons_until")),' in inv
-    assert '"license_addons", "license_addons_until", "license_addons_kept", "license_install_id"' in _src("ws_factory_reset.py"), \
+    assert '"license_addons", "license_addons_until", "license_addons_kept", "license_plan", "license_install_id"' in _src("ws_factory_reset.py"), \
         "a reset keeps them"
     assert '"license_tier", "license_addons", "license_addons_until", "license_addons_kept",' in _src("ws_backup.py"), \
         "a restore keeps the live ones"
@@ -291,7 +291,7 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
     lead = "Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:"
     every = ["Audio $6.45 CAD", "Alarm & security $6.45 CAD", "Wi-Fi coverage $6.45 CAD", "Climate map $8.65 CAD",
              "Time travel $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD", "Forensics $5.56 CAD",
-             "Presence insights $5.56 CAD"]
+             "Presence insights $5.56 CAD", "Advanced smart lighting $8.65 CAD"]
     # Black Friday (editions.js ADDON_HALF_FROM .. UNTIL): the card's "after" (December 1) and "pass" (December 16) are in
     # it, so each add-on is offered at half, rounded down to the cent, with its usual price beside it.
     half = {"$6.45": "$3.22", "$8.65": "$4.32", "$7.55": "$3.77", "$4.25": "$2.12", "$5.56": "$2.78"}
@@ -445,6 +445,49 @@ def test_the_kept_add_on_key_comes_back_only_once_the_trial_has_ended(monkeypatc
         assert len(sent) == 1 and st.data["forensics_license_key"] == _TRIAL_KEY and st.data["license_addons_kept"] == kept
     if said == "pro":
         assert st.data["license_is_trial"] is False and st.data["license_tier"] == "pro" and st.data["forensics_license_expires"] == LATER
+
+
+@pytest.mark.parametrize("pro_ends_in_days, back", [(-20, True), (-1, False), (300, False)],
+                         ids=["lapsed past its grace", "in its grace", "running"])
+def test_a_kept_add_on_key_comes_back_when_the_pro_key_after_the_trial_lapses(monkeypatch, pro_ends_in_days, back) -> None:
+    """A trial bought in place (or a Pro invite claimed during it) is a trial no more, and its Pro keeps its place;
+    the add-on key kept aside for the trial comes back once that Pro key has lapsed past its grace, never lost."""
+    from custom_components.padspan_ha.update_check import _revalidate_license
+    pro_ends = (datetime.now(timezone.utc) + timedelta(days=pro_ends_in_days)).strftime("%Y-%m-%d %H:%M:%S")
+    kept = {k: v for k, v in {**KEY, "forensics_license_expires": LATER}.items() if k in licence.ADDON_KEY_FIELDS}
+    hass, st = _hass({"forensics_license_key": _TRIAL_KEY, "forensics_license_expires": pro_ends, "license_tier": "pro",
+                      "license_plan": "pro", "license_is_trial": False, "license_addons_kept": kept})
+
+    def server(body):
+        return ANSWER if body["key"] == KEY["forensics_license_key"] else             {"valid": True, "status": "active", "plan": "pro", "tier": "pro", "expires_at": pro_ends}
+    _wire(monkeypatch, server)
+    asyncio.run(_revalidate_license(hass))
+    if back:
+        assert st.data["forensics_license_key"] == KEY["forensics_license_key"] and st.data["license_addons"] == ["audio"]
+        assert st.data["license_addons_kept"] == {} and st.data["license_tier"] == "free"
+    else:
+        assert st.data["forensics_license_key"] == _TRIAL_KEY and st.data["license_addons_kept"] == kept
+
+
+def test_an_answer_is_never_kept_on_a_key_that_took_its_place_meanwhile(monkeypatch) -> None:
+    """Two checks at once (the usage report switched as a trial ends): the trial key's refusal, arriving after the
+    other check has put the kept add-on key back, is not that key's, and nothing of it is recorded."""
+    from custom_components.padspan_ha.update_check import _keep_answer, _revalidate_license
+    addon = {**KEY, "forensics_license_expires": LATER, "license_is_trial": False, "license_addons_kept": {}}
+    hass, st = _hass({"forensics_license_key": _TRIAL_KEY, "forensics_license_expires": LATER, "license_tier": "pro",
+                      "license_is_trial": True, "license_addons_kept": {}})
+
+    def server(body):
+        if body["key"] == _TRIAL_KEY:
+            st.data.update(addon)                       # the other check swaps the add-on key back while this one asks
+            return {"valid": False, "status": "revoked", "message": "refunded", "plan": "trial", "tier": "pro"}
+        return ANSWER
+    session = _wire(monkeypatch, server)
+    asyncio.run(_revalidate_license(hass))
+    assert len(session.post.call_args_list) == 1
+    assert {k: st.data[k] for k in addon} == addon, "the add-on key is as it was: not expired, not made a trial or Pro"
+    assert asyncio.run(_keep_answer(st, {"valid": True, "tier": "pro"}, _TRIAL_KEY)) is False
+    assert st.data["license_tier"] == "free"
 
 
 def test_entering_another_key_lets_go_of_a_kept_add_on_key(monkeypatch) -> None:

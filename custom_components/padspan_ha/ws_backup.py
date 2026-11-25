@@ -52,25 +52,29 @@ from .safe_store import async_load_readable
 _LOGGER = logging.getLogger(__name__)
 
 
-def _licence_rank(d: dict[str, Any]) -> tuple[int, float]:
-    """(has a working key, its expiry) - higher is better. A working key is
-    one with no expiry or one not past the grace period (ws_common's rule);
-    no expiry ranks above any date."""
+def _licence_rank(d: dict[str, Any]) -> tuple[int, int, float]:
+    """(has a working key, its tier, its expiry) - higher is better. A working
+    key is one with no expiry or one not past the grace period (ws_common's
+    rule); then the tier (licence.key_tier: an add-on key is free, a trial is
+    Pro), so a two-year add-on key never beats a one-year Pro key or a running
+    trial by its later date; then the date, no expiry above any."""
     from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+    from .licence import TIERS, key_tier  # noqa: PLC0415
     from .ws_common import PRO_GRACE_DAYS  # noqa: PLC0415
     if not str(d.get("forensics_license_key") or "").strip():
-        return (0, 0.0)
+        return (0, 0, 0.0)
+    tier = TIERS.index(key_tier(d))
     raw = str(d.get("forensics_license_expires") or "").strip()
     if not raw:
-        return (2, float("inf"))
+        return (2, tier, float("inf"))
     try:
         exp = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if exp.tzinfo is None:
             exp = exp.replace(tzinfo=timezone.utc)
     except ValueError:
-        return (2, float("inf"))      # an unreadable date never locks anyone out
+        return (2, tier, float("inf"))      # an unreadable date never locks anyone out
     working = exp - datetime.now(timezone.utc) > -timedelta(days=PRO_GRACE_DAYS)
-    return (2 if working else 1, exp.timestamp())
+    return (2 if working else 1, tier, exp.timestamp())
 
 
 async def _load_backups(hass: HomeAssistant) -> dict[str, Any]:
@@ -594,7 +598,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             if _licence_rank(_live) >= _licence_rank(data):
                                 for _k in ("forensics_license_key", "forensics_license_expires",
                                            "license_tier", "license_addons", "license_addons_until", "license_addons_kept",
-                                           "license_is_trial",
+                                           "license_is_trial", "license_plan",
                                            # this home among the key's homes (licence_homes.py):
                                            # a restored token would look like a copy of it
                                            "license_home_token", "license_home_label",

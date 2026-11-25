@@ -178,7 +178,7 @@ folding heading on that tab.
 | Atlas — Mapped Light Control: Notify when a leak, smoke, gas or CO alarm goes off | on | on or off | Sends one notification when the alarm latches and one when it clears, where Follow alerts go. | `emergency_notify` |
 | Atlas — Mapped Light Control: Heatmap chip on the Atlas (temperature, humidity, CO₂) | off | on or off | A Heatmap chip on the Atlas: rooms coloured by their own sensors. Pro or the Climate map add-on. | `atlas_heatmap_enabled` |
 | Atlas — Mapped Light Control: Audio | off | on or off | On the classic layout, for the whole house: a speaker beside a room's name while one of its players is on, and Audio in the room's card. Pro or the Audio add-on; on the new layout each screen's ⋯ list has it instead. | `atlas_audio_enabled` |
-| Power teams | empty |  | Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). | `power_teams` |
+| Power teams | empty |  | Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). Made and changed, and following the day, with Pro, Bright Pro or the Advanced smart lighting add-on. | `power_teams` |
 | Outdoor weather: Show rain and snow on the Atlas | on | on or off | Rain or snow around the house while it really rains or snows. | `atlas_weather_enabled` |
 | Outdoor weather: Rain sensor | empty | an entity: `binary_sensor.*` or `sensor.*`, or empty | A rain sensor that says when it is wet. Empty: the weather entity decides. | `atlas_weather_rain_entity` |
 | Outdoor weather: Weather entity | empty | an entity: `weather.*`, or empty | The weather entity, for rain or snow. Empty: the first one Home Assistant has. | `atlas_weather_condition_entity` |
@@ -257,9 +257,9 @@ Settings PadSpan keeps for a control on another screen. Each is saved when you u
 | Mapping → Atlas builder | Classic layout | on | on or off | On: the Atlas's new layout (wall screens need it). Off: the classic layout. | `atlas_layout_v2` |
 | Mapping → Atlas builder | Showcase | off | on or off | Bright Pro, Pro or the Looks pack add-on: the Atlas's presentation look. | `lights_showcase` |
 | Mapping → Atlas builder | Showcase: Theme | `classic` | `classic`, `cinematic_glass`, `neo_hud`, `ambient_premium`, `dataviz_precision`, `organic_bioluminescent`, `material_you`, `neon_precision`, `luxury_realestate`, `wabi_sabi`, `hygge`, `aurora`, `automotive_hud`, `art_deco`, `swiss_style`, `bauhaus`, `holographic`, `retro_futurism`, `obsidian_noir`, `west_coast_forest` | Showcase's theme. | `lights_showcase_theme` |
-| Mapping → Atlas builder | Showcase: Fit room | off | on or off | Never draws a light bigger than its room. | `lights_fit_rooms` |
-| Mapping → Atlas builder | Showcase: Light spread | off | on or off | Lines of equal light on the floor. | `lights_isolux` |
-| Mapping → Atlas builder | Hide untouched | off | on or off | Draws only lights that were set up (sized, turned, coloured or shaped). | `lights_hide_untouched` |
+| Mapping → Atlas builder | Showcase: Fit room | off | on or off | Never draws a light bigger than its room. Bright Pro, Pro or the Advanced smart lighting add-on. | `lights_fit_rooms` |
+| Mapping → Atlas builder | Showcase: Light spread | off | on or off | Lines of equal light on the floor. Bright Pro, Pro or the Advanced smart lighting add-on. | `lights_isolux` |
+| Mapping → Atlas builder | Hide untouched | off | on or off | Draws only lights that were set up (sized, turned, coloured or shaped). Bright Pro, Pro or the Advanced smart lighting add-on. | `lights_hide_untouched` |
 | Mapping → Atlas builder | Hide device codes | off | on or off | Hides each marker's A01-style code. | `lights_hide_device_codes` |
 | Mapping → Atlas builder | Show beacons | off | on or off | Shows working, named beacons on the Atlas. | `lights_show_beacons` |
 | Mapping → Atlas builder | Automorph | off | on or off | Pro: a glow from each light out into its room. | `lights_automorph_enabled` |
@@ -283,7 +283,7 @@ Settings PadSpan keeps for a control on another screen. Each is saved when you u
 | Atlas → a room's sheet | Audio: Match rooms | empty |  | Which media players are in which room, in each room's order (the first is the one the map's speaker follows). An administrator's. | `room_audio_matches` |
 | Atlas → a room's sheet | Audio: Include Home Assistant speakers (Music Assistant, ESPHome, Cast, TVs) | off | on or off | Offers every media player with a volume, not only the whole-house systems'. Off unless ticked. | `room_audio_ha_speakers` |
 | Mapping → Atlas builder | Atlas builder | empty |  | Each light's marker shape. | `light_shapes` |
-| Mapping → Atlas builder | Atlas builder | empty |  | Pro: a light forced to be drawn as WLED, a partition or plain. | `light_type_overrides` |
+| Mapping → Atlas builder | Atlas builder | empty |  | Pro or the Advanced smart lighting add-on: a light forced to be drawn as WLED, a partition or plain. | `light_type_overrides` |
 | Mapping → Atlas builder | Atlas builder | not set | a list | Lights hidden from the Atlas. | `lights_hidden` |
 | Mapping → Atlas builder | Save view | 150 | 60 to 340 | Space between floors on the Overview and the Atlas. | `overview_iso_floor_gap` |
 | Mapping → Atlas builder | Save view | 0 | -120 to 120 | Sideways offset between floors. | `overview_iso_horiz_gap` |

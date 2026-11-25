@@ -137,7 +137,7 @@ _SKUS = {
     # exactly, so an add-on SKU never carries another tier's marker.
     **{f"padspan-addon-{name}": (price, ("padspan", "addon"), ("upgrade", "bright", "lifetime", "2year"))
        for name, price in (("audio", 6.45), ("alarm", 6.45), ("wifi", 6.45), ("climate", 8.65), ("timetravel", 7.55),
-                           ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56))},
+                           ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56), ("lighting", 8.65))},
 }
 
 
@@ -149,8 +149,9 @@ def test_the_add_ons_are_sold_as_the_panel_says(html: str) -> None:
     ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
           / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
     table = re.findall(r'\{ name: "(\w+)", words: "([^"]+)", price: "\$(\d+\.\d\d) CAD", desc: "([^"]+)" \}', ed)
+    # On sale only: an add-on with on_sale: false (Advanced map creation) is in no box (tests/test_addon_gates.py).
     assert [n for n, *_ in table] == ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
-                                      "forensics", "insights"]
+                                      "forensics", "insights", "lighting"]
     term = re.search(r'ADDON_TERM = "(\d+) years"', ed).group(1)
     assert re.search(r'ADDONS_URL = "https://padspan\.traks\.ca/#addons"', ed)
     box = html[html.index('<div class="ed" id="addons"'):]

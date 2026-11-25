@@ -101,8 +101,8 @@ class House:
         monkeypatch.setattr(er, "async_entries_for_device",
                             lambda reg, d: [e for e in self.entities.values() if e.device_id == d], raising=False)
         self.tier = [True]
-        monkeypatch.setattr(E, "_tier_at_least", lambda h, t: self.tier[0])
-        monkeypatch.setattr(W, "_tier_at_least", lambda h, t: self.tier[0])
+        # WLED's licence (ws_wled._licensed: Bright, Pro or Advanced smart lighting), the one gate both modules ask.
+        monkeypatch.setattr(W, "_licensed", lambda h: self.tier[0])
         monkeypatch.setattr(W, "_request_once", self.fleet.request_once)
         monkeypatch.setattr(E, "RETRY_DELAYS", (0, 0))
         monkeypatch.setattr(E, "_now", lambda: self.clock[0])

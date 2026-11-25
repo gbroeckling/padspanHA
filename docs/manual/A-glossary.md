@@ -5,8 +5,8 @@
 The words this manual and PadSpan's panel use, in alphabetical order.
 
 **Add-on.** One part of PadSpan Pro, bought on its own for an install without Pro: Audio, Alarm &
-security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics or
-Presence insights. One payment covers 2 years, on up to three homes; PadSpan Pro includes them all.
+security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics,
+Presence insights or Advanced smart lighting. One payment covers 2 years, on up to three homes; PadSpan Pro includes them all.
 See [chapter 25](25-padspan-pro.md#add-ons).
 
 **Administrator.** A Home Assistant user with administrator rights. Backups, restores, a Factory
@@ -150,7 +150,8 @@ History Retention (1 day unless you change it); named ones stay.
 → Performance → Presence Poll Interval).
 
 **Power team.** A wall dimmer or switch and the smart bulbs it feeds, made into one light (Settings →
-Atlas → Power teams).
+Atlas → Power teams). Making and changing one, and following the day, need PadSpan Pro or the
+Advanced smart lighting add-on.
 
 **Private BLE Device.** Home Assistant's integration that follows a phone by its IRK. PadSpan reads
 its keys; a key you add there reaches PadSpan within five minutes.

@@ -59,7 +59,6 @@ from . import wled_look as L
 from . import ws_wled as W
 from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN, WLED_LOOKS_STORE_KEY, refusal
 from .util import ha_device_config_entries
-from .ws_common import _tier_at_least
 from .quiet_errors import note as _quiet_error
 from .safe_store import async_load_readable
 
@@ -255,7 +254,7 @@ def _members(t: dict) -> list[str]:
 
 
 def _exact_record(hass: HomeAssistant, entity_id: str) -> dict | None:
-    if not _tier_at_least(hass, W.TIER):
+    if not W._licensed(hass):
         return None
     st = _store(hass)
     if st is None:
@@ -269,7 +268,7 @@ def _exact_record(hass: HomeAssistant, entity_id: str) -> dict | None:
 def _runs(hass: HomeAssistant, rec: dict | None) -> bool:
     """PadSpan runs this light now. Nothing on the exact path is sent to a
     device otherwise: every exact request switches its live WLED sync off."""
-    return bool(rec and rec.get("exact") and rec.get("look")) and _tier_at_least(hass, W.TIER)
+    return bool(rec and rec.get("exact") and rec.get("look")) and W._licensed(hass)
 
 
 def _team_of_entity(hass: HomeAssistant, entity_id: str) -> tuple[dict | None, dict | None]:
@@ -968,7 +967,7 @@ async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness:
 
 async def on_state_change(hass: HomeAssistant, entity_id: str, old: Any, new: Any) -> None:
     at = _mono()                    # when HA reported it (it may wait below for the one before)
-    if not _tier_at_least(hass, W.TIER):
+    if not W._licensed(hass):
         await _lapsed_team_follows(hass, entity_id, old, new)
         return
     st = _store(hass)
@@ -1499,7 +1498,7 @@ def _public(hass: HomeAssistant, rec: dict, admin: bool) -> dict[str, Any]:
 
 
 async def _gate(hass: HomeAssistant, connection: Any, msg: dict, *, tier: bool = True) -> dict | None:
-    if tier and not _tier_at_least(hass, W.TIER):
+    if tier and not W._licensed(hass):
         connection.send_error(msg["id"], "bright_required", W.TIER_MSG if time.time() < W.PRO_PASS_FROM_TS else W.TIER_MSG_FROM_PASS)
         return None
     ident = _identify(hass, entity_id=msg.get("entity_id"), device_id=msg.get("device_id"))
@@ -1521,7 +1520,7 @@ async def ws_wled_exact_list(hass: HomeAssistant, connection, msg) -> None:
     licence only the members of a team PadSpan runs (padspan_ha/wled_power
     switches them all with plain HA calls); every other light falls back to
     a plain HA light call. look_bri is as HA shows the device's master light."""
-    licensed = _tier_at_least(hass, W.TIER)
+    licensed = W._licensed(hass)
     st = await async_get_store(hass)
     out = []
     for rec in st.records().values():
@@ -1556,7 +1555,7 @@ async def ws_wled_look_get(hass: HomeAssistant, connection, msg) -> None:
     st = await async_get_store(hass)
     rec = st.get(ident["mac"]) or new_record(ident["mac"], ident["device_id"], ident["name"])
     out = _public(hass, rec, W._is_admin(connection))
-    if not _tier_at_least(hass, W.TIER):
+    if not W._licensed(hass):
         connection.send_result(msg["id"], {"lapsed": True, **{k: out[k] for k in (
             "device_id", "name", "join", "exact", "sync_off", "sync_off_message", "team_id", "team_mode")}})
         return
@@ -1726,7 +1725,7 @@ async def ws_wled_team_mode(hass: HomeAssistant, connection, msg) -> None:
     sync it had at the switch (the team's own group). WLED sync: every
     member's sync goes back to before the team (the card then sets the
     team's groups up again, as for a new team)."""
-    if msg["mode"] == "padspan" and not _tier_at_least(hass, W.TIER):
+    if msg["mode"] == "padspan" and not W._licensed(hass):
         connection.send_error(msg["id"], "bright_required", W.TIER_MSG if time.time() < W.PRO_PASS_FROM_TS else W.TIER_MSG_FROM_PASS)
         return
     sst = (hass.data.get(DOMAIN) or {}).get(DATA_SETTINGS)

@@ -75,7 +75,8 @@ def test_the_file_is_fetched_only_with_the_atlas_look_showcase_and_the_theme() -
     # Looks pack add-on keeps it (lights_map.js lightsHostForTier).
     assert 'A = LOOKS && p.look3d === "atlas" ? LOOKS.atlasLook(p.atlasLook) : null;' in la
     lm = _code(_VIEWS / "lights_map.js")
-    assert '...(hostAddon(host, "looks") ? {} : { showcase: false, onShowcase: null }),' in lm
+    assert '...(looks || design ? {} : { showcase: false, onShowcase: null }),' in lm
+    assert '...(looks ? {} : { showcaseTheme: "classic", onShowcaseTheme: null, showcasePresets: [],' in lm   # lighting: Classic
     assert "atlasLook: { on: !!host.showcase," in lm
 
 

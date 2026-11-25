@@ -3417,6 +3417,12 @@ const HOME_REFUSED = {
   removed: () => t("This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here."),
   needs_report: () => t("This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Tracking \u2192 Help improve PadSpan)."),
 };
+// An add-on key whose add-ons are all newer than this PadSpan: the licence
+// server answers it "needs_update" (at activation, or the daily check:
+// license_home_status), and nothing about it is Pro here.
+const NEEDS_UPDATE = () => t("This add-on needs a newer PadSpan — update PadSpan.");
+// What a refused activation says: needs_update in the panel's words, else the server's own.
+const refusedWords = (r) => (r && r.status === "needs_update" ? NEEDS_UPDATE() : (r && r.message)) || t("That key was not accepted");
 // A key on more than two homes needs every home's usage report on (0.38.163).
 // The licence server decides and names the homes; these only say it.
 function _homesDate(iso){
@@ -3461,7 +3467,7 @@ const ADDON_WORDS = {
   audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
   climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
-  maps: () => t("Advanced map creation"),
+  maps: () => t("Advanced map creation"), lighting: () => t("Advanced smart lighting"),
 };
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 // What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
@@ -3585,6 +3591,8 @@ function _settingsLicence(ctx, el){
       });
       line = "\u2713 " + t("PadSpan add-ons: {list}", { list: held.join(" \u00B7 ") });
       colour = expiringSoon ? "#fbbf24" : "#a7f3d0";
+      // Add-ons this PadSpan doesn't know (the server said needs_update, or none it knows is on the key): never Pro.
+      if (s.license_home_status === "needs_update" || !held.length) { line = "\u26A0 " + NEEDS_UPDATE(); colour = "#fbbf24"; }
     }
   } else if (lapsed) {
     const what = isTrial ? t("Your 90-day trial") : t("The {name} licence", { name: keyProd });
@@ -3633,11 +3641,12 @@ function _settingsLicence(ctx, el){
         const r = await ctx.actions.wsCall("padspan_ha/forensics_license_activate", { key: key.trim() });
         if (r && r.ok) {
           if (r.settings) ctx.state.settings = r.settings;
-          ctx.toast(t("Licence activated"));
+          // An add-on key whose add-ons are all newer than this PadSpan: kept, and said (never Pro).
+          if (r.status === "needs_update") ctx.toast(NEEDS_UPDATE(), true); else ctx.toast(t("Licence activated"));
           ctx.actions.renderNav && ctx.actions.renderNav();
           ctx.actions.renderRooms();
         } else {
-          ctx.toast((r && r.message) || t("That key was not accepted"), true);
+          ctx.toast(refusedWords(r), true);
         }
       } catch (e) {
         ctx.toast(t("Licence check failed: {why}", { why: ctx.helpers.errorText(e) }), true);
@@ -3886,7 +3895,8 @@ function _settingsFeatures(ctx, el){
               // A key without Forensics (another add-on): it is on, Forensics stays off.
               if(r.settings) ctx.state.settings = r.settings;
               toggle.checked = false;
-              ctx.toast(t("Licence activated. It doesn't include Forensics: that needs {what}.", { what: proOrAddon("forensics") }), true);
+              ctx.toast(r.status === "needs_update" ? NEEDS_UPDATE()
+                : t("Licence activated. It doesn't include Forensics: that needs {what}.", { what: proOrAddon("forensics") }), true);
               ctx.actions.renderNav && ctx.actions.renderNav();
               ctx.actions.renderRooms();
             } else if(r?.ok){
@@ -3898,7 +3908,7 @@ function _settingsFeatures(ctx, el){
               ctx.actions.renderRooms();
             } else {
               toggle.checked = false;
-              ctx.toast(r?.message || t("That key was not accepted"), true);
+              ctx.toast(refusedWords(r), true);
             }
           } catch(e){
             toggle.checked = false;
@@ -5279,7 +5289,10 @@ function _settingsAtlas(ctx, el){
   lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // Power teams (power_team.py, the full edition's): a wall dimmer and the smart bulbs it feeds, as one light.
-  if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el));
+  if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") {
+    // Without Advanced smart lighting the section offers it at the price of the day (editions.js addonPrice).
+    lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el, { lightingPrice: addonPrice("lighting"), addonsUrl: ADDONS_URL }));
+  }
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.
   if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));

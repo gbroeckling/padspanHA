@@ -1149,14 +1149,36 @@ def test_the_pull_is_read_only_private_and_uses_the_existing_telegram_sender():
     assert 'mv -f "$T_DEST/.testers.json.new" "$T_DEST/testers.json"' in block
 
 
-@pytest.mark.parametrize("live_key,backup_key,expect", [
-    ("PSPAN-PAID", "", "PSPAN-PAID"),           # bought after the backup
-    ("PSPAN-PAID", "PSPAN-TRIAL", "PSPAN-PAID"),  # trial key in the backup
-    ("", "PSPAN-OLD", "PSPAN-OLD"),             # a fresh install takes the backup's
+def _in_days(n: int) -> str:
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(days=n)).isoformat()
+
+
+# Licences beside their keys, as each install or backup stores them (an add-on key reads as tier free: licence.key_tier).
+_ADDON_2Y = {"license_tier": "free", "license_plan": "addons", "license_addons": ["lighting"], "license_is_trial": False}
+_PRO_1Y = {"license_tier": "pro", "license_plan": "pro", "license_is_trial": False}
+_TRIAL = {"license_tier": "pro", "license_plan": "trial", "license_is_trial": True}
+
+
+@pytest.mark.parametrize("live_key,backup_key,expect,live_extra,backup_extra", [
+    ("PSPAN-PAID", "", "PSPAN-PAID", {}, {}),            # bought after the backup
+    ("PSPAN-PAID", "PSPAN-TRIAL", "PSPAN-PAID", {}, {}),   # trial key in the backup
+    ("", "PSPAN-OLD", "PSPAN-OLD", {}, {}),              # a fresh install takes the backup's
+    # An add-on key runs two years: a later date never makes it beat a working Pro key or a running trial.
+    ("PSPAN-PRO", "PSPAN-ADDO", "PSPAN-PRO", {**_PRO_1Y, "forensics_license_expires": _in_days(300)},
+     {**_ADDON_2Y, "forensics_license_expires": _in_days(700)}),
+    ("PSPAN-TRIAL", "PSPAN-ADDO", "PSPAN-TRIAL", {**_TRIAL, "forensics_license_expires": _in_days(60)},
+     {**_ADDON_2Y, "forensics_license_expires": _in_days(700)}),
+    # A working Pro key in the backup beats the live add-on key; a working key always beats a lapsed one.
+    ("PSPAN-ADDO", "PSPAN-PRO", "PSPAN-PRO", {**_ADDON_2Y, "forensics_license_expires": _in_days(700)},
+     {**_PRO_1Y, "forensics_license_expires": _in_days(300)}),
+    ("PSPAN-PRO", "PSPAN-ADDO", "PSPAN-ADDO", {**_PRO_1Y, "forensics_license_expires": _in_days(-60)},
+     {**_ADDON_2Y, "forensics_license_expires": _in_days(700)}),
 ])
-def test_a_restore_keeps_the_live_licence(monkeypatch, live_key, backup_key, expect):
+def test_a_restore_keeps_the_live_licence(monkeypatch, live_key, backup_key, expect, live_extra, backup_extra):
     """Restoring a backup from before a purchase blanked the key (or put an
-    expired trial key back) and locked paid editing."""
+    expired trial key back) and locked paid editing; and a two-year add-on key in
+    a backup replaced a live one-year Pro key or a running trial (Pro locked)."""
     import homeassistant.helpers.storage as _hs
     from custom_components.padspan_ha import ws_backup
     from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
@@ -1165,19 +1187,22 @@ def test_a_restore_keeps_the_live_licence(monkeypatch, live_key, backup_key, exp
     bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.80",
                        "note": "", "map_images": {},
                        "stores": {SETTINGS_STORE_KEY: {"quiet_mode": True, "forensics_license_key": backup_key,
-                                                       "license_is_trial": bool(backup_key)}}}]}
+                                                       "license_is_trial": bool(backup_key), **backup_extra}}}]}
 
     async def _load(_hass):
         return bk
 
     monkeypatch.setattr(ws_backup, "_load_backups", _load)
     h = _house()
-    h.data[DOMAIN][DATA_SETTINGS].data.update(forensics_license_key=live_key, license_is_trial=False)
+    h.data[DOMAIN][DATA_SETTINGS].data.update({"forensics_license_key": live_key, "license_is_trial": False, **live_extra})
     _run(ws_backup.ws_store_backup_restore(h, MagicMock(), {"id": 1, "backup_id": "bk1",
                                                               "store_keys": [SETTINGS_STORE_KEY]}))
     after = h.data[DOMAIN][DATA_SETTINGS].data
     assert after["quiet_mode"] is True, "the restore did not run"
     assert after["forensics_license_key"] == expect
+    if live_extra or backup_extra:   # the rest of the licence goes with its key
+        kept = live_extra if expect == live_key else backup_extra
+        assert all(after.get(k) == v for k, v in kept.items()), {k: after.get(k) for k in kept}
 
 
 def test_a_factory_reset_keeps_the_licence_tier(monkeypatch):

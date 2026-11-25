@@ -986,7 +986,7 @@ class PadSpanLightsApp extends HTMLElement {
       onEdit: this._isAdmin() && !this._basicMode() ? (e)=>this._gotoBuilder(e) : null,
       // A wall (?kiosk=1): no Details, nothing on it leaves the page.
       kiosk: this._kiosk(),
-      ...controlApiFor(this._regStore?.reg, eid, { tier: this.state._tier, isAdmin: this._isAdmin() }),
+      ...controlApiFor(this._regStore?.reg, eid, { tier: this.state._tier, addons: this.state._addons, isAdmin: this._isAdmin() }),
     });
   }
 
@@ -1174,7 +1174,7 @@ class PadSpanLightsApp extends HTMLElement {
     ensureExactDevices(this._hass, ()=>this._render());
     const linkedNow = new Set((this.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
     const placedNow = this.state.model?.light_positions_m || {};
-    const gathered = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects,
+    const gathered = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, { tier: this.state._tier, addons: this.state._addons }, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects,
       linkedNow);
     // A Zigbee device's duplicate copy stays off the map unless it is placed or linked (lights_map.js).
     const { lights, twins: zigbeeTwins } = withoutZigbeeDuplicates(gathered, { zigbee_twins: this.state._zigbeeTwins }, (eid) => !!placedNow[eid] || linkedNow.has(eid));
@@ -1605,9 +1605,10 @@ class PadSpanLightsApp extends HTMLElement {
       // A per-entity classification correction, not a presentation mode —
       // unlike showcase/fitRooms/isolux above, this panel DOES let you edit
       // it here, the same as Hide/Show and the Room-assignment dropdown
-      // already do. Pro only, matching the Mapping tab's own gate.
+      // already do. Pro or Advanced smart lighting (_addon: Pro has it),
+      // matching the Mapping tab's own gate.
       typeOverrides: this.state._typeOverrides,
-      onTypeOverride: String(this.state._tier||"").toLowerCase()==="pro" ? async (eid, kind) => {
+      onTypeOverride: this._addon("lighting") ? async (eid, kind) => {
         const next = { ...this.state._typeOverrides };
         if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
         this.state._typeOverrides = next;

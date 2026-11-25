@@ -35,7 +35,7 @@ def test_a_check_says_which_home_it_is():
     # addons: the add-ons this PadSpan knows; the licence server answers an
     # add-on key only to a PadSpan that says which ones it knows.
     assert p == {"t": "1", "token": "a" * 32, "version": VERSION, "label": "Cabin", "report": "0",
-                 "addons": "audio,alarm,wifi,climate,timetravel,vacation,looks,forensics,insights,maps"}
+                 "addons": "audio,alarm,wifi,climate,timetravel,vacation,looks,forensics,insights,maps,lighting"}
     assert LH.home_params(None)["token"] == "", "a home without a token yet asks for one"
     for k in ("license_home_token", "license_home_label", "license_home_status"):
         assert DEFAULT_SETTINGS[k] == ""
@@ -53,7 +53,8 @@ def test_only_a_real_new_token_is_kept():
 def test_both_server_calls_send_it_and_keep_the_answer():
     up = _src("update_check.py")
     assert 'await call(hass, "validate", key, home_params(st.data))' in up and "await keep_token(st, data)" in up, "the daily check"
-    assert '_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed", "needs_all_reports")' in up, "a refused home is said in Settings"
+    assert ('_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed", "needs_all_reports",\n'
+            '                             "needs_update") else ""') in up, "a refused home (and an add-on key too new) is said in Settings"
     fo = _src("ws_forensics.py")
     assert 'await call(hass, "validate", key, _hp)' in fo, "activation"
     assert '_hp["token"] = ""' in fo, "a different key starts the home afresh"
@@ -93,7 +94,7 @@ def test_homes_after_the_first_two_need_the_usage_report_and_are_seen_together()
         assert "'licence_group'" in php and "/^[0-9a-f]{16}\z/" in php, "the receiver takes it, and only that shape"
     js = _src("www/padspan-ha/views/settings.js")
     assert "needs_report:" in js and "with a licence used on more than two homes, a short code made from the key (never the key)" in js
-    assert '"needs_report", "removed", "needs_all_reports") else ""' in _src("update_check.py")
+    assert '"needs_report", "removed", "needs_all_reports",\n                             "needs_update") else ""' in _src("update_check.py")
 
 
 def test_a_house_with_one_or_two_homes_sends_the_same_report_as_before():
