@@ -170,6 +170,46 @@ export function addonPriceWords(name, now = Date.now()) {
 export function addonKey(settings) {
   return !!settings && settings.addon_key === true;
 }
+// "Half off every add-on until January 1", the one Overview card about the
+// sale (panel.js _addonSaleCard; the owner, 2026-11-25), held to the lifetime
+// card's discipline: once, to an administrator, never on a wall, only while
+// addonHalfOff, and only once the backend says it was never shown
+// (addon_sale_card_done: a key an older backend does not send reads as "not
+// known", never as "due"). Due to an install without paid Pro: no key, a
+// trial, a lapsed key, Bright, or an add-on key that lacks an add-on on sale.
+// A running Pro key (bought or given) includes every add-on, so never there.
+export function addonSaleCardDue(settings, now = Date.now()) {
+  const s = settings || {};
+  if (!addonHalfOff(now) || !("addon_sale_card_done" in s) || s.addon_sale_card_done) return false;
+  if (typeof s.pro_has_key !== "boolean") return false;            // not loaded yet: no flash
+  if (s.license_is_trial && s.pro_active !== false) return true;
+  return ADDONS.some(a => a.on_sale !== false && !addonAllowed(s, a.name));
+}
+// The few the card names with their half price: the first three on sale this
+// install can't use yet, in this order.
+const SALE_CARD_PICKS = ["audio", "climate", "timetravel", "looks", "alarm", "insights", "vacation", "forensics", "wifi"];
+export function addonSaleCardPicks(settings) {
+  const s = settings || {};
+  const trial = !!s.license_is_trial;
+  return SALE_CARD_PICKS.filter(n => addonOnSale(n) && (trial || !addonAllowed(s, n))).slice(0, 3);
+}
+// An add-on offered where it is refused or sold (the usage report, only when it
+// is on: the send is the panel's _telemetryEvent): once per page load per
+// place, because the views draw again every few seconds. telemetry.py
+// ADDON_OFFER_PLACES lists the places; a click is counted each time.
+const _offersSeen = new Set();
+export function addonOfferSeen(send, place, name) {
+  const k = place + ":" + name;
+  if (typeof send !== "function" || _offersSeen.has(k)) return;
+  _offersSeen.add(k);
+  try { send("addon_offer:" + k); } catch (_) { /* the report is a courtesy */ }
+}
+export function addonUsedSeen(send, name) {
+  const k = "used:" + name;
+  if (typeof send !== "function" || _offersSeen.has(k)) return;
+  _offersSeen.add(k);
+  try { send("addon_used:" + name); } catch (_) { /* the report is a courtesy */ }
+}
 // "Pro for life ends Dec 15", the one Overview card about it (panel.js
 // _launchPriceCard; the owner, 2026-11-24). It took the place of the launch
 // price's card, with its own flag, so an administrator who saw that one sees

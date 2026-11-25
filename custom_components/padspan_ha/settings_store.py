@@ -85,12 +85,16 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "first_seen_ts": 0,
     "calibration_points_seen": 0,  # backend-only: calibration points in the last report sent, or after the last clear (telemetry health.calibration_points_vanished)
     "maps_seen": 0,                # backend-only: floor plans in the last report sent, or after the last delete (telemetry health.maps_vanished)
+    # backend-only (addon_report.py): {"licence": the licence word in the last report sent, "moved": the features
+    # that moved from free into an add-on which this house used, noted once} — the report's addons.was and .moved
+    "addon_report_seen": {},
     # The Overview's one-time trial milestone card was answered: "No thanks",
     # its ✕, or a trial started from it. Per install; it never shows again.
     "trial_nudge_done": False,
     "tester_nudge_done": False,     # the Overview "test it, get Pro free" card was shown; never again (views/pro_invite.js)
     "launch_card_done": False,      # the Overview "launch price ends November 30" card was shown (the card is gone; kept so old backups still read)
     "lifetime_card_done": False,    # the Overview "Pro for life ends Dec 15" card was shown; never again (panel.js _launchPriceCard)
+    "addon_sale_card_done": False,  # the Overview "Half off every add-on until January 1" card was shown; never again (panel.js _addonSaleCard)
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the
@@ -485,7 +489,12 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
     out: dict[str, Any] = {"trial_nudge_done": bool(a.get("trial_nudge_done") or b.get("trial_nudge_done")),
                            "tester_nudge_done": bool(a.get("tester_nudge_done") or b.get("tester_nudge_done")),
                            "launch_card_done": bool(a.get("launch_card_done") or b.get("launch_card_done")),
-                           "lifetime_card_done": bool(a.get("lifetime_card_done") or b.get("lifetime_card_done"))}
+                           "lifetime_card_done": bool(a.get("lifetime_card_done") or b.get("lifetime_card_done")),
+                           "addon_sale_card_done": bool(a.get("addon_sale_card_done") or b.get("addon_sale_card_done"))}
+    # The usage report's add-on facts (addon_report.py) are this install's, like its first sighting: kept.
+    _ars = next((v for v in (a.get("addon_report_seen"), b.get("addon_report_seen")) if isinstance(v, dict) and v), None)
+    if _ars is not None:
+        out["addon_report_seen"] = dict(_ars)
     seen = [v for v in (a.get("first_seen_ts"), b.get("first_seen_ts"))
             if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
     if seen:

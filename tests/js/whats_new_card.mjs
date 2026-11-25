@@ -77,6 +77,7 @@ const milestoneSrc = extract("_trialMilestoneCard", "method");
 const sidebarSrc = extract("_renderSidebarTrial", "method");
 const askSrc = extract("_telemetryAskCard", "method");
 const launchSrc = extract("_launchPriceCard", "method");
+const saleSrc = extract("_addonSaleCard", "method");
 // panel.js's own t() and tn() (tests/js/panel_t.mjs): part of the scope panel.js hands them.
 const { t: panelTr, tn: panelTn } = panelT(readFileSync(PANEL, "utf-8"));
 const TRIAL_REAL = await import(pathToFileURL(join(dirname(PANEL), "views", "trial_offer.js")).href);
@@ -85,7 +86,7 @@ function buildAll(EDITIONS, TRIAL = null) {
   // eslint-disable-next-line no-new-func
   return new Function("APP_VERSION", "EDITIONS", "TRIAL", "_trialPromise", "t", "tn", `
     ${elSrc}
-    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc}, ${launchSrc} };
+    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc}, ${launchSrc}, ${saleSrc} };
   `)(APP_VERSION, EDITIONS, TRIAL, Promise.resolve(), panelTr, panelTn);
 }
 function build(EDITIONS, TRIAL = null) { return buildAll(EDITIONS, TRIAL)._whatsNewCard; }
@@ -601,6 +602,93 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     const { card } = launch(LFREE, { trial: { ...T, newTabOk: () => false } });
     const out = card();
     assert(out && !q(out, "a") && q(out, '[data-launch-card="buy-text"]').textContent === "At padspan.traks.ca", out && out.textContent);
+  });
+}
+
+// 13. "Half off every add-on until January 1" (panel.js _addonSaleCard,
+//     editions.js addonSaleCardDue): to an administrator, once, while the sale
+//     runs; counted in the usage report (_telemetryEvent sends only when it is
+//     on). The clock is the harness's, so the cases hold on any day.
+{
+  const ED = await import(pathToFileURL(join(dirname(PANEL), "views", "editions.js")).href);
+  const FROM = Date.parse(ED.ADDON_HALF_FROM), UNTIL = Date.parse(ED.ADDON_HALF_UNTIL);
+  let clock = FROM + 86400e3;
+  const edNow = { ...ED, addonHalfOff: () => ED.addonHalfOff(clock), addonSaleCardDue: (s) => ED.addonSaleCardDue(s, clock),
+                  addonPrice: (n) => ED.addonPrice(n, clock) };
+  const SFREE = { ...FREE, addon_sale_card_done: false, pro_active: false, addons_licensed: [] };
+  const sale = (settings, { admin = true, trial = T, editions = edNow, state = {} } = {}) => {
+    const c = ctx(settings, { admin });
+    Object.assign(c.state, state);
+    const obj = buildAll(editions, trial);
+    c._el = obj._el;
+    return { c, card: () => obj._addonSaleCard.call(c) };
+  };
+  const st = (label, fn) => { clock = FROM + 86400e3; t(label, fn); };
+  st("sale card: an administrator sees it once: the sale, three add-ons at half price, the add-ons page, No thanks", () => {
+    const { c, card } = sale(SFREE);
+    const out = card();
+    assert(out, "not shown");
+    const words = out.textContent;
+    assert(words.includes("Half off every add-on until January 1"), words);
+    assert(words.includes("Now Audio $3.22 CAD, Climate map $4.32 CAD, Time travel $3.77 CAD. Each is paid once and covers 2 years."), words);
+    const see = q(out, '[data-sale-card="see"]');
+    assert(see && see.getAttribute("href") === ED.ADDONS_URL && see.getAttribute("target") === "_blank" && see.textContent === "See the add-ons", "the link");
+    assert(q(out, '[data-sale-card="no"]').textContent === "No thanks", "No thanks");
+    assert(c._overviewCardShown === true, "it does not hold the one-card slot");
+    card();
+    const saves = c._saved.filter(m => m.addon_sale_card_done === true);
+    assert(saves.length === 1 && saves[0].type === "padspan_ha/settings_set" && !c._saved.some(m => "lifetime_card_done" in m), "saved " + saves.length + " times");
+    assert(JSON.stringify(c._events) === JSON.stringify(["addon_sale_card:shown"]), "counted: " + JSON.stringify(c._events));
+  });
+  st("sale card: the link opened and No thanks are counted; No thanks is final for this page and the flag was already saved", () => {
+    const { c, card } = sale(SFREE);
+    q(card(), '[data-sale-card="see"]').click();
+    q(card(), '[data-sale-card="no"]').click();
+    assert(card() === null, "still shown after No thanks");
+    assert(JSON.stringify(c._events) === JSON.stringify(["addon_sale_card:shown", "addon_sale_card:clicked", "addon_sale_card:dismissed"]), JSON.stringify(c._events));
+    assert(c._saved.filter(m => m.addon_sale_card_done === true).length === 1, "not saved, or saved twice");
+    assert(sale({ ...SFREE, addon_sale_card_done: true }).card() === null, "shown again on the next page load");
+  });
+  st("sale card: an add-on holder is offered only what it lacks", () => {
+    const out = sale({ ...SFREE, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ["audio", "climate"] }).card();
+    assert(out && out.textContent.includes("Now Time travel $3.77 CAD, Looks pack $2.12 CAD, Alarm & security $3.22 CAD."), out && out.textContent);
+  });
+  st("sale card: never to a non-admin, on a wall, in sample mode or before the mode is known, to a running Pro key or a holder of every add-on, from an older backend, or without editions.js", () => {
+    const all = ED.ADDONS.filter(a => a.on_sale !== false).map(a => a.name);
+    const cases = [
+      [{ admin: false }, SFREE], [{ state: { kioskMode: true } }, SFREE], [{ state: { dataMode: "sample" } }, SFREE],
+      [{ state: { _dataModeKnown: false } }, SFREE],
+      [{}, { ...SFREE, tier: "pro", pro_has_key: true, pro_active: true, pro_days_left: 200, addons_licensed: ED.ADDONS.map(a => a.name) }],
+      [{}, { ...SFREE, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: all }],
+      [{}, (() => { const s = { ...SFREE }; delete s.addon_sale_card_done; return s; })()], [{}, null],
+      [{ editions: null }, SFREE], [{ editions: { ...edNow, addonSaleCardDue: undefined } }, SFREE],
+      [{ state: { _overviewCardShown: true } }, SFREE],
+    ];
+    for (const [o, s] of cases) {
+      const { c, card } = sale(s, o);
+      if (o.state && o.state._overviewCardShown) c._overviewCardShown = true;
+      assert(card() === null, "shown: " + JSON.stringify(o) + " " + JSON.stringify(s));
+      assert(!c._saved.length && !c._events.length, "saved or counted when not shown");
+    }
+    assert(sale({ ...SFREE, tier: "pro", pro_has_key: true, pro_active: true, license_is_trial: true }).card(), "not shown during a trial");
+    assert(sale({ ...SFREE, tier: "bright", pro_has_key: true, pro_active: true }).card(), "not shown to Bright");
+    assert(sale({ ...SFREE, pro_has_key: true, pro_active: false, pro_days_left: -40 }).card(), "not shown to a lapsed key");
+  });
+  st("sale card: only while the sale runs, and it goes from the screen when the sale ends", () => {
+    clock = FROM - 1000;
+    assert(sale(SFREE).card() === null, "shown before the sale");
+    clock = FROM;
+    const { card } = sale(SFREE);
+    assert(card(), "not shown at the first second");
+    clock = UNTIL - 1000;
+    assert(card(), "not shown in the last second");
+    clock = UNTIL;
+    assert(card() === null, "still on screen once the sale ended");
+    assert(sale(SFREE).card() === null, "shown after the sale");
+  });
+  st("sale card: a page that fills the screen names the site instead of opening a tab it can't close", () => {
+    const out = sale(SFREE, { trial: { ...T, newTabOk: () => false } }).card();
+    assert(out && !q(out, "a") && q(out, '[data-sale-card="see-text"]').textContent === "At padspan.traks.ca", out && out.textContent);
   });
 }
 

@@ -342,10 +342,12 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `first_seen_ts` | 0 |  | When PadSpan first ran here. |
 | `calibration_points_seen` | 0 |  | Calibration points at the last report. |
 | `maps_seen` | 0 |  | Floor plans at the last report. |
+| `addon_report_seen` | empty |  | The usage report's add-on facts: the licence in the last report, and the features that moved into an add-on which this house used. |
 | `trial_nudge_done` | off | on or off | The trial card was answered. |
 | `tester_nudge_done` | off | on or off | The tester card was shown. |
 | `launch_card_done` | off | on or off | The launch-price card was shown. |
 | `lifetime_card_done` | off | on or off | The "Pro for life ends Dec 15" card was shown. |
+| `addon_sale_card_done` | off | on or off | The "Half off every add-on until January 1" card was shown. |
 | `tester_signup` | empty |  | Your tester sign-up, so you can update or withdraw it. |
 | `pro_invite` | empty |  | An invite to free Pro, and your answer. |
 | `server_offers` | empty |  | Which free-Pro offers the update check last said are on. |

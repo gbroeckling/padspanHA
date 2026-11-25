@@ -468,6 +468,7 @@ async def ws_emergency_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_emergency_test(hass: HomeAssistant, connection, msg) -> None:
     if msg["on"] and not licensed(hass):
+        _bump(hass, "addon_offer:emergency_test:alarm")
         connection.send_error(msg["id"], ADDON_CODE, ADDON_MESSAGE)
         return
     ctx = connection.context(msg)

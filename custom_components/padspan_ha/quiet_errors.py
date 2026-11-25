@@ -152,6 +152,13 @@ def reset() -> None:
 # Every site in the source, one per line, in order. Add a handler's name here
 # when you add its line (tests/test_quiet_errors.py says which is missing).
 SITES: frozenset[str] = frozenset("""
+addon_report:moved_emergency
+addon_report:c4_os
+addon_report:history
+addon_report:states
+addon_report:entries
+addon_report:market_emergency
+addon_report:market_players
 screens:send
 presence:heldout_job_rooms
 adaptive_store:summary
@@ -517,6 +524,7 @@ telemetry:payload_floor_ids
 telemetry:payload_forensics_paused
 telemetry:payload_geometry_faults
 telemetry:payload_guest
+telemetry:payload_addons
 telemetry:payload_ha_version
 telemetry:payload_heldout
 telemetry:payload_house3d
@@ -538,6 +546,7 @@ telemetry:payload_room_walk
 telemetry:payload_rooms_overlap
 telemetry:payload_store_used_in
 telemetry:payload_vacation
+telemetry:note_moved
 telemetry:persist_counters
 telemetry:positioning_now
 telemetry:reset_log_counts

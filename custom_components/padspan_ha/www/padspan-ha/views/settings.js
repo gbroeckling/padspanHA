@@ -18,8 +18,10 @@
  */
 const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, brightProOpen, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition,
-        ADDONS, ADDONS_URL, addonAllowed, addonKey, addonPrice, addonPriceParts } =
+        ADDONS, ADDONS_URL, addonAllowed, addonKey, addonPrice, addonPriceParts, addonOfferSeen } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// The usage report's add-on funnel (telemetry.py ADDON_EVENTS): sent only while the report is on (panel.js _telemetryEvent).
+const _addonTel = (ctx) => (n) => { if (ctx && ctx.actions && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); };
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
 // leaves the rest of Settings as it is.
 const WALLCARD = await import(`./wall_card.js${new URL(import.meta.url).search}`).catch(() => null);
@@ -331,6 +333,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       } catch(e){ ctx.toast(t("Failed to save"), true); }
     });
     const hasSun = !!(ctx.hass && ctx.hass.states && ctx.hass.states["sun.sun"]);
+    if (!proOk && !hideLocked) addonOfferSeen(_addonTel(ctx), "themes", "looks");   // the Looks pack offered below
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (now !== "night" ? "#52b788" : "#2d4a38")},[
       el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, t("Theme")),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
@@ -1564,7 +1567,7 @@ function _settingsPresence(ctx, el){
   put("privacy", el("div", { class: "card", "data-focus-part": "usage_report" }, [
     el("div", { class: "h2" }, t("Help improve PadSpan")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
-      t("Opt in to send the developer an anonymous usage report at most once a day: which version and Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; how your power teams are set up and how many colour bulbs of each brand you have, such as Hue or IKEA (words from a fixed list, never a name); which feature switches are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), and with two screens or more, a few words per screen (first five); how many minutes the busiest single screen showed PadSpan, all day and from 7 am to 11 pm (never which screen); with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the code logged. Counts, versions and flags only — never addresses, keys, device or room names, coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. If you delete PadSpan while this is on, one last report says it was removed, and nothing else.")
+      t("Opt in to send the developer an anonymous usage report at most once a day: which version and Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; how your power teams are set up and how many colour bulbs of each brand you have, such as Hue or IKEA (words from a fixed list, never a name); the licence it runs on and the add-ons a key carries (roughly how long each has left), which add-ons got used, and what the house has that an add-on is for (counts such as alarm panels or audio players by system, never which); which feature switches are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), and with two screens or more, a few words per screen (first five); how many minutes the busiest single screen showed PadSpan, all day and from 7 am to 11 pm (never which screen); with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the code logged. Counts, versions and flags only — never addresses, keys, device or room names, coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. If you delete PadSpan while this is on, one last report says it was removed, and nothing else.")
     ),
     el("div", { class: "muted", style: "font-size:11px;margin-bottom:12px" },
       t("The report carries a random ID so installs can be counted rather than pings; you can replace it any time. Preview shows the exact JSON — what you see is what goes, and anything identifier-shaped is refused before it leaves. The developer may invite an install that reports to something, like a free year of Pro: the invite comes back with the report's reply and shows on Overview and under PadSpan licence. Nothing about you is sent unless you accept it.")),
@@ -3688,8 +3691,11 @@ function _settingsLicence(ctx, el){
       t("Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:")));
     const list = el("div", { style: "display:flex;flex-wrap:wrap;gap:2px 14px" });
     for (const a of addonOffer) {
-      list.appendChild(el("a", { href: ADDONS_URL, target: "_blank", rel: "noopener", "data-addon": a.name,
-        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + addonPriceSaid(a.name)));
+      const link = el("a", { href: ADDONS_URL, target: "_blank", rel: "noopener", "data-addon": a.name,
+        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + addonPriceSaid(a.name));
+      link.addEventListener("click", () => _addonTel(ctx)("addon_buy:licence_card:" + a.name));
+      list.appendChild(link);
+      addonOfferSeen(_addonTel(ctx), "licence_card", a.name);
     }
     offer.appendChild(list);
     card.appendChild(offer);
@@ -3959,6 +3965,7 @@ function _settingsFeatures(ctx, el){
           }}, t("Show licence key"));
         card.appendChild(revealBtn);
       } else if(!addonAllowed(settings, "forensics")){
+        addonOfferSeen(_addonTel(ctx), "forensics", "forensics");
         card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
           t("Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.", { what: proOrAddon("forensics") })));
       }

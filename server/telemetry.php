@@ -33,7 +33,7 @@ if ($raw === false || strlen($raw) > $MAX) { http_response_code(413); echo '{"ok
 $r = json_decode($raw, true);
 if (!is_array($r)) { http_response_code(400); echo '{"ok":false}'; exit; }
 
-$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets','country','language','licence_group');
+$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets','country','language','licence_group','addons');
 foreach (array_keys($r) as $k) {
     if (!in_array($k, $allowed, true)) { http_response_code(400); echo '{"ok":false,"why":"key"}'; exit; }
 }
@@ -48,6 +48,11 @@ if (isset($r['licence_group']) && !(is_string($r['licence_group']) && preg_match
 }
 if (isset($r['language']) && !(is_string($r['language']) && preg_match('/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,4})?\z/', $r['language']))) {
     http_response_code(400); echo '{"ok":false,"why":"language"}'; exit;
+}
+// Optional: the add-ons section (addon_report.py): an object whose licence is one word.
+if (array_key_exists('addons', $r) && !(is_array($r['addons']) && isset($r['addons']['licence'])
+        && is_string($r['addons']['licence']) && preg_match('/^[a-z_]{2,16}\z/', $r['addons']['licence']))) {
+    http_response_code(400); echo '{"ok":false,"why":"addons"}'; exit;
 }
 $id = isset($r['install_id']) ? (string)$r['install_id'] : '';
 if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)) {

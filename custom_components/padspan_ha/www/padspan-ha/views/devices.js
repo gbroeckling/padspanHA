@@ -23,6 +23,7 @@ const TW = await import(`./zigbee_twins.js${new URL(import.meta.url).search}`).c
 const _ED = await import(`./editions.js${new URL(import.meta.url).search}`).catch(() => null);
 const addonAllowed = _ED ? _ED.addonAllowed : (s) => String((s && s.tier) || "").toLowerCase() === "pro";
 const addonPrice = _ED ? _ED.addonPrice : () => "";
+const addonOfferSeen = _ED && _ED.addonOfferSeen ? _ED.addonOfferSeen : () => {};
 const _dup = (ctx, eid) => !!(TW && TW.duplicateOf(eid, ctx.state && ctx.state.settings));
 const TABS = [
   { id: "all",      get label() { return t("All Devices"); } },
@@ -694,6 +695,7 @@ function _renderDoorOpeners(ctx) {
     t("Mark a cover, switch, button, or script entity as a door/window opener (a garage door, gate, or any other powered opening) so it can be offered and linked from a door/window's own row in Mapping → Atlas builder, right alongside its sensor and its lock.")));
 
   if (!_doorOpenersAllowed(ctx)) {
+    addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "door_openers", "alarm");   // the usage report's add-on funnel, once per page load
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;background:#2a220a;border:1px solid #78350f;border-radius:8px;padding:10px" },
       t("Door Openers needs PadSpan Pro or the Alarm & security add-on ({price}). Enter the key in Settings → Features → PadSpan licence.", { price: addonPrice("alarm") })));
     return card;

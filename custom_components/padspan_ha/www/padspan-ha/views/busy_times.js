@@ -33,7 +33,7 @@
  * insights_get itself would also break the free Insights tab.
  */
 
-const { addonAllowed, addonPrice } =
+const { addonAllowed, addonPrice, addonOfferSeen, addonUsedSeen } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
 // must not blank the view it sits in.
@@ -57,10 +57,14 @@ export function render(ctx) {
     el("span", { class: "muted", style: "font-size:11px" }, t("which rooms are busiest, and when — aggregated across every tracked object")),
   ]));
 
+  // The usage report's add-on funnel (telemetry.py ADDON_EVENTS), once per page load: refused here, or used.
+  const tel = (n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); };
   if (!addonAllowed(ctx.state.settings, "insights")) {
+    addonOfferSeen(tel, "busy_times", "insights");
     root.appendChild(_buildProGateCard(ctx, t("Busy Times")));
     return root;
   }
+  addonUsedSeen(tel, "insights");
 
   const dayBtnEls = [1, 3, 7].map(d => {
     const b = el("button", { class: "btn tiny" }, `${d}d`);

@@ -548,10 +548,12 @@ def test_off_counts_nothing(monkeypatch):
 
 
 def test_the_report_needs_no_server_change():
+    # The AI's counts ride under keys the receiver already took; "addons" (2026-11-25, addon_report.py) is the
+    # add-ons' own key, which server/telemetry.php takes since then (tests/test_addon_insights.py).
     assert T._TOP_KEYS == frozenset({                                   # noqa: SLF001
         "schema", "install_id", "day", "version", "edition", "tier", "ha_version",
         "python", "env", "features", "usage", "health", "errors", "presets",
-        "country", "language", "licence_group"})
+        "country", "language", "licence_group", "addons"})
     assert "ai_credit_month_usd" not in T._FEATURE_ON_ONLY and "ai_credit_warn_pct" not in T._FEATURE_ON_ONLY  # noqa: SLF001
 
 

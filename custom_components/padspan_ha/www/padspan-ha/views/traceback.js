@@ -30,7 +30,7 @@ const busyTimesView =
 // Atlas map (see house_activity.js's header).
 const houseActivity =
   await import(`./house_activity.js${new URL(import.meta.url).search}`);
-const { addonAllowed } =
+const { addonAllowed, addonUsedSeen } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 /** Open Traceback on one object over one window (a guest stay's report):
@@ -2344,6 +2344,8 @@ export function render(ctx) {
   };
   houseBtn.addEventListener("click", () => {
     tb.house.on = !tb.house.on;
+    // Time travel used (the usage report's add-ons.used, once per page load).
+    if (tb.house.on) addonUsedSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "timetravel");
     _paintHouseBtn();
     _applyHouseFrames();    // back to beacon-only frames when it goes off
     _applyModeVisibility(tb.mode);

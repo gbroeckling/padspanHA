@@ -337,5 +337,16 @@
 "Use the {twin_via} one": "Das von {twin_via} verwenden",
 "{name} is used now.": "{name} wird jetzt verwendet.",
 "Could not switch to it: {why}": "Umstellen ging nicht: {why}",
-"No room called \"{room}\" in this house.": "Kein Raum namens „{room}“ in diesem Haus."
+"No room called \"{room}\" in this house.": "Kein Raum namens „{room}“ in diesem Haus.",
+"Audio": "Audio",
+"Alarm & security": "Alarm & Sicherheit",
+"Climate map": "Klimakarte",
+"Time travel": "Zeitreise",
+"Vacation Mode & presets": "Urlaubsmodus & Voreinstellungen",
+"Looks pack": "Looks-Paket",
+"Presence insights": "Präsenz-Auswertungen",
+"Half off every add-on until January 1": "Alle Add-ons zum halben Preis bis 1. Januar",
+"Now {list}. Each is paid once and covers 2 years.": "Jetzt {list}. Jedes wird einmal bezahlt und gilt 2 Jahre.",
+"See the add-ons": "Zu den Add-ons",
+"At padspan.traks.ca": "Auf padspan.traks.ca"
 }

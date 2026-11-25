@@ -51,6 +51,7 @@ _BACKEND_ONLY = {
     "calibration_points_seen",         # telemetry.py — calibration points in the last report / after a clear
     "report_locked_key",               # settings_store — a new free licence holds the usage report on (set when it is granted)
     "maps_seen",                       # telemetry.py — floor plans in the last report / after a delete
+    "addon_report_seen",               # addon_report.py — the last report's licence word and the moved features, noted once
     "vacation_mode_pattern_for",       # vacation_mode.py — the vacation a carried-over pattern serves (resumable)
     "vacation_mode_last_off",          # vacation_mode.py — who last turned it off, set by switch_fields
     "vacation_mode_pattern_prev",      # vacation_mode.py — the last learned pattern, kept across vacations
