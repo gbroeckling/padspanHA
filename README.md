@@ -89,7 +89,7 @@ thermostat and light switches.
 - Interactive device registry: merge duplicates, add identities, relabel, delete
 
 ### Floor Plans & Maps
-- Upload a floor plan picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works) or a PDF (you pick the page), or start from a phone's room scan or a blank floor
+- Upload a floor plan picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works) or a PDF (you pick the page), or start from a phone's room scan, a plan file from another app (Easy Floorplan YAML, DXF or Floorplanner FML) or a blank floor
 - **Two-point measure tool** for precise real-world scale calibration with aspect ratio validation
 - Draw room boundary polygons directly over blueprints
 - Multi-floor **3D isometric visualization** with live object positions

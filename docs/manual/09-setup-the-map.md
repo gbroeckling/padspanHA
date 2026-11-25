@@ -286,27 +286,45 @@ do the calibration points taken on it.
 
 ## No floor plan?
 
-On the upload step, **No floor plan? Ways to get one** lists five ways, best first. The further down
+On the upload step, **No floor plan? Ways to get one** lists six ways, best first. The further down
 the list, the rougher the plan.
 
 1. **Look for a drawing you already have.** The builder's or architect's drawings, the listing, the
    council file, an insurance report, the fire-escape plan on a wall. A PDF goes up as it is; for
    paper, a photo held straight over the page is enough.
-2. **Scan the floor with an iPhone or iPad.** It needs a Pro model with LiDAR (iPhone 12 Pro or a
+2. **Import a plan from another app.** A house already drawn elsewhere comes in drawn to scale:
+   - **Easy Floorplan** (the Home Assistant card): edit the card, open its code editor, copy all of it
+     into a text file ending in `.yaml`. Its walls, doors, windows and rooms come in; a room linked to a
+     Home Assistant area is named after it. The card has no unit, so type the drawing's width (outside
+     wall to outside wall) in the field above the file; left empty, the scale is taken from its doors
+     (each taken as 85 cm), and you measure one length to make it exact.
+   - **DXF** from a CAD program, saved as text (not binary, not DWG). Each closed polyline becomes a
+     room, named by the text inside it; lines and open polylines are walls. The unit comes from the
+     drawing's own setting (`$INSUNITS`); a drawing without one needs its width typed.
+   - **Floorplanner**: export the project (Quick Export, where your project offers it) and pick the
+     `.fml` file from the zip, or the zip itself. Its walls, doors, windows and rooms come in.
+
+   Choose the floor and pick the file (2.8 MB at most). A file with several floors asks which one this
+   is; an Easy Floorplan floor linked to the Home Assistant floor you chose is picked by itself. What
+   PadSpan doesn't use (devices and their entities, furniture, texts, curves drawn straight) is listed,
+   in the message and beside the rooms on the plan. The file's rooms are outlines, not new rooms: choose
+   each Home Assistant room in the list and press **Use the outline the file gives** it (or **Use a
+   scanned outline instead** and click inside one), so your rooms stay your Home Assistant areas.
+3. **Scan the floor with an iPhone or iPad.** It needs a Pro model with LiDAR (iPhone 12 Pro or a
    newer Pro, iPad Pro 2020 or newer). Any room-scanning app that uses Apple's RoomPlan can share the
    scan as a USDZ file (some also offer RoomPlan JSON). Scan the whole floor in one go, doors open and
    lights on. Choose its floor, pick the file, and PadSpan draws the plan to scale, with nothing to
    measure. You still say where each room is. **Guide me step by step** shows the same steps one
    screen at a time, made for the phone, and gives you an address to send to whoever does the scan.
-3. **Use your robot vacuum's map.** A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
+4. **Use your robot vacuum's map.** A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
    Turn on **Settings → Features → Experimental Features → Robot Vacuum Import**, then use
    **Mapping → Layout → 🤖 Import from a robot vacuum**, and **Add as a new map**. It becomes a floor plan with
    its rooms; rooms you already have are kept.
-4. **Draw it yourself and photograph it.** On plain paper, the outside walls first, then the walls
+5. **Draw it yourself and photograph it.** On plain paper, the outside walls first, then the walls
    between rooms, with a gap for each door. Write the length of one long wall across and one down.
    Photograph it from straight above. **I have my sketch: upload it** ticks "my own sketch" on the
    form for you, and the scale step takes a length each way.
-5. **Start from a blank floor.** Type the floor's width and depth (rough is fine), choose its floor
+6. **Start from a blank floor.** Type the floor's width and depth (rough is fine), choose its floor
    and **Make the blank floor**. PadSpan makes an empty floor of that size with a line every metre;
    draw each room on it by its corners, counting the lines.
 

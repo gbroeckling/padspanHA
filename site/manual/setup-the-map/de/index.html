@@ -346,34 +346,58 @@ Aufteilung umgeformt hast, ersetzt nichts mehr: er gehört dir. Hat eine Etage i
 kannst du den groben Plan in der Bibliothek löschen. Seine Räume bleiben auf der Karte,
 ebenso die Kalibrierpunkte, die auf ihm aufgenommen wurden.</p>
 <h2 id="kein-grundriss">Kein Grundriss?</h2>
-<p>Beim Schritt zum Hochladen listet <b>Kein Grundriss? So bekommst du einen</b> fünf Wege, den besten
+<p>Beim Schritt zum Hochladen listet <b>Kein Grundriss? So bekommst du einen</b> sechs Wege, den besten
 zuerst. Je weiter unten in der Liste, desto grober der Grundriss.</p>
 <ol>
-<li><b>Nach einer vorhandenen Zeichnung suchen.</b> Die Zeichnungen des Bauträgers oder Architekten, das
+<li><p><b>Nach einer vorhandenen Zeichnung suchen.</b> Die Zeichnungen des Bauträgers oder Architekten, das
 Verkaufsexposé, die Bauakte der Gemeinde, ein Versicherungsgutachten, der Fluchtwegplan an einer
 Wand. Ein PDF geht so hoch, wie es ist; bei Papier reicht ein Foto, gerade über die Seite
-gehalten.</li>
-<li><b>Die Etage mit einem iPhone oder iPad scannen.</b> Dafür brauchst du ein Pro-Modell mit LiDAR
+gehalten.</p></li>
+<li><p><b>Einen Plan aus einer anderen App importieren.</b> Ein Haus, das schon anderswo gezeichnet ist,
+kommt maßstabsgetreu herein:</p>
+<ul>
+<li><b>Easy Floorplan</b> (die Home-Assistant-Karte): Bearbeite die Karte, öffne ihren Code-Editor und
+kopiere alles in eine Textdatei mit der Endung <code>.yaml</code>. Ihre Wände, Türen, Fenster und Räume
+kommen herein; ein Raum, der mit einem Bereich in Home Assistant verknüpft ist, heißt wie dieser.
+Die Karte hat keine Einheit, also gib die Breite der Zeichnung (Außenwand bis Außenwand) in das
+Feld über der Datei ein; bleibt es leer, wird der Maßstab aus ihren Türen genommen (jede als
+85 cm), und du misst eine Länge, um ihn genau zu machen.</li>
+<li><b>DXF</b> aus einem CAD-Programm, als Text gespeichert (nicht binär, nicht DWG). Jede geschlossene
+Polylinie wird ein Raum, benannt nach dem Text darin; Linien und offene Polylinien sind Wände.
+Die Einheit kommt aus der Einstellung der Zeichnung (<code>$INSUNITS</code>); eine Zeichnung ohne braucht
+ihre Breite.</li>
+<li><b>Floorplanner</b>: Exportiere das Projekt (Quick Export, wo dein Projekt es anbietet) und wähle
+die <code>.fml</code>-Datei aus dem ZIP oder das ZIP selbst. Ihre Wände, Türen, Fenster und Räume kommen
+herein.</li>
+</ul>
+<p>Wähle die Etage und die Datei (höchstens 2,8 MB). Hat die Datei mehrere Etagen, fragt PadSpan, welche
+es ist; eine Easy-Floorplan-Etage, die mit der gewählten Etage in Home Assistant verknüpft ist, wird
+von selbst genommen. Was PadSpan nicht nutzt (Geräte und ihre Entitäten, Möbel, Texte, gerade
+gezeichnete Kurven), steht in der Meldung und neben den Räumen auf dem Plan. Die Räume der Datei
+sind Umrisse, keine neuen Räume: Wähle jeden Home-Assistant-Raum in der Liste und drück <b>Den Umriss
+nehmen, den die Datei</b> ihm <b>gibt</b> (oder <b>Stattdessen einen gescannten Umriss nehmen</b> und klick
+in einen hinein), so bleiben deine Räume deine Bereiche in Home Assistant.</p></li>
+<li><p><b>Die Etage mit einem iPhone oder iPad scannen.</b> Dafür brauchst du ein Pro-Modell mit LiDAR
 (iPhone 12 Pro oder ein neueres Pro, iPad Pro 2020 oder neuer). Jede Raumscan-App, die Apples
 RoomPlan nutzt, kann den Scan als USDZ-Datei teilen (manche bieten auch RoomPlan-JSON). Scanne
 die ganze Etage in einem Durchgang, Türen offen und Licht an. Wähle ihre Etage, wähle die Datei,
 und PadSpan zeichnet den Grundriss maßstabsgetreu, ohne dass du etwas messen musst. Wo jeder Raum
 ist, sagst du trotzdem selbst. <b>Schritt für Schritt führen</b> zeigt dieselben Schritte einen
 Bildschirm nach dem anderen, fürs Handy gemacht, und gibt dir eine Adresse, die du dem schicken
-kannst, der den Scan macht.</li>
-<li><b>Die Karte deines Saugroboters nutzen.</b> Ein Valetudo-, Dreame- oder Xiaomi-Roboter, den Home
+kannst, der den Scan macht.</p></li>
+<li><p><b>Die Karte deines Saugroboters nutzen.</b> Ein Valetudo-, Dreame- oder Xiaomi-Roboter, den Home
 Assistant sieht. Schalte <b>Einstellungen → Funktionen → Experimentelle Funktionen →
 Saugroboter-Import</b> ein, nimm dann <b>Karten → Aufteilung → 🤖 Import from a robot vacuum</b> und
 <b>Add as a new map</b>. Daraus wird ein Grundriss mit seinen Räumen; Räume, die du schon hast, bleiben
-erhalten.</li>
-<li><b>Selbst zeichnen und fotografieren.</b> Auf weißem Papier, zuerst die Außenwände, dann die Wände
+erhalten.</p></li>
+<li><p><b>Selbst zeichnen und fotografieren.</b> Auf weißem Papier, zuerst die Außenwände, dann die Wände
 zwischen den Räumen, mit einer Lücke für jede Tür. Schreib die Länge einer langen Wand quer und
 einer längs dazu. Fotografier es von direkt oben. <b>Ich habe meine Skizze: hochladen</b> hakt im
 Formular „meine eigene Skizze“ für dich an, und der Schritt zum Maßstab nimmt eine Länge in jede
-Richtung.</li>
-<li><b>Mit einer leeren Etage beginnen.</b> Gib Breite und Tiefe der Etage ein (grob reicht), wähle ihre
+Richtung.</p></li>
+<li><p><b>Mit einer leeren Etage beginnen.</b> Gib Breite und Tiefe der Etage ein (grob reicht), wähle ihre
 Etage und <b>Leere Etage anlegen</b>. PadSpan legt eine leere Etage dieser Größe an, mit einer Linie
-pro Meter; zeichne jeden Raum an seinen Ecken darauf und zähl dabei die Linien.</li>
+pro Meter; zeichne jeden Raum an seinen Ecken darauf und zähl dabei die Linien.</p></li>
 </ol>
 <p>Zwei weitere Wege, im Modus Erweitert, unter <b>Karten → Aufteilung</b>:</p>
 <ul>
