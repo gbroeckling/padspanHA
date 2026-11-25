@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.301",
+  "title": "Black Friday: every add-on half off",
+  "date": "2026-11-25",
+  "body_markdown": "### New\n- **Every add-on is half off from November 27 until January 1.** From Friday November 27 (midnight Pacific) to the end of January 1, each add-on that is on sale costs half, rounded down to the cent: Audio, Alarm & security and Wi-Fi coverage $3.22 CAD (normally $6.45), Climate map $4.32 (normally $8.65), Time travel $3.77 (normally $7.55), Vacation Mode & presets and Looks pack $2.12 (normally $4.25), Forensics and Presence insights $2.78 (normally $5.56). Still one payment for 2 years, up to three homes. The licence card offers each add-on at its sale price with its usual one beside it, every \"PadSpan Pro or the … add-on\" line says the price of the day, and the site's buy buttons switch by themselves at both moments."
+ },
+ {
   "version": "0.38.300",
   "title": "Add-ons",
   "date": "2026-11-25",
@@ -76,11 +82,5 @@
   "title": "A fairer accuracy score; PDF floor plans",
   "date": "2026-11-23",
   "body_markdown": "### New\n- **PDF floor plans in Mapping → Upload.** Pick a PDF the way you pick a picture. PadSpan draws the page in your browser, and the upload goes on as for any image, with the same crop, size and scale steps. When a PDF has several pages, you choose the one with the plan. Drawn plans (an architect's or a builder's export) stay sharp because the page is drawn, not photographed. Black-and-white scans from an office scanner or a permit office work too. A password-protected or broken PDF says so. Nothing extra loads unless you pick a PDF.\n\n### Fixed\n- **Calibration's \"How accurate it is now\" counts only what it can test.** Four changes to how the score is worked out:\n  - A room calibrated at one spot only is listed as not counted. It used to count as wrong, because the test holds out the spot and its neighbours and nothing of that room was left.\n  - A spot's true room is the room drawn where it stands, not a label that disagrees with it. How many disagree is shown.\n  - Spots heard by a single receiver are left out, as live tracking leaves them out.\n  - In a big calibration, each room is tested in proportion to its spots.\n  On a real house the score went from 4 % to 29 % rooms right for fingerprints, and from 12 % to 28 % for spatial, on the same data.\n  Nothing about how positions are worked out changed. If you turned on \"pick the better method\", the comparison it makes now uses this fairer score. The opt-in report counts how many rooms couldn't be tested (a number, never a name)."
- },
- {
-  "version": "0.38.286",
-  "title": "Wi-Fi coverage says what to fix",
-  "date": "2026-11-23",
-  "body_markdown": "### New\n- **Wi-Fi coverage (test): what to fix, first.** Above the map, UniFi Utopia's findings, most urgent first, each with what to do: placed devices that keep dropping off Wi-Fi, that sit on a far access point while a neighbour a few metres away hears another one much better, that are very weak, PadSpan receivers on weak Wi-Fi (their reports arrive late or not at all), rooms where a phone spends time on weak Wi-Fi, and before and after for a device that moved to another access point. A click shows the finding on the plan.\n- **Access points on the plan.** Each access point is drawn where you put it, or (dashed) where the devices that hear it best suggest. An administrator drags one to where it really is, or sets its floor under \"Where the access points are\".\n\n### Changed\n- **UniFi Blocker is now UniFi Utopia.** The Wi-Fi coverage tab asks UniFi Utopia (`unifi_utopia/...`) and names it."
  }
 ]
