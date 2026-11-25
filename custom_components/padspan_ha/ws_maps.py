@@ -20,6 +20,7 @@ from .const import (
     DOMAIN,
     DATA_SETTINGS,
     DATA_MAPS,
+    DATA_FABRIC,
     DATA_MODEL,
     DEFAULT_FLOOR_ID,
     OUTSIDE_FLOOR_ID,
@@ -231,8 +232,7 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     """{ok, map} or {ok: false, message}: nothing is written unless both lengths read."""
     from . import plan_ai_write as C  # noqa: PLC0415
     from . import plan_geom as G  # noqa: PLC0415
-    from .maps_store import BLANK_MAX_M, BLANK_MIN_M, blank_plan_png  # noqa: PLC0415
-    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
+    from .maps_store import BLANK_MAX_M, BLANK_MIN_M  # noqa: PLC0415
     ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     if not ms:
         connection.send_error(msg["id"], "no_maps_store", NOT_LOADED_MESSAGE)
@@ -246,14 +246,67 @@ async def ws_maps_blank_create(hass: HomeAssistant, connection, msg) -> None:
     if across is None or down is None or not (BLANK_MIN_M <= across <= BLANK_MAX_M and BLANK_MIN_M <= down <= BLANK_MAX_M):
         connection.send_result(msg["id"], {"ok": False, "code": "size", "message": BLANK_WORDS["size"]})
         return
+    info = await async_add_blank_floor(hass, ms, msg["name"].strip() or "Blank floor", floor_id, across, down)
+    connection.send_result(msg["id"], {"ok": True, "map": info})
+
+
+async def async_add_blank_floor(hass: HomeAssistant, ms: Any, name: str, floor_id: str, across: float, down: float,
+                                *, starter: dict | None = None) -> dict:
+    """THE blank floor's write, shared: "Start from a blank floor" (above) and the starter house (starter_house.py).
+    The picture (maps_store.blank_plan_png), the plan (kind "blank"; `starter`: the starter house's, a rough start),
+    and its scale, measured as Measure measures one: its whole width, the length given. Returns the plan."""
+    from .maps_store import blank_plan_png  # noqa: PLC0415
+    from .ws_fabric import async_write_measured_transform  # noqa: PLC0415
     png, w, h = await hass.async_add_executor_job(blank_plan_png, across, down)
-    info = await ms.async_add_map(msg["name"].strip() or "Blank floor", "blank-floor.png", "image/png", w, h,
-                                  base64.b64encode(png).decode("ascii"), floor_id, kind="blank")
+    info = await ms.async_add_map(name, "blank-floor.png", "image/png", w, h,
+                                  base64.b64encode(png).decode("ascii"), floor_id, kind="blank", starter=starter)
     ref = {"p1": [0.0, 0.5], "p2": [1.0, 0.5], "distance_m": round(across, 4), "px_per_meter": round(w / across * 100) / 100,
            "angle_deg": 0, "date": _time.strftime("%Y-%m-%d", _time.gmtime()), "source": "blank"}
     await async_write_measured_transform(hass, info["id"], {"scale_x_m": round(across, 4), "scale_y_m": round(down, 4),
                                                            "reference_measurements": [ref], "floor_id": floor_id})
-    connection.send_result(msg["id"], {"ok": True, "map": info})
+    return info
+
+
+# "Start with a rough house from your Home Assistant rooms" (the owner's gap pick 1, 2026-11-23; starter_house.py):
+# one box room per Home Assistant area, on a blank floor per floor that has no plan and no rooms yet. On a press only,
+# for an administrator, free (no tier). `dry_run`: what it would make, nothing written. A second press makes nothing.
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/maps_starter_house",
+        vol.Optional("dry_run", default=False): bool,
+        vol.Optional("floor_id"): id_text,          # only this floor
+        vol.Optional("no_floor_to"): id_text,       # where the areas with no floor in Home Assistant go
+        vol.Optional("label", default="rough start"): vol.All(str, vol.Length(max=40)),   # in each plan's name
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_maps_starter_house(hass: HomeAssistant, connection, msg) -> None:
+    """{ok, floors, skipped, no_floor, choices} (and, made: maps, rooms); {ok: false, code: "nothing"} when there is
+    nothing to make. The rooms' words are the panel's (codes only here)."""
+    from . import starter_house as S  # noqa: PLC0415
+    from .maps_store import BLANK_MAX_M  # noqa: PLC0415
+    dom = hass.data.get(DOMAIN, {})
+    if not dom.get(DATA_MAPS) or not dom.get(DATA_MODEL) or not dom.get(DATA_FABRIC):
+        connection.send_error(msg["id"], "not_ready", NOT_LOADED_MESSAGE)
+        return
+    f = S.facts(hass)
+    got = S.plan(f["floors"], f["areas"], f["devices"], f["taken"], f["drawn"], only=msg.get("floor_id"),
+                 no_floor_to=msg.get("no_floor_to"), max_m=BLANK_MAX_M)
+    if not got["floors"]:
+        connection.send_result(msg["id"], {"ok": False, "code": "nothing", **got})
+        return
+    if msg.get("dry_run"):
+        connection.send_result(msg["id"], {"ok": True, "dry_run": True, **got})
+        return
+    made = await S.async_make(hass, got, (msg.get("label") or "").strip() or "rough start")
+    from .telemetry import bump, rooms_band  # noqa: PLC0415
+    if made["rooms"]:
+        bump(hass, "starter_house:made")
+        bump(hass, f"starter_house:rooms_{rooms_band(len(made['rooms']))}")
+        if any(r in made["rooms"] for r in got["no_floor"]["rooms"]):
+            bump(hass, "starter_house:no_floor")
+    connection.send_result(msg["id"], {**got, **made, "ok": bool(made["rooms"]), **({} if made["rooms"] else {"code": "nothing"})})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/maps_scale_nudge_end", vol.Required("map_id"): str})

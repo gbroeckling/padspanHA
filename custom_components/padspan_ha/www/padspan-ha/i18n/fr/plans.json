@@ -193,5 +193,44 @@
 "{what} now on the map.": "{what} maintenant sur la carte.",
 "Nothing could be put on the map: {left} couldn't be ({where}).": "Rien n’a pu être mis sur la carte : {left} impossible ({where}).",
 "Nothing could be put on the map.": "Rien n’a pu être mis sur la carte.",
-"Couldn't put it on the map: {why}": "Impossible de le mettre sur la carte : {why}"
+"Couldn't put it on the map: {why}": "Impossible de le mettre sur la carte : {why}",
+"{names} and {more} more": "{names} et {more} autres",
+"Already drawn, left as they are: {names}.": "Déjà dessinées, laissées telles quelles : {names}.",
+"On a floor that already has a plan or rooms, so draw them there: {names}.": "Sur un étage qui a déjà un plan ou des pièces ; dessinez-les là : {names}.",
+"Outdoors, left out: {names}.": "À l’extérieur, laissées de côté : {names}.",
+"Too many rooms for one floor, left out: {names}.": "Trop de pièces pour un seul étage, laissées de côté : {names}.",
+"No indoor floor to put them on: {names}.": "Aucun étage intérieur où les mettre : {names}.",
+"rough start": "ébauche",
+"Nothing was made: every floor has a plan or rooms now.": "Rien n’a été créé : chaque étage a maintenant un plan ou des pièces.",
+"Rough house made: {n} rooms on the map.": {
+"one": "Maison approximative créée : 1 pièce sur la carte.",
+"other": "Maison approximative créée : {n} pièces sur la carte."
+},
+"Reshape them, or upload a real plan, whenever you like.": "Remodelez-les, ou téléversez un vrai plan, quand vous voulez.",
+"Nothing to make: every floor already has a floor plan or rooms.": "Rien à créer : chaque étage a déjà un plan ou des pièces.",
+"This is what it will make:": "Voici ce qui sera créé :",
+"{floor}: a blank floor with {n} rooms ({names})": {
+"one": "{floor} : un étage vierge avec 1 pièce ({names})",
+"other": "{floor} : un étage vierge avec {n} pièces ({names})"
+},
+"Each room is a square box named as its Home Assistant area: 3.5 m, bigger where the area has many devices. Your devices show in their rooms at once.": "Chaque pièce est un carré qui porte le nom de sa zone Home Assistant : 3,5 m, plus grand là où la zone a beaucoup d’appareils. Vos appareils apparaissent tout de suite dans leurs pièces.",
+"{names} have no floor in Home Assistant. Put them on:": {
+"one": "{names} n’a pas d’étage dans Home Assistant. La mettre sur :",
+"other": "{names} n’ont pas d’étage dans Home Assistant. Les mettre sur :"
+},
+"Make the rough house": "Créer la maison approximative",
+"Cancel": "Annuler",
+"Start with a rough house from your Home Assistant rooms": "Commencer par une maison approximative à partir de vos pièces Home Assistant",
+"No drawing needed: PadSpan puts one box for each Home Assistant area on its floor, so every room is on the map in a minute. It is a rough start: drag and resize the boxes later, or upload a real plan and trace over it.": "Pas besoin de dessiner : PadSpan place un carré pour chaque zone Home Assistant sur son étage, et chaque pièce est sur la carte en une minute. C’est une ébauche : déplacez et redimensionnez les carrés plus tard, ou téléversez un vrai plan et redessinez par-dessus.",
+"Reading your Home Assistant rooms…": "Lecture de vos pièces Home Assistant…",
+"Show what it will make": "Montrer ce qui sera créé",
+"Rough start: {n} rooms on this floor are still boxes made from your Home Assistant rooms.": {
+"one": "Ébauche : 1 pièce de cet étage est encore un carré tiré de vos pièces Home Assistant.",
+"other": "Ébauche : {n} pièces de cet étage sont encore des carrés tirés de vos pièces Home Assistant."
+},
+"Drag and resize them, or upload a real plan of this floor and trace the rooms on it: each room you trace and put on the map takes the place of its box, and keeps its Home Assistant area.": "Déplacez-les et redimensionnez-les, ou téléversez un vrai plan de cet étage et redessinez-y les pièces : chaque pièce redessinée et mise sur la carte prend la place de son carré et garde sa zone Home Assistant.",
+"Rough start: a blank floor made from your Home Assistant rooms. Upload a real plan of this floor whenever you have one.": "Ébauche : un étage vierge tiré de vos pièces Home Assistant. Téléversez un vrai plan de cet étage dès que vous en avez un.",
+"To redraw a box here: choose its room and click its corners over the dashed box. \"Put it on the map\" (the Setup Wizard's last step, or the Rooms page) then puts your outline in its place.": "Pour redessiner un carré ici : choisissez sa pièce et cliquez ses coins sur le carré en pointillés. « Put it on the map » (la dernière étape de l’assistant de configuration, ou la page Pièces) met ensuite votre contour à sa place.",
+"Reshape the rooms": "Remodeler les pièces",
+"Upload a plan of this floor": "Téléverser un plan de cet étage"
 }

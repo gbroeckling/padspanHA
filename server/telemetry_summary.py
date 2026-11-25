@@ -642,6 +642,9 @@ _PLAN_UPLOAD = (tuple(f"plan_upload:{k}" for k in ("picked", "no_file", "ok", "b
                                                     "scan_placed", "scan_placed_both", "scan_unplaced", "scan_size_differs"))
                 + tuple(f"plan_carry:{k}" for k in ("offered", "opened", "moved", "dismissed", "refused", "moved_rooms", "moved_receivers", "moved_points", "moved_devices", "moved_walls", "moved_beacons", "moved_zones"))
                 + ("fit_suggest:shown", "fit_suggest:none"))
+# "Start with a rough house from your Home Assistant rooms" (telemetry.STARTER_HOUSE_EVENTS, 2026-11-24).
+_STARTER_HOUSE = tuple(f"starter_house:{k}" for k in ("offered", "previewed", "nothing", "made", "no_floor", "reshape", "upload", "replaced",
+                                                    "rooms_1", "rooms_2_3", "rooms_4_6", "rooms_7_12", "rooms_gt12"))
 _SCALE_NUDGE = tuple(f"scale_nudge:{k}" for k in ("shown", "first_end", "both_ends", "typed", "refused", "not_to_scale", "per_axis", "measured_one", "measured_two", "later", "reminder_measure")
                      + tuple(f"via_{d}" for d in ("upload", "setup", "getting_started", "wizard", "reminder", "plans", "stack")))
 
@@ -680,7 +683,7 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     who: dict[str, set] = defaultdict(set)
     for r in reports:
         for k, v in (r.get("usage") or {}).items():
-            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL or k in _RECEIVERS_ROOMS or k in _SCALE_NUDGE or k in _SETUP_NEXT or k in _PLAN_UPLOAD:
+            if k in _MAPPING_FUNNEL or k in _WIZARD_FUNNEL or k in _RECEIVERS_ROOMS or k in _SCALE_NUDGE or k in _SETUP_NEXT or k in _PLAN_UPLOAD or k in _STARTER_HOUSE:
                 use[k] += v
                 who[k].add(r.get("install_id"))
     out.append("  The Plans tool (events over the window; installs)")
@@ -697,6 +700,9 @@ def mapping_section(rows: dict[tuple[str, str], dict], reports: list[dict]) -> l
     out.append("  Mapping → Upload: a picture picked, and what came of Upload; drawing rooms in the Setup Wizard; the ways to a plan "
                "(rough_plan: seen is the base; the walk-through's screens; why a scan was refused; what a read scan held) (events over the window; installs)")
     for k in _PLAN_UPLOAD:
+        out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
+    out.append("  Start with a rough house from your Home Assistant rooms (offered is the base; made is the server's count) (events over the window; installs)")
+    for k in _STARTER_HOUSE:
         out.append(f"    {k:<36} {use[k]:>7}  {len(who[k]):>4} installs")
     out.append("  Set this plan's scale now, after an upload (events over the window; installs)")
     for k in _SCALE_NUDGE:

@@ -247,6 +247,39 @@ five calibration points or a computed model.
 When every step is done, Setup says **Your house is set up.** and leaves the menu. It is still
 there from Mapping's Setup button and the Overview, if you want to change a step.
 
+## Start with a rough house
+
+No plan and no drawing? Setup, and Mapping while it has no floor plans, offer **Start with a rough
+house from your Home Assistant rooms** for as long as no room is drawn. It only runs when you press
+it.
+
+1. Choose **Show what it will make**. It lists each floor with its rooms, and anything it leaves
+   out, with why: a room already drawn, a floor that already has a plan or rooms, an area outdoors.
+2. An area that has no floor in Home Assistant goes on the floor you pick there (the first floor, if
+   you don't).
+3. Choose **Make the rough house**.
+
+For each floor with no plan yet, PadSpan makes a blank floor marked "rough start", with one square
+box for each Home Assistant area on it, named as the area. A box is 3.5 m across, a little bigger
+where the area has more than four devices, at most 6 m. Your devices show in their rooms at once, as
+they do for any room. Nothing else changes: no calibration point, receiver or wall is touched, and a
+second press makes nothing.
+
+The boxes are a starting point. The rough plan's note says how many are still boxes, with two ways
+on:
+
+- **Reshape the rooms.** In Advanced, this opens **Mapping → Layout** on that floor: drag and resize
+  each box, then **Save corrections**. In Basic it opens the Setup Wizard's rooms step on the rough
+  plan, where the boxes are drawn dashed: draw the room over its box.
+- **Upload a plan of this floor.** Upload, scale and trace the rooms as in steps 1 to 3. The rough
+  plan never gets in the way.
+
+Either way, **Put it on the map** (the wizard's Finish, or the room's own button on the **Rooms**
+page) puts each room you traced in place of its box. The room keeps its name, so it stays linked to
+its Home Assistant area. A box you have reshaped in Layout is yours: nothing replaces it. Once a
+floor has its real plan, you can delete the rough plan in the Library. Its rooms stay on the map, and so
+do the calibration points taken on it.
+
 ## No floor plan?
 
 On the upload step, **No floor plan? Ways to get one** lists five ways, best first. The further down

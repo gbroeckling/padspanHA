@@ -193,5 +193,44 @@
 "{what} now on the map.": "{what} jetzt auf der Karte.",
 "Nothing could be put on the map: {left} couldn't be ({where}).": "Nichts ließ sich auf die Karte bringen: {left} ging nicht ({where}).",
 "Nothing could be put on the map.": "Nichts ließ sich auf die Karte bringen.",
-"Couldn't put it on the map: {why}": "Nicht auf die Karte gebracht: {why}"
+"Couldn't put it on the map: {why}": "Nicht auf die Karte gebracht: {why}",
+"{names} and {more} more": "{names} und {more} weitere",
+"Already drawn, left as they are: {names}.": "Schon gezeichnet, bleiben, wie sie sind: {names}.",
+"On a floor that already has a plan or rooms, so draw them there: {names}.": "Auf einem Stockwerk, das schon einen Plan oder Räume hat; zeichne sie dort: {names}.",
+"Outdoors, left out: {names}.": "Draußen, ausgelassen: {names}.",
+"Too many rooms for one floor, left out: {names}.": "Zu viele Räume für ein Stockwerk, ausgelassen: {names}.",
+"No indoor floor to put them on: {names}.": "Kein Stockwerk im Haus, auf das sie kommen könnten: {names}.",
+"rough start": "grober Anfang",
+"Nothing was made: every floor has a plan or rooms now.": "Nichts wurde angelegt: Jedes Stockwerk hat jetzt einen Plan oder Räume.",
+"Rough house made: {n} rooms on the map.": {
+"one": "Grobes Haus angelegt: 1 Raum auf der Karte.",
+"other": "Grobes Haus angelegt: {n} Räume auf der Karte."
+},
+"Reshape them, or upload a real plan, whenever you like.": "Form sie um oder lade einen echten Plan hoch, wann immer du willst.",
+"Nothing to make: every floor already has a floor plan or rooms.": "Nichts anzulegen: Jedes Stockwerk hat schon einen Grundriss oder Räume.",
+"This is what it will make:": "Das wird angelegt:",
+"{floor}: a blank floor with {n} rooms ({names})": {
+"one": "{floor}: ein leeres Stockwerk mit 1 Raum ({names})",
+"other": "{floor}: ein leeres Stockwerk mit {n} Räumen ({names})"
+},
+"Each room is a square box named as its Home Assistant area: 3.5 m, bigger where the area has many devices. Your devices show in their rooms at once.": "Jeder Raum ist ein quadratischer Kasten mit dem Namen seines Home-Assistant-Bereichs: 3,5 m, größer, wo der Bereich viele Geräte hat. Deine Geräte erscheinen sofort in ihren Räumen.",
+"{names} have no floor in Home Assistant. Put them on:": {
+"one": "{names} hat in Home Assistant kein Stockwerk. Hierhin damit:",
+"other": "{names} haben in Home Assistant kein Stockwerk. Hierhin damit:"
+},
+"Make the rough house": "Grobes Haus anlegen",
+"Cancel": "Abbrechen",
+"Start with a rough house from your Home Assistant rooms": "Mit einem groben Haus aus deinen Home-Assistant-Räumen beginnen",
+"No drawing needed: PadSpan puts one box for each Home Assistant area on its floor, so every room is on the map in a minute. It is a rough start: drag and resize the boxes later, or upload a real plan and trace over it.": "Ohne Zeichnen: PadSpan legt für jeden Home-Assistant-Bereich einen Kasten auf sein Stockwerk, so ist jeder Raum in einer Minute auf der Karte. Es ist ein grober Anfang: Verschiebe die Kästen später und ändere ihre Größe, oder lade einen echten Plan hoch und zeichne darüber nach.",
+"Reading your Home Assistant rooms…": "Deine Home-Assistant-Räume werden gelesen…",
+"Show what it will make": "Zeigen, was angelegt wird",
+"Rough start: {n} rooms on this floor are still boxes made from your Home Assistant rooms.": {
+"one": "Grober Anfang: 1 Raum auf diesem Stockwerk ist noch ein Kasten aus deinen Home-Assistant-Räumen.",
+"other": "Grober Anfang: {n} Räume auf diesem Stockwerk sind noch Kästen aus deinen Home-Assistant-Räumen."
+},
+"Drag and resize them, or upload a real plan of this floor and trace the rooms on it: each room you trace and put on the map takes the place of its box, and keeps its Home Assistant area.": "Verschiebe sie und ändere ihre Größe, oder lade einen echten Plan dieses Stockwerks hoch und zeichne die Räume darauf nach: Jeder Raum, den du nachzeichnest und auf die Karte bringst, tritt an die Stelle seines Kastens und behält seinen Home-Assistant-Bereich.",
+"Rough start: a blank floor made from your Home Assistant rooms. Upload a real plan of this floor whenever you have one.": "Grober Anfang: ein leeres Stockwerk aus deinen Home-Assistant-Räumen. Lade einen echten Plan dieses Stockwerks hoch, sobald du einen hast.",
+"To redraw a box here: choose its room and click its corners over the dashed box. \"Put it on the map\" (the Setup Wizard's last step, or the Rooms page) then puts your outline in its place.": "Einen Kasten hier neu zeichnen: Wähle seinen Raum und klicke seine Ecken über dem gestrichelten Kasten. „Put it on the map“ (der letzte Schritt des Einrichtungsassistenten oder die Räume-Seite) setzt dann deinen Umriss an seine Stelle.",
+"Reshape the rooms": "Räume umformen",
+"Upload a plan of this floor": "Einen Plan dieses Stockwerks hochladen"
 }

@@ -31,10 +31,13 @@ def _model_get_source() -> str:
 
 
 def test_registry_floors_carry_their_level():
-    """The floor dict built from the HA registry must include level."""
-    src = _model_get_source()
+    """The floor dict built from the HA registry must include level. Since 2026-11-24 model_get reads its floors
+    through starter_house.house_floors (the starter house reads the same list), so the literal is there."""
+    from custom_components.padspan_ha import starter_house as sh
+    assert "house_floors(hass)" in _model_get_source(), "ws_model_get no longer reads its floors through house_floors"
+    src = inspect.getsource(sh.house_floors)
     m = re.search(r'\{"id": f\.floor_id[^}]*\}', src)
-    assert m, "the floor-registry dict literal in ws_model_get moved or changed shape"
+    assert m, "the floor-registry dict literal in house_floors moved or changed shape"
     assert '"level"' in m.group(0), (
         "model_get drops the registry floor level; any view that sorts floors "
         "by level then falls back to alphabetical and shows the stack out of order"

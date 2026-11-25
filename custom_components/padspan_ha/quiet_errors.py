@@ -479,6 +479,7 @@ snapshot:ws_objects_envelope
 snapshot:ws_slim
 snapshot:ws_suspended
 snapshot:ws_vacuum
+starter_house:devices
 tag_integration:emit_room_change
 tag_integration:get_phone_room
 tag_integration:ha_tag_name_registry

@@ -474,5 +474,9 @@
 "This file could not be read as a PDF.": "Diese Datei ließ sich nicht als PDF lesen.",
 "This PDF has no pages.": "Dieses PDF hat keine Seiten.",
 "This PDF page could not be drawn. Try another page, or save the plan as a picture.": "Diese PDF-Seite ließ sich nicht zeichnen. Versuch eine andere Seite oder speichere den Grundriss als Bild.",
-"Still reading the PDF… Upload once its preview shows.": "Das PDF wird noch gelesen… Lade hoch, sobald die Vorschau erscheint."
+"Still reading the PDF… Upload once its preview shows.": "Das PDF wird noch gelesen… Lade hoch, sobald die Vorschau erscheint.",
+"Except {n} rough boxes from your Home Assistant rooms: the rooms traced here take their place.": {
+"one": "Außer 1 grobem Kasten aus deinen Home-Assistant-Räumen: Der hier gezeichnete Raum tritt an seine Stelle.",
+"other": "Außer {n} groben Kästen aus deinen Home-Assistant-Räumen: Die hier gezeichneten Räume treten an ihre Stelle."
+}
 }

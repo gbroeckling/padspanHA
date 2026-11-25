@@ -1105,6 +1105,13 @@ PLAN_CARRY_EVENTS: frozenset[str] = frozenset(f"plan_carry:{k}" for k in PLAN_CA
 # Align's "Suggest a fit" (views/maps.js; the server's fit_to_floor): a fit shown, or none to suggest.
 FIT_SUGGEST_EVENTS: frozenset[str] = frozenset({"fit_suggest:shown", "fit_suggest:none"})
 ROUGH_PLAN_EVENTS: frozenset[str] = frozenset(f"rough_plan:{k}" for k in ROUGH_PLAN_WORDS + ROUGH_PLAN_WALK + ROUGH_PLAN_SCAN)
+# "Start with a rough house from your Home Assistant rooms" (starter_house.py, views/rough_plan.js; 2026-11-24): the
+# offer shown (once a page), its preview asked for, nothing to make, the house made (the server's count, with how many
+# rooms as a band, and whether areas with no floor went on one), and afterwards which way on was taken from the
+# rough-start note (reshape here, upload a plan) and a box replaced by a traced room put on the map. Words only.
+STARTER_HOUSE_WORDS: tuple[str, ...] = ("offered", "previewed", "nothing", "made", "no_floor", "reshape", "upload", "replaced",
+                                        *(f"rooms_{b}" for b in ROOMS_BANDS if b != "0"))
+STARTER_HOUSE_EVENTS: frozenset[str] = frozenset(f"starter_house:{k}" for k in STARTER_HOUSE_WORDS)
 
 
 # env.plans (2026-11-16): the house's plans by where they came from, and how far the furthest of each kind has got.
@@ -1794,7 +1801,7 @@ def event_allowed(name: str) -> bool:
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS or name in PLANS_TOOL_EVENTS
             or name in AI_WIZARD_EVENTS or name in SCALE_NUDGE_EVENTS or name in PLAN_UPLOAD_EVENTS
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
-            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS)
+            or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in STARTER_HOUSE_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

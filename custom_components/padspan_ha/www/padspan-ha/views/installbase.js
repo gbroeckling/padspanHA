@@ -1093,6 +1093,10 @@ function word(kind, k) {
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
         floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
+      if (a === "starter_house") return `Rough house from Home Assistant's rooms: ${{ offered: "offered (Setup or an empty Mapping)", previewed: "its preview shown",
+        nothing: "nothing to make (every floor has a plan or rooms)", made: "made", no_floor: "areas with no floor put on one", reshape: "\"reshape here\" pressed on its note",
+        upload: "\"upload a plan\" pressed on its note", replaced: "a box replaced by a traced room", rooms_1: "made with 1 room", rooms_2_3: "made with 2 to 3 rooms",
+        rooms_4_6: "made with 4 to 6 rooms", rooms_7_12: "made with 7 to 12 rooms", rooms_gt12: "made with over 12 rooms" }[b] || b}`;
       if (a === "fit_suggest") return b === "shown" ? "Align: a suggested fit shown" : "Align: no fit to suggest";
       if (a === "plan_carry") return `A moved plan: ${{ offered: "its line shown (things still where it stood)", opened: "the list of what could move opened", moved: "the ticked moved with the plan",
         dismissed: "left where they are", refused: "a move refused (no backup)", moved_rooms: "rooms moved with it", moved_receivers: "receivers moved with it",

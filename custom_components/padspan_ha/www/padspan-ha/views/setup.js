@@ -26,6 +26,8 @@ const NUDGE = await import(`./scale_nudge.js${new URL(import.meta.url).search}`)
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 // A receiver's room, picked where the receivers step says it has none (2026-11-21).
 const RR = await import(`./receiver_room.js${new URL(import.meta.url).search}`).catch(() => null);
+// "Start with a rough house from your Home Assistant rooms" (rough_plan.js starterOffer): at the top, while the house has no rooms.
+const ROUGH = await import(`./rough_plan.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // The steps, their names and their words are setup_status.js's: Getting started and the Setup Wizard read the same
 // (review 2026-11-13: one order, one vocabulary). setup_checks.SETUP_STEPS holds the same ids.
@@ -523,6 +525,10 @@ export function render(ctx) {
     root.appendChild(card);
     return root;
   }
+
+  // No rooms drawn yet: a first map from Home Assistant's own floors and areas, on a press (the owner's gap pick 1).
+  const starter = ROUGH && ROUGH.starterOffer ? ROUGH.starterOffer(ctx) : null;
+  if (starter) { starter.style.marginTop = "10px"; card.appendChild(starter); }
 
   const dots = el("div", { style: "display:flex;gap:4px;margin:12px 0 4px" });
   for (const s of d.steps) {

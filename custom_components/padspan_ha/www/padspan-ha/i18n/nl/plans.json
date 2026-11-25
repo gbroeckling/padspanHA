@@ -193,5 +193,44 @@
 "{what} now on the map.": "{what} nu op de kaart.",
 "Nothing could be put on the map: {left} couldn't be ({where}).": "Er kon niets op de kaart: {left} lukte niet ({where}).",
 "Nothing could be put on the map.": "Er kon niets op de kaart.",
-"Couldn't put it on the map: {why}": "Niet op de kaart gezet: {why}"
+"Couldn't put it on the map: {why}": "Niet op de kaart gezet: {why}",
+"{names} and {more} more": "{names} en nog {more}",
+"Already drawn, left as they are: {names}.": "Al getekend, blijven zoals ze zijn: {names}.",
+"On a floor that already has a plan or rooms, so draw them there: {names}.": "Op een verdieping die al een plattegrond of kamers heeft; teken ze daar: {names}.",
+"Outdoors, left out: {names}.": "Buiten, weggelaten: {names}.",
+"Too many rooms for one floor, left out: {names}.": "Te veel kamers voor één verdieping, weggelaten: {names}.",
+"No indoor floor to put them on: {names}.": "Geen binnenverdieping om ze op te zetten: {names}.",
+"rough start": "ruwe start",
+"Nothing was made: every floor has a plan or rooms now.": "Er is niets gemaakt: elke verdieping heeft nu een plattegrond of kamers.",
+"Rough house made: {n} rooms on the map.": {
+"one": "Ruw huis gemaakt: 1 kamer op de kaart.",
+"other": "Ruw huis gemaakt: {n} kamers op de kaart."
+},
+"Reshape them, or upload a real plan, whenever you like.": "Pas ze aan of upload een echte plattegrond, wanneer je maar wilt.",
+"Nothing to make: every floor already has a floor plan or rooms.": "Niets te maken: elke verdieping heeft al een plattegrond of kamers.",
+"This is what it will make:": "Dit wordt er gemaakt:",
+"{floor}: a blank floor with {n} rooms ({names})": {
+"one": "{floor}: een lege verdieping met 1 kamer ({names})",
+"other": "{floor}: een lege verdieping met {n} kamers ({names})"
+},
+"Each room is a square box named as its Home Assistant area: 3.5 m, bigger where the area has many devices. Your devices show in their rooms at once.": "Elke kamer is een vierkant vak met de naam van zijn Home Assistant-ruimte: 3,5 m, groter waar de ruimte veel apparaten heeft. Je apparaten staan meteen in hun kamers.",
+"{names} have no floor in Home Assistant. Put them on:": {
+"one": "{names} heeft geen verdieping in Home Assistant. Zet het op:",
+"other": "{names} hebben geen verdieping in Home Assistant. Zet ze op:"
+},
+"Make the rough house": "Ruw huis maken",
+"Cancel": "Annuleren",
+"Start with a rough house from your Home Assistant rooms": "Begin met een ruw huis uit je Home Assistant-kamers",
+"No drawing needed: PadSpan puts one box for each Home Assistant area on its floor, so every room is on the map in a minute. It is a rough start: drag and resize the boxes later, or upload a real plan and trace over it.": "Tekenen is niet nodig: PadSpan zet voor elke Home Assistant-ruimte een vak op zijn verdieping, zodat elke kamer binnen een minuut op de kaart staat. Het is een ruwe start: versleep de vakken later en pas hun grootte aan, of upload een echte plattegrond en teken eroverheen.",
+"Reading your Home Assistant rooms…": "Je Home Assistant-kamers worden gelezen…",
+"Show what it will make": "Laat zien wat er gemaakt wordt",
+"Rough start: {n} rooms on this floor are still boxes made from your Home Assistant rooms.": {
+"one": "Ruwe start: 1 kamer op deze verdieping is nog een vak uit je Home Assistant-kamers.",
+"other": "Ruwe start: {n} kamers op deze verdieping zijn nog vakken uit je Home Assistant-kamers."
+},
+"Drag and resize them, or upload a real plan of this floor and trace the rooms on it: each room you trace and put on the map takes the place of its box, and keeps its Home Assistant area.": "Versleep ze en pas hun grootte aan, of upload een echte plattegrond van deze verdieping en teken de kamers erop: elke kamer die je tekent en op de kaart zet, komt in de plaats van zijn vak en houdt zijn Home Assistant-ruimte.",
+"Rough start: a blank floor made from your Home Assistant rooms. Upload a real plan of this floor whenever you have one.": "Ruwe start: een lege verdieping uit je Home Assistant-kamers. Upload een echte plattegrond van deze verdieping zodra je er een hebt.",
+"To redraw a box here: choose its room and click its corners over the dashed box. \"Put it on the map\" (the Setup Wizard's last step, or the Rooms page) then puts your outline in its place.": "Een vak hier opnieuw tekenen: kies zijn kamer en klik zijn hoeken over het gestippelde vak. „Put it on the map” (de laatste stap van de installatiewizard, of de pagina Kamers) zet daarna je omtrek op zijn plaats.",
+"Reshape the rooms": "Kamers aanpassen",
+"Upload a plan of this floor": "Een plattegrond van deze verdieping uploaden"
 }

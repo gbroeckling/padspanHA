@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-282 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+283 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |
 |---|---|---|---|---|
@@ -266,6 +266,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/maps_scale_measure` | `map_id`, `measures` (optional), `save` (optional), `not_to_scale` (optional) | always | `ws_maps.py` | What the lengths make of the plan (writes nothing), or with `save` the plan's scale from them. |
 | `padspan_ha/maps_scale_nudge_end` | `map_id` | always | `ws_maps.py` | "Later" on "Set this plan's scale now": it ends for this plan, for good. |
 | `padspan_ha/maps_scan_create` | `floor_id`, `file_base64`, `name` (optional) | always | `ws_maps.py` | {ok, map, rooms, heights_m, warnings} or {ok: false, message}: nothing is written unless the scan reads. |
+| `padspan_ha/maps_starter_house` | `dry_run` (optional), `floor_id` (optional), `no_floor_to` (optional), `label` (optional) | always | `ws_maps.py` | {ok, floors, skipped, no_floor, choices} (and, made: maps, rooms); {ok: false, code: "nothing"} when there is nothing to make. |
 | `padspan_ha/maps_update` | `map_id`, `receivers` (optional), `calibration` (optional), `notes` (optional), `floor_id` (optional), `room_bounds` (optional), `stack` (optional), `beacons` (optional), `lights` (optional) | with Enhanced security | `ws_maps.py` | Update map metadata: receivers, beacons, room_bounds, calibration, stack, notes. |
 | `padspan_ha/maps_upload` | `name`, `filename`, `mime`, `width`, `height`, `png_base64`, `floor_id` (optional), `allow_no_image` (optional), `scale_nudge` (optional), `kind` (optional) | always | `ws_maps.py` | Upload a new floor plan image and create a map entry. |
 | `padspan_ha/model_get` | – | – | `websocket.py` | Return floors from HA floor registry, areas from HA area registry, and per-room metadata. |

@@ -690,14 +690,14 @@ def scale_signs(spaces: dict[str, dict], rows: list[str], printed: dict | None =
 
 
 def ha_areas(hass: HomeAssistant) -> list[dict[str, Any]]:
-    """Home Assistant's areas: [{name, floor_id}]; none when the registry can't be read."""
+    """Home Assistant's areas: [{id, name, floor_id}]; none when the registry can't be read."""
     try:
         from homeassistant.helpers import area_registry  # noqa: PLC0415
         areas = list(area_registry.async_get(hass).async_list_areas())
     except Exception:  # noqa: BLE001
         _quiet_error("ai_wizard:ha_areas")
         return []
-    return [{"name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
+    return [{"id": str(getattr(a, "id", "") or ""), "name": str(a.name), "floor_id": getattr(a, "floor_id", None)} for a in areas if getattr(a, "name", None)]
 
 
 # ── piece 2: "Also add this room to Home Assistant" (2026-11-10) ──────
