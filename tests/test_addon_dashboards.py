@@ -77,7 +77,7 @@ def test_the_summary_lists_are_the_senders():
     assert S._PLAN_SOURCES == AR.PLAN_WORDS
     # Every funnel event is read by name (addon_used:* reaches it through addons.used).
     read = ({f"addon_offer:{p}:{a}" for p, names in S._ADDON_OFFER_PLACES.items() for a in names}
-            | {f"addon_buy:{p}:{a}" for p in S._ADDON_BUY_PLACES for a in S._ADDONS}
+            | {f"addon_buy:{p}:{a}" for p in S._ADDON_BUY_PLACES for a in S._ADDON_OFFER_PLACES[p]}
             | {f"addon_key:{w}" for w in S._ADDON_KEY_WORDS} | {f"addon_gained:{a}" for a in S._ADDONS}
             | {f"addon_gained_in:{w}" for w in S._ADDON_SALE_WHEN} | {f"addon_sale_card:{w}" for w in S._ADDON_SALE_CARD})
     assert read == {e for e in T.ADDON_EVENTS if not e.startswith("addon_used:")}
@@ -121,7 +121,7 @@ def test_the_summary_adds_up_the_addons_section():
                                       now=FREE_BASICS_FROM_TS))
     assert "installs that say: 3 of 5" in text
     assert "licence: addon 1, pro_year 1, trial 1" in text
-    assert "on an add-on key: 1; on Pro: 1; on a trial: 1, of them over a kept add-on key: 1" in text
+    assert "on an add-on key: 1; on Pro: 1; on a trial: 1; over a kept add-on key (a trial or a Pro invite's year): 1" in text
     assert re.search(r"\n    alarm +1 +0 +1 +0 +0 +0 +0 +0\n", text), text
     assert "on the latest report (installs): free -> addon 1, addon -> pro_year 1" in text
     assert "across each install's reports over the window (installs): free -> addon 1, addon -> pro_year 1" in text
@@ -147,7 +147,7 @@ def test_the_summary_adds_up_the_addons_section():
     assert "vacuum: robot vacuums 1 (1), Valetudo 1; any of them 1 installs, 1 already on it" in text
     assert "audio: control4 1 (22 players); any of them 1 installs, 1 already on it" in text
     assert "Control4: 2 installs" in text and "the local token override on 1" in text
-    assert "the Control4 OS 2 Local market (OS 2, its entry not loaded or the local override on): 1" in text
+    assert "the OS 2 Local for Control4 market (OS 2, its entry not loaded or the local override on): 1" in text
     assert "wifi: UniFi Utopia 1, UniFi Network 1; 1 already on it" in text
     assert "(days of history the recorder keeps): 14_30d 1, gt30d 1" in text
     # Before December 1 Advanced map creation and Robot vacuum are not sold: everyone's, so every install is on them.
@@ -199,7 +199,7 @@ def test_stats_php_adds_up_the_section_with_the_senders_words():
     assert "array('roomplan' => 'maps', 'valetudo' => 'vacuum')" in src
     # The refusal offers are the window's events, set against each install's latest report.
     assert "$usage_installs[$ev]" in src and '"addon_offer:$place:$name"' in src
-    assert "$os === '2' && ($entry !== 'loaded' || $local)" in src, "the Control4 OS 2 Local market"
+    assert "$os === '2' && ($entry !== 'loaded' || $local)" in src, "the OS 2 Local for Control4 market"
 
 
 def test_stats_php_adds_it_up_when_php_is_here(tmp_path):
@@ -253,7 +253,8 @@ def test_stats_php_adds_it_up_when_php_is_here(tmp_path):
     assert a["was"] == {"free>addon": 1, "addon>pro_year": 1} and a["changes"] == {"free>addon": 1, "addon>pro_year": 1}
     assert a["moved"]["emergency_test"] == {"installs": 1, "holds": 1, "pro": 0, "into": "alarm"}
     assert a["moved"]["lidar"] == {"installs": 1, "holds": 0, "pro": 1, "into": "maps"}
-    assert a["on_it"]["alarm"] == 2 and a["on_it"]["lighting"] == 3 and a["used"] == {"alarm": 1, "maps": 1, "lighting": 1}
+    # Advanced smart lighting is sold like the rest: on it = an add-on key carrying it, or Pro (B).
+    assert a["on_it"]["alarm"] == 2 and a["on_it"]["lighting"] == 1 and a["used"] == {"alarm": 1, "maps": 1, "lighting": 1}
     assert a["refused"]["insights"] == {"installs": 2, "without": 1} and a["refused"]["alarm"] == {"installs": 1, "without": 0}
     assert a["market"]["emergency"] == {"installs": 1, "sum": 4} and a["audio"] == {"control4": {"installs": 1, "sum": 22}}
     assert a["reach"]["alarm"] == {"installs": 1, "on_it": 1} and a["reach"]["maps"] == {"installs": 1, "on_it": 0}
@@ -294,6 +295,8 @@ def test_the_dashboard_names_every_word_the_section_sends():
     assert listed("audio") == set(AR.AUDIO_SYSTEMS) and listed("c4_os") == set(AR.C4_OS_WORDS)
     assert listed("c4_entry") == set(AR.C4_ENTRY_WORDS) and listed("wifi") == set(AR.WIFI_WORDS)
     assert listed("history") == set(AR.HISTORY_WORDS) and listed("plans") == set(AR.PLAN_WORDS)
+    buys = re.search(r"const W_ADDON_BUY_PLACES = \[(.*?)\];", ib).group(1)
+    assert tuple(re.findall(r'"(\w+)"', buys)) == T.ADDON_BUY_PLACES
     for fam in ("addon_offer", "addon_buy", "addon_key", "addon_gained", "addon_gained_in", "addon_sale_card", "addon_used"):
         assert f'a === "{fam}"' in ib, fam
 

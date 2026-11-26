@@ -9,13 +9,15 @@ yes/no only: never a key, an email, an entity id, a name or an address (assert_s
 key and word to these lists). What it says, for the owner's add-ons (licence.ADDONS, 2026-11-25):
 
     licence   the licence this install runs on, as one word (LICENCE_WORDS)
-    held      with an add-on key (running, lapsed, or kept aside while a Pro trial runs): each add-on it carries and how
-              long it has left, as a band (DAYS_WORDS)
-    kept      a Pro trial was started over an add-on key, which comes back when the trial ends
+    held      with an add-on key (running, lapsed, or kept aside while a Pro trial or a Pro invite's year runs): each
+              add-on it carries and how long it has left, as a band (DAYS_WORDS)
+    kept      an add-on key is kept aside (a Pro trial started, or a Pro invite claimed, over it): it comes back when
+              that key ends
     was       the licence word of the last report sent, only when it changed since (an add-on key that became Pro)
     moved     the features that moved from free into an add-on which this house had in use, noted once, the first time
               this code ran here (MOVED_WORDS), so what the move cost and who came back can be told
-    used      the add-ons whose feature was used since the last report, among the ones this install may use (USED_WORDS)
+    used      the add-ons whose feature was used since the last report, among the ones this install may use (USED_WORDS;
+              a Bright key keeps what was Bright's: BRIGHT_KEEPS)
     market    what the house has that an add-on is for: counts of alarm panels, garage and gate openers, emergency
               lights, whole-house audio players by system, temperature / humidity / CO2 sensors, WLED devices, power
               teams and colour bulbs, robot vacuums; Control4's controller OS (2 or 3), its config entry's state and
@@ -42,8 +44,8 @@ LICENCE_WORDS: tuple[str, ...] = ("free", "trial", "pro_year", "pro_pass", "pro_
                                   "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 DAYS_WORDS: tuple[str, ...] = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
 MOVED_WORDS: tuple[str, ...] = ("emergency_test", "power_teams", "circadian", "lidar", "robot_vacuum")
-# The add-ons, and Advanced smart lighting (circadian and power teams), which is everyone's until it is sold.
-USED_WORDS: tuple[str, ...] = tuple(dict.fromkeys(ADDONS + ("lighting",)))   # once, now that lighting is an add-on too
+# The add-ons whose use the report says: every add-on (Advanced smart lighting's circadian and power teams too).
+USED_WORDS: tuple[str, ...] = ADDONS
 # Whole-house audio by the integration that runs the player (an integration's name starts with one of these:
 # russound_rio, denonavr, yamaha_musiccast, anthemav, nuvo_serial, triad_ams ...).
 AUDIO_SYSTEMS: tuple[str, ...] = ("control4", "crestron", "savant", "russound", "nuvo", "monoprice", "xantech", "triad",
@@ -53,6 +55,9 @@ C4_ENTRY_WORDS: tuple[str, ...] = ("loaded", "setup_error", "setup_retry", "not_
 WIFI_WORDS: tuple[str, ...] = ("utopia", "unifi")
 HISTORY_WORDS: tuple[str, ...] = ("none", "lt7d", "7_13d", "14_30d", "gt30d")
 PLAN_WORDS: tuple[str, ...] = ("picture", "sketch", "blank", "scan")      # telemetry.PLAN_SOURCES
+# What a Bright key has had all along and keeps beside the add-ons (licence.hass_addon_or_bright: the alarm's controls,
+# the light design tools and power teams; vacuum_import.licensed: the robot vacuum's features).
+BRIGHT_KEEPS: tuple[str, ...] = ("alarm", "lighting", "vacuum")
 MARKET_COUNTS: tuple[str, ...] = ("alarm", "garage", "gate", "emergency", "temp", "humidity", "co2", "wled", "teams",
                                   "colour_bulbs", "vacuum")
 CAP = 99                      # a count says "99 or more" past this
@@ -128,12 +133,15 @@ def licence_word(settings: dict[str, Any], active: bool, days_left: int | None) 
     return "pro_year"
 
 
-def held(settings: dict[str, Any], now: float) -> dict[str, str]:
-    """{add-on: DAYS_WORDS} for an add-on key; the one kept aside while a trial runs over it. {} otherwise."""
-    src = settings
+def _kept(settings: dict[str, Any]) -> dict[str, Any] | None:
+    """The add-on key kept aside (license_addons_kept: a Pro trial or a Pro invite's year over it), or None."""
     kept = settings.get("license_addons_kept")
-    if settings.get("license_is_trial") and isinstance(kept, dict) and str(kept.get("forensics_license_key") or "").strip():
-        src = kept
+    return kept if isinstance(kept, dict) and str(kept.get("forensics_license_key") or "").strip() else None
+
+
+def held(settings: dict[str, Any], now: float) -> dict[str, str]:
+    """{add-on: DAYS_WORDS} for an add-on key; the one kept aside while another key runs over it. {} otherwise."""
+    src = _kept(settings) or settings
     if not is_addon_key(src):
         return {}
     until = normalize_addons_until(src.get("license_addons_until"))
@@ -148,7 +156,7 @@ def _count(usage: dict[str, Any], *names: str) -> bool:
 
 def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool) -> list[str]:
     """The add-ons whose feature was used since the last report, among the ones this install may use (Pro: all; an
-    add-on key: its own; Bright: the alarm's controls; a feature that is still everyone's: anyone)."""
+    add-on key: its own; Bright: what it keeps, BRIGHT_KEEPS; a feature that is still everyone's: anyone)."""
     got = {w for w in USED_WORDS if _count(usage, f"addon_used:{w}")}
     if _count(usage, *(f"room_controls:{w}" for w in ("up", "down", "mute", "off", "match_saved"))):
         got.add("audio")
@@ -176,7 +184,7 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
     def may(w: str) -> bool:
         if w not in ADDONS or not addon_on_sale(w):
             return True                                  # still everyone's
-        return addon_allowed(settings, key_active, w) or (w == "alarm" and bright)
+        return addon_allowed(settings, key_active, w) or (w in BRIGHT_KEEPS and bright)
     return [w for w in USED_WORDS if w in got and may(w)]
 
 
@@ -250,7 +258,7 @@ def _c4(hass: Any, entries: list[Any]) -> dict[str, Any]:
                 break
     except Exception:
         _quiet_error("addon_report:c4_os")
-    # "Control4 OS 2 Local": a custom control4 integration that signs in with the controller's own token.
+    # "OS 2 Local for Control4": a custom control4 integration that signs in with the controller's own token.
     if "custom_components.control4.local_token" in sys.modules or any(
             "director_password" in (getattr(e, "options", None) or {}) for e in entries):
         out["local"] = True
@@ -366,8 +374,7 @@ def section(hass: Any, settings: dict[str, Any], usage: dict[str, Any], env: dic
     h = held(settings, now)
     if h:
         out["held"] = h
-    kept = settings.get("license_addons_kept")
-    if settings.get("license_is_trial") and isinstance(kept, dict) and str(kept.get("forensics_license_key") or "").strip():
+    if _kept(settings) is not None:
         out["kept"] = True
     seen = settings.get(SEEN_KEY) if isinstance(settings.get(SEEN_KEY), dict) else {}
     if seen.get("licence") in LICENCE_WORDS and seen.get("licence") != word:

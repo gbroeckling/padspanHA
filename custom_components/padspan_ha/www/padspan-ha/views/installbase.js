@@ -323,7 +323,7 @@ function renderUnlocked(ctx, root) {
       const pick = (re) => Object.fromEntries(Object.entries(aUse).filter(([k]) => re.test(k)));
       const order = Object.keys(W_ADDONS.addon), places = Object.keys(W_ADDONS.place), days = Object.keys(W_ADDONS.days);
       // Not sold yet (the feed's not_sold: an add-on before its moment, licence.ADDON_ON_SALE_FROM): everyone's.
-      const notSold = (a) => a === "lighting" || (Array.isArray(ao.not_sold) && ao.not_sold.includes(a));
+      const notSold = (a) => Array.isArray(ao.not_sold) && ao.not_sold.includes(a);
       const onPro = Object.entries(lic).reduce((t, [k, v]) => t + (/^pro_/.test(k) ? Number(v) || 0 : 0), 0);
       const gained = total(Object.fromEntries(Object.entries(pick(/^addon_gained:/)).map(([k, v]) => [k, v.count])));
       // Offers and buy clicks per add-on and place: whatever the window's events name.
@@ -332,7 +332,7 @@ function renderUnlocked(ctx, root) {
         .sort((x, y) => (order.indexOf(x[1]) - order.indexOf(y[1])) || (places.indexOf(x[0]) - places.indexOf(y[0])))
         .map(([p, a]) => {
           const o = `addon_offer:${p}:${a}`, b = `addon_buy:${p}:${a}`;
-          return [`${aw("addon", a)} · ${aw("place", p)}`, both(o), both(b), u(o) && (u(b) || p === "licence_card") ? pctOf(u(b), u(o)) : "–"];
+          return [`${aw("addon", a)} · ${aw("place", p)}`, both(o), both(b), u(o) && (u(b) || W_ADDON_BUY_PLACES.includes(p)) ? pctOf(u(b), u(o)) : "–"];
         });
       const changes = [...new Set([...Object.keys(ao.was || {}), ...Object.keys(ao.changes || {})])]
         .map(k => [k.split(">").map(w => aw("licence", w)).join(" → "), Number((ao.was || {})[k]) || 0, Number((ao.changes || {})[k]) || 0])
@@ -353,7 +353,7 @@ function renderUnlocked(ctx, root) {
       section("Add-ons", `The add-ons: the licence each install runs on and the add-ons its key carries (each install's latest report), what was offered, clicked and bought over the last ${W} days, whether the people on an add-on use it, and who could use each one. Older PadSpan sends none of it.`, [
         grid([
           barCard(el, { title: "Licence", ask: "The licence each install runs on (installs that say)", map: pre("licence", lic), total: nA, kind: "addons" }),
-          cardShell(el, "Add-on keys, by time left", `Installs whose add-on key carries each add-on, by how long it has left · ${fmt(ao.kept || 0)} on a Pro trial over a kept add-on key`, () => {
+          cardShell(el, "Add-on keys, by time left", `Installs whose add-on key carries each add-on, by how long it has left · ${fmt(ao.kept || 0)} on Pro over a kept add-on key (a trial or a Pro invite's year)`, () => {
             const rows = order.filter(a => held[a]).map(a => [aw("addon", a), fmt(total(held[a])), ...days.map(d => fmt(held[a][d] || 0))]);
             return rows.length ? dataTable(el, ["", "installs", ...days.map(d => aw("days", d))], rows) : empty(el);
           }),
@@ -943,6 +943,8 @@ const W_WALL_KIND = { kiosk: "as a wall screen (kiosk link)", fullscreen_idle: "
                       fullscreen_used: "full screen, in use", windowed: "in a window", fullscreen: "full screen", stuck: "stuck on the old version" };
 
 // Add-ons (addon_report.py, telemetry.ADDON_EVENTS; the Add-ons section): word("addons", "<list>:<word>").
+// The places whose offer links to the site (telemetry.ADDON_BUY_PLACES): their clicks per offer, even at none.
+const W_ADDON_BUY_PLACES = ["licence_card", "power_teams", "team_card"];
 const W_ADDONS = {
   addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Time travel",
     vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
@@ -953,7 +955,9 @@ const W_ADDONS = {
   days: { gt365: "over a year", "91_365": "3–12 months", "30_90": "1–3 months", lt30: "under 30 days", grace: "in its grace",
     ended: "ended", unknown: "not known" },
   place: { licence_card: "the licence card", busy_times: "Busy Times", locate: "Locate", door_openers: "the doors and openers card",
-    emergency_test: "the emergency lights test", themes: "Themes", showcase: "Showcase", forensics: "Forensics" },
+    emergency_test: "the emergency lights test", themes: "Themes", showcase: "Showcase", forensics: "Forensics",
+    power_teams: "Settings' power teams", team_card: "a power team's card", light_design: "the Atlas builder's light design tools (WLED strips, shapes …)",
+    vacuum_import: "importing the robot vacuum's map", features: "Settings → Features" },
   key: { entered: "a key entered", addon: "an add-on key", pro: "a Pro key", pro_from_addon: "a Pro key where an add-on key was",
     needs_update: "PadSpan too old for the key", invalid: "not a valid key", refused: "refused for another reason" },
   sale: { before: "before the sale", sale_w1: "in the sale's week 1", sale_w2: "in the sale's week 2", sale_w3: "in the sale's week 3",

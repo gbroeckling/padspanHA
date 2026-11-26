@@ -1527,8 +1527,8 @@
    "de": "Halber Preis bis 1. Januar (sonst 6,45 CAD)"
   },
   {
-   "en": "Add-ons need PadSpan 0.38.300 or later, which is in beta for now; the next stable release includes them.",
-   "de": "Add-ons brauchen PadSpan 0.38.300 oder neuer. Das ist vorerst eine Beta; die nächste stabile Version enthält sie."
+   "en": "Add-ons need the latest PadSpan.",
+   "de": "Add-ons brauchen das neueste PadSpan."
   }
  ],
  "attrs": {

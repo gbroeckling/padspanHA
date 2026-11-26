@@ -107,7 +107,8 @@ light (on, off, dimming, its power and each bulb).
 - Your add-ons share one key: buy another with the same email and it joins that key. Enter it here
   like any key; the licence card lists each add-on with its date. An add-on key is not a Pro key.
 - Each add-on gets the same 14 days past its date that a key does.
-- The 90-day trial is still yours: it keeps the add-on key aside and puts it back when it ends.
+- The 90-day trial is still yours: it keeps the add-on key aside and puts it back when it ends. So does
+  an invite's free year ([Invites](#invites)).
 - Where a feature is locked, it says what unlocks it: "PadSpan Pro or the … add-on", with the price.
 - A key holding only add-ons newer than your PadSpan still reads as an add-on key, never as Pro: the
   licence card says "This add-on needs a newer PadSpan — update PadSpan." Update, and it works.

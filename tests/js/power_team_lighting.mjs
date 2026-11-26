@@ -57,25 +57,35 @@ for (const lighting of [false, true]) {
     const sent = [];
     const ctx = { hass: { user: { is_admin: true }, states: STATES },
       actions: { wsCall: async (type, data) => { sent.push(type); return view(lighting); } } };
-    const box = PT.powerTeamsSection(ctx, el, { lightingPrice: "$8.65 CAD", addonsUrl: URL_ });
+    // The usage report's add-on funnel (settings.js wires these to addonOfferSeen and addon_buy:power_teams:lighting).
+    const tel = [];
+    const box = PT.powerTeamsSection(ctx, el, { lightingPrice: "$8.65 CAD", addonsUrl: URL_,
+      onOffer: () => tel.push("offer"), onBuy: () => tel.push("buy") });
     find(box, "data-open")[0].click();
     await settle();
     const text = box.textContent || "";
+    const offered = tel.filter(w => w === "offer").length;
+    find(box, "data-team-lighting").filter(n => n.getAttribute("data-team-lighting") === "offer").forEach(n => n.click());
     out[`settings_${k}`] = { save: find(box, "data-save").length, add: find(box, "data-add").length,
       remove: find(box, "data-remove").length, inputs: box._all().filter(n => n.localName === "input").length,
       locked: said(box, "locked"), offer: said(box, "offer"), named: text.includes("Bedroom"),
-      price: text.includes("Advanced smart lighting add-on ($8.65 CAD)"), keeps: text.includes("The teams already made keep switching") };
+      price: text.includes("Advanced smart lighting add-on ($8.65 CAD)"), keeps: text.includes("The teams already made keep switching"),
+      offered: offered > 0, bought: tel.filter(w => w === "buy").length };
     // The card's part
     const hass = { states: STATES, user: { is_admin: true }, connection: null,
       callWS: async (m) => (m.type === "padspan_ha/power_teams_get" ? view(lighting) : {}), callService: async () => {} };
-    const sec = CARD.teamSection("light.bedroom", { el, hass, lightingPrice: "$8.65 CAD", addonsUrl: URL_ });
+    const ctel = [];
+    const sec = CARD.teamSection("light.bedroom", { el, hass, lightingPrice: "$8.65 CAD", addonsUrl: URL_,
+      onOffer: () => ctel.push("offer"), onBuy: () => ctel.push("buy") });
     await settle();
+    const cOffered = ctel.filter(w => w === "offer").length;
+    find(sec.node, "data-team-lighting").filter(n => n.getAttribute("data-team-lighting") === "offer").forEach(n => n.click());
     const folds = find(sec.node, "data-team-fold").map(n => n.getAttribute("data-team-fold"));
     const ctext = sec.node.textContent || "";
     out[`card_${k}`] = { folds, locked: said(sec.node, "locked"), offer: said(sec.node, "offer"),
       price: ctext.includes("Advanced smart lighting add-on ($8.65 CAD)"), keeps: ctext.includes("keeps switching as one light"),
       effects: find(sec.node, "data-team-effect").length, sleepNow: find(sec.node, "data-team-sleep-now").length,
-      manual: ["Cut power", "Hue 1"].filter(w => ctext.includes(w)) };
+      manual: ["Cut power", "Hue 1"].filter(w => ctext.includes(w)), offered: cOffered > 0, bought: ctel.filter(w => w === "buy").length };
     sec.stop();
   } catch (e) { fail.push(`${k}: ${e && e.stack || e}`); }
 }

@@ -189,6 +189,60 @@ def test_a_working_paid_key_is_never_replaced(monkeypatch):
     assert calls == [] and _settings(h)["forensics_license_key"] == "PSPAN-PAID"
 
 
+_ADDON_KEY = dict(forensics_license_key="PSPAN-ADDON", forensics_license_expires="2028-11-25 10:00:00", license_tier="free",
+                  license_addons=["audio", "climate"], license_addons_until={"audio": "2028-11-25 10:00:00"},
+                  license_plan="addons", license_home_token="tok", license_homes_used=1, license_is_trial=False)
+
+
+@pytest.mark.parametrize("running", [True, False])
+def test_an_add_on_key_is_kept_aside_by_the_claim_and_comes_back(monkeypatch, running):
+    """Claiming the free year over an add-on key (running or lapsed) keeps that key aside (license_addons_kept), as the
+    trial does (ws_forensics.ws_trial_start); when the year has ended, the add-on key is back (update_check)."""
+    from custom_components.padspan_ha import update_check as U
+    from custom_components.padspan_ha import ws_common
+    from custom_components.padspan_ha.licence import ADDON_KEY_FIELDS
+    h = _house({"token": _TOKEN, "until": _UNTIL})
+    key = {**_ADDON_KEY, **({} if running else {"forensics_license_expires": "2020-01-01 00:00:00"})}
+    _settings(h).update(key)
+    calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-YEAR", "expires_at": "2027-11-25 18:00:00",
+                                        "tier": "pro", "days_left": 365})
+    sent, conn = _conn()
+    _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
+    assert sent["result"]["ok"] is True and calls and calls[0][0] == "invite_claim"
+    s = _settings(h)
+    assert s["forensics_license_key"] == "PSPAN-YEAR" and s["license_tier"] == "pro"
+    assert s["license_addons_kept"] == {k: key[k] for k in ADDON_KEY_FIELDS}
+    # The year ends (past its grace): the add-on key takes its place again, with nothing to enter.
+    monkeypatch.setattr(ws_common, "_pro_expiry_state", lambda hass: {"active": False})
+    st = h.data[DOMAIN][DATA_SETTINGS]
+    assert _run(U._bring_back_kept_addons(h, st, None)) is True
+    s = _settings(h)
+    assert {k: s[k] for k in ADDON_KEY_FIELDS} == {k: key[k] for k in ADDON_KEY_FIELDS}
+    assert s["license_addons_kept"] == {} and s["license_is_trial"] is False
+
+
+def test_a_claim_during_a_trial_keeps_the_add_on_key_the_trial_kept(monkeypatch):
+    """A trial over an add-on key, then the invite claimed: the key the trial kept aside stays kept."""
+    from custom_components.padspan_ha.licence import ADDON_KEY_FIELDS
+    h = _house({"token": _TOKEN, "until": _UNTIL})
+    kept = {k: _ADDON_KEY[k] for k in ADDON_KEY_FIELDS}
+    _settings(h).update(forensics_license_key="PSPAN-TRIAL", forensics_license_expires="2099-01-01", license_tier="pro",
+                        license_is_trial=True, license_plan="trial", license_addons_kept=kept)
+    _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-YEAR", "expires_at": "2027-11-25 18:00:00", "tier": "pro"})
+    sent, conn = _conn()
+    _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
+    assert sent["result"]["ok"] is True
+    assert _settings(h)["forensics_license_key"] == "PSPAN-YEAR" and _settings(h)["license_addons_kept"] == kept
+
+
+def test_a_claim_over_no_add_on_key_keeps_nothing_aside(monkeypatch):
+    h = _house({"token": _TOKEN, "until": _UNTIL})
+    _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-YEAR", "expires_at": "2027-11-25 18:00:00", "tier": "pro"})
+    sent, conn = _conn()
+    _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
+    assert sent["result"]["ok"] is True and not _settings(h).get("license_addons_kept")
+
+
 def test_an_answer_without_a_key_stores_nothing(monkeypatch):
     for answer in ({"ok": True}, ["ok"], "ok"):
         h = _house({"token": _TOKEN, "until": _UNTIL})

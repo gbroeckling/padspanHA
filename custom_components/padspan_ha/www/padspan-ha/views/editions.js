@@ -239,12 +239,13 @@ export function addonSaleCardDue(settings, now = Date.now()) {
   const s = settings || {};
   if (!addonHalfOff(now) || !("addon_sale_card_done" in s) || s.addon_sale_card_done) return false;
   if (typeof s.pro_has_key !== "boolean") return false;            // not loaded yet: no flash
+  if (!addonSaleCardPicks(s, now).length) return false;            // it names what it offers: never an empty list
   if (s.license_is_trial && s.pro_active !== false) return true;
   return ADDONS.some(a => addonOnSale(a.name, now) && !addonAllowed(s, a.name));
 }
 // The few the card names with their half price: the first three on sale this
 // install can't use yet, in this order.
-const SALE_CARD_PICKS = ["audio", "climate", "timetravel", "looks", "alarm", "insights", "vacation", "forensics", "wifi"];
+const SALE_CARD_PICKS = ["audio", "lighting", "climate", "timetravel", "looks", "alarm", "insights", "vacation", "forensics", "wifi"];
 export function addonSaleCardPicks(settings, now = Date.now()) {
   const s = settings || {};
   const trial = !!s.license_is_trial;

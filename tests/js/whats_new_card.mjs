@@ -631,7 +631,7 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     assert(out, "not shown");
     const words = out.textContent;
     assert(words.includes("Half off every add-on until January 1"), words);
-    assert(words.includes("Now Audio $3.22 CAD, Climate map $4.32 CAD, Time travel $3.77 CAD. Each is paid once and covers 2 years."), words);
+    assert(words.includes("Now Audio $3.22 CAD, Advanced smart lighting $4.32 CAD, Climate map $4.32 CAD. Each is paid once and covers 2 years."), words);
     const see = q(out, '[data-sale-card="see"]');
     assert(see && see.getAttribute("href") === ED.ADDONS_URL && see.getAttribute("target") === "_blank" && see.textContent === "See the add-ons", "the link");
     assert(q(out, '[data-sale-card="no"]').textContent === "No thanks", "No thanks");
@@ -652,7 +652,7 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
   });
   st("sale card: an add-on holder is offered only what it lacks", () => {
     const out = sale({ ...SFREE, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ["audio", "climate"] }).card();
-    assert(out && out.textContent.includes("Now Time travel $3.77 CAD, Looks pack $2.12 CAD, Alarm & security $3.22 CAD."), out && out.textContent);
+    assert(out && out.textContent.includes("Now Advanced smart lighting $4.32 CAD, Time travel $3.77 CAD, Looks pack $2.12 CAD."), out && out.textContent);
   });
   st("sale card: never to a non-admin, on a wall, in sample mode or before the mode is known, to a running Pro key or a holder of every add-on, from an older backend, or without editions.js", () => {
     const all = ED.ADDONS.filter(a => a.on_sale !== false).map(a => a.name);

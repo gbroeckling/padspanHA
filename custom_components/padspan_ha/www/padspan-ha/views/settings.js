@@ -3832,7 +3832,7 @@ function _settingsFeatures(ctx, el){
       label: t("Robot Vacuum Import"),
       desc: t("Lets Mapping → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off."),
       // The Robot vacuum add-on's once it is on sale (editions.js vacuumAllowed): what it needs, said here.
-      needs: vacuumAllowed(settings) ? "" : proOrAddon("vacuum"),
+      needs: vacuumAllowed(settings) ? "" : proOrAddon("vacuum"), addon: "vacuum",
     },
     {
       key: "phone_wizard_enabled",
@@ -3873,6 +3873,7 @@ function _settingsFeatures(ctx, el){
     left.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.4"}, f.desc));
     if (f.needs) left.appendChild(el("div",{"data-feature-needs":f.key,style:"font-size:11px;color:#fbbf24;margin-top:4px;line-height:1.4"},
       t("Needs {what}. Enter a key in Settings → Features → PadSpan licence.", { what: f.needs })));
+    if (f.needs && f.addon) addonOfferSeen(_addonTel(ctx), "features", f.addon);   // the usage report's add-on funnel
     const toggle = el("input",{type:"checkbox",style:"width:18px;height:18px;accent-color:#52b788;cursor:pointer;flex-shrink:0"});
     toggle.checked = on;
     toggle.addEventListener("change", async()=>{
@@ -5343,8 +5344,11 @@ function _settingsAtlas(ctx, el){
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // Power teams (power_team.py, the full edition's): a wall dimmer and the smart bulbs it feeds, as one light.
   if (POWER_TEAMS && String(settings.edition || "full").toLowerCase() !== "bright") {
-    // Without Advanced smart lighting the section offers it at the price of the day (editions.js addonPrice).
-    lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el, { lightingPrice: addonPrice("lighting"), addonsUrl: ADDONS_URL }));
+    // Without Advanced smart lighting the section offers it at the price of the day (editions.js addonPrice); the
+    // offer and its link opened are counted in the usage report (place power_teams).
+    lightsCard.appendChild(POWER_TEAMS.powerTeamsSection(ctx, el, { lightingPrice: addonPrice("lighting"), addonsUrl: ADDONS_URL,
+      onOffer: () => addonOfferSeen(_addonTel(ctx), "power_teams", "lighting"),
+      onBuy: () => _addonTel(ctx)("addon_buy:power_teams:lighting") }));
   }
   // The 3D house is Pro's (PadSpan Pro and Bright Pro) unless its basics have
   // moved down the ladder (editions.js house3dTier): below its rung, no box at

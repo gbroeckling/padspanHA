@@ -48,12 +48,13 @@ const TIERS = {
   addon_all: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: [...ALL] },
   addon_all_but_one: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ALL.slice(1) },
   addon_lapsed: { ...base, pro_has_key: true, pro_active: false, addon_key: true, addons_licensed: [] },
-  // Every add-on but the ones not on sale yet: nothing on sale is lacking until they are (December 1).
+  // Every add-on but the ones not on sale yet: nothing on sale is lacking until they are (December 1), and from then
+  // only ones the card never names (SALE_CARD_PICKS): never due.
   addon_all_but_late: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ALL.filter(n => !LATE.includes(n)) },
 };
 const WANT = { free: true, trial: true, trial_lapsed: true, pro_year: false, pro_life: false, pro_tester: false, pro_lapsed: true,
   bright: true, bright_lapsed: true, addon_some: true, addon_all: false, addon_all_but_one: true, addon_lapsed: true,
-  addon_all_but_late: (now) => now >= DEC1 };
+  addon_all_but_late: false };
 check("every tier in the matrix has an answer", Object.keys(TIERS).every(k => k in WANT));
 check("the late ones are maps and vacuum, from December 1", JSON.stringify(LATE) === JSON.stringify(["maps", "vacuum"]) && FROM < DEC1 && DEC1 < UNTIL, LATE);
 const WHEN = { before: FROM - 1, first_second: FROM, in_sale: IN, before_dec1: DEC1 - 1, dec1: DEC1, last_second: UNTIL - 1, ended: UNTIL,
@@ -61,7 +62,7 @@ const WHEN = { before: FROM - 1, first_second: FROM, in_sale: IN, before_dec1: D
 const OPEN = { before: false, first_second: true, in_sale: true, before_dec1: true, dec1: true, last_second: true, ended: false, long_after: false };
 for (const [tier, s] of Object.entries(TIERS)) {
   for (const [when, now] of Object.entries(WHEN)) {
-    const want = (typeof WANT[tier] === "function" ? WANT[tier](now) : WANT[tier]) && OPEN[when];
+    const want = WANT[tier] && OPEN[when];
     check(`due: ${tier} at ${when}`, E.addonSaleCardDue(s, now) === want, `${E.addonSaleCardDue(s, now)} != ${want}`);
     // Once shown, never again; a backend that does not know the flag (older) never shows it; settings not loaded: no flash.
     check(`flag: ${tier} at ${when} once shown`, E.addonSaleCardDue({ ...s, addon_sale_card_done: true }, now) === false);
@@ -76,9 +77,19 @@ check("the card's window is the sale's", E.addonHalfOff(IN) && !E.addonHalfOff(F
 
 // The few it names: three on sale that the install can't use yet, never one it has, never one not on sale.
 const picks = (s) => E.addonSaleCardPicks(s);
-check("picks: a free install", JSON.stringify(picks(TIERS.free)) === JSON.stringify(["audio", "climate", "timetravel"]), picks(TIERS.free));
-check("picks: a trial names what the trial would take away", JSON.stringify(picks(TIERS.trial)) === JSON.stringify(["audio", "climate", "timetravel"]), picks(TIERS.trial));
-check("picks: an add-on holder, never what it has", JSON.stringify(picks(TIERS.addon_some)) === JSON.stringify(["timetravel", "looks", "alarm"]), picks(TIERS.addon_some));
+check("picks: a free install", JSON.stringify(picks(TIERS.free)) === JSON.stringify(["audio", "lighting", "climate"]), picks(TIERS.free));
+check("picks: a trial names what the trial would take away", JSON.stringify(picks(TIERS.trial)) === JSON.stringify(["audio", "lighting", "climate"]), picks(TIERS.trial));
+check("picks: an add-on holder, never what it has", JSON.stringify(picks(TIERS.addon_some)) === JSON.stringify(["lighting", "timetravel", "looks"]), picks(TIERS.addon_some));
+// Never a card with nothing to name ("Now . Each is paid once…"): due only with at least one pick, at every moment.
+for (const [tier, s] of Object.entries(TIERS)) {
+  for (const [when, now] of Object.entries(WHEN)) {
+    if (E.addonSaleCardDue(s, now)) check(`due: ${tier} at ${when} names something`, E.addonSaleCardPicks(s, now).length > 0);
+  }
+}
+// One that lacks only what the card does not name (Advanced map creation, from December 1): no card at all.
+const onlyMaps = { ...TIERS.addon_all, addons_licensed: ALL.filter(n => n !== "maps") };
+check("due: lacking only one the card never names, no card", !E.addonSaleCardDue(onlyMaps, DEC1 + 86400e3)
+      && E.addonSaleCardPicks(onlyMaps, DEC1 + 86400e3).length === 0 && E.addonOnSale("maps", DEC1 + 86400e3));
 check("picks: one left, one named", JSON.stringify(picks(TIERS.addon_all_but_one)) === JSON.stringify([ALL[0]]), picks(TIERS.addon_all_but_one));
 for (const [when, now] of Object.entries(WHEN)) {
   for (const [tier, s] of Object.entries(TIERS)) {

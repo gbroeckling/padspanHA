@@ -542,7 +542,8 @@ def test_the_import_row_is_off_by_default_and_admin_only():
     assert ("const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true"
             " || !!ctx.state.live?.snapshot?.vacuum;\n"
             "    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) {\n"
-            "      card.appendChild(_vacuumAllowed(ctx.state.settings) ? VACUUM.vacuumImportBlock(ctx, floorId)") in maps
+            "      const _vacOk = _vacuumAllowed(ctx.state.settings);\n") in maps
+    assert "      card.appendChild(_vacOk ? VACUUM.vacuumImportBlock(ctx, floorId)" in maps
     assert maps.count("VACUUM.vacuumImportBlock(") == 1
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     assert 'key: "vacuum_import_enabled"' in settings

@@ -269,8 +269,10 @@ def test_settings_shows_a_team_already_made_and_offers_the_add_on_without_it(vie
     s = views["settings_without"]
     assert s["save"] == s["add"] == s["remove"] == s["inputs"] == 0, "nothing to make, change or remove"
     assert s["locked"] == 1 and s["offer"] == 1 and s["named"] and s["price"] and s["keeps"]
+    assert s["offered"] and s["bought"] == 1, "the offer seen and its link opened, counted (place power_teams)"
     w = views["settings_with"]
     assert w["save"] == 1 and w["add"] == 1 and w["remove"] == 1 and w["inputs"] > 0 and w["locked"] == w["offer"] == 0
+    assert not w["offered"] and w["bought"] == 0
 
 
 def test_the_card_keeps_manual_control_and_offers_the_add_on_without_it(views) -> None:
@@ -278,8 +280,10 @@ def test_the_card_keeps_manual_control_and_offers_the_add_on_without_it(views) -
     assert c["folds"] == [] and c["locked"] == 1 and c["price"] and c["keeps"], "no wake-up, bedtime, night or curve to set"
     assert c["offer"] == 1 and c["effects"] == 0 and c["sleepNow"] == 0, "the add-on offered; no Follow the day or Sleep"
     assert c["manual"] == ["Cut power", "Hue 1"], "the power and each bulb stay"
+    assert c["offered"] and c["bought"] == 1, "the offer seen and its link opened, counted (place team_card)"
     w = views["card_with"]
     assert w["folds"] == ["wake", "bedtime", "night", "advanced"] and w["locked"] == w["offer"] == 0
+    assert not w["offered"] and w["bought"] == 0
     assert w["effects"] == 2 and w["sleepNow"] == 1 and w["manual"] == ["Cut power", "Hue 1"]
 
 

@@ -688,7 +688,7 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 #   addon_offer:<place>:<add-on>  offered to an install without it: in the licence card's list, or where a feature
 #                                 refuses it (ADDON_OFFER_PLACES); once per page load per place (editions.js
 #                                 addonOfferSeen), and each time the backend refuses the emergency lights test
-#   addon_buy:<place>:<add-on>    its link to the site opened, each time (the licence card's list is the one that links)
+#   addon_buy:<place>:<add-on>    its link to the site opened, each time (where a place links: ADDON_BUY_PLACES)
 #   addon_key:<word>              a key entered in the licence card (entered) and how it went: an add-on key (addon), a
 #                                 Pro key (pro; pro_from_addon where an add-on key was), this PadSpan too old for it
 #                                 (needs_update), not valid (invalid), refused for another reason (refused)
@@ -703,13 +703,19 @@ ADDON_OFFER_PLACES: dict[str, tuple[str, ...]] = {
     "door_openers": ("alarm",), "emergency_test": ("alarm",),
     "themes": ("looks",), "showcase": ("looks",),
     "forensics": ("forensics",),
+    # Advanced smart lighting: Settings' power teams box, a team's card on the Atlas, and the Atlas builder's card
+    # where the light design tools are refused (WLED strips, fixture shapes, Automorph, Fit room …).
+    "power_teams": ("lighting",), "team_card": ("lighting",), "light_design": ("lighting",),
+    # Robot vacuum: importing the robot's map (Mapping → Layout, and the robot's way to a plan), and its Settings →
+    # Features row.
+    "vacuum_import": ("vacuum",), "features": ("vacuum",),
 }
-ADDON_BUY_PLACES: tuple[str, ...] = ("licence_card",)
+ADDON_BUY_PLACES: tuple[str, ...] = ("licence_card", "power_teams", "team_card")
 ADDON_KEY_WORDS: tuple[str, ...] = ("entered", "addon", "pro", "pro_from_addon", "needs_update", "invalid", "refused")
 ADDON_SALE_CARD_WORDS: tuple[str, ...] = ("shown", "clicked", "dismissed")
 ADDON_EVENTS: frozenset[str] = frozenset(
     {f"addon_offer:{p}:{a}" for p, names in ADDON_OFFER_PLACES.items() for a in names}
-    | {f"addon_buy:{p}:{a}" for p in ADDON_BUY_PLACES for a in _ADDONS}
+    | {f"addon_buy:{p}:{a}" for p in ADDON_BUY_PLACES for a in ADDON_OFFER_PLACES[p]}
     | {f"addon_key:{w}" for w in ADDON_KEY_WORDS}
     | {f"addon_gained:{a}" for a in _ADDONS}
     | {f"addon_gained_in:{w}" for w in _addon_report.SALE_WHEN}

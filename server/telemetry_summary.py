@@ -823,9 +823,11 @@ _ADDON_MOVED = (("emergency_test", "alarm"), ("power_teams", "lighting"), ("circ
                 ("robot_vacuum", "vacuum"))
 _ADDON_OFFER_PLACES = {"licence_card": _ADDONS, "busy_times": ("insights",), "locate": ("insights",),
                        "door_openers": ("alarm",), "emergency_test": ("alarm",), "themes": ("looks",),
-                       "showcase": ("looks",), "forensics": ("forensics",)}
+                       "showcase": ("looks",), "forensics": ("forensics",),
+                       "power_teams": ("lighting",), "team_card": ("lighting",), "light_design": ("lighting",),
+                       "vacuum_import": ("vacuum",), "features": ("vacuum",)}
 _ADDON_REFUSAL_PLACES = tuple(p for p in _ADDON_OFFER_PLACES if p != "licence_card")   # where a feature refuses it
-_ADDON_BUY_PLACES = ("licence_card",)
+_ADDON_BUY_PLACES = ("licence_card", "power_teams", "team_card")
 _ADDON_KEY_WORDS = ("entered", "addon", "pro", "pro_from_addon", "needs_update", "invalid", "refused")
 _ADDON_SALE_WHEN = ("before",) + tuple(f"sale_w{i}" for i in range(1, 7)) + ("after",)
 _ADDON_SALE_CARD = ("shown", "clicked", "dismissed")
@@ -907,7 +909,8 @@ def addons_section(latest: dict[str, dict], reports: list[dict], now: float | No
            f"  installs that say: {len(told)} of {len(latest)} (older PadSpan sends no add-ons section)"]
     out.append("  licence: " + (", ".join(f"{w} {c}" for w, c in lic.most_common()) or "-"))
     out.append(f"  on an add-on key: {lic['addon']}; on Pro: {sum(c for w, c in lic.items() if w.startswith('pro_'))};"
-               f" on a trial: {lic['trial']}, of them over a kept add-on key: {sum(1 for a in told.values() if a.get('kept') is True)}")
+               f" on a trial: {lic['trial']}; over a kept add-on key (a trial or a Pro invite's year):"
+               f" {sum(1 for a in told.values() if a.get('kept') is True)}")
     out.append("  add-ons held, by the time they have left (installs)")
     out.append(f"    {'add-on':<11}{'held':>6}" + "".join(f"{d:>8}" for d in _ADDON_DAYS))
     for addon in _ADDONS:
@@ -1027,7 +1030,7 @@ def addons_section(latest: dict[str, dict], reports: list[dict], now: float | No
             if any(cells[(os_, e)] for e in _ADDON_C4_ENTRY):
                 out.append(f"      {os_:<9}" + "".join(f"{cells[(os_, e)]:>13}" for e in _ADDON_C4_ENTRY))
         local = sum(1 for c in c4.values() if str(c.get("os")) == "2" and (c.get("entry") != "loaded" or c.get("local") is True))
-        out.append(f"      the Control4 OS 2 Local market (OS 2, its entry not loaded or the local override on): {local}")
+        out.append(f"      the OS 2 Local for Control4 market (OS 2, its entry not loaded or the local override on): {local}")
     else:
         out.append("    Control4: none")
     wifi = {w: {iid for iid, m in mk.items() if m.get("wifi") == w} for w, _ in _ADDON_WIFI}

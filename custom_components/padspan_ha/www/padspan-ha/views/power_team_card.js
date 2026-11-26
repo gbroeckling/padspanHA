@@ -139,7 +139,8 @@ export function powerState(states, powerEid){
 }
 
 // ── the section ──────────────────────────────────────────────────────────────
-/** The team's part of the control card. o: {el, hass, toast, errorText, close, rerender, track(word), lightingPrice (the
+/** The team's part of the control card. o: {el, hass, toast, errorText, close, rerender, track(word), onOffer / onBuy
+ *  (Advanced smart lighting offered here, its link opened: the usage report's add-on funnel), lightingPrice (the
  *  Advanced smart lighting add-on's, editions.js), addonsUrl (where to get it; none on a wall)}. Live while the card is open (Home Assistant's state_changed for the
  *  team's own entities). Returns {node, stop}. */
 export function teamSection(teamEid, o){
@@ -521,9 +522,13 @@ export function teamSection(teamEid, o){
       "Power teams are part of the Advanced smart lighting add-on" + (o.lightingPrice ? ` (${o.lightingPrice})` : "")
         + ", with PadSpan Pro: following the day, Sleep, the bedtime, the night light, the wake-up and changing a team. Without it this team"
         + " keeps switching as one light: on, off, dimming, its power and each bulb."));
-    if (!lighting && o.addonsUrl) settings.appendChild(el("a", { "data-team-lighting": "offer", href: o.addonsUrl, target: "_blank", rel: "noopener",
-      style: "display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#fbbf24" }, "Get Advanced smart lighting"));
-    else if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up, the bedtime, the night light and the curve."));
+    if (!lighting && typeof o.onOffer === "function") o.onOffer();
+    if (!lighting && o.addonsUrl) {
+      const get = el("a", { "data-team-lighting": "offer", href: o.addonsUrl, target: "_blank", rel: "noopener",
+        style: "display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#fbbf24" }, "Get Advanced smart lighting");
+      if (typeof o.onBuy === "function") get.addEventListener("click", () => o.onBuy());
+      settings.appendChild(get);
+    } else if (ro) settings.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:8px" }, "An administrator changes the wake-up, the bedtime, the night light and the curve."));
     settings.appendChild(say);
   }
   /** Draw one section again from what was saved, open if it was open. */

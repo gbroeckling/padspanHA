@@ -383,7 +383,10 @@ function body(ctx, kind, opts) {
   for (const step of STEPS()[kind]) ol.appendChild(el("li", { style: "margin:3px 0" }, step));
   wrap.appendChild(ol);
   // The robot vacuum's way without the Robot vacuum add-on (maps.js _vacuumNeeds): what it needs, said here too.
-  if (kind === "vacuum" && opts && opts.vacuumNeeds) wrap.appendChild(el("div", { "data-rough": "vacuum-addon", style: "font-size:12px;color:#fbbf24;margin:0 0 8px" }, opts.vacuumNeeds));
+  if (kind === "vacuum" && opts && opts.vacuumNeeds) {
+    wrap.appendChild(el("div", { "data-rough": "vacuum-addon", style: "font-size:12px;color:#fbbf24;margin:0 0 8px" }, opts.vacuumNeeds));
+    if (typeof opts.onVacuumOffer === "function") opts.onVacuumOffer();     // the usage report's add-on funnel
+  }
   if (kind === "scan") {
     wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, t("Which floor is it?")), floorPick(ctx, opts)]));
     wrap.appendChild(row(ctx, [el("span", { style: "font-size:13px;color:#cbd5e1" }, s.busy ? t("Reading the scan…") : t("The scan file (.usdz or .json):")), scanFile(ctx, opts)]));

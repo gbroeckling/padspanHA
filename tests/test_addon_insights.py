@@ -211,6 +211,10 @@ def test_held_add_ons_with_their_time_left_and_the_one_kept_for_a_trial() -> Non
     trial = {"forensics_license_key": "PSPAN-TRIA-L000-0000-0001", "license_tier": "pro", "license_is_trial": True,
              "license_addons_kept": _addon_key()}
     assert A.held(trial, _NOW) == {"audio": "gt365", "climate": "lt30"}
+    # A Pro invite's year claimed over an add-on key (pro_invite.py keeps it aside too): the kept key's add-ons.
+    year = {"forensics_license_key": "PSPAN-YEAR-0000-0000-0001", "license_tier": "pro", "license_is_trial": False,
+            "license_addons_kept": _addon_key()}
+    assert A.held(year, _NOW) == {"audio": "gt365", "climate": "lt30"}
     assert A.days_word(None) == "unknown" and A.days_word(45) == "30_90" and A.days_word(200) == "91_365"
 
 
@@ -223,21 +227,31 @@ def test_the_sale_weeks() -> None:
     assert set(A.SALE_WHEN) == {A.sale_when(start + d * 86400) for d in range(-1, 40)}
 
 
-def test_what_was_used_counts_only_what_the_install_may_use() -> None:
+def test_what_was_used_counts_only_what_the_install_may_use(monkeypatch) -> None:
     usage = {"room_controls:up": 2, "alarm_button:arm": 1, "tab:wifi": 3, "addon_used:insights": 1, "addon_used:timetravel": 1,
-             "forensics_query": 1, "plan_ai_session:started": 1, "vacation_on": 1}
+             "forensics_query": 1, "plan_ai_session:started": 1, "vacation_on": 1, "vacuum_imported": 1}
     state = {"atlas_heatmap_enabled": True, "theme_palette": "ocean", "power_teams": [{"adaptive": True}]}
     pro = {"forensics_license_key": _KEY, "license_tier": "pro", **state}
     assert A.used_words(pro, usage, True) == ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
-                                              "forensics", "insights", "maps", "lighting"]
-    # An add-on key: its own (audio and climate), and what is still everyone's (maps, not on sale). Lighting is an
-    # add-on on sale now, so a key without it doesn't count it.
-    assert A.used_words({**_addon_key(), **state}, usage, True) == ["audio", "climate", "maps"]
+                                              "forensics", "insights", "maps", "lighting", "vacuum"]
+    # An add-on key: its own (audio and climate), and what is still everyone's (maps and vacuum, not on sale before
+    # December 1). Lighting is an add-on on sale now, so a key without it doesn't count it.
+    assert A.used_words({**_addon_key(), **state}, usage, True) == ["audio", "climate", "maps", "vacuum"]
     # Free: a palette stored from Pro days is not the Looks pack used; nor a power team's curve without lighting.
-    assert A.used_words(dict(state), usage, False) == ["maps"]
-    # Bright keeps the alarm's controls.
-    assert A.used_words({"forensics_license_key": _KEY, "license_tier": "bright"}, usage, True) == ["alarm", "maps"]
+    assert A.used_words(dict(state), usage, False) == ["maps", "vacuum"]
+    # Bright keeps what was Bright's: the alarm's controls, the light design tools and power teams, the robot vacuum.
+    bright = {"forensics_license_key": _KEY, "license_tier": "bright", "power_teams": [{"adaptive": True}]}
+    assert A.used_words(bright, usage, True) == ["alarm", "maps", "lighting", "vacuum"]
     assert A.used_words(pro, {}, True) == ["climate", "looks", "lighting"], "settings alone"
+    assert A.used_words(pro, {"robot_run:started": 1}, True) == ["climate", "looks", "lighting", "vacuum"], "a room location run"
+    # From December 1 Advanced map creation and Robot vacuum are sold: only their holders, Pro (and Bright, the robot).
+    from custom_components.padspan_ha import licence
+    from custom_components.padspan_ha.const import FREE_BASICS_FROM_TS
+    monkeypatch.setattr(licence, "_clock", lambda: float(FREE_BASICS_FROM_TS))
+    assert A.used_words({**_addon_key(), **state}, usage, True) == ["audio", "climate"]
+    assert A.used_words(dict(state), usage, False) == []
+    assert A.used_words(bright, usage, True) == ["alarm", "lighting", "vacuum"]
+    assert A.used_words({**_addon_key(license_addons=["vacuum"], license_addons_until={}), **state}, usage, True) == ["vacuum"]
 
 
 def _moved_house(tmp_teams=None, maps=None, roomplan=False):
@@ -280,6 +294,13 @@ def test_the_section_says_was_kept_moved_and_used() -> None:
     sec = A.section(h, s, {"room_controls:mute": 1}, {}, _NOW)
     assert sec["licence"] == "addon" and sec["was"] == "free" and sec["moved"] == ["power_teams"] and sec["used"] == ["audio"]
     assert "kept" not in sec
+    # An add-on key kept aside: said while a trial runs over it, and while a Pro invite's year does.
+    for trial in (True, False):
+        k = {**s, "forensics_license_key": "PSPAN-OVER-0000-0000-0001", "license_tier": "pro", "license_is_trial": trial,
+             "license_addons_kept": _addon_key()}
+        over = A.section(h, k, {}, {}, _NOW)
+        assert over["kept"] is True and set(over["held"]) == {"audio", "climate"}, (trial, over)
+        A.check(over)
     s[A.SEEN_KEY] = {"licence": "addon"}
     assert "was" not in A.section(h, s, {}, {}, _NOW), "said only when it changed"
     A.check(sec)
@@ -458,6 +479,31 @@ def test_every_add_on_event_the_code_sends_is_in_the_vocabulary() -> None:
     assert all(f"addon_offer:licence_card:{a}" in T.ADDON_EVENTS and f"addon_buy:licence_card:{a}" in T.ADDON_EVENTS for a in ADDONS)
     # Every word ADDON_EVENTS is built from: no key, no free text.
     assert all(re.fullmatch(r"addon_[a-z_]+:[a-z0-9_]+(:[a-z0-9_]+)?", e) for e in T.ADDON_EVENTS)
+
+
+def test_advanced_smart_lighting_and_robot_vacuum_are_offered_and_counted_where_they_are_refused() -> None:
+    """Each place that names Advanced smart lighting or Robot vacuum to an install without it counts the offer, and a
+    place whose offer links to the site counts the link opened (ADDON_BUY_PLACES)."""
+    assert T.ADDON_OFFER_PLACES["power_teams"] == T.ADDON_OFFER_PLACES["team_card"] == ("lighting",)
+    assert T.ADDON_OFFER_PLACES["light_design"] == ("lighting",)
+    assert T.ADDON_OFFER_PLACES["vacuum_import"] == T.ADDON_OFFER_PLACES["features"] == ("vacuum",)
+    assert T.ADDON_BUY_PLACES == ("licence_card", "power_teams", "team_card")
+    for e in ("addon_offer:power_teams:lighting", "addon_buy:power_teams:lighting", "addon_offer:team_card:lighting",
+              "addon_buy:team_card:lighting", "addon_offer:light_design:lighting", "addon_offer:vacuum_import:vacuum",
+              "addon_offer:features:vacuum"):
+        assert e in T.ADDON_EVENTS and T.event_allowed(e), e
+    # A buy click only where the place links: never Busy Times', never Robot vacuum's.
+    assert "addon_buy:busy_times:insights" not in T.ADDON_EVENTS and "addon_buy:vacuum_import:vacuum" not in T.ADDON_EVENTS
+    # Where each one is drawn.
+    st, lm, mp, rp = (_src(_VIEWS / f) for f in ("settings.js", "lights_map.js", "maps.js", "rough_plan.js"))
+    assert 'onOffer: () => addonOfferSeen(_addonTel(ctx), "power_teams", "lighting")' in st
+    assert 'onBuy: () => _addonTel(ctx)("addon_buy:power_teams:lighting")' in st
+    assert 'onOffer: () => addonOfferSeen((w) => _track(hass, w), "team_card", "lighting")' in lm
+    assert 'onBuy: () => _track(hass, "addon_buy:team_card:lighting")' in lm
+    assert 'if (!_lit) _addonOfferSeen(_tel, "light_design", "lighting");' in mp
+    assert mp.count('"vacuum_import", "vacuum")') == 2 and "opts.onVacuumOffer()" in rp
+    assert 'needs: vacuumAllowed(settings) ? "" : proOrAddon("vacuum"), addon: "vacuum",' in st
+    assert 'if (f.needs && f.addon) addonOfferSeen(_addonTel(ctx), "features", f.addon);' in st
 
 
 def test_events_count_only_while_the_report_is_on() -> None:

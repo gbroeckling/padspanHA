@@ -592,3 +592,16 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
         assert f'data-addon-price="normal" style="color:var(--mut);font-weight:600">${normal} CAD</span>' in row, name
         assert f'data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">${sale} CAD</span>' in row, name
         assert f"Half off until January 1 (normally ${normal})" in row, name
+
+
+def test_the_add_ons_version_note_holds_on_stable_day_and_after(html: str) -> None:
+    """The #addons box says what add-ons need in words true on the stable's day and after it: no beta channel, no
+    version to go stale, never "Show beta versions" (scripts/deploy_site.py stops a deploy on it); the German page
+    says the same (site/i18n/de.json)."""
+    box = _addon_box(html)
+    assert "Add-ons need the latest PadSpan." in box
+    assert not re.search(r"\bbeta\b|Show beta versions|0\.38\.\d+", box, re.I), "a beta or a version in the add-ons box"
+    units = json.loads((_ROOT / "site" / "i18n" / "de.json").read_text(encoding="utf-8"))["units"]
+    de = [u["de"] for u in units if u.get("en") == "Add-ons need the latest PadSpan."]
+    assert de == ["Add-ons brauchen das neueste PadSpan."], de
+    assert not any("0.38.300 oder neuer" in str(u.get("de")) for u in units)

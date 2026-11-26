@@ -464,7 +464,7 @@ foreach ($tabs as $t => $n) { $tabs_out[$t] = array('count' => $n, 'installs' =>
 // ── add-ons (the owner's, 2026-11-25) ────────────────────────────────────────
 // The report's top-level `addons` (addon_report.py), from each install's
 // latest report: the licence as a word, the add-ons a key carries by time
-// left, Pro trials over a kept add-on key, the licence before it changed, the
+// left, Pro (a trial or an invite's year) over a kept add-on key, the licence before it changed, the
 // features that moved from free into an add-on and how many of those houses
 // are on that add-on now, and what each house has that an add-on is for
 // (market counts; reach: houses with any of it, and of them already on it).
@@ -483,7 +483,8 @@ $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pr
                         'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
                        'emergency_test' => array('alarm'), 'themes' => array('looks'), 'showcase' => array('looks'),
-                       'forensics' => array('forensics'));
+                       'forensics' => array('forensics'), 'power_teams' => array('lighting'), 'team_card' => array('lighting'),
+                       'light_design' => array('lighting'), 'vacuum_import' => array('vacuum'), 'features' => array('vacuum'));
 $ADDON_MOVED = array('emergency_test' => 'alarm', 'power_teams' => 'lighting', 'circadian' => 'lighting', 'lidar' => 'maps',
                      'robot_vacuum' => 'vacuum');
 $ADDON_MARKET = array('alarm' => array('alarm', 'garage', 'gate', 'emergency'), 'climate' => array('temp', 'humidity', 'co2'),
@@ -508,8 +509,8 @@ function addon_sold($name) {
     global $ADDON_ON_SALE_FROM, $ADDON_NOW;
     return !isset($ADDON_ON_SALE_FROM[$name]) || $ADDON_NOW >= strtotime($ADDON_ON_SALE_FROM[$name]);
 }
-// Holds it or is on Pro; Advanced smart lighting is not sold yet, so everyone's.
-function addon_on_it($a, $name) { return $name === 'lighting' || !addon_sold($name) || addon_holds($a, $name) || addon_pro($a); }
+// Holds it or is on Pro; an add-on not on sale yet is everyone's.
+function addon_on_it($a, $name) { return !addon_sold($name) || addon_holds($a, $name) || addon_pro($a); }
 $addons = array('installs' => 0, 'licence' => array(), 'held' => array(), 'kept' => 0, 'was' => array(), 'changes' => array(),
                 'moved' => array(), 'on_it' => array(), 'used' => array(), 'refused' => array(), 'market' => array(),
                 'reach' => array(), 'audio' => array(), 'c4' => array(), 'c4_local' => 0, 'c4_os2_local' => 0,
@@ -555,7 +556,7 @@ foreach ($latest as $id => $r) {
         if (addon_holds($a, $ADDON_MOVED[$w])) { $addons['moved'][$w]['holds']++; }
         if (addon_pro($a)) { $addons['moved'][$w]['pro']++; }
     }
-    foreach (array_unique(array_merge($ADDON_NAMES, array('lighting'))) as $name) {
+    foreach ($ADDON_NAMES as $name) {
         if (!addon_on_it($a, $name)) { continue; }
         incr($addons['on_it'], $name);
         if (isset($addon_used_by[$name][$id])) { incr($addons['used'], $name); }
@@ -584,7 +585,7 @@ foreach ($latest as $id => $r) {
         $local = isset($m['c4']['local']) && $m['c4']['local'] === true;
         incr($addons['c4'], $os . ':' . $entry);
         if ($local) { $addons['c4_local']++; }
-        // "Control4 OS 2 Local": OS 2 whose own Control4 entry is not running, or that runs the local-token override.
+        // "OS 2 Local for Control4": OS 2 whose own Control4 entry is not running, or that runs the local-token override.
         if ($os === '2' && ($entry !== 'loaded' || $local)) { $addons['c4_os2_local']++; }
     }
     if (isset($m['wifi']) && is_string($m['wifi'])) { incr($addons['wifi'], $m['wifi']); $addon_reach['wifi'][$id] = 1; }

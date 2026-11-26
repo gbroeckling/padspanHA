@@ -36,7 +36,8 @@ export function choices(states){
   return out;
 }
 
-export function powerTeamsSection(ctx, el, { lightingPrice = "", addonsUrl = "" } = {}){
+// onOffer / onBuy: the usage report's add-on funnel (settings.js): Advanced smart lighting offered here, its link opened.
+export function powerTeamsSection(ctx, el, { lightingPrice = "", addonsUrl = "", onOffer = null, onBuy = null } = {}){
   const box = el("div", { "data-focus-part": "power_teams", style: "margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a" });
   box.appendChild(el("div", { style: "font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px" }, "💡 Power teams"));
   box.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
@@ -171,8 +172,13 @@ export function powerTeamsSection(ctx, el, { lightingPrice = "", addonsUrl = "" 
         "Power teams are part of the Advanced smart lighting add-on" + (lightingPrice ? ` (${lightingPrice})` : "")
         + ", with PadSpan Pro: making, changing and removing a team, following the day, Sleep and the wake-up."
         + (teams.length ? " The teams already made keep switching: on, off, dimming, the power and each bulb." : "")));
-      if (addonsUrl) body.appendChild(el("a", { "data-team-lighting": "offer", href: addonsUrl, target: "_blank", rel: "noopener",
-        style: "display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#fbbf24" }, "Get Advanced smart lighting"));
+      if (typeof onOffer === "function") onOffer();
+      if (addonsUrl) {
+        const get = el("a", { "data-team-lighting": "offer", href: addonsUrl, target: "_blank", rel: "noopener",
+          style: "display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#fbbf24" }, "Get Advanced smart lighting");
+        if (typeof onBuy === "function") get.addEventListener("click", () => onBuy());
+        body.appendChild(get);
+      }
       return;
     }
     if (!teams.length) body.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, "No team yet."));

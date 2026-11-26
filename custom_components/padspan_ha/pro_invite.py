@@ -156,9 +156,12 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
             "Turn it on in Settings → Tracking → Usage report, then claim it."})
         return
     # A key someone paid for and that still works would be replaced by a
-    # one-year one: refuse, and say how to get the year added instead.
+    # one-year one: refuse, and say how to get the year added instead. An
+    # add-on key is not replaced: it is kept aside below and comes back.
+    from .licence import ADDON_KEY_FIELDS, is_addon_key  # noqa: PLC0415
     from .ws_common import _pro_expiry_state  # noqa: PLC0415
-    if _pro_expiry_state(hass)["active"] and not st.data.get("license_is_trial"):
+    addon_key = is_addon_key(st.data)
+    if _pro_expiry_state(hass)["active"] and not st.data.get("license_is_trial") and not addon_key:
         connection.send_result(msg["id"], {"ok": False, "message":
             "This Home Assistant already has a licence key. Email hello@traks.ca and the year can be added to it."})
         return
@@ -191,6 +194,10 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         "license_homes_warning": {},
         # The report stays on while this free year runs (new invites only).
         "report_locked_key": _key_hash(str(data.get("key") or "")) if _rule else "",
+        # An add-on key on this install is kept aside, and comes back when this year ends
+        # (update_check._bring_back_kept_addons), as a trial keeps it (ws_forensics.ws_trial_start). One already kept
+        # aside for a trial stays kept.
+        **({"license_addons_kept": {k: st.data.get(k) for k in ADDON_KEY_FIELDS}} if addon_key else {}),
         SETTINGS_KEY: {"answered": token},
     })
     _invalidate_snapshot_cache(hass)

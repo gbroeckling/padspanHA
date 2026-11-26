@@ -20,7 +20,7 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, addonAllowed, addonGate, addonPrice, ADDONS_URL, vacuumAllowed, placementTier, house3dTier } =
+const { tierAtLeast, addonAllowed, addonGate, addonPrice, addonOfferSeen, ADDONS_URL, vacuumAllowed, placementTier, house3dTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
 // alone), the English with its {placeholders} filled.
@@ -2681,7 +2681,10 @@ export function openControlCard(hass, eid, api){
     // lightingPrice: what the card says beside Advanced smart lighting where the install has none (editions.js), and
     // where to get it (never on a wall: nothing there leaves the page).
     const sec = TEAM.teamSection(eid, { el, hass, toast, errorText, close, rerender, track: (w) => _track(hass, w),
-                                        lightingPrice: addonPrice("lighting"), addonsUrl: api && api.kiosk ? "" : ADDONS_URL });
+                                        lightingPrice: addonPrice("lighting"), addonsUrl: api && api.kiosk ? "" : ADDONS_URL,
+                                        // The usage report's add-on funnel (place team_card).
+                                        onOffer: () => addonOfferSeen((w) => _track(hass, w), "team_card", "lighting"),
+                                        onBuy: () => _track(hass, "addon_buy:team_card:lighting") });
     teamStop = sec.stop;
     box.appendChild(sec.node);
   }

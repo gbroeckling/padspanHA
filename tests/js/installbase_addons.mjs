@@ -43,15 +43,17 @@ const ADDONS = {
   kept: 1,
   was: { "addon>pro_year": 1 },
   changes: { "addon>pro_year": 1, "free>addon": 2 },
-  moved: { emergency_test: { installs: 2, holds: 1, pro: 0, into: "alarm" }, power_teams: { installs: 3, holds: 0, pro: 1, into: "lighting" } },
-  on_it: { alarm: 2, audio: 2, lighting: 6 },
-  used: { alarm: 1, lighting: 3 },
+  moved: { emergency_test: { installs: 2, holds: 1, pro: 0, into: "alarm" }, power_teams: { installs: 3, holds: 0, pro: 1, into: "lighting" },
+           lidar: { installs: 1, holds: 0, pro: 0, into: "maps" } },
+  on_it: { alarm: 2, audio: 2, lighting: 2, maps: 6, vacuum: 6 },
+  used: { alarm: 1, lighting: 1, maps: 2 },
   refused: { insights: { installs: 3, without: 2 } },
   market: { alarm: { installs: 2, sum: 3 }, wled: { installs: 1, sum: 4 } },
   reach: { alarm: { installs: 3, on_it: 1 }, audio: { installs: 1, on_it: 1 }, lighting: { installs: 1, on_it: 1 } },
   audio: { control4: { installs: 1, sum: 22 } },
   c4: { "2:not_loaded": 1, "3:loaded": 1 }, c4_local: 1, c4_os2_local: 1,
   wifi: { utopia: 1, unifi: 2 }, history: { gt30d: 2, lt7d: 1 }, plans: { picture: 2 }, roomplan: 1, valetudo: 0,
+  not_sold: ["maps", "vacuum"],       // before December 1 (stats.php addon_sold)
 };
 const USAGE = {
   "addon_offer:licence_card:alarm": { count: 10, installs: 4 }, "addon_buy:licence_card:alarm": { count: 2, installs: 2 },
@@ -103,7 +105,7 @@ const labels = sec ? sec.querySelectorAll(".ib-label").map(n => n.textContent) :
 check("licence: by its plain word", labels.includes("An add-on key") && labels.includes("Pro, a year") && labels.includes("Pro trial"), labels);
 const alarmKeys = cellRow("Alarm & security");
 check("keys: each add-on held, by time left", !!alarmKeys && alarmKeys[1] === "2" && alarmKeys.length === 9, alarmKeys);
-check("keys: the trial over a kept key is said", (sec ? sec.textContent : "").includes("1 on a Pro trial over a kept add-on key"));
+check("keys: Pro over a kept key is said", (sec ? sec.textContent : "").includes("1 on Pro over a kept add-on key (a trial or a Pro invite's year)"));
 const up = cellRow("An add-on key → Pro, a year");
 check("changes: add-on key to Pro, latest and across reports", !!up && up[1] === "1" && up[2] === "1", up);
 const fa = cellRow("Free → An add-on key");
@@ -122,12 +124,19 @@ const still = want ? kv[kv.indexOf(want) + 1] : null;
 check("wanted: offered where refused, and still without it", !!want && want[1] === "3" && !!still && still[0] === "  ↳ still without it" && still[1] === "2" && still[2] === "67%", [want, still]);
 const used = kvRow("Alarm & security", kv.findIndex(r => r[0] === "Alarm & security" && r[1] === "1"));
 check("use: of the installs on it, used it", !!used && used[1] === "1" && used[2] === "50%", used);
-check("use: lighting is not sold yet", !!kvRow("Advanced smart lighting (not sold yet: everyone)"));
+const lit = kvRow("Advanced smart lighting");
+check("use: Advanced smart lighting is a sold add-on, like the rest", !!lit && lit[1] === "1" && lit[2] === "50%"
+      && !kvRow("Advanced smart lighting (not sold yet: everyone)"), lit);
+check("use: an add-on before its moment is not sold yet (the feed's not_sold)", !!kvRow("Advanced map creation (not sold yet: everyone)")
+      && !!kvRow("Robot vacuum (not sold yet: everyone)"));
 const moved = kvRow("The emergency lights test → Alarm & security");
 const movedHold = moved ? kv[kv.indexOf(moved) + 1] : null;
 check("moved: the cohort and who holds the add-on now", !!moved && moved[1] === "2" && !!movedHold && movedHold[0] === "  ↳ holding Alarm & security" && movedHold[1] === "1", [moved, movedHold]);
 const teams = kvRow("Power teams → Advanced smart lighting");
-check("moved: power teams into lighting, not sold yet", !!teams && kv[kv.indexOf(teams) + 1][0] === "  ↳ not sold yet", teams);
+check("moved: power teams into lighting, who holds it and who is on Pro", !!teams && kv[kv.indexOf(teams) + 1][0] === "  ↳ holding Advanced smart lighting"
+      && kv[kv.indexOf(teams) + 2][0] === "  ↳ on Pro" && kv[kv.indexOf(teams) + 2][1] === "1", teams && kv.slice(kv.indexOf(teams), kv.indexOf(teams) + 3));
+const lidar = kvRow("A LiDAR room scan → Advanced map creation");
+check("moved: a LiDAR scan into maps, not sold yet", !!lidar && kv[kv.indexOf(lidar) + 1][0] === "  ↳ not sold yet", lidar);
 check("market: what the homes have", !!cellRow("Control4 audio players") && cellRow("Control4 audio players")[2] === "22" && !!cellRow("UniFi Utopia")
       && !!cellRow("a plan from a picture") && !!cellRow("over 30 days of history"), cells.slice(-12));
 const c4 = kvRow("  ↳ the OS 2 Local market: OS 2, its Control4 not running or on the local override");

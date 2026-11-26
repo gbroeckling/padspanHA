@@ -1280,8 +1280,10 @@ function _upload(ctx, helpBtn, isBasic){
       floors: _houseFloors(ctx), floorId: () => ctx.state._mapsUploadFloorId || "", toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()),
       onMade: (m) => _roughMade(ctx, m), onSketch: () => { ctx.state._mapsUploadSketch = true; ctx.actions.renderRooms(); },
       vacuumOn: ctx.state.settings?.vacuum_import_enabled === true,
-      // The Robot vacuum add-on (editions.js vacuumAllowed): without it, what its way says it needs.
+      // The Robot vacuum add-on (editions.js vacuumAllowed): without it, what its way says it needs (counted where
+      // it is said: the usage report's add-on funnel, place vacuum_import).
       vacuumNeeds: _vacuumAllowed(ctx.state.settings) ? "" : _vacuumNeeds(),
+      onVacuumOffer: () => _addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "vacuum_import", "vacuum"),
     }));
   }
   const sketch = el("input",{type:"checkbox", "data-upload":"sketch"});
@@ -10483,8 +10485,11 @@ function _lightsTab(ctx, maps, active) {
     }
   }
   if (!paid) {
-    // The Looks pack named below (the usage report's add-on funnel, once per page load).
-    if (!_addonAllowed(ctx.state.settings, "looks")) _addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "showcase", "looks");
+    // The Looks pack and Advanced smart lighting named below (the usage report's add-on funnel, once per page load).
+    const _tel = (n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); };
+    const _lit = _addonAllowed(ctx.state.settings, "lighting");
+    if (!_lit) _addonOfferSeen(_tel, "light_design", "lighting");
+    if (!_lit && !_addonAllowed(ctx.state.settings, "looks")) _addonOfferSeen(_tel, "showcase", "looks");
   }
   if (place && !paid) {
     // Placement is everyone's here; what a key still adds is the looks and the other build tools. The light design
@@ -12553,7 +12558,9 @@ function _roomsTab(ctx, maps) {
     // without it, what brings it back instead.
     const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true || !!ctx.state.live?.snapshot?.vacuum;
     if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) {
-      card.appendChild(_vacuumAllowed(ctx.state.settings) ? VACUUM.vacuumImportBlock(ctx, floorId)
+      const _vacOk = _vacuumAllowed(ctx.state.settings);
+      if (!_vacOk) _addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "vacuum_import", "vacuum");
+      card.appendChild(_vacOk ? VACUUM.vacuumImportBlock(ctx, floorId)
         : el("div", { class: "muted", "data-vacuum": "addon", style: "font-size:12px;margin:6px 0" }, _vacuumNeeds()));
     }
 

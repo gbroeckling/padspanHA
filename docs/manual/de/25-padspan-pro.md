@@ -121,7 +121,7 @@ angelegtes Power-Team als ein Licht (an, aus, dimmen, seine Stromquelle und jede
   Add-on mit seinem Datum. Ein Add-on-Schlüssel ist kein Pro-Schlüssel.
 - Jedes Add-on bekommt nach seinem Datum dieselben 14 Tage wie ein Schlüssel.
 - Der Testzeitraum von 90 Tagen bleibt dir: Er legt den Add-on-Schlüssel beiseite und setzt ihn
-  wieder ein, wenn er endet.
+  wieder ein, wenn er endet. Das kostenlose Jahr einer Einladung ebenso ([Einladungen](#einladungen)).
 - Wo eine Funktion gesperrt ist, steht, was sie freischaltet: „PadSpan Pro oder das Add-on …“, mit
   dem Preis.
 - Ein Schlüssel nur mit Add-ons, die neuer sind als dein PadSpan, bleibt ein Add-on-Schlüssel, nie
