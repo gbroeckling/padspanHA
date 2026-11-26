@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.38.304";
-const BUILD_ID = "20261126T213649Z";
+const APP_VERSION = "0.38.305";
+const BUILD_ID = "20261126T220834Z";
 
 // The stamp on every import below: the b of this module's own URL and nothing
 // else. Home Assistant loads this page with ?v=...&b=... and the panel's
