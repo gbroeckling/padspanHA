@@ -3498,7 +3498,7 @@ export function reportOffConfirmText(s){
 // English (tests/test_addons.py holds the two equal).
 const ADDON_WORDS = {
   audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
-  climate: () => t("Climate map"), timetravel: () => t("Full house activity"), vacation: () => t("Vacation Mode & presets"),
+  climate: () => t("Climate & air quality"), timetravel: () => t("Full house activity"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
   maps: () => t("Advanced map creation"), lighting: () => t("Advanced smart lighting"), vacuum: () => t("Robot vacuum"),
 };   // c4local (OS 2 Local for Control4) is a product's name, the same in every language: addonWords gives a.words
@@ -3654,8 +3654,12 @@ function _settingsLicence(ctx, el){
       const until = (s.license_addons_until && typeof s.license_addons_until === "object") ? s.license_addons_until : {};
       const on = Array.isArray(s.license_addons) ? s.license_addons : [];
       const today = new Date(Date.now()).toISOString().slice(0, 10);
-      const held = ADDONS.filter(a => a.category !== "specialty" && (typeof until[a.name] === "string" || on.includes(a.name))).map(a => {
-        const d = String(until[a.name] || exp).slice(0, 10);
+      // An add-on merged into another (editions.js part_of: Forensics in Presence insights) is said as the whole, once,
+      // with the later of their dates.
+      const holds = (n) => typeof until[n] === "string" || on.includes(n);
+      const parts = (a) => [a.name, ...ADDONS.filter(p => p.part_of === a.name).map(p => p.name)];
+      const held = ADDONS.filter(a => a.category !== "specialty" && !a.part_of && parts(a).some(holds)).map(a => {
+        const d = String(parts(a).map(n => until[n]).filter(v => typeof v === "string").sort().pop() || exp).slice(0, 10);
         return d >= today ? t("{addon} until {date}", { addon: addonWords(a), date: d })
                           : t("{addon} ended on {date}", { addon: addonWords(a), date: d });
       });
@@ -3969,8 +3973,8 @@ function _settingsFeatures(ctx, el){
     toggle.checked = forensicsOn;
     toggle.addEventListener("change", async()=>{
       const live = ctx.state.dataMode === "live";
-      // Forensics is PadSpan Pro's and the Forensics add-on's: a Bright Pro key
-      // is a valid key too, but not for this. Backend-owned answer, not the key.
+      // Forensics is PadSpan Pro's and the Presence insights add-on's (it holds Forensics since 2026-11-26): a Bright
+      // Pro key is a valid key too, but not for this. Backend-owned answer, not the key.
       const hasKey = addonAllowed(settings, "forensics");
       if(toggle.checked){
         let msg = t("Enable Forensics recording?\n\nPadSpan will continuously record the presence of ALL nearby Bluetooth devices — including neighbours' and passers-by's — on this Home Assistant instance.\n\nYou are responsible for using this lawfully in your jurisdiction.");
@@ -3981,10 +3985,10 @@ function _settingsFeatures(ctx, el){
         }
         if(!hasKey){
           // Forensics needs PadSpan Pro or its add-on — ask for the licence key.
-          const key = prompt(t("Forensics needs {what}.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):", { what: proOrAddon("forensics") }));
+          const key = prompt(t("Forensics needs {what}.\n\nEnter your licence key (PSPAN-XXXX-XXXX-XXXX-XXXX):", { what: proOrAddon("insights") }));
           if(!key || !key.trim()){
             toggle.checked = false;
-            ctx.toast(t("Forensics needs {what}.", { what: proOrAddon("forensics") }), true);
+            ctx.toast(t("Forensics needs {what}.", { what: proOrAddon("insights") }), true);
             return;
           }
           toggle.disabled = true;
@@ -3995,7 +3999,7 @@ function _settingsFeatures(ctx, el){
               if(r.settings) ctx.state.settings = r.settings;
               toggle.checked = false;
               ctx.toast(r.status === "needs_update" ? NEEDS_UPDATE()
-                : t("Licence activated. It doesn't include Forensics: that needs {what}.", { what: proOrAddon("forensics") }), true);
+                : t("Licence activated. It doesn't include Forensics: that needs {what}.", { what: proOrAddon("insights") }), true);
               ctx.actions.renderNav && ctx.actions.renderNav();
               ctx.actions.renderRooms();
             } else if(r?.ok){
@@ -4068,9 +4072,9 @@ function _settingsFeatures(ctx, el){
           }}, t("Show licence key"));
         card.appendChild(revealBtn);
       } else if(!addonAllowed(settings, "forensics")){
-        addonOfferSeen(_addonTel(ctx), "forensics", "forensics");
+        addonOfferSeen(_addonTel(ctx), "forensics", "insights");
         card.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:10px"},
-          t("Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.", { what: proOrAddon("forensics") })));
+          t("Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.", { what: proOrAddon("insights") })));
       }
     }
 

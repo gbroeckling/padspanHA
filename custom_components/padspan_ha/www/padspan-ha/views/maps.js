@@ -10381,8 +10381,11 @@ function _lightsTab(ctx, maps, active) {
   // The light design tools without placement (the Advanced smart lighting add-on): a light chosen in the list opens
   // the inspector with its Shape; its size, angle and spot are its placement's.
   const design = paid || _addonAllowed(ctx.state.settings, "lighting");
+  // A placed light's size and angle (Transform, and Width, Length, Rotate and Margin in the inspector) come with its
+  // shape (the owner, 2026-11-26: "Yes, with the shapes"): the lighting tier's, or Advanced smart lighting's.
+  const sizeOk = design;
   if (!place) { mapState._lightsDraftM = {}; mapState._lightsTransform = false; if (!design) mapState._selLight = null; }
-  else if (!paid) mapState._lightsTransform = false;
+  else if (!sizeOk) mapState._lightsTransform = false;
   // Alarm & security: the door card and linking openers and locks (_alarmOk).
   const alarm = _alarmOk(ctx);
   // The type override is PRO specifically — not the bright-or-pro gate
@@ -10497,9 +10500,8 @@ function _lightsTab(ctx, maps, active) {
     const _lit = _addonAllowed(ctx.state.settings, "lighting");
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { class: "muted" },
-        t("Placing each light where it really hangs is free. Its size and angle need {key}.",
-          { key: _brightProOpen() ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro" }) + " "
-        + (_lit ? "" : t("Fixture shapes, WLED strips, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ({price}).",
+        t("Placing each light where it really hangs is free.") + " "
+        + (_lit ? "" : t("Fixture shapes with their size and angle, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ({price}).",
           { price: _addonPrice("lighting") }) + " ")
         + (_lit || _addonAllowed(ctx.state.settings, "looks") ? ""
           : t("Showcase needs PadSpan Pro or the Looks pack add-on ({price}).", { price: _addonPrice("looks") }) + " ")
@@ -10517,7 +10519,7 @@ function _lightsTab(ctx, maps, active) {
         + (_brightProOpen() ? "needs PadSpan Bright Pro or PadSpan Pro. " : "needs PadSpan Pro. ")
         // The light design tools are Advanced smart lighting's too, Showcase the Looks pack's (lights_map.js lightsHostForTier).
         + (_addonAllowed(ctx.state.settings, "lighting") ? ""
-          : "Fixture shapes, WLED strips, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ("
+          : "Fixture shapes, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ("
             + _addonPrice("lighting") + "). ")
         + (_addonAllowed(ctx.state.settings, "looks") || _addonAllowed(ctx.state.settings, "lighting") ? ""
           : "Showcase needs PadSpan Pro or the Looks pack add-on (" + _addonPrice("looks") + "). ")
@@ -10634,7 +10636,7 @@ function _lightsTab(ctx, maps, active) {
   // ── Transform mode ──────────────────────────────────────────────────────
   // Off by default: with handles live, a stray drag near a fixture resizes it
   // instead of moving it, and moving is the common action.
-  const xfBtn = !paid ? null : el("button", {
+  const xfBtn = !sizeOk ? null : el("button", {
     // lv-tgl-big (2026-09-21: "the transform button... should be
     // bigger") — a resize/rotate on the wrong fixture is a real mistake,
     // not just a missed tap, so this one gets extra size on top of the
@@ -12006,8 +12008,9 @@ function _lightsTab(ctx, maps, active) {
         if (suffix) lbl.appendChild(el("span", { style: "font-size:11px;color:rgba(226,240,232,.4)" }, suffix));
         return lbl;
       };
-      if (!paid) {
-        // Its size, rotation and margin are the lighting tier's (_isPro): with placement alone, none.
+      if (!sizeOk) {
+        // Its size, rotation and margin are the lighting tier's (_isPro) or Advanced smart lighting's: with placement
+        // alone, none.
       } else if (l.shape === "perimeter") {
         // A perimeter light has no width/length/rotation of its own — its
         // extent IS the room it sits in. Margin is its only shape control:

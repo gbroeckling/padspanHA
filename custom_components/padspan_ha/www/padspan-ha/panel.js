@@ -1658,8 +1658,8 @@ class PadSpanHaApp extends HTMLElement {
         .then(res => { if (res && res.settings) this.state.settings = res.settings; })
         .catch(() => {});
     }
-    const NAMES = { audio: t("Audio"), alarm: t("Alarm & security"), wifi: t("Wi-Fi coverage"), climate: t("Climate map"),
-      timetravel: t("Full house activity"), vacation: t("Vacation Mode & presets"), looks: t("Looks pack"), forensics: t("Forensics"),
+    const NAMES = { audio: t("Audio"), alarm: t("Alarm & security"), wifi: t("Wi-Fi coverage"), climate: t("Climate & air quality"),
+      timetravel: t("Full house activity"), vacation: t("Vacation Mode & presets"), looks: t("Looks pack"),
       insights: t("Presence insights"), maps: t("Advanced map creation"), lighting: t("Advanced smart lighting"),
       vacuum: t("Robot vacuum") };
     const list = EDITIONS.addonSaleCardPicks(st).map(n => (NAMES[n] || n) + " " + EDITIONS.addonPrice(n)).join(", ");

@@ -76,7 +76,11 @@ ADDON_ON_SALE_FROM: dict[str, int] = {"maps": FREE_BASICS_FROM_TS, "vacuum": FRE
 # of running add-ons decides), never in a sale, PadSpan Pro includes it; not on sale until the product is published
 # (views/editions.js on_sale: false says the same). Nothing free moves into it, so its gate is Pro or the add-on
 # (hass_addon_allowed) whether or not it is on sale.
-NOT_ON_SALE: tuple[str, ...] = ("c4local",)
+NOT_ON_SALE: tuple[str, ...] = ("c4local", "forensics")
+# An add-on sold as part of another (the owner, 2026-11-26: Forensics merged into Presence insights, "insights"): no
+# longer sold on its own (NOT_ON_SALE), and a key holding either has both, so a Forensics bought before the merge
+# keeps working and gets the rest. The licence server answers the same way (license/index.php ps_addons).
+ADDON_PART_OF: dict[str, str] = {"forensics": "insights"}
 
 # The clock the moments here are read by (the tests pin it: tests/conftest.py).
 _clock = time.time
@@ -272,6 +276,14 @@ def addon_allowed(settings: dict[str, Any] | None, key_active: bool, name: str, 
         return True
     if name not in ADDONS or not key_active or not str(d.get("forensics_license_key") or "").strip():
         return False
+    # One add-on merged into another (ADDON_PART_OF): holding either is holding both.
+    one = {name, ADDON_PART_OF.get(name, name)} | {a for a, whole in ADDON_PART_OF.items() if whole == name}
+    return any(_held(d, n, now) for n in one)
+
+
+def _held(d: dict[str, Any], name: str, now: Any) -> bool:
+    """Whether the key carries add-on `name` now: until its own end plus the grace a key gets; with no end known,
+    the server's list of running add-ons decides."""
     end = normalize_addons_until(d.get("license_addons_until")).get(name)
     if end:
         from datetime import datetime, timedelta, timezone  # noqa: PLC0415

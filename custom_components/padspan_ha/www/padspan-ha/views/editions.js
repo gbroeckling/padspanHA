@@ -104,19 +104,21 @@ export const ADDON_TERM = "2 years";
 export const FREE_BASICS_FROM = "2026-12-01T08:00:00Z";
 export const ADDONS_URL = "https://padspan.traks.ca/#addons";
 export const ADDONS = Object.freeze([
-  { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map" },
+  { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map, and Room off" },
   { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free" },
   { name: "wifi", words: "Wi-Fi coverage", price: "$6.45 CAD", desc: "The UniFi Wi-Fi coverage map" },
-  { name: "climate", words: "Climate map", price: "$8.65 CAD", desc: "The Heatmap: rooms by temperature, humidity and CO₂" },
-  { name: "timetravel", words: "Full house activity", price: "$7.55 CAD", desc: "The day replayed on the Atlas map (Playback on the Atlas)" },
+  { name: "climate", words: "Climate & air quality", price: "$8.65 CAD", desc: "The Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card" },
+  { name: "timetravel", words: "Full house activity", price: "$7.55 CAD", desc: "The day replayed in Traceback on your Atlas map: lights, doors, sensors and who was where" },
   { name: "vacation", words: "Vacation Mode & presets", price: "$4.25 CAD", desc: "Vacation Mode and Whole House Presets" },
   { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
-  { name: "forensics", words: "Forensics", price: "$5.56 CAD", desc: "Which Bluetooth devices were near a scanner in any time window" },
-  { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Busy Times and Locate" },
+  // Forensics is part of Presence insights (the owner, 2026-11-26: merged): never sold on its own (on_sale: false), and
+  // a key holding either has both (licence.ADDON_PART_OF; the backend's addons_licensed says so).
+  { name: "forensics", words: "Forensics", price: "$5.56 CAD", on_sale: false, part_of: "insights", desc: "Which Bluetooth devices were near a receiver in any time window" },
+  { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Locate, Busy Times and Forensics: where a lost tag is, each room's busy hours, and which Bluetooth devices were near a receiver in any time window" },
   // maps and vacuum go on sale with the free 3D house (the December 1 free basics, FREE_BASICS_FROM).
   { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale_from: FREE_BASICS_FROM,
     desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
-  { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Power teams that follow the day, sleep and wake you, WLED control, Automorph, Scene, Ripple, Light spread, Fit room and fixture shapes" },
+  { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Power teams that follow the day, sleep and wake you, WLED's Advanced controls, Automorph, Scene, Ripple, Light spread, Fit room, and fixture shapes with their size and angle" },
   { name: "vacuum", words: "Robot vacuum", price: "$6.45 CAD", on_sale_from: FREE_BASICS_FROM,
     desc: "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans" },
   // Specialty (the owner, 2026-11-25): a product of its own, sold beside the add-ons and never in their list or their
@@ -178,7 +180,7 @@ export function addonPriceParts(name, now = Date.now()) {
   return { price: half ? halfPrice(a.price) : a.price, normal: a.price.replace(/ CAD$/, ""), half };
 }
 /** An add-on's price now, as the site sells it ("$8.65 CAD"; "$4.32 CAD" in the sale), "" for no such add-on: what a
- *  refusal says beside the add-on's name ("PadSpan Pro or the Climate map add-on ($8.65 CAD)"), never written out
+ *  refusal says beside the add-on's name ("PadSpan Pro or the Climate & air quality add-on ($8.65 CAD)"), never written out
  *  there. */
 export function addonPrice(name, now = Date.now()) {
   const p = addonPriceParts(name, now);
@@ -256,7 +258,7 @@ export function addonSaleCardDue(settings, now = Date.now()) {
 }
 // The few the card names with their half price: the first three on sale this
 // install can't use yet, in this order.
-const SALE_CARD_PICKS = ["audio", "lighting", "climate", "timetravel", "looks", "alarm", "insights", "vacation", "forensics", "wifi"];
+const SALE_CARD_PICKS = ["audio", "lighting", "climate", "timetravel", "looks", "alarm", "insights", "vacation", "wifi"];
 export function addonSaleCardPicks(settings, now = Date.now()) {
   const s = settings || {};
   const trial = !!s.license_is_trial;

@@ -36,7 +36,7 @@ from .const import (
     FABRIC_STORE_KEY,
 )
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
-from .licence import placement_tier
+from .licence import hass_addon_allowed, placement_tier
 from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
 from .ws_common import (admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least, finite_float,
@@ -181,16 +181,20 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     # lighting tier's. Below it, where placement alone has moved down the
     # ladder (licence.placement_tier), a placement moves the device and keeps
     # whatever looks its record already has: none are set, none are lost.
-    looks = msg if _tier_at_least(hass, "bright") else (mdl.light_positions_m().get(eid) or {})
+    old = mdl.light_positions_m().get(eid) or {}
+    looks = msg if _tier_at_least(hass, "bright") else old
+    # Its size and angle (and a perimeter light's margin) come with its fixture shape: Advanced smart lighting's too
+    # (the owner, 2026-11-26: "Yes, with the shapes").
+    sized = msg if looks is msg or hass_addon_allowed(hass, "lighting") else old
     await mdl.async_set_light_position_m(
         eid, float(msg["x_m"]), float(msg["y_m"]),
         (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID,
         color=(looks.get("color") or "").strip(),
         shape=(looks.get("shape") or "").strip(),
-        rotation=float(looks.get("rotation") or 0.0),
-        width_cm=looks.get("width_cm"),
-        height_cm=looks.get("height_cm"),
-        margin_cm=looks.get("margin_cm"),
+        rotation=float(sized.get("rotation") or 0.0),
+        width_cm=sized.get("width_cm"),
+        height_cm=sized.get("height_cm"),
+        margin_cm=sized.get("margin_cm"),
         label=(looks.get("label") or "").strip(),
         z_m=msg["z_m"] if "z_m" in msg else KEEP_HEIGHT,
     )

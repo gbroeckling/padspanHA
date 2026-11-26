@@ -39,7 +39,7 @@ from typing import Any
 
 from .const import DATA_SETTINGS, DOMAIN
 from .quiet_errors import note as _quiet_error
-from .licence import (ADDONS, NOT_ON_SALE, addon_allowed, addon_on_sale, is_addon_key, key_tier, normalize_addons,
+from .licence import (ADDON_PART_OF, ADDONS, NOT_ON_SALE, addon_allowed, addon_on_sale, is_addon_key, key_tier, normalize_addons,
                       normalize_addons_until)
 
 LICENCE_WORDS: tuple[str, ...] = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
@@ -236,7 +236,9 @@ def note_gained(hass: Any, before: Any, after: Any, now: float | None = None) ->
     """Add-ons a key carries now that it did not (a purchase, entered or added to the key): counted by name and by
     where the day falls against the sale (usage addon_gained:*, only while the report is on)."""
     from .telemetry import bump  # noqa: PLC0415
-    new = [a for a in normalize_addons(after) if a not in set(normalize_addons(before))]
+    # An add-on merged into another (licence.ADDON_PART_OF: Forensics in Presence insights) counts as the whole.
+    whole = lambda names: list(dict.fromkeys(ADDON_PART_OF.get(a, a) for a in normalize_addons(names)))  # noqa: E731
+    new = [a for a in whole(after) if a not in set(whole(before))]
     for a in new:
         bump(hass, f"addon_gained:{a}")
     if new:
