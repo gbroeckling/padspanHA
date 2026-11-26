@@ -2,13 +2,14 @@
 
 **A lighting map for Home Assistant.** Every light, fan, motion and
 temperature sensor, lock, and door or window in your house on an isometric
-plan of your floors and rooms — tap to switch, drag to place, drawn the way
-an electrician draws a lighting plan.
+plan of your floors and rooms, drawn the way an electrician draws a lighting
+plan. Tap a light on the map to switch it. Start with every light in its room,
+and place each one exactly where it hangs when you want more.
 
 PadSpan Bright is the lighting half of [PadSpan HA](https://github.com/gbroeckling/padspanHA),
 on its own, with none of the room-presence machinery showing. It is generated
-from the PadSpan HA source at every release, so it is never behind and never
-different: same code, same fixes, same version number.
+from the PadSpan HA source at every release, so it carries the same fixes under
+the same version number.
 
 [![Open your Home Assistant instance and add PadSpan Bright to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanBright&category=integration)
 
@@ -17,7 +18,7 @@ different: same code, same fixes, same version number.
 |                                                                                                                                        |                                                                                                                                                     |
 | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![Floors and rooms drawn as an isometric plan](https://raw.githubusercontent.com/gbroeckling/padspanHA/main/images/bright-overview.jpg) | ![A light placed at its real width, length and rotation in centimetres](https://raw.githubusercontent.com/gbroeckling/padspanHA/main/images/bright-fixture-editor.jpg) |
-| The floor plan — every light on your real rooms, not a list.                                                                          | Real size and angle, in centimetres, not a dot.                                                                                                     |
+| The floor plan, with every light in its room.                                                                                          | A light at its real width, length and angle, in centimetres.                                                                                        |
 
 ![The control card a WLED strip opens on long-press: on/off, brightness, colour and effect, live against the real device](https://raw.githubusercontent.com/gbroeckling/padspanHA/main/images/bright-wled-card.png)
 
@@ -42,7 +43,8 @@ pick from 19 Showcase visual themes for the map itself, saved and reloaded
 from a presets bar.
 
 No key yet? **Settings → Features → PadSpan licence** has a one-time
-90-day free trial — no card required, no reinstall.
+90-day free trial of PadSpan Pro, no card required. The opt-in usage report
+stays on until the trial ends.
 
 Every motion sensor's flash and fade run through the same normalizer no
 matter the hardware underneath — an alarm-panel PIR that self-clears in 5
@@ -91,7 +93,7 @@ entities and their room assignments from Home Assistant.
 ## Already running PadSpan HA?
 
 You do not need this. PadSpan HA contains everything here — the same Atlas
-tab, the same sidebar panel — and a PadSpan Pro key unlocks it there.
+tab, the same sidebar panel — and a PadSpan Pro key works there too.
 
 ## Moving from Bright to PadSpan HA
 
@@ -101,7 +103,7 @@ light come across; then remove Bright.
 
 ## Privacy
 
-Once a day PadSpan Bright asks `padspan.traks.ca` whether a newer version exists, sending only its version number (turn it off under Settings → Update Check). Separately there is an **opt-in, off-by-default** usage report — **Settings → Help improve PadSpan** — that sends counts, versions and flags only (how many floors, rooms and lights; which features are on; which tabs were used; a few health flags; how hard the machine works — load, CPU and memory — and what class of machine it is: CPU count, RAM size, board) and never addresses, keys, names, coordinates or timestamps. **Preview what would be sent** shows the exact report before you decide; the code refuses to send anything identifier-shaped. While the report is on, the same card offers **Become a tester** — separate from the report, and the one place PadSpan asks for contact details: sent only when you press **Send sign-up**, shown to you first, to the developer only, kept until you press **Stop being a tester**, and never shared or sold.
+Once a day PadSpan Bright asks `padspan.traks.ca` whether a newer version exists, sending only its version number (turn it off under **Settings → Tracking → Update Check**). Separately there is an **opt-in, off-by-default** usage report — **Settings → Tracking → Help improve PadSpan** — that sends counts, versions and flags only (how many floors, rooms and lights; which features are on; which tabs were used; a few health flags; how hard the machine works — load, CPU and memory — and what class of machine it is: CPU count, RAM size, board) and never addresses, keys, names, coordinates or timestamps. **Preview what would be sent** shows the exact report before you decide; the code refuses to send anything identifier-shaped. While the report is on, the same card offers **Become a tester** — separate from the report, and the one place PadSpan asks for contact details: sent only when you press **Send sign-up**, shown to you first, to the developer only, kept until you press **Stop being a tester**, and never shared or sold.
 
 ## Documentation, issues, licence
 
