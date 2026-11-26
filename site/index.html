@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PadSpan™ HA — BLE room-presence tracking for Home Assistant</title>
-<meta name="description" content="PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 23 dedicated views for Home Assistant.">
-<meta property="og:title" content="PadSpan™ HA — BLE room-presence tracking for Home Assistant">
-<meta property="og:description" content="Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 23 views. The most comprehensive BLE presence system for Home Assistant.">
+<title>PadSpan™ HA – a control panel on your floor plan, with room presence, for Home Assistant</title>
+<meta name="description" content="An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence, a 3D house and wall screens.">
+<meta property="og:title" content="PadSpan™ HA – a control panel on your floor plan, with room presence, for Home Assistant">
+<meta property="og:description" content="Your whole house on one screen in Home Assistant. Lights, locks and alarms on your floor plan, which room everyone is in, and with PadSpan Pro a 3D house and wall mode. Free and open source.">
 <meta property="og:image" content="https://padspan.traks.ca/images/social-preview.png">
 <meta property="og:url" content="https://padspan.traks.ca/">
 <link rel="icon" type="image/png" href="images/icon.png">
@@ -122,6 +122,14 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 .ed li.x::before{content:"—";color:#4a5c50}
 .note{background:rgba(255,193,71,.06);border:1px solid rgba(255,193,71,.3);border-radius:12px;padding:16px 18px;font-size:14.5px;color:#e4d9c0;margin-top:18px}
 .note b{color:var(--gold)}
+.hero .sub{font-size:16px;color:var(--mut);max-width:700px;margin:14px auto 0}
+.caption{font-size:13px;color:var(--mut);margin-top:8px}
+.door img{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);display:block}
+.door h3,.tile h3{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.door p,.tile p{font-size:14.5px;color:#c4d6c9;margin-top:8px}
+.door p b{color:var(--fg)}
+.door p.more{margin-top:12px;font-weight:700}
+.pill.pro{color:#04160c;background:var(--acc2);border-color:var(--acc2)}
 @media(max-width:640px){.hero{padding:46px 0 30px}section{padding:40px 0}section[id]{scroll-margin-top:88px}nav.top .inner{gap:12px}nav.top a{font-size:12.5px}}
 </style>
 </head>
@@ -130,17 +138,14 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <nav class="top">
   <div class="inner">
     <span class="brand">PadSpan™ HA</span>
-    <a href="#whatsnew">What's new</a>
+    <a href="#doors">What it does</a>
     <a href="demo/">Try the demo</a>
-    <a href="/manual/">Manual</a>
-    <a href="#screenshots">Screenshots</a>
-    <a href="#features">Features</a>
-    <a href="#lights">Lights</a>
-    <a href="#bright">Bright</a>
-    <a href="#editions">Editions</a>
-    <a href="#compare">Compare</a>
+    <a href="/pro/">Pro</a>
+    <a href="/add-ons/">Add-ons</a>
+    <a href="#pro">Prices</a>
     <a href="#install">Install</a>
-    <a href="#pro">Pro</a>
+    <a href="/manual/">Manual</a>
+    <a href="#whatsnew">What's new</a>
     <a href="/de/?lang=de" hreflang="de" lang="de">Deutsch</a>
   </div>
 </nav>
@@ -149,18 +154,18 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <img class="logo" src="images/icon-large.png" alt="PadSpan logo" onerror="this.src='images/icon.png'">
   <h1>PadSpan™ HA</h1>
   <p class="tag">Create an eminently intuitive control panel that really gives you mastery of your residence. Make it as simple or complex as you need, but in the end it will be the most effective control possible with the fewest clicks. Once it becomes a permanent and familiar part of your routine, there will be a sense of confidence that you have your space in the palm of your hand.</p>
+  <p class="sub">PadSpan is a Home Assistant integration. It puts every light, lock and alarm on a plan of your house, each in its room, and shows which room every phone, watch and tag is in. Tap a light on the map and it switches.</p>
   <div class="badges">
     <span class="badge" data-latest-version>v0.38.274</span>
     <span class="badge">HA 2024.8+</span>
-    <span class="badge">HACS</span>
+    <span class="badge">Marketplace and HACS</span>
     <span class="badge">GPL-3.0</span>
-    <span class="badge">Local tracking</span>
+    <span class="badge">Runs locally</span>
   </div>
   <div class="cta">
-    <a class="btn primary" href="demo/">Try the live demo</a>
+    <a class="btn primary" href="#install">Install PadSpan</a>
+    <a class="btn ghost" href="demo/">Try the demo house</a>
     <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA">View on GitHub</a>
-    <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA/releases/latest">Download Latest Release</a>
-    <a class="btn ghost" href="#install">Install via HACS</a>
   </div>
 </header>
 
@@ -168,18 +173,710 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <img class="heroimg" src="images/overview-3d-multifloor.jpg" width="2422" height="1372" alt="3D multi-floor tracking with live RSSI heatmap overlay">
 </div>
 
+<div class="divider"></div>
+
+<section class="wrap" id="doors">
+  <div class="kick">What it does</div>
+  <h2>What do you want PadSpan for?</h2>
+  <p class="lede">Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. <span class="pill soon">Beta</span> marks what's in PadSpan's beta releases now and comes with the next stable. The demo links open a sample house that runs as PadSpan Pro.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr))">
+    <div class="feat door">
+      <img src="images/wall-panel-in-situ.jpg" width="1400" height="1054" alt="PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices" loading="lazy">
+      <p class="caption">PadSpan on the wall in my house, beside the thermostat and the light switches.</p>
+      <h3>The whole house on one screen <span class="pill free">Free</span></h3>
+      <p><b>You see</b> every floor and room of your house, with the lights, locks, doors, windows, motion sensors and leak, smoke, gas and CO alarms in their rooms. A leak or smoke alarm turns its room red on every screen, and it stays red for up to two days or until someone presses Reset.</p>
+      <p><b>You tap</b> a light to switch it, a room's name for its devices with All on and All off, or a lock to lock or unlock it. Unlocking asks first.</p>
+      <p><b>Needs</b> Home Assistant 2024.8 or newer, and no Bluetooth scanner.</p>
+      <p><span class="pill pro">Pro</span> Wall mode fits the whole house to a wall screen and dims it at night, and the Atlas can open as your Overview.</p>
+      <p class="more"><a href="demo/?page=atlas">The Atlas in the demo</a></p>
+    </div>
+    <div class="feat door">
+      <img src="/demo/media/setup-whos-where.jpg" width="1600" height="1048" alt="PadSpan's first screen on a new install: a Make it a map checklist at 0 of 6, and the Who's where now card with the rooms Hall, Kitchen and Living Room and the devices in each" loading="lazy">
+      <p class="caption">A new install's first screen, before any floor plan (sample house).</p>
+      <h3>Who's in which room <span class="pill free">Free</span></h3>
+      <p><b>You see</b> each phone, watch and tag in its room, on every floor, updated every 5 seconds. Before you draw a plan, Who's where now lists the rooms from your scanners' Home Assistant areas. Traceback replays the last 7 days.</p>
+      <p><b>You tap</b> Track beside a phone to name it and give it a room in Home Assistant. Follow alerts you through Home Assistant when a device arrives, leaves or changes room.</p>
+      <p><b>Needs</b> at least one Bluetooth scanner, such as an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a scanner, or your Home Assistant machine's own Bluetooth. One gives home or away. One in each room you want told apart gives rooms.</p>
+      <p><span class="pill pro">Pro</span> People and tags on the Atlas and in the 3D house. Busy Times and Locate come with Pro or the Presence insights add-on.</p>
+      <p class="more"><a href="demo/?page=panel">Who's where in the demo</a></p>
+    </div>
+    <div class="feat door">
+      <img src="/demo/media/setup-overview-rooms.jpg" width="1400" height="1242" alt="The demo house's rooms on PadSpan's Overview: three floors stacked one above the other, each room outlined in its own colour with its name" loading="lazy">
+      <p class="caption">The free Overview: the sample house's three floors, stacked.</p>
+      <h3>Your floor plan, and the house in 3D <span class="pill free">Free</span> <span class="pill pro">3D is Pro</span></h3>
+      <p><b>You see</b> your floors stacked one above the other, each room drawn to scale in its own colour, with its ceiling height.</p>
+      <p><b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor.</p>
+      <p><b>You tap</b> Show what it will make, then Make the rough house, and you have a first map with one box per Home Assistant area, without drawing anything. <span class="pill soon">Beta</span></p>
+      <p><b>Needs</b> Home Assistant. A LiDAR scan needs an iPhone 12 Pro or newer Pro, or an iPad Pro from 2020 or newer, and a RoomPlan app that shares USDZ.</p>
+      <p><span class="pill pro">Pro</span> Live Aboard builds the house in 3D from the same map, like looking into a house in The Sims, and Furnish fills the rooms.</p>
+      <p class="more"><a href="demo/?page=atlas3d">The 3D house in the demo</a></p>
+    </div>
+    <div class="feat door">
+      <img src="/demo/media/estate-3d-main-floor-night.jpg" width="1920" height="1080" alt="The demo house's main floor in 3D after dark, with the lights that are on glowing in their rooms, a guest's tag and the keys" loading="lazy">
+      <p class="caption">PadSpan Pro: the sample house's main floor after dark, each light where it hangs.</p>
+      <h3>Every light in its place <span class="pill free">Free</span></h3>
+      <p><b>You see</b> every light and fan on the map in its room, lit in its own colour if you like. A wall dimmer and the smart bulbs it feeds work as one light, a power team, with a wake-up, a bedtime and a night light.</p>
+      <p><b>You tap</b> a light to switch it, or a room's name and All off. Lights follow people switches a room on when someone carrying a named phone, watch or tag walks in, and off once it has been empty for 2 minutes, or the time you set. <span class="pill soon">Beta</span></p>
+      <p><b>Needs</b> Home Assistant. Lights follow people also needs a Bluetooth scanner.</p>
+      <p><span class="pill pro">Pro</span> Each light sits exactly where it hangs, in its real shape and size, with WLED effects and Automorph. <a href="#lights">More on the lights</a></p>
+      <p class="more"><a href="demo/?page=atlas">The lights in the demo</a></p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="tap">
+  <div class="kick">On the map</div>
+  <h2>What a tap does</h2>
+  <p class="lede">What you use most is a tap away, on the map, in the room where it is.</p>
+  <div class="docgrid">
+    <div class="doc"><b>Switch a light</b><span>Open Atlas in the Home Assistant sidebar and tap the light. Two taps from anywhere in Home Assistant.</span></div>
+    <div class="doc"><b>Turn a room off</b><span>On the Atlas, tap the room's name, then All off.</span></div>
+    <div class="doc"><b>Unlock a door</b><span>Tap the lock on the map, then Unlock. It asks before it unlocks.</span></div>
+    <div class="doc"><b>See who's home</b><span>Open PadSpan HA. The first screen shows each room and who is in it.</span></div>
+    <div class="doc"><b>Reset an alarm</b><span>A leak, smoke, gas or CO alarm puts a red banner across every screen, with Reset in it.</span></div>
+    <div class="doc"><b>Play back the afternoon</b><span>Open Traceback, pick the time and press play. Share a replay turns it into a 10 to 30 second clip, with names replaced by initials or Person 1. <span class="pill soon">Beta</span></span></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="day">
+  <div class="kick">My house</div>
+  <h2>A day in my house</h2>
+  <p class="lede">I built PadSpan for my own house: three floors, 5,000 sq ft and a 4K screen on the wall. These are the moments in a day it's made for, and whether each one is free. Morning, Leaving and Guests need a Bluetooth scanner; the others don't.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+    <div class="feat tile"><h3>Morning <span class="pill free">Free</span> <span class="pill soon">Beta</span></h3><p>Yesterday at home sends one morning message about the day before, with who came and went, guests' visits, and lights left on in empty rooms.</p></div>
+    <div class="feat tile"><h3>Leaving <span class="pill free">Free</span> <span class="pill soon">Beta</span></h3><p>Lights follow people switches a room off once nobody has been in it for 2 minutes. A light you switch off by hand stays off while you're still in the room.</p></div>
+    <div class="feat tile"><h3>At the door <span class="pill pro">Pro</span></h3><p>When the doorbell rings, the 3D house on the wall flies to the doorbell and shows the camera's snapshot, then goes back after 20 seconds.</p></div>
+    <div class="feat tile"><h3>Guests <span class="pill free">Free</span></h3><p>A guest gets a small Bluetooth tag for their visit, and the screen shows which room they're in. Their stay's report is deleted with their name after 30 days, unless you pick another time.</p></div>
+    <div class="feat tile"><h3>Something's wrong <span class="pill free">Free</span></h3><p>A leak, smoke, gas or CO alarm turns its room red on every screen and stays red until someone presses Reset. A sensor that went off for half a second still counts.</p></div>
+    <div class="feat tile"><h3>Bedtime <span class="pill free">Free</span></h3><p>One look at the wall shows which lights are still on and which doors and windows are open. Tap a room's name, then All off.</p></div>
+    <div class="feat tile"><h3>Away <span class="pill pro">Pro or add-on</span></h3><p>Vacation Mode learns each light's routine by weekday from your Home Assistant history and keeps switching the lights that way until you turn it off.</p></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="lights">
+  <div class="kick">Lights</div>
+  <h2>Your lights on the same floor plan</h2>
+  <p class="lede">PadSpan already knows the shape of your house in metres. <b>Mapping → Atlas builder</b> puts your Home Assistant lights, fans, locks and sensors on that plan, so you switch them where they are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>Free, in every install <span class="pill free">No key</span></h3>
+      <ul>
+        <li>Your rooms and floors, drawn from your own plan</li>
+        <li>One marker per light and fan, in the room it belongs to</li>
+        <li>Tap a light to switch it, or a room's name for All on and All off</li>
+        <li>Locks, doors and windows, motion, leak and smoke sensors in their rooms</li>
+        <li>A wall dimmer and its smart bulbs as one light (a power team) that follows the day, with a wake-up, a bedtime and a night light</li>
+        <li>Lights follow people, room by room, once you have a Bluetooth scanner <span class="pill soon">Beta</span></li>
+        <li>Alert pulse, off until you turn it on, rings a room amber when a door has been open for more than 6 hours or a window is open in the rain</li>
+        <li>Rain and snow drawn outside the house, from your rain sensor or weather entity</li>
+      </ul>
+    </div>
+    <div class="feat">
+      <h3>With PadSpan Pro</h3>
+      <ul>
+        <li><b>Place each light exactly</b> where it hangs, in metres</li>
+        <li>Its real shape, size and angle, so a strip draws as a strip</li>
+        <li>WLED strips with brightness, colour and effects, and Exact look, so a strip comes on the same way every time</li>
+        <li>Fans, locks and sensors placed the same way, with temperature and humidity shown where the sensor is</li>
+        <li><b>Automorph</b> draws a soft glow from each light into its room, in 16 styles</li>
+        <li><b>Showcase</b>, with 20 themes <a href="/showcase-themes.html" style="color:var(--acc)">(see them all)</a>, also in the Looks pack add-on</li>
+        <li>Animated rain and snow outside the house</li>
+      </ul>
+      <p data-until-pass style="font-size:13.5px;color:var(--mut);margin-top:6px">Placement comes with <a href="#pro">PadSpan Pro</a> at $45 a year, or with <a href="#editions">PadSpan Bright Pro</a> at $35 CAD a year for the lighting half alone. Nothing you have drawn is touched when a key ends. Enter a key and every placement comes back as it was, and a lapsed key still reads and exports everything you built.</p>
+      <p data-from-pass style="display:none;font-size:13.5px;color:var(--mut);margin-top:6px">Placement comes with a <a href="#pro">PadSpan Pro</a> key, $49 a year or $85 for two years, in either download. Nothing you have drawn is touched when a key ends. Enter a key and every placement comes back as it was, and a lapsed key still reads and exports everything you built.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="layers">
+  <div class="kick">Simple or complex</div>
+  <h2>Where to start, and how far it goes</h2>
+  <p class="lede">The first column needs no scanner and no drawing. The second is there when you want more.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>Start here <span class="pill free">Free</span></h3>
+      <ol class="steps">
+        <li>Install PadSpan from <b>Settings → Marketplace</b> and press <b>Submit</b>.</li>
+        <li>In Setup, press <b>Show what it will make</b>, then <b>Make the rough house</b>. You get one box per Home Assistant area. <span class="pill soon">Beta</span></li>
+        <li>Open <b>Atlas</b> in the Home Assistant sidebar. Your lights are in their rooms, and a tap switches each one.</li>
+        <li>Switch PadSpan to <b>Basic</b> and the menu keeps nine screens, with the rest under More tools.</li>
+      </ol>
+    </div>
+    <div class="feat">
+      <h3>Go further</h3>
+      <ul>
+        <li>Add a Bluetooth scanner per room for who's where. Three or more placed on a measured plan place people between them.</li>
+        <li>Draw your real rooms on a plan to scale, then carry your phone round each room for 90 seconds with <b>Walk a room</b> to calibrate it.</li>
+        <li>PadSpan has 23 dedicated views. <b>Advanced</b> puts 14 of them in the menu and keeps the rest under More tools.</li>
+        <li>Pick the panel's look. Night, Light (inverted) and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro or the Looks pack add-on.</li>
+        <li>Your automations get a room for each named device, events when someone arrives, leaves or changes room, and three blueprints for lights. Assist answers "Which room is Alex in?" once you add its sentences.</li>
+        <li>PadSpan Pro for exact placement, the 3D house and wall mode, or one add-on for a single feature.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="needs">
+  <div class="kick">Requirements</div>
+  <h2>What you need</h2>
+  <p class="lede">Home Assistant 2024.8 or newer runs all of it. The rest depends on what you want PadSpan to do.</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th style="text-align:left">For</th><th style="text-align:left">You need</th></tr>
+    <tr><td>The map, the lights, locks and alarms</td><td style="text-align:left">Home Assistant 2024.8 or newer, and nothing else</td></tr>
+    <tr><td>Rooms for phones, watches and tags</td><td style="text-align:left">At least one Bluetooth scanner, such as an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a scanner (<a href="/guides/shelly-bluetooth-proxy/">one setting</a>), your Home Assistant machine's own Bluetooth or a USB adapter, or ESPresense nodes. One gives home or away. One in each room you want told apart gives rooms. <a href="/guides/bluetooth-proxies/">How many do I need?</a></td></tr>
+    <tr><td>Lights follow people, Yesterday at home, Share a replay and guest tags</td><td style="text-align:left">The same Bluetooth scanners, because each of them works from who is in which room</td></tr>
+    <tr><td>People placed between scanners</td><td style="text-align:left">Three or more scanners placed on a floor plan drawn to scale</td></tr>
+    <tr><td>An Android phone</td><td style="text-align:left">The Home Assistant Companion app with its BLE Transmitter turned on</td></tr>
+    <tr><td>An iPhone or Apple Watch</td><td style="text-align:left">Its IRK, from Private BLE Device or a spare ESP32 running irk-capture (<a href="/guides/phone-room-presence/">how</a>)</td></tr>
+    <tr><td>A key tag or beacon</td><td style="text-align:left">One with a fixed ID or address, named once (<a href="/guides/bluetooth-tags/">which tags work</a>)</td></tr>
+    <tr><td>AirTags and Samsung SmartTags</td><td style="text-align:left">AirTags are experimental (MAC Rotation Bridging, off until you turn it on). SmartTags don't work reliably.</td></tr>
+    <tr><td>A wall screen</td><td style="text-align:left">Any tablet or screen with a browser. Wall mode on the Atlas page is PadSpan Pro. The free kiosk link <code>/padspan-ha?kiosk=1</code> hides PadSpan's menu (<a href="/guides/wall-screens/">which screen</a>)</td></tr>
+    <tr><td>A LiDAR room scan</td><td style="text-align:left">An iPhone 12 Pro or newer Pro, or an iPad Pro from 2020 or newer, and a RoomPlan app that shares USDZ</td></tr>
+    <tr><td>The 3D house (Pro)</td><td style="text-align:left">A browser with WebGL</td></tr>
+    <tr><td>A small Home Assistant machine</td><td style="text-align:left">More than 2 GB of memory is best. Low-memory mode runs on 2 GB.</td></tr>
+  </table>
+  </div>
+  <p class="lede" style="margin-top:18px">ESPresense nodes come in over MQTT once you switch them on in <b>Manage → HA Entities → ESPresense MQTT</b>, which needs Home Assistant's MQTT integration. Already running Bermuda? <a href="/guides/bermuda/">PadSpan runs next to it</a>. The iPhone setup builds on <a href="https://github.com/DerekSeaman/irk-capture">Derek Seaman's irk-capture</a>, an ESP32 tool that gets a phone's IRK without rooting it or owning a Mac.</p>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="local">
+  <div class="kick">Privacy</div>
+  <h2>What stays in your house</h2>
+  <p class="lede">The tracking runs on your own Home Assistant. Floor plan pictures stay in its config folder and are shown only to people who are logged in. Share a replay makes its clip in your browser and uploads nothing.</p>
+  <p class="lede">What leaves your house: the daily <b>update check</b> (your version number, and your IP address as with any web request; Settings → Tracking → Privacy, updates and feedback → Update Check turns it off) and a daily licence check if you have a key. Device makers come from the device's own broadcast and lists built into PadSpan, so nothing is sent for those. Only if you say so: the <b>opt-in usage report</b> is counts, versions and flags, plus a random install ID and the country and language set in Home Assistant — never names, addresses or contact details — and a Preview shows the exact data first. Starting the free 90-day PadSpan Pro trial or claiming a Pro invite sends the email address the key is issued to. <b>Become a tester</b> is separate from the usage report: you choose what to send and see it before it goes, it goes to the developer only, it is kept until you withdraw (<b>Stop being a tester</b> deletes it), and it is never shared or sold.</p>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="proof">
+  <div class="kick">Check it yourself</div>
+  <h2>What you can check before you install</h2>
+  <div class="docgrid">
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA"><b>The code</b><span>Open source under the GPL-3.0, on GitHub</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md"><b>Every release</b><span>More than 300 since March 2026, each one in the changelog</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md"><b>How it's tested</b><span>More than 6,000 automated tests, and a release doesn't go out if one fails</span></a>
+    <a class="doc" href="#install"><b>The listings</b><span>In the Home Assistant Marketplace (search for room presence) and in HACS</span></a>
+    <a class="doc" href="/guides/bermuda-vs-espresense/"><b>Fair comparisons</b><span>Room presence projects side by side, from each one's own docs</span></a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="demo">
+  <div class="kick">Demo</div>
+  <h2>Try it in your browser</h2>
+  <p class="lede">The demo is the real PadSpan panel on a sample house with made-up people, and there's nothing to install. It runs as PadSpan Pro, so it shows the paid parts too.</p>
+  <img class="heroimg" src="/demo/media/estate-3d-three-floors.jpg" width="1920" height="1080" alt="PadSpan's demo house in 3D: three floors pulled apart, furnished, with people, keys and a guest's tag in their rooms" loading="lazy">
+  <p class="caption">The sample house in Live Aboard, PadSpan Pro's 3D house.</p>
+  <div class="docgrid" style="margin-top:18px">
+    <a class="doc" href="demo/?page=panel"><b>Panel</b><span>Who's where, the Overview and the rest of the panel</span></a>
+    <a class="doc" href="demo/?page=atlas"><b>Atlas</b><span>The lights, locks and sensors on the map. Tap one.</span></a>
+    <a class="doc" href="demo/?page=atlas3d"><b>Live Aboard 3D</b><span>The house in 3D. Turn it, zoom in and tap a light.</span></a>
+    <a class="doc" href="demo/?page=atlas3d&amp;kiosk=1"><b>Wall screen</b><span>The 3D house the way a wall shows it. Make the browser full screen.</span></a>
+  </div>
+  <p style="margin-top:18px"><a class="btn primary" href="demo/">Open the demo house</a></p>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="pro">
+  <div class="kick">PadSpan Pro</div>
+  <h2>PadSpan Pro adds the 3D house, exact placement and wall mode</h2>
+  <p class="lede">Pro is a key you enter in the same integration. It adds everything below, it includes every add-on, and every new PadSpan feature is included while the key runs. PadSpan gets new releases every week, and buying Pro is what keeps them coming. <a href="/pro/">The PadSpan Pro page</a> goes through each feature in detail.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>Only with Pro</h3>
+      <ul class="steps">
+        <li><b>Live Aboard</b>, your house in 3D, like looking into a house in The Sims. Lights glow in their real colour, lit windows glow at night, rain and snow fall outside, and the Studio look puts the house under a sky that follows the real sun. It's experimental and off until you turn it on.</li>
+        <li><b>Walk</b> through the 3D house at eye height. A door with a sensor opens when the real door does, and the stairs take you up and down. <span class="pill soon">Beta</span></li>
+        <li><b>The view goes to what happens.</b> On a wall screen the 3D house flies to a doorbell that rings, a door that opens or an alarm, with a camera's snapshot if you pick one, then goes back after 20 seconds.</li>
+        <li><b>Furnish</b> fills a room in one tap, or piece by piece from 33 kinds of furniture. Link a piece to a device and a lamp glows with its light, a TV lights up while it plays, and a fan's blades turn.</li>
+        <li><b>Exact placement</b> of every light, fan, lock and sensor, in its real shape, size and angle, with WLED control, Automorph and Showcase. See <a href="#lights">Lights</a>.</li>
+        <li><b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and keeps the screen awake.</li>
+        <li><b>The new Atlas layout</b>, with a ⋯ list that sets what each screen shows.</li>
+        <li><b>The Atlas as your Overview</b>, the first thing PadSpan opens.</li>
+        <li><b>People and tags on the Atlas</b>, where PadSpan places them.</li>
+      </ul>
+      <img src="images/live-aboard-3d-house.jpg" width="1600" height="944" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line);margin-top:14px">
+      <p class="caption">My house in Live Aboard at night, with the lights that are on.</p>
+    </div>
+    <div class="feat">
+      <h3>Also in every Pro key</h3>
+      <ul class="steps">
+        <li><b>Every add-on.</b> Audio, Alarm &amp; security, Wi-Fi coverage, Climate map, Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301), Vacation Mode &amp; presets, Looks pack, Forensics and Presence insights all come with Pro. <a href="/add-ons/">What each one does</a></li>
+        <li><b>Every new PadSpan feature</b>, for as long as the key runs.</li>
+        <li><b>Up to 5 homes.</b> One key covers five Home Assistants. With more than two, every home on the key needs the anonymous usage report on.</li>
+        <li><b>90 days free.</b> Try all of Pro for 90 days with no card. An admin starts it in the panel, there's one trial per home, and the usage report stays on until the trial ends.</li>
+        <li><b>Nothing is lost.</b> When a key ends, nothing you made is deleted. The key keeps working 14 days past its end date, and everything comes back when you renew.</li>
+        <li data-until-pass><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
+      </ul>
+    </div>
+    <div class="feat" style="text-align:center">
+      <h3>Pro</h3>
+      <div data-until-pass style="font-size:38px;font-weight:900;margin:6px 0">$45 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
+      <div data-from-pass style="display:none;font-size:38px;font-weight:900;margin:6px 0">$49 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
+      <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 14px">One-time PayPal payment · key valid 1 year · emailed automatically on payment</p>
+      <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+        <input type="hidden" name="cmd" value="_xclick">
+        <input type="hidden" name="business" value="garry@bcmail.net">
+        <input type="hidden" name="item_name" value="PadSpan Pro — 1 year license">
+        <input type="hidden" name="item_number" value="padspan-pro-annual">
+        <input type="hidden" name="amount" value="45.00" id="pro-year-amount">
+        <input type="hidden" name="currency_code" value="CAD">
+        <input type="hidden" name="no_shipping" value="1">
+        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+        <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
+      </form>
+      <div id="pro-lifetime" data-until-pass data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+        <div id="pl-kick" style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch price · until November 30, 2026</div>
+        <div style="font-size:30px;font-weight:900;margin:4px 0"><span id="pl-price">$89</span> <small style="font-size:14px;font-weight:600">CAD, once</small></div>
+        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. <span id="pl-later">$89 until November 30, 2026, then $168 until December 15. After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.</p>
+        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+          <input type="hidden" name="cmd" value="_xclick">
+          <input type="hidden" name="business" value="garry@bcmail.net">
+          <input type="hidden" name="item_name" value="PadSpan Pro — lifetime">
+          <input type="hidden" name="item_number" value="padspan-pro-lifetime">
+          <input type="hidden" name="amount" value="89.00" id="pl-amount">
+          <input type="hidden" name="currency_code" value="CAD">
+          <input type="hidden" name="no_shipping" value="1">
+          <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+          <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+          <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro for life with PayPal</button>
+        </form>
+      </div>
+      <script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
+        document.getElementById("pl-kick").textContent="PadSpan Pro for life · until December 15";document.getElementById("pl-price").textContent="$168";
+        document.getElementById("pl-later").textContent="After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.";document.getElementById("pl-amount").value="168.00";})();</script>
+      <div id="pro-pass" data-from-pass style="display:none;margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+        <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">PadSpan Pro · two years</div>
+        <div style="font-size:30px;font-weight:900;margin:4px 0">$85 <small style="font-size:14px;font-weight:600">CAD, two years</small></div>
+        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">Two years of PadSpan Pro, paid once. There's no lifetime any more: PadSpan gets new releases every week, and a one-off price doesn't keep that going. Every new PadSpan feature is included while it runs. Already have a PadSpan key? Pay with the same email and the two years are added to it.</p>
+        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+          <input type="hidden" name="cmd" value="_xclick">
+          <input type="hidden" name="business" value="garry@bcmail.net">
+          <input type="hidden" name="item_name" value="PadSpan Pro — 2 years">
+          <input type="hidden" name="item_number" value="padspan-pro-2year">
+          <input type="hidden" name="amount" value="85.00">
+          <input type="hidden" name="currency_code" value="CAD">
+          <input type="hidden" name="no_shipping" value="1">
+          <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+          <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+          <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy two years of PadSpan Pro with PayPal</button>
+        </form>
+      </div>
+      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.38.274</span>. Enter your key under Settings → Features → PadSpan licence.</p>
+      <div data-until-pass style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+        <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>
+        <p style="font-size:12px;color:var(--mut,#94a3b8);margin:0 0 10px">Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.</p>
+        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+        <input type="hidden" name="cmd" value="_xclick">
+        <input type="hidden" name="business" value="garry@bcmail.net">
+        <input type="hidden" name="item_name" value="Upgrade to PadSpan Pro — $12">
+        <input type="hidden" name="item_number" value="padspan-bright-to-pro-upgrade">
+        <input type="hidden" name="amount" value="12.00">
+        <input type="hidden" name="currency_code" value="CAD">
+        <input type="hidden" name="no_shipping" value="1">
+        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+        <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Upgrade to PadSpan Pro — $12</button>
+      </form>
+      </div>
+    </div>
+    <div class="feat" id="pro-free">
+      <h3>Or get Pro free</h3>
+      <ul class="steps">
+        <li data-until-pass><b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
+        <li data-from-pass style="display:none"><b>Test it.</b> Testers get a year of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
+        <li data-offer-until="2027-01-01T08:00:00Z"><b>Ask for a year.</b> Until December 31, the first 20 people running PadSpan who email <a href="mailto:hello@traks.ca">hello@traks.ca</a> get a year of Pro free. No card, nothing renews.</li>
+        <li data-offer-until="2027-01-01T08:00:00Z"><b>Show your setup.</b> Post your house anywhere (the HA forum, Reddit, a blog, a video) with a few screenshots, send the link to hello@traks.ca, and get a year too.</li>
+        <li><b>Invites.</b> Now and then an install that sends the usage report gets an invite for a free year, right in the panel.</li>
+      </ul>
+      <p style="font-size:12px;color:var(--mut,#94a3b8);margin:8px 0 0">When a free year ends you go back to free. Anything you made stays.</p>
+      <script>(function(){document.querySelectorAll("#pro-free [data-offer-until]").forEach(function(e){if(Date.now()>=Date.parse(e.getAttribute("data-offer-until")))e.remove();});})();</script>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="editions">
+  <div class="kick">Editions</div>
+  <h2 data-until-pass>Free, Pro, add-ons and Bright Pro</h2><h2 data-from-pass style="display:none">Free, Pro and add-ons</h2>
+  <p class="lede">PadSpan HA is the free download. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and this page marks each one. Pro includes every add-on. Keys go in <b>Settings → Features → PadSpan licence</b>, in the same integration, so there's nothing else to install.</p>
+
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+    <div class="ed hi">
+      <h3>PadSpan Pro</h3>
+      <div class="sub">Full edition · Pro key</div>
+      <div class="price" data-until-pass>$45 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
+      <div class="price" data-from-pass style="display:none">$49 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
+      <ul>
+        <li>Everything in PadSpan HA</li>
+        <li><b>Live Aboard</b>, the house in 3D, and <b>Furnish</b></li>
+        <li><b>Light placement</b>, shapes, WLED, Showcase</li>
+        <li><b>Wall mode</b> and the Atlas as your Overview</li>
+        <li><b>Every add-on</b>, and every new feature while the key runs</li>
+        <li>Day and three more themes</li>
+        <li>Up to 5 homes on one key</li>
+      </ul>
+      <a class="btn primary" href="#pro" style="margin-top:auto">Get Pro</a>
+    </div>
+    <div class="ed">
+      <h3>PadSpan HA</h3>
+      <div class="sub">Full edition · no key</div>
+      <div class="price">Free</div>
+      <ul>
+        <li>Who's in which room, on every floor, with 7 days of replay</li>
+        <li>Your floor plan, from a picture, a PDF, a LiDAR scan or a blank floor</li>
+        <li>Every light in its room, a tap to switch</li>
+        <li>Locks, and alarms that stay red until someone resets them</li>
+        <li>Guest tags, Follow alerts and Home Assistant sensors</li>
+        <li class="x">Light placement</li>
+        <li class="x">The 3D house</li>
+      </ul>
+      <a class="btn ghost" href="#install" style="margin-top:auto">Install free</a>
+    </div>
+    <div class="ed" id="addons" data-half-from="2026-11-27T08:00:00Z" data-half-until="2027-01-02T08:00:00Z" style="grid-column:1/-1;scroll-margin-top:88px">
+      <h3>Add-ons</h3>
+      <div class="sub">For PadSpan HA without Pro · one feature each</div>
+      <p data-addon-price="half" style="display:none;font-size:15px;color:var(--acc2);font-weight:800;margin:0 0 8px">Black Friday: every add-on is half off until January 1.</p>
+      <p style="font-size:14px;color:#c4d6c9;margin:0 0 12px">Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.</p>
+      <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px">Add-ons need PadSpan 0.38.300 or later, which is in beta for now; the next stable release includes them.</p>
+      <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px"><a href="/add-ons/">The add-ons page</a> has the details of each one.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
+        <div id="audio" data-addon="audio" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Audio <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Volume, mute and off for each room's players on the map</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Audio — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-audio">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="alarm" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Alarm &amp; security <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Alarm &amp; security — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-alarm">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="wifi" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Wi-Fi coverage <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The UniFi Wi-Fi coverage map</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Wi-Fi coverage — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-wifi">
+            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="climate" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Climate map <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $8.65)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The Heatmap: rooms by temperature, humidity and CO₂</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Climate map — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-climate">
+            <input type="hidden" name="amount" value="8.65" data-half-amount="4.32">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="timetravel" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Time travel <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$7.55 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.77 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $7.55)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The day replayed on the Atlas map (Playback on the Atlas)</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Time travel — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-timetravel">
+            <input type="hidden" name="amount" value="7.55" data-half-amount="3.77">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="vacation" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Vacation Mode &amp; presets <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $4.25)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Vacation Mode and Whole House Presets</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Vacation Mode &amp; presets — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-vacation">
+            <input type="hidden" name="amount" value="4.25" data-half-amount="2.12">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="looks" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Looks pack <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $4.25)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Day and three more themes, Showcase and the forest</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Looks pack — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-looks">
+            <input type="hidden" name="amount" value="4.25" data-half-amount="2.12">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="forensics" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Forensics <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $5.56)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Which Bluetooth devices were near a scanner in any time window</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Forensics — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-forensics">
+            <input type="hidden" name="amount" value="5.56" data-half-amount="2.78">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+        <div data-addon="insights" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
+          <div style="font-weight:800">Presence insights <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $5.56)</div>
+          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Busy Times and Locate</div>
+          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="garry@bcmail.net">
+            <input type="hidden" name="item_name" value="PadSpan add-on: Presence insights — 2 years">
+            <input type="hidden" name="item_number" value="padspan-addon-insights">
+            <input type="hidden" name="amount" value="5.56" data-half-amount="2.78">
+            <input type="hidden" name="currency_code" value="CAD">
+            <input type="hidden" name="no_shipping" value="1">
+            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
+          </form>
+        </div>
+      </div>
+      <script>(function(){var b=document.getElementById("addons");if(!b)return;var n=Date.now();
+        if(n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until")))return;
+        b.querySelectorAll('[data-addon-price="normal"]').forEach(function(e){e.style.display="none";});
+        b.querySelectorAll('[data-addon-price="half"]').forEach(function(e){e.style.display="";});
+        b.querySelectorAll("input[data-half-amount]").forEach(function(e){e.value=e.getAttribute("data-half-amount");});})();</script>
+    </div>
+    <div class="ed">
+      <h3>PadSpan Bright</h3>
+      <div class="sub">Lighting edition · no key</div>
+      <div class="price">Free</div>
+      <ul>
+        <li>A lighting-only download for people who want the map without the presence tracking</li>
+        <li>Draws the house and the lights, switching only</li>
+        <li class="x" data-until-pass>Light placement — that is Bright Pro</li>
+        <li class="x" data-from-pass style="display:none">Light placement — that takes a Pro key</li>
+      </ul>
+      <a class="btn ghost" href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener" style="margin-top:auto">Install free</a>
+    </div>
+    <div class="ed" data-until-pass>
+      <h3>PadSpan Bright Pro</h3>
+      <div class="sub">Lighting licence</div>
+      <div class="price">$35 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
+      <ul>
+        <li><b>Light placement</b>, fixture shapes and sizes</li>
+        <li>WLED, Showcase, Fit room</li>
+        <li>Works in PadSpan HA today</li>
+        <li class="x">Forensics — that is PadSpan Pro</li>
+      </ul>
+      <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
+        <input type="hidden" name="cmd" value="_xclick">
+        <input type="hidden" name="business" value="garry@bcmail.net">
+        <input type="hidden" name="item_name" value="Buy PadSpan Bright Pro">
+        <input type="hidden" name="item_number" value="padspan-bright-annual">
+        <input type="hidden" name="amount" value="35.00">
+        <input type="hidden" name="currency_code" value="CAD">
+        <input type="hidden" name="no_shipping" value="1">
+        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+        <button class="btn ghost" type="submit" style="cursor:pointer;width:100%;text-align:left">Buy PadSpan Bright Pro</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="note" data-from-pass style="display:none">
+    <b>PadSpan Bright</b> is a separate, lighting-only download for people who don't want presence tracking. It's on GitHub at
+    <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
+    A PadSpan Pro key works there too, for light placement and the other lighting features.
+  </div>
+  <div class="note" data-until-pass>
+    <b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> Bright Pro is the lighting half of Pro at a lower
+    price, so there's never a reason to buy both. If you start with Bright Pro and want the rest later, the upgrade is
+    <a href="#pro">$12</a> and keeps your key and its end date.
+    <br><br>
+    <b>PadSpan Bright</b> is a separate, lighting-only download for people who don't want presence tracking. It's on GitHub at
+    <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
+    A Bright Pro licence works in either download, PadSpan HA or Bright.
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="bright">
+  <div class="kick">PadSpan Bright</div>
+  <h2>The lighting half, on its own</h2>
+  <p class="lede">PadSpan Bright is the Atlas without the presence tracking, with every light, fan, sensor, lock, door and window on the same floor plan as the rooms. It's free to run, and placement takes a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th data-until-pass>Bright Pro</th><th data-from-pass style="display:none">Bright with a Pro key</th></tr>
+    <tr><td>Floors &amp; rooms drawn as an isometric plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>One marker per light, tap (or its row) to toggle</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Hide lights you don't want cluttering the map</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Doors and windows drawn on a wall and linked to their sensors</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td>Place each light at its real position on the floor plan</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Real shape, size (width × length) and rotation</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>WLED strip/series placement, sized and angled to the strip</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>The full WLED controls, with effects, presets and playlists, and Exact look</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Fans, motion sensors, temperature sensors and locks placed on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Automorph, a soft glow from each light into its room, in 16 styles</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Arm and disarm the house alarm, the emergency lights test, and the door, garage and gate card</td><td class="no">—</td><td class="yes">✓</td></tr>
+    <tr><td>Import an existing house from PadSpan Bright into PadSpan HA</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- From the end of December 15, 2026 (editions.js PRO_PASS_FROM, the licence server's PSPAN_LIFETIME_ENDS):
+     no lifetime, no Bright Pro, Pro $49 a year or $85 for two years, testers a year. Visitors without
+     JavaScript keep seeing the blocks before it until the Dec 16 edit. -->
+<script>(function(){if(Date.now()<Date.parse("2026-12-16T08:00:00Z"))return;
+  document.querySelectorAll("[data-until-pass]").forEach(function(e){e.remove();});
+  document.querySelectorAll("[data-from-pass]").forEach(function(e){e.style.display="";});
+  var a=document.getElementById("pro-year-amount");if(a)a.value="49.00";})();</script>
+
+<section class="wrap" id="install">
+  <div class="kick">Install</div>
+  <h2>Install it from the Marketplace</h2>
+  <p class="lede">You need Home Assistant 2024.8 or newer. The map, the lights and the alarms need nothing else. Who's where needs at least one Bluetooth scanner, and so do Lights follow people, Yesterday at home and guest tags. An ESPHome Bluetooth proxy, a Shelly Gen2 or newer set up as a scanner, or your Home Assistant machine's own Bluetooth will do.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="feat">
+      <h3>From the Marketplace (Home Assistant 2026.11+)</h3>
+      <ol class="steps">
+        <li>Open Settings → Marketplace</li>
+        <li>Search for <b>room presence</b> or <b>PadSpan</b> and install <b>PadSpan HA</b></li>
+        <li>The setup dialog opens straight away, with no restart: select <b>Submit</b></li>
+        <li>On 2026.10 or older: install it from HACS, restart Home Assistant completely, then Settings → Devices &amp; Services → Add Integration → PadSpan HA</li>
+      </ol>
+    </div>
+    <div class="feat">
+      <h3>Quick Start</h3>
+      <ol class="steps">
+        <li>Open the <b>PadSpan HA</b> panel in the sidebar</li>
+        <li>Give each scanner its Home Assistant area. <b>Who's where now</b> then puts each device in the room of the scanner that hears it best, with no floor plan. A scanner with no area gets <b>Set room</b> right there</li>
+        <li>Press <b>Track</b> beside your phone, or name your phones and tags, to get their Home Assistant entities</li>
+        <li>No scanner yet? In Setup, <b>Make the rough house</b> builds a first map from your Home Assistant areas, and <b>Atlas</b> in the sidebar puts your lights in their rooms</li>
+        <li>Want the real plan? <b>Make it a map</b> walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, <b>Put it on the map</b></li>
+        <li>Every step, with pictures: <a href="/guides/get-started/">From the Marketplace to your first room</a></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="docs">
+  <div class="kick">Documentation</div>
+  <h2>The manual and the guides</h2>
+  <p class="lede">The full manual is on this site in English and German, and the panel's Training Hub has 16 animated walkthroughs.</p>
+  <div class="docgrid">
+    <a class="doc" href="/manual/"><b>The PadSpan HA manual</b><span>Every screen, setting and step, a chapter per page</span></a>
+    <a class="doc" href="/guides/get-started/"><b>From the Marketplace to your first room</b><span>Each scanner's room, who's where with no floor plan, your phone, then the map</span></a>
+    <a class="doc" href="/guides/bluetooth-proxies/"><b>How many Bluetooth proxies do I need?</b><span>For home or away, for rooms, and for positions between them</span></a>
+    <a class="doc" href="/guides/phone-room-presence/"><b>Which room is my phone in?</b><span>Android phones, iPhones and Apple Watches</span></a>
+    <a class="doc" href="/guides/room-presence-automations/"><b>What can Home Assistant do once it knows the room?</b><span>Eight automations, each run on a real Home Assistant</span></a>
+    <a class="doc" href="/guides/wall-screens/"><b>Which touch screen for a PadSpan wall?</b><span>Sizes, the screens people use, and setting the wall up</span></a>
+    <a class="doc" href="/manual/troubleshooting/"><b>Troubleshooting</b><span>Find the symptom, then work down the causes</span></a>
+    <a class="doc" href="/guides/"><b>All guides</b><span>Floor plans, tags, robot vacuum maps, big houses and more</span></a>
+    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md"><b>Changelog</b><span>Every release, newest first</span></a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="about">
+  <div class="kick">Who makes it</div>
+  <h2>Who makes PadSpan</h2>
+  <div class="about">
+    <p>I'm <a href="https://github.com/gbroeckling">Garry Broeckling</a>. I designed my house to be automated from the start. Home Assistant could tell me who was home or away, but I wanted to see which room everyone was in, on a plan of the house, with the lights and doors on it too. So I built it.</p>
+    <p>I love creating and experimenting, and I've spent most of my working life building new solutions to problems, many of them in wireless and radio. I'm a ham, too. That helps, because Bluetooth presence is a radio problem.</p>
+    <p>I write PadSpan with the help of AI coding tools, mostly Claude, but PadSpan is still my design. I decide what it does and how it works, I test it in my own house, and I sign off on every release. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How PadSpan is built and checked</a>.</p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="wrap" id="donate" style="text-align:center;padding-top:10px">
+  <h2 style="font-size:24px">Buy me a coffee ☕</h2>
+  <p class="lede" style="margin:8px auto 20px;max-width:560px">If this project saved you time (or you just like knowing which room your cat is in), you can support development:</p>
+  <a class="btn primary" href="https://www.paypal.com/donate/?hosted_button_id=W489P2RXBMXKW">Donate with PayPal</a>
+</section>
+
+<div class="divider"></div>
+
 <section class="wrap" id="whatsnew">
   <div class="kick">What's new</div>
   <h2>The releases since v0.21, in plain terms</h2>
-  <p class="lede">If you installed PadSpan earlier this year and left it alone, a lot has changed underneath — and there is a reason you may not have heard about any of it. See the <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">full changelog</a> for every entry.</p>
-
-  <div class="note">
-    <b>If you are on the stable channel and think you are current, check again.</b>
-    The update check built into the integration reported v0.21.13 as the latest stable
-    right up until 23 August 2026, long after newer stable releases existed. That was a
-    fault at my end, not at yours. It is fixed, and cutting a release now publishes the
-    version manifest as part of the process, so it cannot drift like that again.
-  </div>
+  <p class="lede">Every release since v0.21, newest first, in plain words. The <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">full changelog</a> has every entry.</p>
 
   <div class="rel" style="margin-top:26px">
 
@@ -5469,716 +6166,6 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   </div>
 </section>
 
-<div class="divider"></div>
-
-<section class="wrap" id="why">
-  <div class="kick">Why PadSpan</div>
-  <h2>A complete tracking workstation, not just a sensor</h2>
-  <p class="lede">Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode — so you can explore every feature before plugging in hardware.</p>
-  <p class="lede">It works with the BLE scanners you already have. Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly. ESPresense nodes arrive over MQTT, which you switch on in <b>Manage → ESPresense MQTT</b> and which needs Home Assistant's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.</p>
-  <p class="lede">What leaves your house: the daily <b>update check</b> (your version number, and your IP address as with any web request; Settings → Tracking → Privacy, updates and feedback → Update Check turns it off) and a daily licence check if you have a key. Device makers come from the device's own broadcast and lists built into PadSpan, so nothing is sent for those. Only if you say so: the <b>opt-in usage report</b> is counts, versions and flags, plus a random install ID and the country and language set in Home Assistant — never names, addresses or contact details — and a Preview shows the exact data first. Starting the free 90-day PadSpan Pro trial or claiming a Pro invite sends the email address the key is issued to. <b>Become a tester</b> is separate from the usage report: you choose what to send and see it before it goes, it goes to the developer only, it is kept until you withdraw (<b>Stop being a tester</b> deletes it), and it is never shared or sold.</p>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="inuse">
-  <div class="kick">In use</div>
-  <h2>Not a mockup</h2>
-  <p class="lede">PadSpan on a wall-mounted panel in daily use, next to the thermostat and the light switches.</p>
-  <img class="heroimg" src="images/wall-panel-in-situ.jpg" width="1400" height="1054" alt="PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices" loading="lazy">
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="screenshots">
-  <div class="kick">Screenshots</div>
-  <h2>See it in action</h2>
-  <p class="lede">Click any screenshot to view it full size.</p>
-  <div class="grid">
-    <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
-    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
-    <a class="shot" href="images/overview-3d-multifloor.jpg" target="_blank"><img src="images/overview-3d-multifloor.jpg" alt="3D multi-floor tracking" loading="lazy"><div class="cap"><b>3D Multi-Floor Tracking</b>Live isometric view with tracked devices across 3 floors</div></a>
-    <a class="shot" href="images/overview-3d-heatmap.jpg" target="_blank"><img src="images/overview-3d-heatmap.jpg" alt="3D heatmap overlay" loading="lazy"><div class="cap"><b>3D Heatmap + Signal Overlay</b>RSSI heatmap crosshatch with live device positions</div></a>
-    <a class="shot" href="images/maps-library-live.jpg" target="_blank"><img src="images/maps-library-live.jpg" alt="Maps library" loading="lazy"><div class="cap"><b>Maps Library</b>Uploaded floor plans organized by floor</div></a>
-    <a class="shot" href="images/bluetooth-scanner-graph.jpg" target="_blank"><img src="images/bluetooth-scanner-graph.jpg" alt="Scanner-device graph" loading="lazy"><div class="cap"><b>Scanner-to-Device Graph</b>Bipartite BLE connection graph with live RSSI</div></a>
-    <a class="shot" href="images/traceback-distance.jpg" target="_blank"><img src="images/traceback-distance.jpg" alt="Traceback playback" loading="lazy"><div class="cap"><b>Traceback + Distance Traveled</b>NVR-style playback timeline with per-device reliability</div></a>
-    <a class="shot" href="images/beacon-tune-calibration.jpg" target="_blank"><img src="images/beacon-tune-calibration.jpg" alt="Beacon tune calibration" loading="lazy"><div class="cap"><b>Beacon Tune Calibration</b>3D floor stack with auto-cal and live positions</div></a>
-    <a class="shot" href="images/purelive-immersive.png" target="_blank"><img src="images/purelive-immersive.png" alt="Live Tracker immersive dashboard" loading="lazy"><div class="cap"><b>Live Tracker — Immersive Dashboard</b>Full-screen 3D map with pan/zoom, sonar, and floating stats</div></a>
-    <a class="shot" href="images/traceback-playback-3d.png" target="_blank"><img src="images/traceback-playback-3d.png" alt="Traceback movement playback" loading="lazy"><div class="cap"><b>Traceback — Movement Playback</b>Replay with 3D map, timeline scrubber, and distance per device</div></a>
-    <a class="shot" href="images/sandbox-developer.png" target="_blank"><img src="images/sandbox-developer.png" alt="Sandbox developer tools" loading="lazy"><div class="cap"><b>Sandbox Developer Tools</b>State inspector, floor towers, live signal bars</div></a>
-    <a class="shot" href="images/floor-plan-edit.png" target="_blank"><img src="images/floor-plan-edit.png" alt="Floor plan editor" loading="lazy"><div class="cap"><b>Floor Plan Editor</b>Room boundaries drawn on architectural blueprints</div></a>
-    <a class="shot" href="images/calibration-tune-3d.png" target="_blank"><img src="images/calibration-tune-3d.png" alt="3D calibration tune" loading="lazy"><div class="cap"><b>3D Calibration Tune</b>Isometric tune view with draggable receiver markers</div></a>
-    <a class="shot" href="images/training-hub.png" target="_blank"><img src="images/training-hub.png" alt="Training hub" loading="lazy"><div class="cap"><b>Training Hub</b>16 animated walkthroughs + full manual, built in</div></a>
-    <a class="shot" href="images/3d-stack-tracking.png" target="_blank"><img src="images/3d-stack-tracking.png" alt="3D stack tracking" loading="lazy"><div class="cap"><b>3D Floor Stack</b>Multi-floor stack with live tracking</div></a>
-    <a class="shot" href="images/bluetooth-visualization.png" target="_blank"><img src="images/bluetooth-visualization.png" alt="Bluetooth visualization" loading="lazy"><div class="cap"><b>Bluetooth Visualization</b>Live scanner and device signal landscape</div></a>
-    <a class="shot" href="images/maps-library.png" target="_blank"><img src="images/maps-library.png" alt="Maps library view" loading="lazy"><div class="cap"><b>Maps Library View</b>Floor plan management</div></a>
-    <a class="shot" href="images/sandbox-dashboard.jpg" target="_blank"><img src="images/sandbox-dashboard.jpg" alt="Sandbox dashboard" loading="lazy"><div class="cap"><b>Sandbox Dashboard</b>Experimental playground</div></a>
-    <a class="shot" href="images/bright-overview.jpg" target="_blank"><img src="images/bright-overview.jpg" alt="Lighting map with floors and rooms" loading="lazy"><div class="cap"><b>Lighting Map</b>Every light on the same floor plan as the rooms</div></a>
-    <a class="shot" href="images/bright-fixture-editor.jpg" target="_blank"><img src="images/bright-fixture-editor.jpg" alt="Fixture editor with real width, length and rotation" loading="lazy"><div class="cap"><b>Real Size &amp; Angle</b>Width, length and rotation in centimetres, not a dot</div></a>
-    <a class="shot" href="images/bright-wled-card.png" target="_blank"><img src="images/bright-wled-card.png" alt="WLED light control card" loading="lazy"><div class="cap"><b>WLED Control Card</b>Brightness, colour and effect, live against the real strip</div></a>
-  </div>
-</section>
-
-<section class="wrap" id="demo">
-  <div class="kick">Demo</div>
-  <h2>Watch the walkthrough</h2>
-  <video controls preload="metadata" poster="images/overview-3d-multifloor.jpg">
-    <source src="images/demo-walkthrough.mp4" type="video/mp4">
-    Your browser doesn't support embedded video. <a href="images/demo-walkthrough.mp4">Download the demo</a>.
-  </video>
-  <p style="margin-top:14px">Or try it yourself, in your browser, on a sample house: <a class="btn primary" href="demo/">Open the live demo</a></p>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="features">
-  <div class="kick">Feature Highlights</div>
-  <h2>Everything you need for room-level presence</h2>
-  <p class="lede"></p>
-  <div class="grid">
-    <div class="feat"><h3>Presence Tracking</h3><ul>
-      <li>Room-level BLE tracking, 5-second refresh</li>
-      <li>Follow mode — animated map + movement timeline</li>
-      <li>Multi-device tracking with per-device email alerts</li>
-      <li>Kalman-filtered RSSI smoothing</li>
-      <li>Home/away from each device's tracker</li>
-      <li>Private BLE address resolution (iBeacon + IRK)</li>
-      <li>Hybrid occupancy estimation (BLE, HA people and occupancy sensors)</li>
-    </ul></div>
-    <div class="feat"><h3>Device Identity</h3><ul>
-      <li>Stable padspan_id survives MAC rotation and firmware updates</li>
-      <li>O(1) identity resolution from any volatile key</li>
-      <li>Automatic migration from older tag systems</li>
-      <li>Interactive registry: merge, relabel, delete</li>
-    </ul></div>
-    <div class="feat"><h3>Floor Plans &amp; Maps</h3><ul>
-      <li>Upload any picture of a plan, or start from a room scan or a blank floor</li>
-      <li>Two-point measure tool for real-world scale</li>
-      <li>Draw room boundary polygons over blueprints</li>
-      <li>3D isometric multi-floor visualization</li>
-      <li>2D flat map with zoom/pan and filters</li>
-      <li>Drag-and-place scanner markers</li>
-      <li>Geometry stored in metres, not pixels — re-crop a plan and nothing moves</li>
-      <li>Stale/missing radio auto-detection</li>
-    </ul></div>
-    <div class="feat"><h3>Calibration</h3><ul>
-      <li>Walk-around fingerprint collection, phone-friendly panel</li>
-      <li>k-NN matching + OLS path-loss model per scanner</li>
-      <li>Auto-calibration from stationary beacons</li>
-      <li>Coverage heatmap with "walk here next" guidance</li>
-      <li>Leave-one-out cross-validation quality scoring</li>
-      <li>RSSI Vector Capture — record a walk, replay it against new settings</li>
-      <li>3D tune view with draggable receivers</li>
-    </ul></div>
-    <div class="feat"><h3>Multi-Floor Intelligence</h3><ul>
-      <li>Real scanner mounting heights and floor elevations</li>
-      <li>Walls as RF barriers with per-material attenuation</li>
-      <li>Floor-transition learning with adaptive velocity gate</li>
-      <li>Learned cross-floor RSSI attenuation</li>
-      <li>Outdoor penalties for rooms on an Outside floor</li>
-    </ul></div>
-    <div class="feat"><h3>Scanner Hardware</h3><ul>
-      <li>Tested with 20+ ESP32 boards</li>
-      <li>Antenna matters more than the chip — external wins</li>
-      <li>Auto-discover scanners from HA integrations</li>
-      <li>Per-scanner signal quality and coverage metrics</li>
-      <li>Assign scanners to floors and rooms on the map</li>
-    </ul></div>
-    <div class="feat"><h3>Alerts &amp; Automation</h3><ul>
-      <li>Email alerts on room change (60 s rate limit)</li>
-      <li>Device trackers (the state is the room), area and distance sensors</li>
-      <li>Events for arrivals, departures and room changes</li>
-    </ul></div>
-    <div class="feat"><h3>UI &amp; Experience</h3><ul>
-      <li>Live Tracker immersive full-screen 3D dashboard</li>
-      <li>23 dedicated views, Basic and Advanced modes</li>
-      <li>Guided Setup: each step opens its tool and says when it's done</li>
-      <li>Training Hub: 16 animated walkthroughs + manual</li>
-      <li>Sample mode — full demo, no hardware needed</li>
-      <li>NVR-style movement playback</li>
-      <li>Seven themes: Night, Light (inverted) and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro <span class="pill soon">Beta</span></li>
-      <li>Hide Home Assistant's sidebar from PadSpan or the Atlas, for a wall screen <span class="pill soon">Beta</span></li>
-    </ul></div>
-    <div class="feat"><h3>Experimental Features</h3><ul>
-      <li>Phone Setup Wizard with irk-capture auto-detection</li>
-      <li>MAC Rotation Bridging</li>
-      <li>Apple device auto-classification</li>
-      <li>Radio Map + Signal distortion map overlays</li>
-      <li>Walk-to-Identify</li>
-    </ul></div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="lights">
-  <div class="kick">Lighting</div>
-  <h2>Your lights on the same floor plan</h2>
-  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas builder</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.</p>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));margin-bottom:22px">
-    <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
-    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
-  </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
-    <div class="feat">
-      <h3>Free, in every install <span class="pill free">No key</span></h3>
-      <ul>
-        <li>The lighting map — rooms and floors drawn from your real geometry</li>
-        <li>One marker per light, in the room it belongs to</li>
-        <li>Click a light to switch it</li>
-        <li>Never hidden: the Atlas is there whether or not you hold a key</li>
-      </ul>
-    </div>
-    <div class="feat">
-      <h3>With a key</h3>
-      <ul>
-        <li><b>Place each light exactly</b> where it hangs, in metres</li>
-        <li>Fixture shapes and sizes — a strip is not a spot</li>
-        <li>WLED strips, with brightness, colour and effect control, live</li>
-        <li>Fans, motion &amp; temperature sensors and locks placed the same way</li>
-        <li>Doors &amp; windows on a wall — live open/closed state, modelled as real RF barriers</li>
-        <li>Motion flash and fade normalized across every sensor's hardware hold time</li>
-        <li><b>Automorph</b> — a soft aura drawn on the map from each fixture into its room</li>
-        <li><b>Showcase</b> presentation mode, now with 20 selectable themes <a href="/showcase-themes.html" style="color:var(--acc)">— see them all <span class="pill soon">New</span></a></li>
-      </ul>
-      <p data-until-pass style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
-      <p data-from-pass style="display:none;font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by a <a href="#pro">PadSpan Pro</a> key, $49 a year or $85 for two years, in either download. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
-    </div>
-    <div class="feat">
-      <h3>With PadSpan Pro</h3>
-      <ul>
-        <li><b>Live Aboard</b> — the whole house in 3D: walls cut away to see in, doors and windows, lights and LED strips, furniture, people and the weather outside (experimental, off until you turn it on)</li>
-        <li>A step-by-step guide builds the 3D house from the map you already have</li>
-        <li>Mezzanines and galleries drawn inside a tall room, with a glass railing on the open edges you choose <span class="pill soon">Beta</span></li>
-        <li>The Atlas as your Overview, the first thing PadSpan opens</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="editions">
-  <div class="kick">Editions</div>
-  <h2 data-until-pass>Four programs, two dials</h2><h2 data-from-pass style="display:none">Three programs, two dials</h2>
-  <p class="lede">There is one codebase. Which <b>edition</b> you download decides what you can see; what your <b>key</b> says decides what you can edit. A Pro key typed into any edition unlocks everything that edition can show, so you never have to work out which key goes with which download.</p>
-
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
-    <div class="ed hi">
-      <h3>PadSpan HA</h3>
-      <div class="sub">Full edition · no key</div>
-      <div class="price">Free</div>
-      <ul>
-        <li>Room-level presence, everywhere in the house</li>
-        <li>Floor plans, 3D maps, calibration</li>
-        <li>Follow mode, playback, occupancy</li>
-        <li>The lighting map, view and switch</li>
-        <li class="x">Light placement</li>
-        <li class="x">Forensics</li>
-      </ul>
-      <a class="btn ghost" href="#install" style="margin-top:auto">Install free</a>
-    </div>
-    <div class="ed hi">
-      <h3>PadSpan Pro</h3>
-      <div class="sub">Full edition · Pro key</div>
-      <div class="price" data-until-pass>$45 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
-      <div class="price" data-from-pass style="display:none">$49 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
-      <ul>
-        <li>Everything in PadSpan HA</li>
-        <li><b>Forensics</b> — who was near which scanner, when</li>
-        <li><b>Light placement</b>, shapes, WLED, Showcase</li>
-        <li><b>Live Aboard</b>, the house in 3D</li>
-        <li>Day and three more themes</li>
-        <li>One key, no separate install</li>
-      </ul>
-      <a class="btn primary" href="#pro" style="margin-top:auto">Get Pro</a>
-    </div>
-    <div class="ed" id="addons" data-half-from="2026-11-27T08:00:00Z" data-half-until="2027-01-02T08:00:00Z" style="grid-column:1/-1;scroll-margin-top:88px">
-      <h3>Add-ons</h3>
-      <div class="sub">For PadSpan HA without Pro · one feature each</div>
-      <p data-addon-price="half" style="display:none;font-size:15px;color:var(--acc2);font-weight:800;margin:0 0 8px">Black Friday: every add-on is half off until January 1.</p>
-      <p style="font-size:14px;color:#c4d6c9;margin:0 0 12px">Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.</p>
-      <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px">Add-ons need PadSpan 0.38.300 or later, which is in beta for now; the next stable release includes them.</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
-        <div id="audio" data-addon="audio" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Audio <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Volume, mute and off for each room's players on the map</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Audio — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-audio">
-            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="alarm" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Alarm &amp; security <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Alarm &amp; security — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-alarm">
-            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="wifi" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Wi-Fi coverage <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $6.45)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The UniFi Wi-Fi coverage map</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Wi-Fi coverage — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-wifi">
-            <input type="hidden" name="amount" value="6.45" data-half-amount="3.22">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="climate" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Climate map <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $8.65)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The Heatmap: rooms by temperature, humidity and CO₂</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Climate map — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-climate">
-            <input type="hidden" name="amount" value="8.65" data-half-amount="4.32">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="timetravel" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Time travel <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$7.55 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.77 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $7.55)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The day replayed on the Atlas map (Playback on the Atlas)</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Time travel — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-timetravel">
-            <input type="hidden" name="amount" value="7.55" data-half-amount="3.77">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="vacation" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Vacation Mode &amp; presets <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $4.25)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Vacation Mode and Whole House Presets</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Vacation Mode &amp; presets — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-vacation">
-            <input type="hidden" name="amount" value="4.25" data-half-amount="2.12">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="looks" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Looks pack <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $4.25)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Day and three more themes, Showcase and the forest</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Looks pack — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-looks">
-            <input type="hidden" name="amount" value="4.25" data-half-amount="2.12">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="forensics" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Forensics <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $5.56)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Which Bluetooth devices were near a scanner in any time window</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Forensics — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-forensics">
-            <input type="hidden" name="amount" value="5.56" data-half-amount="2.78">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-        <div data-addon="insights" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
-          <div style="font-weight:800">Presence insights <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off until January 1 (normally $5.56)</div>
-          <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Busy Times and Locate</div>
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="garry@bcmail.net">
-            <input type="hidden" name="item_name" value="PadSpan add-on: Presence insights — 2 years">
-            <input type="hidden" name="item_number" value="padspan-addon-insights">
-            <input type="hidden" name="amount" value="5.56" data-half-amount="2.78">
-            <input type="hidden" name="currency_code" value="CAD">
-            <input type="hidden" name="no_shipping" value="1">
-            <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-            <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-            <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Buy</button>
-          </form>
-        </div>
-      </div>
-      <script>(function(){var b=document.getElementById("addons");if(!b)return;var n=Date.now();
-        if(n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until")))return;
-        b.querySelectorAll('[data-addon-price="normal"]').forEach(function(e){e.style.display="none";});
-        b.querySelectorAll('[data-addon-price="half"]').forEach(function(e){e.style.display="";});
-        b.querySelectorAll("input[data-half-amount]").forEach(function(e){e.value=e.getAttribute("data-half-amount");});})();</script>
-    </div>
-    <div class="ed">
-      <h3>PadSpan Bright</h3>
-      <div class="sub">Lighting edition · no key</div>
-      <div class="price">Free</div>
-      <ul>
-        <li>A lighting-only download for people who want the map without the presence tracking</li>
-        <li>Draws the house and the lights, switching only</li>
-        <li class="x" data-until-pass>Light placement — that is Bright Pro</li>
-        <li class="x" data-from-pass style="display:none">Light placement — that takes a Pro key</li>
-      </ul>
-      <a class="btn ghost" href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener" style="margin-top:auto">Install free</a>
-    </div>
-    <div class="ed" data-until-pass>
-      <h3>PadSpan Bright Pro</h3>
-      <div class="sub">Lighting licence</div>
-      <div class="price">$35 <small style="font-size:13px;font-weight:600">CAD / yr</small></div>
-      <ul>
-        <li><b>Light placement</b>, fixture shapes and sizes</li>
-        <li>WLED, Showcase, Fit room</li>
-        <li>Works in PadSpan HA today</li>
-        <li class="x">Forensics — that is PadSpan Pro</li>
-      </ul>
-      <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-        <input type="hidden" name="cmd" value="_xclick">
-        <input type="hidden" name="business" value="garry@bcmail.net">
-        <input type="hidden" name="item_name" value="Buy PadSpan Bright Pro">
-        <input type="hidden" name="item_number" value="padspan-bright-annual">
-        <input type="hidden" name="amount" value="35.00">
-        <input type="hidden" name="currency_code" value="CAD">
-        <input type="hidden" name="no_shipping" value="1">
-        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-        <button class="btn ghost" type="submit" style="cursor:pointer;width:100%;text-align:left">Buy PadSpan Bright Pro</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="note" data-from-pass style="display:none">
-    <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a
-    lighting-only install for people who do not want presence tracking at all — is live:
-    <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
-    A PadSpan Pro key works in it too: there it unlocks light placement.
-  </div>
-  <div class="note" data-until-pass>
-    <b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not
-    alternatives — Pro is the whole product, Bright Pro is the lighting half of it at a
-    lower price. There is never a reason to buy both, and if you start with Bright Pro and
-    want the rest later, the upgrade is
-    <a href="#pro">$12</a> rather than a second full licence.
-    <br><br>
-    <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a
-    lighting-only install for people who do not want presence tracking at all — is live:
-    <a href="https://github.com/gbroeckling/padspanBright" target="_blank" rel="noopener">gbroeckling/padspanBright</a>.
-    A Bright Pro licence works on either download — it unlocks light placement inside
-    PadSpan HA if that's the free download you already use, or inside the standalone
-    Bright edition if you install that instead.
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="phones">
-  <div class="kick">Phone &amp; Watch Tracking</div>
-  <h2>The hardest problem in BLE presence — solved several ways</h2>
-  <p class="lede">Phones rotate their Bluetooth address every ~15 minutes specifically to prevent tracking. PadSpan offers multiple paths depending on your device:</p>
-  <div class="tablewrap">
-  <table>
-    <tr><th>Device</th><th>Easiest Method</th><th style="text-align:left">What You Need</th></tr>
-    <tr><td><b>Android phone</b></td><td>HA Companion App iBeacon</td><td style="text-align:left">Install app, enable BLE Transmitter. Done.</td></tr>
-    <tr><td><b>iPhone / iPad</b></td><td>IRK via irk-capture</td><td style="text-align:left">Spare ESP32, flash irk-capture, pair once, paste IRK</td></tr>
-    <tr><td><b>Apple Watch</b></td><td>IRK via irk-capture</td><td style="text-align:left">Same as iPhone — pair watch to irk-capture ESP32</td></tr>
-    <tr><td><b>Beacon or key tag</b></td><td>Automatic</td><td style="text-align:left">A fixed ID or address: <a href="/guides/bluetooth-tags/">name it once</a></td></tr>
-    <tr><td><b>AirTag</b></td><td>Probabilistic (experimental)</td><td style="text-align:left">MAC Rotation Bridging</td></tr>
-    <tr><td><b>SmartTag</b></td><td>Not reliably</td><td style="text-align:left">No stable identifier in the air</td></tr>
-    <tr><td><b>AirPods</b></td><td>Apple auto-classification</td><td style="text-align:left">Detected and labeled automatically</td></tr>
-  </table>
-  </div>
-  <p class="lede" style="margin-top:18px">The IRK extraction workflow is built on <a href="https://github.com/DerekSeaman/irk-capture">Derek Seaman's irk-capture</a> — an ingenious ESP32 tool that makes practical phone tracking in Home Assistant possible without rooting devices or owning a Mac.</p>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="compare">
-  <div class="kick">How It Compares</div>
-  <h2>Bermuda, ESPresense and PadSpan side by side</h2>
-  <p class="lede"><a href="https://github.com/agittins/bermuda">Bermuda</a> and <a href="https://espresense.com/">ESPresense</a> are both good, and lots of people run them. This is what each does, from their own docs as of October 2026 (<a href="/guides/bermuda-vs-espresense/">more detail</a>). If something here is out of date, <a href="https://github.com/gbroeckling/padspanHA/issues">open an issue</a> and it gets fixed.</p>
-  <div class="tablewrap">
-  <table>
-    <tr><th style="text-align:left">Feature</th><th>PadSpan HA</th><th>Bermuda</th><th>ESPresense (+ Companion)</th></tr>
-    <tr><td>Room-level presence</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>Hardware</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, HA's own Bluetooth or a USB adapter, or ESPresense over MQTT once switched on</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters</td><td>Its own firmware on ESP32 nodes</td></tr>
-    <tr><td>Floor plan needed?</td><td>No: rooms come from each scanner's HA area; the map is optional</td><td>No</td><td>No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator)</td></tr>
-    <tr><td>Map of your home</td><td><span class="yes">✓</span> draw rooms on your floor plan</td><td class="no">—</td><td><span class="yes">✓</span> Companion</td></tr>
-    <tr><td>Multi-floor 3D view</td><td><span class="yes">✓</span> (the full 3D house, Live Aboard, is Pro)</td><td><span class="no">—</span> (has a Floor sensor)</td><td><span class="yes">✓</span> Companion</td></tr>
-    <tr><td>Position between scanners</td><td><span class="yes">✓</span> with 3+ scanners placed on a measured plan</td><td class="no">—</td><td><span class="yes">✓</span> Companion (X/Y/Z)</td></tr>
-    <tr><td>Calibration</td><td>Walk-around fingerprints and per-scanner signal fit</td><td>Guided: global, per proxy and per device</td><td>Manual on each node; automatic in Companion</td></tr>
-    <tr><td>Signal smoothing</td><td>Kalman filter plus a room vote</td><td>Averaging, a speed limit on moving away, and area hysteresis</td><td>Filtering on the node, Kalman on position (Companion)</td></tr>
-    <tr><td>iPhones and Apple Watches (IRK)</td><td><span class="yes">✓</span> via Private BLE Device or irk-capture, with a setup guide</td><td><span class="yes">✓</span> via Private BLE Device</td><td><span class="yes">✓</span> enrolled on the node's web page</td></tr>
-    <tr><td>Tags that change address (AirTag, SmartTag)</td><td>Experimental</td><td class="no">—</td><td><span class="no">—</span> (AirTags can only be counted)</td></tr>
-    <tr><td>HA room, distance and tracker entities</td><td class="yes">✓</td><td class="yes">✓</td><td>A room sensor with distance; a tracker from Companion</td></tr>
-    <tr><td>Movement history</td><td><span class="yes">✓</span> playback (Traceback)</td><td>HA's own history, no playback</td><td>Path view in Companion (its history logging is in beta)</td></tr>
-    <tr><td>Alerts when a device changes room</td><td><span class="yes">✓</span> built in (Follow)</td><td>With your own HA automations</td><td>With your own HA automations</td></tr>
-    <tr><td>Where you set it up</td><td>A PadSpan panel in the HA sidebar</td><td>Home Assistant's setup dialogs</td><td>The node's web page and the Companion app</td></tr>
-    <tr><td>Try it before installing</td><td><span class="yes">✓</span> <a href="/demo/">browser demo</a> and a sample house</td><td class="no">—</td><td class="no">—</td></tr>
-  </table>
-  </div>
-  <p class="lede" style="margin-top:14px">Room Assistant isn't in the table: its last release was in March 2022. PadSpan reads from the others rather than replacing them: the ESPHome and Shelly proxies Bermuda uses are picked up directly, and ESPresense nodes come in over MQTT. Already running Bermuda? <a href="/guides/bermuda/">How the two work together</a>.</p>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="install">
-  <div class="kick">Installation</div>
-  <h2>Up and running in minutes</h2>
-  <p class="lede"><b style="color:var(--acc2)">Requirements:</b> Home Assistant 2024.8+ and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set up as a scanner, or your Home Assistant machine's own Bluetooth.</p>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
-    <div class="feat">
-      <h3>From the Marketplace (Home Assistant 2026.11+)</h3>
-      <ol class="steps">
-        <li>Open Settings → Marketplace</li>
-        <li>Search for <b>room presence</b> or <b>PadSpan</b> and install <b>PadSpan HA</b></li>
-        <li>The setup dialog opens straight away, with no restart: select <b>Submit</b></li>
-        <li>On 2026.10 or older: install it from HACS, restart Home Assistant completely, then Settings → Devices &amp; Services → Add Integration → PadSpan HA</li>
-      </ol>
-    </div>
-    <div class="feat">
-      <h3>Quick Start</h3>
-      <ol class="steps">
-        <li>Open the <b>PadSpan HA</b> panel in the sidebar</li>
-        <li>Give each scanner its Home Assistant area. <b>Who's where now</b> then puts each device in the room of the scanner that hears it best, with no floor plan</li>
-        <li>Name your phones and tags to get their Home Assistant entities</li>
-        <li>Want the map? <b>Make it a map</b> walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, <b>Put it on the map</b></li>
-        <li>Every step, with pictures: <a href="/guides/get-started/">From the Marketplace to your first room</a></li>
-      </ol>
-    </div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="docs">
-  <div class="kick">Documentation</div>
-  <h2>Guides for every step</h2>
-  <p class="lede">The built-in Training Hub has 16 animated walkthroughs covering every feature — from BLE basics to Private BLE/IRK setup.</p>
-  <div class="docgrid">
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md"><b>Getting Started</b><span>First 30 minutes: install, explore, track</span></a>
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md"><b>Floor Plan Setup</b><span>Upload, draw rooms, place scanners, set scale</span></a>
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md#troubleshooting"><b>Troubleshooting</b><span>Common issues and fixes</span></a>
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md"><b>Architecture</b><span>High-level codebase architecture</span></a>
-    <a class="doc" href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md"><b>Changelog</b><span>Full version history</span></a>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="about">
-  <div class="kick">Development</div>
-  <h2>One developer, strong opinions</h2>
-  <div class="about">
-    <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a> — a 30+ year veteran of coding and scripting who has never claimed to be a fast typist. All architecture, product decisions, testing, and releases are human-directed. Implementation is AI-assisted using <a href="https://claude.ai">Claude</a> by Anthropic, which accelerates the write–test–ship cycle considerably. Think of it as one developer with strong opinions and a very patient pair-programming partner.</p>
-    <p>The result: a solo project that ships features at a pace that would normally require a team — without compromising on quality, security, or code review.</p>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="pro">
-  <div class="kick">PadSpan Pro</div>
-  <h2>Pro features, one key — the core stays free</h2>
-  <p class="lede">PadSpan HA is and remains free, open-source (GPL) software. Pro is an optional license that unlocks advanced features inside the same integration — no separate install, no cloud dependency, all data stays on your Home Assistant instance.</p>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
-    <div class="feat">
-      <h3>What Pro unlocks today</h3>
-      <ul class="steps">
-        <li><b>Light and device placement on the Atlas</b> — place each light and device exactly where it is, with fixture shapes and sizes, WLED, Automorph, Showcase and Fit room. See <a href="#lights">Lighting</a>.</li>
-        <li><b>Live Aboard</b> — your house in 3D (still experimental), with <b>Furnish</b> for furniture, people and devices.</li>
-        <li><b>Wall mode</b> — the Atlas on a wall screen, sized for the room.</li>
-        <li><b>The Atlas as your Overview</b>, and its <b>Heatmap</b> chip for temperature, humidity and CO₂.</li>
-        <li><b>Whole House Presets</b> and <b>Vacation Mode</b>.</li>
-        <li><b>Busy Times</b> (the busiest rooms, by hour) and <b>Locate</b> (room-by-room directions to whoever you follow).</li>
-        <li><b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence "possible" matches, with CSV export.</li>
-        <li>Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.</li>
-        <li><b>The Graphite, Ocean, Dusk and Day themes.</b></li>
-        <li data-until-pass><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
-        <li>More Pro features will join under the same key.</li>
-      </ul>
-    </div>
-    <div class="feat" id="pro-free">
-      <h3>Or get Pro free</h3>
-      <ul class="steps">
-        <li data-until-pass><b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
-        <li data-from-pass style="display:none"><b>Test it.</b> Testers get a year of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan. You see exactly what's sent before anything goes.</li>
-        <li data-offer-until="2027-01-01T08:00:00Z"><b>Ask for a year.</b> Until December 31, the first 20 people running PadSpan who email <a href="mailto:hello@traks.ca">hello@traks.ca</a> get a year of Pro free. No card, nothing renews.</li>
-        <li data-offer-until="2027-01-01T08:00:00Z"><b>Show your setup.</b> Post your house anywhere (the HA forum, Reddit, a blog, a video) with a few screenshots, send the link to hello@traks.ca, and get a year too.</li>
-        <li><b>Invites.</b> Now and then an install that sends the usage report gets an invite for a free year, right in the panel.</li>
-      </ul>
-      <p style="font-size:12px;color:var(--mut,#94a3b8);margin:8px 0 0">When a free year ends you go back to free. Anything you made stays.</p>
-      <script>(function(){document.querySelectorAll("#pro-free [data-offer-until]").forEach(function(e){if(Date.now()>=Date.parse(e.getAttribute("data-offer-until")))e.remove();});})();</script>
-    </div>
-    <div class="feat" style="text-align:center">
-      <h3>Pro</h3>
-      <div data-until-pass style="font-size:38px;font-weight:900;margin:6px 0">$45 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
-      <div data-from-pass style="display:none;font-size:38px;font-weight:900;margin:6px 0">$49 <small style="font-size:14px;font-weight:600">CAD / year</small></div>
-      <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 14px">One-time PayPal payment · key valid 1 year · emailed automatically on payment</p>
-      <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
-        <input type="hidden" name="cmd" value="_xclick">
-        <input type="hidden" name="business" value="garry@bcmail.net">
-        <input type="hidden" name="item_name" value="PadSpan Pro — 1 year license">
-        <input type="hidden" name="item_number" value="padspan-pro-annual">
-        <input type="hidden" name="amount" value="45.00" id="pro-year-amount">
-        <input type="hidden" name="currency_code" value="CAD">
-        <input type="hidden" name="no_shipping" value="1">
-        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-        <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
-      </form>
-      <div id="pro-lifetime" data-until-pass data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
-        <div id="pl-kick" style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch price · until November 30, 2026</div>
-        <div style="font-size:30px;font-weight:900;margin:4px 0"><span id="pl-price">$89</span> <small style="font-size:14px;font-weight:600">CAD, once</small></div>
-        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. <span id="pl-later">$89 until November 30, 2026, then $168 until December 15. After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.</p>
-        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
-          <input type="hidden" name="cmd" value="_xclick">
-          <input type="hidden" name="business" value="garry@bcmail.net">
-          <input type="hidden" name="item_name" value="PadSpan Pro — lifetime">
-          <input type="hidden" name="item_number" value="padspan-pro-lifetime">
-          <input type="hidden" name="amount" value="89.00" id="pl-amount">
-          <input type="hidden" name="currency_code" value="CAD">
-          <input type="hidden" name="no_shipping" value="1">
-          <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-          <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-          <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro for life with PayPal</button>
-        </form>
-      </div>
-      <script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
-        document.getElementById("pl-kick").textContent="PadSpan Pro for life · until December 15";document.getElementById("pl-price").textContent="$168";
-        document.getElementById("pl-later").textContent="After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.";document.getElementById("pl-amount").value="168.00";})();</script>
-      <div id="pro-pass" data-from-pass style="display:none;margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
-        <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">PadSpan Pro · two years</div>
-        <div style="font-size:30px;font-weight:900;margin:4px 0">$85 <small style="font-size:14px;font-weight:600">CAD, two years</small></div>
-        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">Two years of PadSpan Pro, paid once. There's no lifetime any more: PadSpan gets new releases every week, and a one-off price doesn't keep that going. Every new PadSpan feature is included while it runs. Already have a PadSpan key? Pay with the same email and the two years are added to it.</p>
-        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
-          <input type="hidden" name="cmd" value="_xclick">
-          <input type="hidden" name="business" value="garry@bcmail.net">
-          <input type="hidden" name="item_name" value="PadSpan Pro — 2 years">
-          <input type="hidden" name="item_number" value="padspan-pro-2year">
-          <input type="hidden" name="amount" value="85.00">
-          <input type="hidden" name="currency_code" value="CAD">
-          <input type="hidden" name="no_shipping" value="1">
-          <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-          <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-          <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy two years of PadSpan Pro with PayPal</button>
-        </form>
-      </div>
-      <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.38.274</span>. Enter your key under Settings → Features → PadSpan licence.</p>
-      <div data-until-pass style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
-        <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>
-        <p style="font-size:12px;color:var(--mut,#94a3b8);margin:0 0 10px">Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.</p>
-        <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
-        <input type="hidden" name="cmd" value="_xclick">
-        <input type="hidden" name="business" value="garry@bcmail.net">
-        <input type="hidden" name="item_name" value="Upgrade to PadSpan Pro — $12">
-        <input type="hidden" name="item_number" value="padspan-bright-to-pro-upgrade">
-        <input type="hidden" name="amount" value="12.00">
-        <input type="hidden" name="currency_code" value="CAD">
-        <input type="hidden" name="no_shipping" value="1">
-        <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
-        <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
-        <button class="btn ghost" type="submit" style="cursor:pointer;width:100%">Upgrade to PadSpan Pro — $12</button>
-      </form>
-      </div>
-    </div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<section class="wrap" id="bright">
-  <div class="kick">PadSpan Bright</div>
-  <h2>The lighting half, on its own</h2>
-  <p class="lede">Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, with real placement, WLED control and RF-aware doors behind a key. <a href="https://github.com/gbroeckling/padspanBright">PadSpan Bright on GitHub</a>.</p>
-  <div class="tablewrap">
-  <table>
-    <tr><th style="text-align:left">Feature</th><th>Bright (free)</th><th data-until-pass>Bright Pro</th><th data-from-pass style="display:none">Bright with a Pro key</th></tr>
-    <tr><td>Floors &amp; rooms drawn as an isometric plan</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>One marker per light, tap (or its row) to toggle</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>Hide lights you don't want cluttering the map</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-    <tr><td>Place each light at its real position on the floor plan</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Real shape, size (width × length) and rotation</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>WLED strip/series placement, sized and angled to the strip</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Brightness, colour and effect control per light, live</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Fans, motion sensors, temperature sensors and locks placed on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Doors &amp; windows linked to a wall, live open/closed state on the map</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Closed doors modelled as real RF barriers (material-aware attenuation)</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Motion flash/fade normalized across every sensor's hardware hold time</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Automorph room-aura rendering (Glow / Blueprint / Nebula)</td><td class="no">—</td><td class="yes">✓</td></tr>
-    <tr><td>Import an existing house from PadSpan Bright into PadSpan HA</td><td class="yes">✓</td><td class="yes">✓</td></tr>
-  </table>
-  </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:18px">
-    <a class="shot" href="images/bright-overview.jpg" target="_blank"><img src="images/bright-overview.jpg" alt="Lighting map with floors and rooms" loading="lazy"><div class="cap"><b>Lighting Map</b>Every light on the same floor plan as the rooms</div></a>
-    <a class="shot" href="images/bright-fixture-editor.jpg" target="_blank"><img src="images/bright-fixture-editor.jpg" alt="Fixture editor with real width, length and rotation" loading="lazy"><div class="cap"><b>Real Size &amp; Angle</b>Width, length and rotation in centimetres, not a dot</div></a>
-    <a class="shot" href="images/bright-wled-card.png" target="_blank"><img src="images/bright-wled-card.png" alt="WLED light control card" loading="lazy"><div class="cap"><b>WLED Control Card</b>Brightness, colour and effect, live against the real strip</div></a>
-  </div>
-</section>
-
-<!-- From the end of December 15, 2026 (editions.js PRO_PASS_FROM, the licence server's PSPAN_LIFETIME_ENDS):
-     no lifetime, no Bright Pro, Pro $49 a year or $85 for two years, testers a year. Visitors without
-     JavaScript keep seeing the blocks before it until the Dec 16 edit. -->
-<script>(function(){if(Date.now()<Date.parse("2026-12-16T08:00:00Z"))return;
-  document.querySelectorAll("[data-until-pass]").forEach(function(e){e.remove();});
-  document.querySelectorAll("[data-from-pass]").forEach(function(e){e.style.display="";});
-  var a=document.getElementById("pro-year-amount");if(a)a.value="49.00";})();</script>
-
-<section class="wrap" id="donate" style="text-align:center;padding-top:10px">
-  <h2 style="font-size:24px">Buy me a coffee ☕</h2>
-  <p class="lede" style="margin:8px auto 20px;max-width:560px">If this project saved you time (or you just like knowing which room your cat is in), you can support development:</p>
-  <a class="btn primary" href="https://www.paypal.com/donate/?hosted_button_id=W489P2RXBMXKW">Donate with PayPal</a>
-</section>
-
 <footer>
   <div class="wrap">
     <div class="links">
@@ -6194,7 +6181,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   </div>
 </footer>
 
-<div id="boughtbar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99;background:#14532d;color:#bbf7d0;text-align:center;padding:12px 16px;font-weight:700">✓ Thanks for your purchase! Your PadSpan Pro license key is on its way to your PayPal email — check your inbox (and spam) in the next few minutes.</div>
+<div id="boughtbar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99;background:#14532d;color:#bbf7d0;text-align:center;padding:12px 16px;font-weight:700">✓ Thanks for your purchase. Your PadSpan licence key is on its way to your PayPal email. Check your inbox (and spam) in the next few minutes.</div>
 <script>
 if(location.search.indexOf("bought=1")>-1){document.getElementById("boughtbar").style.display="block";}
 
