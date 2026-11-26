@@ -709,6 +709,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("emergency_notify"): bool,                # flood_latch.py — a notification when an alarm latches
         vol.Optional("atlas_heatmap_enabled"): bool,
         vol.Optional("atlas_audio_enabled"): bool,
+        vol.Optional("atlas_shades_enabled"): bool,
+        vol.Optional("atlas_thermostats_enabled"): bool,
         vol.Optional("atlas_weather_enabled"): bool,
         vol.Optional("atlas_weather_rain_entity"): vol.Any(str, None),
         vol.Optional("atlas_weather_condition_entity"): vol.Any(str, None),
@@ -1582,7 +1584,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "tasmota_ble_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled", "subzones_enabled", "screens_remote_enabled",
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
-                    "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled", "atlas_audio_enabled",
+                    "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled", "atlas_audio_enabled", "atlas_shades_enabled", "atlas_thermostats_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled", "ai_plan_build_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",

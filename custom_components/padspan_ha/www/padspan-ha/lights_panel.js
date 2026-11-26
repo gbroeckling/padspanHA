@@ -475,6 +475,9 @@ class PadSpanLightsApp extends HTMLElement {
       if (s.atlas_heatmap_enabled !== undefined) this.state._heatmapOn = s.atlas_heatmap_enabled === true;
       // Settings → Atlas → Audio: the classic layout's Audio, house-wide (_roomControlsOn). A failed fetch keeps the last answer.
       if (s.atlas_audio_enabled !== undefined) this.state._audioOn = s.atlas_audio_enabled === true;
+      // Settings → Atlas → Shades and Thermostats: the same, for a room sheet's shades and its thermostats (_roomParts).
+      if (s.atlas_shades_enabled !== undefined) this.state._shadesOn = s.atlas_shades_enabled === true;
+      if (s.atlas_thermostats_enabled !== undefined) this.state._thermostatsOn = s.atlas_thermostats_enabled === true;
       // Settings → Atlas → Atlas — Mapped Light Control → Alert pulse, normally off.
       this.state._alertPulse = s.atlas_alert_pulse === true;
       // Outdoor weather (Settings → Atlas → Atlas — Mapped Light Control → Outdoor weather), field by field. A
@@ -1016,6 +1019,17 @@ class PadSpanLightsApp extends HTMLElement {
     const v2 = String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2;
     return v2 ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;
   }
+  // Which parts of a room's sheet are on for this screen (room_controls.js sheet's parts; the owner, 2026-11-26: "Shades
+  // should go with doors and Windows", "Thermostats in climate and air quality"): Audio as ever; Shades, everyone's;
+  // Thermostats, the Climate map add-on's (Pro includes it). On the display layout (Pro's, or a wall's: the layout that
+  // has the ⋯ list) each is its own ⋯ line, off unless ticked; on the classic layout, Settings → Atlas → Shades and
+  // Thermostats, off unless turned on.
+  _roomParts(){
+    const lines = (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall");
+    const on = (key, classic) => !!ROOMCTL && (lines ? screenShowLine("atlas", key)===true : classic === true);
+    return { audio: this._roomControlsOn(), shades: on("room_shades", this.state._shadesOn),
+             climate: this._addon("climate") && on("room_climate", this.state._thermostatsOn) };
+  }
   // This page's room controls (views/room_controls.js), made once: functions only, read when used.
   _roomCtl(){
     if(!ROOMCTL) return null;
@@ -1061,8 +1075,10 @@ class PadSpanLightsApp extends HTMLElement {
       kiosk:this._kiosk(),
       // Whether this screen shows people (Show people, and its ⋯ People line): the room sheet names no one otherwise.
       peopleShown: peopleShownOn("atlas", this.state._house3d, this.state._tier),
-      // Room controls in the room sheet: only while this screen's ⋯ "Room controls" is ticked.
-      roomControls: this._roomControlsOn() ? this._roomCtl() : null,
+      // Room controls in the room sheet: Audio, Shades and Thermostats, each only while it is on for this screen
+      // (_roomParts); roomParts says which.
+      ...(()=>{ const parts = this._roomParts();
+        return { roomControls: parts.audio || parts.shades || parts.climate ? this._roomCtl() : null, roomParts: parts }; })(),
       toggle:(eid)=>this._toggle(eid),
       openControls:(eid)=>this._openWledDetail(eid),
       openActivity:(eid)=>openActivityCalendar(this._hass, eid),
@@ -1287,6 +1303,9 @@ class PadSpanLightsApp extends HTMLElement {
       // only while ticked there; on the classic layout, drawn while Settings → Atlas → Audio is on (audioOn).
       roomControls: this._audioAllowed() ? this._roomCtl() : null,
       audioOn: this.state._audioOn === true,
+      // The ⋯ list's lines for a room sheet's other parts (_roomParts): Shades for everyone, Thermostats with the
+      // Climate map add-on.
+      roomLines: ROOMCTL ? ["room_shades", ...(this._addon("climate") ? ["room_climate"] : [])] : [],
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
       // The wall's own shape, as it is hung (a turned wall is tall): what its

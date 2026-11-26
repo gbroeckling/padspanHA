@@ -94,12 +94,12 @@ footer p{margin:4px 0}
 <table>
   <tr><th>Add-on</th><th>Was es hinzufügt</th></tr>
   <tr><td class="grp" colspan="2">Das Haus von der Karte aus steuern</td></tr>
-  <tr><td><a href="#audio">Audio</a></td><td>Player, Beschattung und Thermostate jedes Raums in seiner Karte auf dem Atlas, dazu Raum aus.</td></tr>
+  <tr><td><a href="#audio">Audio</a></td><td>Die Player jedes Raums in seiner Karte auf dem Atlas, dazu Raum aus.</td></tr>
   <tr><td><a href="#alarm">Alarm &amp; Sicherheit</a></td><td>Scharf- und Unscharfschalten im Notfallknopf, der Test der Notbeleuchtung und die Karte für Tür, Garage und Tor.</td></tr>
   <tr><td><a href="#vacation">Urlaubsmodus &amp; Voreinstellungen</a></td><td>Lichter, die deinen Alltag weiterspielen, während du weg bist, und Voreinstellungen fürs ganze Haus.</td></tr>
   <tr><td><a href="#lighting">Erweiterte smarte Beleuchtung</a></td><td>Power-Teams, die dem Tag folgen, schlafen gehen und dich wecken, die Advanced-Steuerung von WLED, Automorph und Leuchtenformen.</td></tr>
   <tr><td class="grp" colspan="2">Das Haus auf der Karte sehen</td></tr>
-  <tr><td><a href="#climate">Klimakarte</a></td><td>Räume nach Temperatur, Luftfeuchtigkeit oder CO₂ eingefärbt.</td></tr>
+  <tr><td><a href="#climate">Klimakarte</a></td><td>Räume nach Temperatur, Luftfeuchtigkeit oder CO₂ eingefärbt, dazu die Thermostate jedes Raums in seiner Karte.</td></tr>
   <tr><td><a href="#wifi">WLAN-Abdeckung</a></td><td>Wie stark dein UniFi-WLAN in jedem Raum ist, und was zu beheben ist.</td></tr>
   <tr><td><a href="#looks">Looks-Paket</a></td><td>Vier Designs fürs Panel und die 20 Showcase-Themen für die Karte.</td></tr>
   <tr><td class="grp" colspan="2">Präsenz und Verlauf</td></tr>
@@ -121,18 +121,15 @@ footer p{margin:4px 0}
 <ul>
   <li><b>Ein Lautsprecher neben dem Namen eines Raums</b> auf dem Atlas, solange einer seiner Player läuft, durchgestrichen, wenn er stumm ist. Tippst du darauf oder auf den Namen des Raums, öffnet sich die Karte des Raums.</li>
   <li><b>Jeder Player in der Karte des Raums</b>, mit <b>Stumm</b>, <b>−</b>, seiner Lautstärke von 0 bis 100, <b>+</b> und <b>⏻</b> zum Ausschalten. Es erscheinen nur die Tasten, die der Player unterstützt. Ein Player, der seine Lautstärke selbst in Stufen regelt, wie die von Control4, zeigt die Lautstärke, die er meldet.</li>
-  <li><b>Beschattung</b>: alle Jalousien und Rollos im Raum, wie weit sie offen sind, und <b>Öffnen</b>, <b>Stopp</b> und <b>Schließen</b> für alle zugleich. Garagentore, Tore und Türen bleiben außen vor.</li>
-  <li><b>Klima</b>: jedes Thermostat im Raum mit seiner Temperatur, seinem Modus und dem Sollwert mit <b>−</b> und <b>+</b>.</li>
   <li><b>Raum aus</b>, als Erstes in der Karte, schaltet die Lichter und Player des Raums, die an sind, mit einem Tippen aus.</li>
-  <li>Temperatur und Luftfeuchtigkeit des Raums oben in der Karte.</li>
   <li><b>Räume zuordnen</b>: Ein Administrator wählt einmal, in welchem Raum jeder Player steht. PadSpan rät zuerst nach dem Home-Assistant-Bereich des Players oder nach seinem Namen. Mehrere Player können sich einen Raum teilen, etwa eine Control4-Zone und eine Denon-Zone.</li>
   <li><b>Lautsprecher aus Home Assistant einbeziehen</b> auf der Zuordnungskarte nimmt Player von Music Assistant, ESPHome, Cast und Fernsehern dazu. Das ist aus, bis du es ankreuzt.</li>
 </ul>
 <p><b>Wo.</b> Auf der Atlas-Seite. Für das ganze Haus schaltest du es unter <b>Einstellungen → Atlas → Audio</b> ein. Mit der neuen Anordnung von PadSpan Pro hakt jeder Bildschirm Audio stattdessen in seiner ⋯-Liste an.</p>
 <p><b>Am Wanddisplay und auf dem Handy.</b> Die Tasten sind groß genug für einen Finger. Die Tasten eines Players bleiben in einer Zeile und rutschen auf dem Handy unter seinen Namen. Wer die Lichter schalten kann, kann sie benutzen, auch an Wanddisplays. Jeder Tipp ist ein Aufruf an Home Assistant, mit dem eigenen Login der Person.</p>
-<p><b>Lohnt sich, wenn du</b> ein Multiroom-Audiosystem in Home Assistant (Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha oder Anthem), Lautsprecher in mehreren Räumen oder motorisierte Beschattung und ein Thermostat in jedem Raum hast.</p>
-<p><b>Braucht.</b> Die Player in Home Assistant, aus einem dieser Systeme oder, mit dem Haken oben, jeden Player mit Lautstärke. Räume auf der Karte, die Home-Assistant-Bereiche mit demselben Namen sind. Beschattung und Thermostate im Bereich des Raums. Einen Administrator für die Zuordnung.</p>
-<p><b>Ohne das Add-on kostenlos.</b> Der Rest der Raumkarte: Lichter und Ventilatoren mit Alle Lichter an und Alle Lichter aus, die Szenen und Skripte des Raums mit je einem Tippen und seine Schlösser.</p>
+<p><b>Lohnt sich, wenn du</b> ein Multiroom-Audiosystem in Home Assistant (Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha oder Anthem), oder Lautsprecher in mehreren Räumen hast.</p>
+<p><b>Braucht.</b> Die Player in Home Assistant, aus einem dieser Systeme oder, mit dem Haken oben, jeden Player mit Lautstärke. Räume auf der Karte, die Home-Assistant-Bereiche mit demselben Namen sind. Einen Administrator für die Zuordnung.</p>
+<p><b>Ohne das Add-on kostenlos.</b> Der Rest der Raumkarte: Lichter und Ventilatoren mit Alle Lichter an und Alle Lichter aus, die Szenen und Skripte des Raums mit je einem Tippen, seine Schlösser und seine Beschattung mit Öffnen, Stopp und Schließen („Beschattung“ bei den Türen und Fenstern in der ⋯-Liste oder Einstellungen → Atlas → Beschattung). Seine Thermostate gehören zur Klimakarte.</p>
 <p><b>Einschränkung.</b> Ohne Pro ist Audio fürs ganze Haus an oder aus. Es Bildschirm für Bildschirm zu wählen, braucht die neue Anordnung von Pro.</p>
 <p class="links"><a href="https://padspan.traks.ca/de/#audio">Preis und Kauf</a> · <a href="/manual/the-atlas/de/#audio">Audio im Handbuch</a></p>
 </section>
@@ -209,12 +206,13 @@ footer p{margin:4px 0}
   <li><b>Ein ♨ Heatmap-Chip</b> in der Ebenenleiste des Atlas. Jedes Tippen schaltet weiter, von Temperatur über Feuchtigkeit und CO₂ zurück auf aus. Angeboten wird nur, wofür dein Haus Sensoren hat.</li>
   <li><b>Räume in den Farben ihrer eigenen Sensoren.</b> Die Temperatur ist blau unter 19 °C, grün von 20,5 bis 23,5 °C, bernsteinfarben bei 25 und rot bei 28. Die Luftfeuchtigkeit ist grün von 40 bis 60 %, orange, wenn es trocken ist, und blau, wenn es feucht ist. CO₂ ist grün bei 400 ppm, gelb bei 1.000 und rot ab 1.500.</li>
   <li><b>Nichts geht durch eine Wand.</b> Ein Sensor draußen auf der Terrasse färbt nie das Wohnzimmer, Außenräume bleiben ungefärbt, und ein Raum ohne eigenen Sensor ebenso. Werte, die älter als eine Stunde sind, bleiben außen vor, und Sensoren in Fahrenheit werden umgerechnet.</li>
+  <li><b>Thermostate in der Karte eines Raums</b>: jedes Thermostat im Raum mit seiner Temperatur, seinem Modus und dem Sollwert mit <b>−</b> und <b>+</b>, dazu Temperatur und Luftfeuchtigkeit des Raums oben in der Karte.</li>
 </ul>
-<p><b>Wo.</b> Auf der Atlas-Seite und unter Karten → Atlas-Editor. Du schaltest ihn ein unter <b>Einstellungen → Atlas → Heatmap-Chip auf dem Atlas (Temperatur, Luftfeuchtigkeit, CO₂)</b>.</p>
+<p><b>Wo.</b> Auf der Atlas-Seite und unter Karten → Atlas-Editor. Die Heatmap schaltest du ein unter <b>Einstellungen → Atlas → Heatmap-Chip auf dem Atlas (Temperatur, Luftfeuchtigkeit, CO₂)</b>, die Thermostate unter <b>Einstellungen → Atlas → Thermostate</b>. Mit der neuen Anordnung von PadSpan Pro hakt jeder Bildschirm „Thermostate“ stattdessen in seiner ⋯-Liste an.</p>
 <p><b>Am Wanddisplay und auf dem Handy.</b> Es ist ein Chip im Atlas, also ist er auf jedem Bildschirm da, der den Atlas zeigt.</p>
-<p><b>Lohnt sich, wenn du</b> in den meisten Räumen einen Sensor für Temperatur, Luftfeuchtigkeit oder CO₂ hast.</p>
-<p><b>Braucht.</b> Diese Sensoren in den Home-Assistant-Bereichen, die zu den Räumen deiner Karte passen.</p>
-<p><b>Ohne das Add-on kostenlos.</b> Deine Sensoren erscheinen weiter als Markierungen im Atlas und in Home Assistant. Ein Thermostat aus der Karte eines Raums zu stellen, gehört zu Audio, nicht zu diesem Add-on.</p>
+<p><b>Lohnt sich, wenn du</b> in den meisten Räumen einen Sensor für Temperatur, Luftfeuchtigkeit oder CO₂ oder in mehreren Räumen ein Thermostat hast.</p>
+<p><b>Braucht.</b> Diese Sensoren und Thermostate in den Home-Assistant-Bereichen, die zu den Räumen deiner Karte passen.</p>
+<p><b>Ohne das Add-on kostenlos.</b> Deine Sensoren erscheinen weiter als Markierungen im Atlas und in Home Assistant.</p>
 <p><b>Einschränkung.</b> <span data-until-basics>Ohne Pro sind Sensoren nicht auf der Karte platziert, also bekommt jeder Raum eine Farbe aus dem Mittel seiner eigenen Sensoren. Mit Pro verlaufen die Farben zwischen platzierten Sensoren.</span><span data-from-basics style="display:none">Zwischen platzierten Sensoren verlaufen die Farben. Ein Raum, dessen Sensoren nicht platziert sind, bekommt eine Farbe aus dem Mittel seiner eigenen Sensoren.</span></p>
 <p class="links"><a href="https://padspan.traks.ca/de/#addons">Preis und Kauf</a> · <a href="/manual/the-atlas/de/#heatmap-pro-oder-das-add-on-klimakarte">Die Heatmap im Handbuch</a></p>
 </section>

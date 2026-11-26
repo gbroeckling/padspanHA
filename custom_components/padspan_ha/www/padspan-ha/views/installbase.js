@@ -799,8 +799,8 @@ const W_PLAN_KIND = { stairs: "stairs", railing: "a railing hint", light: "a lig
 // Live Aboard's ⋯ list: each line's plain name (views/live_aboard_show.js SHOW_ITEMS).
 const W_SHOW_LINE = {
   lights: "lights", glow: "light glow", strips: "LED strips", fans: "ceiling fans", scenes: "the scene row", light_taps: "tap a light to switch it", light_buttons: "lights as buttons", room_switch: "rooms as light switches", motion_sensors: "motion sensors",
-  motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", doors: "doors", windows: "windows",
-  covers: "garage doors and gates", locks: "locks", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
+  motion_rooms: "motion in rooms", motion_reach: "motion reach", readouts: "temperature and air", room_climate: "thermostats", doors: "doors", windows: "windows",
+  covers: "garage doors and gates", locks: "locks", room_shades: "shades", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
   trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", scan_furniture: "furniture from scans", stairs: "stairs",
   room_names: "room names", room_outlines: "room outlines", room_row: "room chips along the top", floor_outlines: "floor outlines", other_floors: "other floors, faded", edgecut: "Edgecut", room_controls: "audio", glass_walls: "glass walls", roof: "the roof",
   rain: "rain and snow", theme: "theme colours", forest: "forest trees",

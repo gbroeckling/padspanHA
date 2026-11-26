@@ -5391,6 +5391,36 @@ function _settingsAtlas(ctx, el){
     }
   });
   }
+  // Shades and Thermostats in a room's card on the classic layout, house-wide, normally off (lights_panel.js _roomParts;
+  // the owner, 2026-11-26: "Shades should go with doors and Windows", "Thermostats in climate and air quality"): Shades
+  // everyone's; Thermostats the Climate map add-on's (Pro includes it), without it no row and whatever is stored kept.
+  const roomPartRow = (key, words, note) => {
+    const row = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-" + key.split("_")[1]});
+    const cb = el("input",{type:"checkbox"});
+    cb.checked = settings[key] === true;
+    row.appendChild(cb);
+    row.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, words));
+    lightsCard.appendChild(row);
+    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, note);
+    lightsCard.appendChild(noteEl);
+    cb.addEventListener("change", async ()=>{
+      const want = cb.checked;
+      try {
+        const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: want });
+        if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+        noteEl.textContent = t("Saved — the Atlas changes at its next refresh.");
+      } catch (e) {
+        cb.checked = !want;
+        ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
+      }
+    });
+  };
+  roomPartRow("atlas_shades_enabled", t("Shades"),
+    t("Open, Stop and Close for the room's blinds and shades in the room's card. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Shades in its ⋯ list instead. Off: none."));
+  if (addonAllowed(settings, "climate")) {
+    roomPartRow("atlas_thermostats_enabled", t("Thermostats"),
+      t("Each thermostat in the room's card, its mode and its setpoint with − and +, and the room's temperature and humidity. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Thermostats in its ⋯ list instead. Off: none."));
+  }
   lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // Power teams (power_team.py, the full edition's): a wall dimmer and the smart bulbs it feeds, as one light.

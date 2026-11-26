@@ -76,11 +76,17 @@ export const SHOW_ITEMS = [
   { key: "motion_rooms", group: "motion", get words() { return t("Motion in rooms"); }, get hint() { return t("A room's floor glowing after motion, and the Motion chip"); } },
   { key: "motion_reach", group: "motion", get words() { return t("Motion reach"); }, get hint() { return t("The patch of floor a sensor sees, shown on a trigger or a tap"); } },
   { key: "readouts", group: "motion", get words() { return t("Temperature and air"); }, get hint() { return t("The chips under room names: temperature, humidity, air"); }, link: "place" },
+  // Thermostats in a room's sheet or panel (room_controls.js; the owner, 2026-11-26: "Thermostats in climate and air
+  // quality"): the Climate map add-on's, offered only where the host has it (roomLines). Per screen, off unless ticked.
+  { key: "room_climate", group: "motion", get words() { return t("Thermostats"); }, get hint() { return t("Each thermostat in the room's panel, its mode and its setpoint with − and +, and the room's temperature and humidity"); }, flat: true, dflt: false },
   { key: "alarms", group: "motion", get words() { return t("Leak, smoke, CO and gas alarms"); }, get hint() { return t("Always shown, with their ring and pill"); }, always: true, link: "place" },
   { key: "doors", group: "openings", get words() { return t("Doors"); }, get hint() { return t("Every door leaf; the doorway stays open"); }, link: "walls" },
   { key: "windows", group: "openings", get words() { return t("Windows"); }, get hint() { return t("Every pane; the opening stays"); }, link: "walls" },
   { key: "covers", group: "openings", get words() { return t("Garage doors and gates"); }, get hint() { return t("Doors that follow a cover in Home Assistant"); }, link: "walls" },
   { key: "locks", group: "openings", get words() { return t("Locks"); }, get hint() { return t("Lock markers, and an unlocked door's red glow"); }, link: "place" },
+  // Shades in a room's sheet or panel (room_controls.js; the owner, 2026-11-26: "Shades should go with doors and
+  // Windows"): everyone's, offered where the host hands them (roomLines). Per screen, off unless ticked.
+  { key: "room_shades", group: "openings", get words() { return t("Shades"); }, get hint() { return t("Open, Stop and Close for the room's blinds and shades in the room's panel"); }, flat: true, dflt: false },
   { key: "railings", group: "openings", get words() { return t("Railings"); }, get hint() { return t("Deck rails, stair rails and the rails on open edges"); }, link: "walls" },
   { key: "radios", group: "tracked", get words() { return t("Receivers (radios)"); }, get hint() { return t("The Bluetooth receivers (scanners) where they are placed"); }, link: "receivers" },
   // People and tags are switched for the house in Views ▾ while Live Aboard is on (settings.js says so): no Settings link.
@@ -112,9 +118,9 @@ export const SHOW_ITEMS = [
   // Audio (room_controls.js; the owner, 2026-11-25: "In the pulldown where you have room controls, that should say
   // audio!!! And the setup card for audio should be accessible there"; the key stays room_controls, so the ticks kept
   // and the report go on): on the flat Map a speaker beside the name of a room whose player is on, and the room's
-  // sheet or panel gains its audio, shades and climate. Per screen, off unless ticked. Its Set up › opens the
+  // sheet or panel gains its audio (its shades and thermostats are lines of their own: room_shades, room_climate). Per screen, off unless ticked. Its Set up › opens the
   // matching card over the map, ticked or not (audio_setup, an administrator's).
-  { key: "room_controls", group: "house", get words() { return t("Audio"); }, get hint() { return t("Volume, mute and off for each room's players in the room's panel, with its shades and thermostat; a speaker beside a room's name while a player there is on"); }, link: "audio_setup", flat: true, dflt: false },
+  { key: "room_controls", group: "house", get words() { return t("Audio"); }, get hint() { return t("Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on"); }, link: "audio_setup", flat: true, dflt: false },
   // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
   // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).
   { key: "glass_walls", group: "house", get words() { return t("Glass walls"); }, get hint() { return t("The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)"); }, dflt: false },

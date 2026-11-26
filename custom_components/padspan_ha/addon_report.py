@@ -167,7 +167,8 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
         got.add("alarm")
     if _count(usage, "tab:wifi"):
         got.add("wifi")
-    if settings.get("atlas_heatmap_enabled") is True:
+    # The Climate map: the Heatmap, or a thermostat set from a room's card (its Thermostats line, 2026-11-26).
+    if settings.get("atlas_heatmap_enabled") is True or _count(usage, "room_controls:climate"):
         got.add("climate")
     if settings.get("vacation_mode_enabled") is True or _count(usage, "vacation_on", "vacation_resumed"):
         got.add("vacation")

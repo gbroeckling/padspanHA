@@ -1763,9 +1763,10 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
     return { on: here.filter(e => byEid.get(e).state === "on"), off: here.filter(e => byEid.get(e).state !== "on") };
   };
   const lightSw = split(agg.lightEids), fanSw = split(agg.fanEids);
-  // Room controls (room_controls.js; api.roomControls only while this screen's ⋯ "Room controls" is ticked): a status
-  // line, Room off first in the row, Audio above the list, Shades and Climate below it. Never on the unplaced chip's sheet.
-  const rc = !only && api.roomControls ? api.roomControls.sheet(room, { lightsOn: lightSw.on, setMany: api.setMany }) : null;
+  // Room controls (room_controls.js; api.roomControls only while one of its parts is on for this screen, api.roomParts
+  // saying which: Audio, Shades, Thermostats): a status line, Room off first in the row, Audio above the list, Shades and
+  // Climate below it. Never on the unplaced chip's sheet.
+  const rc = !only && api.roomControls ? api.roomControls.sheet(room, { lightsOn: lightSw.on, setMany: api.setMany, parts: api.roomParts }) : null;
   const parts = [];
   if (agg.lightsTotal) parts.push(t("Lights {on}/{n}", { on: agg.lightsOn, n: agg.lightsTotal }));
   if (agg.fansTotal) parts.push(t("Fans {on}/{n}", { on: agg.fansOn, n: agg.fansTotal }));
@@ -4455,6 +4456,8 @@ export function buildLightsMapCard(hostIn){
           // Audio's line in this view's ⋯ list, and its Set up › (the matching card over the map), where the host hands Audio
           // on the display layout. The classic layout has one switch for it, Settings → Atlas → Audio: no line of its own here.
           audio: DISPLAY ? audioSetup() : null,
+          // A room sheet's Shades and Thermostats lines in this view's ⋯ list, where the host offers them (host.roomLines).
+          roomLines: DISPLAY ? (host.roomLines || []) : [],
           // The flat map's speakers at the rooms' names (room_controls.js looks: {room: "on" | "muted"}) while Audio is on
           // for this screen as the flat map has it (roomControlsOn: the ⋯ tick, or the classic layout's setting); else null.
           roomAudio: host.roomControls ? () => (roomControlsOn() ? host.roomControls.looks() : null) : null,
@@ -5817,7 +5820,7 @@ export function buildLightsMapCard(hostIn){
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,
-            lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
+            lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(host.roomLines || []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],
             ready: () => {
               const s = sc(), out = {};
               if (s && !s.tiles.length) out.scenes = M.setupLine("scenes", s.admin, typeof s.add === "function", null, s.kiosk);

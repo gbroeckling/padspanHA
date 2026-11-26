@@ -477,7 +477,11 @@
 "Stick to walk · drag to look": "Stick zum Gehen · Ziehen zum Umschauen",
 "W A S D or ↑ ↓ to walk · ← → to turn · drag to look · Shift to hurry · Esc to stop": "W A S D oder ↑ ↓ zum Gehen · ← → zum Drehen · Ziehen zum Umschauen · Umschalt für schneller · Esc zum Beenden",
 "Audio": "Audio",
-"Volume, mute and off for each room's players in the room's panel, with its shades and thermostat; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, mit seiner Beschattung und seinem Thermostat; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist",
 "Set up": "Einrichten",
-"Audio's setup: which player is in which room": "Audio einrichten: welcher Player in welchem Raum steht"
+"Audio's setup: which player is in which room": "Audio einrichten: welcher Player in welchem Raum steht",
+"Shades": "Beschattung",
+"Thermostats": "Thermostate",
+"Open, Stop and Close for the room's blinds and shades in the room's panel": "Öffnen, Stopp und Schließen für die Jalousien und Rollos des Raums im Raumblatt",
+"Each thermostat in the room's panel, its mode and its setpoint with − and +, and the room's temperature and humidity": "Jedes Thermostat im Raumblatt, seine Betriebsart und sein Sollwert mit − und +, dazu Temperatur und Luftfeuchtigkeit des Raums",
+"Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, dazu „Raum aus“; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist"
 }

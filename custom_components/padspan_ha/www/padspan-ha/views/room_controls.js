@@ -26,7 +26,13 @@
 //   the sheet   the Atlas's own room sheet (lights_map.js openRoomSheet), not a
 //               second card: a status line (temperature, humidity, who is
 //               here), Room off (its lights and players), then Audio above the
-//               lights and Shades and Climate below them (sheet).
+//               lights and Shades and Climate below them (sheet). Three parts,
+//               each with its own ⋯ line (the owner, 2026-11-26: "Shades should
+//               go with doors and Windows", "Thermostats in climate and air
+//               quality"): Audio (room_controls) with Room off, the Audio
+//               add-on's; Shades (room_shades), everyone's; Climate and the
+//               status line (room_climate), the Climate map add-on's. The host
+//               says which are on (parts).
 //   matching    which player is in which room, an administrator's (openMatch):
 //               settings room_audio_matches {area id: [player, ...]} in the
 //               room's order, room_audio_ha_speakers, and room_audio_matched
@@ -406,13 +412,15 @@ export function createRoomControls(o){
   }
 
   /** What the room's sheet gains (lights_map.js _roomSheetSpec): its status line, Room off for the action row, Audio
-   *  above the lights and Shades and Climate below them; each part null when the room has nothing for it.
-   *  lightsOn: the room's lights on now that Home Assistant can reach; setMany: the sheet's own lights switch. */
-  function sheet(room, { lightsOn = [], setMany = null } = {}){
+   *  above the lights and Shades and Climate below them; each part null when the room has nothing for it or the host
+   *  has it off. lightsOn: the room's lights on now that Home Assistant can reach; setMany: the sheet's own lights
+   *  switch; parts: {audio, shades, climate}, which are on for this screen (the host's ⋯ lines and add-ons). */
+  function sheet(room, { lightsOn = [], setMany = null, parts = { audio: true, shades: true, climate: true } } = {}){
     const h = H(), aid = roomArea(room);
-    // The status line: the median temperature and humidity of the room's sensors.
+    const want = parts || {};
+    // The status line (Climate's): the median temperature and humidity of the room's sensors.
     const temps = [], hums = [];
-    if (aid) for (const [eid, s] of Object.entries(h.states || {})) {
+    if (aid && want.climate) for (const [eid, s] of Object.entries(h.states || {})) {
       if (!eid.startsWith("sensor.") || !s || areaOf(h, eid) !== aid) continue;
       const v = Number(s.state), dc = (s.attributes || {}).device_class;
       if (!Number.isFinite(v) || s.state === "" || s.state === null) continue;
@@ -420,17 +428,18 @@ export function createRoomControls(o){
     }
     const mt = median(temps), mh = median(hums);
     const status = [mt === null ? null : `${one(mt)}°`, mh === null ? null : `${Math.round(mh)} %`].filter(Boolean).join(" · ") || null;
-    const players = playersIn(room);
+    const players = want.audio ? playersIn(room) : [];
     const onPlayers = players.filter(p => playerOn(st(p.eid)) && has(st(p.eid), TURN_OFF));
+    // Room off is Audio's: without the players it would be All lights off again.
     const n = lightsOn.length + onPlayers.length;
-    const roomOff = n ? { label: t("Room off ({n})", { n }), run: () => {
+    const roomOff = want.audio && n ? { label: t("Room off ({n})", { n }), run: () => {
       count("room_off");
       if (lightsOn.length && typeof setMany === "function") setMany(lightsOn, false);
       for (const p of onPlayers) call("media_player", "turn_off", { entity_id: p.eid }, null, p.name);
     } } : null;
     // Audio: the room's players; the matching button after them. In a house never set up, the button alone,
     // prominent, in every room (where else would one start).
-    const none = !setUp();
+    const none = want.audio && !setUp();
     const offered = none ? audioPlayers(h, haOn()).length : 0;
     // A level is not in the signature, only whether there is one: a new one goes into the number in place, so a row
     // is never drawn again between quick presses.
@@ -445,7 +454,7 @@ export function createRoomControls(o){
         sec.appendChild(matchButton(!players.length));
         return sec;
       } } : null;
-    const shades = aid ? shadesOf(aid) : [], climate = aid ? climateOf(aid) : [];
+    const shades = aid && want.shades ? shadesOf(aid) : [], climate = aid && want.climate ? climateOf(aid) : [];
     const after = shades.length || climate.length ? {
       sig: JSON.stringify([shades.map(e => { const s = st(e), a = s.attributes || {}; return [e, s.state, a.current_position, features(s), a.friendly_name]; }),
         climate.map(e => { const s = st(e), a = s.attributes || {}, op = optOf(e); return [e, s.state, a.temperature, a.current_temperature, features(s), a.friendly_name, op && op.target]; })]),

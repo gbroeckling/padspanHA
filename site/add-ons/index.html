@@ -93,12 +93,12 @@ footer p{margin:4px 0}
 <table>
   <tr><th>Add-on</th><th>What it adds</th></tr>
   <tr><td class="grp" colspan="2">Control the house from the map</td></tr>
-  <tr><td><a href="#audio">Audio</a></td><td>Each room's players, shades and thermostats in its card on the map, and Room off.</td></tr>
+  <tr><td><a href="#audio">Audio</a></td><td>Each room's players in its card on the map, and Room off.</td></tr>
   <tr><td><a href="#alarm">Alarm &amp; security</a></td><td>Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card.</td></tr>
   <tr><td><a href="#vacation">Vacation Mode &amp; presets</a></td><td>Lights that keep your routine while you're away, and presets for the whole house.</td></tr>
   <tr><td><a href="#lighting">Advanced smart lighting</a></td><td>Power teams that follow the day, sleep and wake you, WLED's Advanced controls, Automorph and fixture shapes.</td></tr>
   <tr><td class="grp" colspan="2">See the house on the map</td></tr>
-  <tr><td><a href="#climate">Climate map</a></td><td>Rooms coloured by temperature, humidity or CO₂.</td></tr>
+  <tr><td><a href="#climate">Climate map</a></td><td>Rooms coloured by temperature, humidity or CO₂, and each room's thermostats in its card.</td></tr>
   <tr><td><a href="#wifi">Wi-Fi coverage</a></td><td>How strong your UniFi Wi-Fi is in each room, and what to fix.</td></tr>
   <tr><td><a href="#looks">Looks pack</a></td><td>Four panel themes, and Showcase's 20 themes for the map.</td></tr>
   <tr><td class="grp" colspan="2">Presence and history</td></tr>
@@ -120,18 +120,15 @@ footer p{margin:4px 0}
 <ul>
   <li><b>A speaker beside a room's name</b> on the Atlas while one of its players is on, struck through when it's muted. Tap it, or the room's name, to open the room's card.</li>
   <li><b>Each player in the room's card</b>, with <b>Mute</b>, <b>−</b>, its level from 0 to 100, <b>+</b>, and <b>⏻</b> to turn it off. Only the buttons the player supports appear. A player that steps its own volume, as Control4's do, shows the level it reports.</li>
-  <li><b>Shades</b>: every blind and shade in the room, how far open they are, and <b>Open</b>, <b>Stop</b> and <b>Close</b> for all of them at once. Garage doors, gates and doors are left out.</li>
-  <li><b>Climate</b>: each thermostat in the room, with its temperature, its mode, and the setpoint with <b>−</b> and <b>+</b>.</li>
   <li><b>Room off</b>, first in the card, turns off the room's lights and players that are on in one press.</li>
-  <li>The room's temperature and humidity at the top of the card.</li>
   <li><b>Match rooms</b>: an administrator picks the room each player is in, once. PadSpan guesses first from the player's Home Assistant area or its name. Several players can share a room, a Control4 zone and a Denon zone, say.</li>
   <li><b>Include Home Assistant speakers</b>, on the matching card, adds Music Assistant, ESPHome, Cast and TV players. It's off unless you tick it.</li>
 </ul>
 <p><b>Where.</b> The Atlas page. Turn it on for the whole house in <b>Settings → Atlas → Audio</b>. With PadSpan Pro's new layout, each screen ticks Audio in its ⋯ list instead.</p>
 <p><b>On a wall screen and a phone.</b> The buttons are sized for a finger, and a player's controls stay on one line, wrapping under its name on a phone. Anyone who can switch the lights can use them, wall screens included. Each press is one Home Assistant call, made with that person's own login.</p>
-<p><b>Worth it if you have</b> a whole-house audio system in Home Assistant (Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha or Anthem), speakers in several rooms, or motorised shades and a thermostat in each room.</p>
-<p><b>Needs.</b> The players in Home Assistant, from one of those systems or, with the tick above, any player with a volume. Rooms on the map that are Home Assistant areas with the same name. Shades and thermostats in the room's area. An administrator for the matching.</p>
-<p><b>Free without it.</b> The rest of a room's card: its lights and fans with All lights on and All lights off, its scenes and scripts one tap each, and its locks.</p>
+<p><b>Worth it if you have</b> a whole-house audio system in Home Assistant (Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha or Anthem), or speakers in several rooms.</p>
+<p><b>Needs.</b> The players in Home Assistant, from one of those systems or, with the tick above, any player with a volume. Rooms on the map that are Home Assistant areas with the same name. An administrator for the matching.</p>
+<p><b>Free without it.</b> The rest of a room's card: its lights and fans with All lights on and All lights off, its scenes and scripts one tap each, its locks, and its shades with Open, Stop and Close (Shades, with the doors and windows in the ⋯ list, or Settings → Atlas → Shades). Its thermostats are the Climate map's.</p>
 <p><b>Limit.</b> Without Pro, Audio is on or off for the whole house. Choosing it screen by screen needs Pro's new layout.</p>
 <p class="links"><a href="https://padspan.traks.ca/#audio">Price and buy</a> · <a href="/manual/the-atlas/#audio">Audio in the manual</a></p>
 </section>
@@ -208,12 +205,13 @@ footer p{margin:4px 0}
   <li><b>A ♨ Heatmap chip</b> on the Atlas's layer bar. Each tap steps through Temperature, Humidity and CO₂, then off, offering only what your house has sensors for.</li>
   <li><b>Rooms coloured from their own sensors.</b> Temperature runs blue below 19 °C, green from 20.5 to 23.5 °C, amber at 25 and red at 28. Humidity is green from 40 to 60 %, orange when it's dry and blue when it's damp. CO₂ is green at 400 ppm, yellow at 1,000 and red at 1,500 and over.</li>
   <li><b>Nothing crosses a wall.</b> A sensor out on the deck never colours the living room, outdoor rooms stay clear, and a room with no sensor stays uncoloured. Readings more than an hour old are left out, and Fahrenheit sensors are converted.</li>
+  <li><b>Thermostats in a room's card</b>: each thermostat in the room, with its temperature, its mode, and the setpoint with <b>−</b> and <b>+</b>, and the room's temperature and humidity at the top of the card.</li>
 </ul>
-<p><b>Where.</b> The Atlas page and Mapping → Atlas builder. Turn it on in <b>Settings → Atlas → Heatmap chip on the Atlas (temperature, humidity, CO₂)</b>.</p>
+<p><b>Where.</b> The Atlas page and Mapping → Atlas builder. Turn the heatmap on in <b>Settings → Atlas → Heatmap chip on the Atlas (temperature, humidity, CO₂)</b>, and the thermostats in <b>Settings → Atlas → Thermostats</b>. With PadSpan Pro's new layout, each screen ticks Thermostats in its ⋯ list instead.</p>
 <p><b>On a wall screen and a phone.</b> It's a chip on the Atlas, so it's on any screen that shows the Atlas.</p>
-<p><b>Worth it if you have</b> a temperature, humidity or CO₂ sensor in most rooms.</p>
-<p><b>Needs.</b> Those sensors in the Home Assistant areas that match your map's rooms.</p>
-<p><b>Free without it.</b> Your sensors still show on the Atlas as markers, and in Home Assistant. Setting a thermostat from a room's card is part of Audio, not this add-on.</p>
+<p><b>Worth it if you have</b> a temperature, humidity or CO₂ sensor in most rooms, or a thermostat in several rooms.</p>
+<p><b>Needs.</b> Those sensors and thermostats in the Home Assistant areas that match your map's rooms.</p>
+<p><b>Free without it.</b> Your sensors still show on the Atlas as markers, and in Home Assistant.</p>
 <p><b>Limit.</b> <span data-until-basics>Without Pro, sensors aren't placed on the map, so each room takes one colour from the average of its own sensors. With Pro, placed sensors blend across a room.</span><span data-from-basics style="display:none">Placed sensors blend across a room. A room whose sensors aren't placed takes one colour from the average of its own sensors.</span></p>
 <p class="links"><a href="https://padspan.traks.ca/#addons">Price and buy</a> · <a href="/manual/the-atlas/#heatmap-pro-or-the-climate-map-add-on">The heatmap in the manual</a></p>
 </section>
