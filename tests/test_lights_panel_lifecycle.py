@@ -317,4 +317,6 @@ def test_room_controls_through_the_panel(result) -> None:
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert '_audioAllowed(){ return this._addon("audio"); }' in panel
     assert "roomControls: this._audioAllowed() ? this._roomCtl() : null," in panel
-    assert 'return v2 ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;' in panel
+    # The ⋯ line where the screen has the list (Pro's display layout, or a wall: _screenLines), else the switch.
+    assert 'return this._screenLines() ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;' in panel
+    assert '_screenLines(){ return (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall"); }' in panel

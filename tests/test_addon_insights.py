@@ -107,9 +107,11 @@ def test_the_card_is_in_the_overview_line_with_the_lifetime_cards_gates() -> Non
     # The add-ons' names in the card are editions.js's English, through t() (translated in i18n/<lang>/panel.json).
     ed = _src(_VIEWS / "editions.js")
     for name, words in re.findall(r'\{ name: "(\w+)", words: "([^"]+)"', ed):
-        if name not in ("maps", "c4local"):              # c4local, the specialty: never in the sale, never on its card
+        # c4local, the specialty: never in the sale, never on its card; forensics, part of Presence insights since
+        # 2026-11-26: never sold on its own, never on the card.
+        if name not in ("maps", "c4local", "forensics"):
             assert f'{name}: t("{words}")' in card, name
-    assert "c4local" not in card
+    assert "c4local" not in card and "forensics:" not in card
     for lang in ("de", "fr", "nl"):
         tr = json.loads((_WWW / "i18n" / lang / "panel.json").read_text(encoding="utf-8"))
         for k in ("Half off every add-on until January 1", "Now {list}. Each is paid once and covers 2 years.",
@@ -470,7 +472,7 @@ def test_every_add_on_event_the_code_sends_is_in_the_vocabulary() -> None:
         sent.update(re.findall(r'"(addon_(?:offer|key|gained|used|sale_card|buy):[a-z_0-9:]+)"', _src(p)))
     sent.discard("addon_key:")
     assert {"addon_offer:busy_times:insights", "addon_offer:locate:insights", "addon_offer:door_openers:alarm",
-            "addon_offer:themes:looks", "addon_offer:showcase:looks", "addon_offer:forensics:forensics",
+            "addon_offer:themes:looks", "addon_offer:showcase:looks", "addon_offer:forensics:insights",
             "addon_offer:licence_card:audio", "addon_offer:emergency_test:alarm", "addon_used:insights", "addon_used:timetravel",
             "addon_sale_card:shown", "addon_key:entered"} <= sent | {"addon_offer:licence_card:audio"}
     off = sorted(e for e in sent if not T.event_allowed(e))

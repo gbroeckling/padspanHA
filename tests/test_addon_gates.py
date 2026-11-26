@@ -264,16 +264,18 @@ _PRO_KEY = {"forensics_license_key": "PSPAN-TEST-0000-0000-0003", "license_tier"
 _BRIGHT_KEY = {**_PRO_KEY, "license_tier": "bright"}
 
 
+# Forensics is part of Presence insights since 2026-11-26 (licence.ADDON_PART_OF): a key holding either has both.
 @pytest.mark.parametrize("start, forensics, locate", [
     ({}, False, False),
-    (_addon_key("forensics"), True, False),
-    (_addon_key("insights"), False, True),
+    (_addon_key("forensics"), True, True),
+    (_addon_key("insights"), True, True),
     (_addon_key("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks"), False, False),
     (_PRO_KEY, True, True),
     (_BRIGHT_KEY, False, False),       # Bright Pro never had either
 ])
-def test_the_backend_splits_forensics_from_locate(start: dict, forensics: bool, locate: bool) -> None:
-    """ws_settings._addon_after: forensics_enabled is the Forensics add-on's, locate_self_key Presence insights'."""
+def test_forensics_and_locate_are_presence_insights(start: dict, forensics: bool, locate: bool) -> None:
+    """ws_settings._addon_after: forensics_enabled and locate_self_key are both Presence insights' (a Forensics bought
+    before the merge holds both too)."""
     got = send({"forensics_enabled": True}, start=start)
     assert got["error"] is None and got["data"]["forensics_enabled"] is forensics
     got = send({"locate_self_key": "C0:FF:EE:00:00:01"}, start=start)
@@ -293,7 +295,7 @@ def _hass(settings: dict) -> SimpleNamespace:
 
 
 @pytest.mark.parametrize("key, records", [
-    ({}, False), (_addon_key("forensics"), True), (_addon_key("insights"), False), (_PRO_KEY, True), (_BRIGHT_KEY, False),
+    ({}, False), (_addon_key("forensics"), True), (_addon_key("insights"), True), (_PRO_KEY, True), (_BRIGHT_KEY, False),
 ])
 def test_forensics_records_with_the_forensics_add_on(key: dict, records: bool) -> None:
     from custom_components.padspan_ha.forensics_store import _recording_enabled
@@ -327,7 +329,7 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
             assert a not in src, (rel, a)
     help_src = (_WWW / "help_content.js").read_text(encoding="utf-8")
     for tag in ("(PadSpan Pro or the Presence insights add-on)", "(PadSpan Pro or the Alarm & security add-on)",
-                "(PadSpan Pro or the Climate map add-on)", "(PadSpan Pro or the Vacation Mode & presets add-on)",
+                "(PadSpan Pro or the Climate & air quality add-on)", "(PadSpan Pro or the Vacation Mode & presets add-on)",
                 "(PadSpan Pro or the Full house activity add-on)", "Audio (PadSpan Pro or the Audio add-on)",
                 # The help can't read the moment (HELP is built once, at import), so the vacuum's says both sides.
                 "Robot Vacuum Import (PadSpan Pro or the Robot vacuum add-on from December 1, 2026; free before then)"):
@@ -341,8 +343,9 @@ def test_maps_and_vacuum_go_on_sale_at_the_moment_in_both_halves(gates) -> None:
     """editions.js on_sale_from and licence.ADDON_ON_SALE_FROM say the same moment; before it nothing offers them (the
     licence card; the site: tests/test_site_claims.py), from it the licence card does. OS 2 Local for Control4 (c4local,
     the specialty) is on sale at neither moment (licence.NOT_ON_SALE, editions.js on_sale: false), and is never in the
-    add-ons' list (tests/test_c4local.py: its own part of the card, its own box on the site, hidden until it is)."""
-    late, not_yet = ("maps", "vacuum"), ("c4local",)
+    add-ons' list (tests/test_c4local.py: its own part of the card, its own box on the site, hidden until it is).
+    Forensics, part of Presence insights since 2026-11-26 (licence.ADDON_PART_OF), is never on sale on its own."""
+    late, not_yet = ("maps", "vacuum"), ("c4local", "forensics")
     assert all(a in ADDONS for a in late + not_yet) and licence.NOT_ON_SALE == not_yet
     assert licence.ADDON_ON_SALE_FROM == {"maps": FREE_BASICS_FROM_TS, "vacuum": FREE_BASICS_FROM_TS}
     for a in ADDONS:

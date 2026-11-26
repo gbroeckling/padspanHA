@@ -559,7 +559,7 @@ def test_the_card_the_overview_and_the_licence_cards_specialty_part() -> None:
     assert out["both"]["status"] == "✓ PadSpan add-ons: Audio until 2028-11-25", "never mixed with the feature add-ons"
     assert out["both"]["specialty"] == "SpecialtyOS 2 Local for Control4 · for life"
     assert out["nokey"] == {"specialty": None, "offer": ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
-                                                         "forensics", "insights", "lighting"]}, "not on sale: offered nowhere"
+                                                         "insights", "lighting"]}, "not on sale: offered nowhere"
     assert out["pro"]["specialty"] is None
 
 

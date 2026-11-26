@@ -486,12 +486,12 @@ $ADDON_ON_SALE_FROM = array('maps' => '2026-12-01T08:00:00Z', 'vacuum' => '2026-
 $ADDON_NOW = defined('PADSPAN_STATS_NOW') ? (int)PADSPAN_STATS_NOW : time();
 // Not on sale, no moment yet (licence.NOT_ON_SALE): OS 2 Local for Control4, the specialty. Nothing free moved into
 // it, so it is never everyone's: on it is a key carrying it, or Pro.
-$ADDON_NOT_ON_SALE = array('c4local');
+$ADDON_NOT_ON_SALE = array('c4local', 'forensics');   // forensics: part of Presence insights since 2026-11-26
 $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pro_tester', 'bright', 'addon',
                         'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
                        'emergency_test' => array('alarm'), 'themes' => array('looks'), 'showcase' => array('looks'),
-                       'forensics' => array('forensics'), 'power_teams' => array('lighting'), 'team_card' => array('lighting'),
+                       'forensics' => array('insights'), 'power_teams' => array('lighting'), 'team_card' => array('lighting'),
                        'light_design' => array('lighting'), 'vacuum_import' => array('vacuum'), 'features' => array('vacuum'),
                        'c4local_card' => array('c4local'));
 $ADDON_MOVED = array('emergency_test' => 'alarm', 'power_teams' => 'lighting', 'circadian' => 'lighting', 'lidar' => 'maps',

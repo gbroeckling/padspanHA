@@ -293,8 +293,8 @@ def test_the_panels_words_for_each_add_on_are_the_tables() -> None:
 def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_list() -> None:
     out = _node("licence_card.mjs")["addons"]
     lead = "Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:"
-    every = ["Audio $6.45 CAD", "Alarm & security $6.45 CAD", "Wi-Fi coverage $6.45 CAD", "Climate map $8.65 CAD",
-             "Full house activity $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD", "Forensics $5.56 CAD",
+    every = ["Audio $6.45 CAD", "Alarm & security $6.45 CAD", "Wi-Fi coverage $6.45 CAD", "Climate & air quality $8.65 CAD",
+             "Full house activity $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD",
              "Presence insights $5.56 CAD", "Advanced smart lighting $8.65 CAD"]
     # Black Friday (editions.js ADDON_HALF_FROM .. UNTIL): the card's "after" (December 1) and "pass" (December 16) are in
     # it, so each add-on is offered at half, rounded down to the cent, with its usual price beside it.
@@ -305,10 +305,10 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
         return f"{words} {half[price]} CAD — half off until January 1 (normally {price})"
     # From December 1 (editions.js FREE_BASICS_FROM) Advanced map creation and Robot vacuum are on sale too, in the
     # table's order (editions.js ADDONS): Advanced map creation before Advanced smart lighting, Robot vacuum last.
-    every_late = every[:9] + ["Advanced map creation $8.65 CAD", every[9], "Robot vacuum $6.45 CAD"]
+    every_late = every[:8] + ["Advanced map creation $8.65 CAD", every[8], "Robot vacuum $6.45 CAD"]
     for day in ("during", "after", "pass"):
         a = out[f"addons_{day}"]
-        assert a["status"].startswith("✓ PadSpan add-ons: Audio until 2028-11-25 · Climate map "), a
+        assert a["status"].startswith("✓ PadSpan add-ons: Audio until 2028-11-25 · Climate & air quality "), a
         assert "Pro" not in a["status"] and a["buy"].startswith("Buy PadSpan Pro"), a
         now = every if day == "during" else [on_sale(i) for i in every_late]
         assert a["offer"]["lead"] == lead and [i["text"] for i in a["offer"]["items"]] == now[1:], ("all but the one it has", day)
@@ -320,7 +320,7 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
             assert out[f"{kind}_{day}"]["offer"]["lead"] == lead and [i["text"] for i in out[f"{kind}_{day}"]["offer"]["items"]] == now
         for kind in ("annual", "lifetime"):
             assert out[f"{kind}_{day}"]["offer"] is None and out[f"{kind}_{day}"]["buy"] is None, kind
-    assert "Climate map ended on 2026-11-01" in out["addons_pass"]["status"]
+    assert "Climate & air quality ended on 2026-11-01" in out["addons_pass"]["status"]
 
 
 def test_the_forensics_card_does_not_call_an_add_on_key_pro() -> None:

@@ -816,7 +816,7 @@ _ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks
 _ADDON_ON_SALE_FROM = {"maps": "2026-12-01T08:00:00Z", "vacuum": "2026-12-01T08:00:00Z"}
 # Not on sale, no moment yet (licence.NOT_ON_SALE): OS 2 Local for Control4, the specialty. Nothing free moved into it,
 # so it is never everyone's: "on it" is a key carrying it, or Pro, which includes it.
-_ADDON_NOT_ON_SALE = ("c4local",)
+_ADDON_NOT_ON_SALE = ("c4local", "forensics")   # forensics: part of Presence insights since 2026-11-26
 _ADDON_LICENCES = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                    "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 _ADDON_DAYS = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
@@ -826,7 +826,7 @@ _ADDON_MOVED = (("emergency_test", "alarm"), ("power_teams", "lighting"), ("circ
                 ("robot_vacuum", "vacuum"))
 _ADDON_OFFER_PLACES = {"licence_card": _ADDONS, "busy_times": ("insights",), "locate": ("insights",),
                        "door_openers": ("alarm",), "emergency_test": ("alarm",), "themes": ("looks",),
-                       "showcase": ("looks",), "forensics": ("forensics",),
+                       "showcase": ("looks",), "forensics": ("insights",),
                        "power_teams": ("lighting",), "team_card": ("lighting",), "light_design": ("lighting",),
                        "vacuum_import": ("vacuum",), "features": ("vacuum",), "c4local_card": ("c4local",)}
 _ADDON_REFUSAL_PLACES = tuple(p for p in _ADDON_OFFER_PLACES if p != "licence_card")   # where a feature refuses it

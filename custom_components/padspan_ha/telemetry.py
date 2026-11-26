@@ -703,7 +703,7 @@ ADDON_OFFER_PLACES: dict[str, tuple[str, ...]] = {
     "busy_times": ("insights",), "locate": ("insights",),
     "door_openers": ("alarm",), "emergency_test": ("alarm",),
     "themes": ("looks",), "showcase": ("looks",),
-    "forensics": ("forensics",),
+    "forensics": ("insights",),        # Forensics is part of Presence insights (2026-11-26)
     # Advanced smart lighting: Settings' power teams box, a team's card on the Atlas, and the Atlas builder's card
     # where the light design tools are refused (WLED strips, fixture shapes, Automorph, Fit room …).
     "power_teams": ("lighting",), "team_card": ("lighting",), "light_design": ("lighting",),

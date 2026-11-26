@@ -95,13 +95,14 @@ const MODEL = {
 };
 
 // The room controls as lights_panel.js makes them.
-function controls(h, { matches = {}, ha = false, admin = true } = {}) {
+function controls(h, { matches = {}, ha = false, admin = true, openers = null } = {}) {
   const rec = { counts: [], toasts: [], saved: [], redraws: 0, settings: { room_audio_matches: matches, room_audio_ha_speakers: ha } };
   h.hass.user.is_admin = admin;
   rec.rc = RC.createRoomControls({
     hass: () => h.hass, model: () => MODEL, settings: () => rec.settings, admin: () => h.hass.user.is_admin,
     save: async (patch) => { rec.saved.push(patch); rec.settings = { ...patch }; return true; },
     toast: (m, e) => rec.toasts.push([m, !!e]), errorText: (e) => e.message, count: (w) => rec.counts.push(w), redraw: () => { rec.redraws++; },
+    ...(openers ? { openers: () => new Set(openers) } : {}),
   });
   return rec;
 }
@@ -245,6 +246,11 @@ await tryCase("parts", async () => {
   const none = r.rc.sheet("Great Room", { lightsOn: on, parts: { audio: false, shades: false, climate: false } });
   check("parts", none.status === null && none.roomOff === null && none.before === null && none.after === null, none);
   check("parts", h.calls.length === 0, h.calls);
+  // An opener (a door's or a gate's: a wall's link, Devices → Door Openers) is never a shade, whatever its device class.
+  const blinds = (rc) => { const p = rc.sheet("Great Room", { parts: { audio: false, shades: true, climate: false } }).after;
+    return p ? Array.from(p.draw().children[0].children || []).map(r => all(r).map(n => n._text).filter(Boolean).join("|")).join() : ""; };
+  const r2 = controls(h, { openers: ["cover.great_room_left"] });
+  check("parts", /2 shades/.test(blinds(r.rc)) && /Right blind/.test(blinds(r2.rc)) && !/2 shades/.test(blinds(r2.rc)), [blinds(r.rc), blinds(r2.rc)]);
 });
 
 await tryCase("sheet", async () => {
