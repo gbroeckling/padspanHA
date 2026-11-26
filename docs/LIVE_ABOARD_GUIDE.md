@@ -215,8 +215,10 @@ overlap, the farther one steps aside; its device still shows and still takes tap
 - **Tap a room's name** for the room's sheet: every device in it, **All lights on / off**, fans, and
   **▶ buttons for the room's own scenes and scripts** (whatever Home Assistant has in that area).
 - **Tap a floor's name** (in the stepper) for the floor's sheet.
-- **Audio**, ticked in **⋯**, adds each room's music, shades and thermostats to its panel, and a
-  small speaker at the name of a room whose player is on ([manual chapter 15, Audio](manual/15-the-atlas.md#audio)).
+- **Audio**, ticked in **⋯**, adds each room's music and Room off to its panel, and a small
+  speaker at the name of a room whose player is on ([manual chapter 15, Audio](manual/15-the-atlas.md#audio)).
+  **Shades** (free) and **Thermostats** (PadSpan Pro or the Climate & air quality add-on) are lines
+  of their own in the same list.
 
 ---
 

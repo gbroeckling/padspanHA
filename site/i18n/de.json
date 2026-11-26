@@ -579,8 +579,8 @@
    "de": "<b>Einrichten</b> möbliert einen Raum mit einem Fingertipp, oder Stück für Stück aus 33 Arten von Möbeln. Verknüpf ein Möbelstück mit einem Gerät, und eine Lampe leuchtet mit ihrem Licht, ein Fernseher leuchtet, während er läuft, und die Flügel eines Ventilators drehen sich."
   },
   {
-   "en": "<b>Exact placement</b> of every light, fan, lock and sensor, in its real shape, size and angle, with WLED control, Automorph and Showcase. See <a href=\"#lights\">Lights</a>.",
-   "de": "<b>Genaues Platzieren</b> jedes Lichts, Ventilators, Schlosses und Sensors, in echter Form, Größe und echtem Winkel, mit WLED-Steuerung, Automorph und Showcase. Siehe <a href=\"#lights\">Licht</a>."
+   "en": "<b>Exact placement</b> of every light, fan, lock and sensor, in its real shape, size and angle, with WLED's Advanced controls, Automorph and Showcase. See <a href=\"#lights\">Lights</a>.",
+   "de": "<b>Genaues Platzieren</b> jedes Lichts, Ventilators, Schlosses und Sensors, in echter Form, Größe und echtem Winkel, mit der Advanced-Steuerung von WLED, Automorph und Showcase. Siehe <a href=\"#lights\">Licht</a>."
   },
   {
    "en": "<b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and, on HTTPS, keeps the screen awake.",
@@ -799,8 +799,8 @@
    "de": "Jedes Licht in seinem Raum, ein Fingertipp zum Schalten"
   },
   {
-   "en": "Locks, and alarms that stay red until someone resets them",
-   "de": "Schlösser und Alarme, die rot bleiben, bis jemand sie zurücksetzt"
+   "en": "Locks and shades, and alarms that stay red until someone resets them",
+   "de": "Schlösser und Beschattung, und Alarme, die rot bleiben, bis jemand sie zurücksetzt"
   },
   {
    "en": "Guest tags, Follow alerts and Home Assistant sensors",
@@ -823,8 +823,8 @@
    "de": "Für PadSpan HA ohne Pro · je eine Funktion"
   },
   {
-   "en": "Black Friday: every add-on is half off until January 1.",
-   "de": "Black Friday: jedes Add-on zum halben Preis bis 1. Januar."
+   "en": "Black Friday: every add-on is half off through January 1.",
+   "de": "Black Friday: jedes Add-on zum halben Preis bis einschließlich 1. Januar."
   },
   {
    "en": "Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.",
@@ -839,12 +839,12 @@
    "de": "Audio <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">3,22 CAD · ca. 2,15 €</span>"
   },
   {
-   "en": "Half off until January 1 (normally $6.45)",
-   "de": "Halber Preis bis 1. Januar (sonst 6,45 CAD)"
+   "en": "Half off through January 1 (normally $6.45)",
+   "de": "Halber Preis bis einschließlich 1. Januar (sonst 6,45 CAD)"
   },
   {
-   "en": "Volume, mute and off for each room's players on the map",
-   "de": "Lautstärke, Stummschalten und Ausschalten für die Player jedes Raums auf der Karte"
+   "en": "Volume, mute and off for each room's players on the map, and Room off",
+   "de": "Lautstärke, Stummschalten und Ausschalten für die Player jedes Raums auf der Karte, und Raum aus"
   },
   {
    "en": "Buy",
@@ -855,8 +855,8 @@
    "de": "Alarm &amp; Sicherheit <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">3,22 CAD · ca. 2,15 €</span>"
   },
   {
-   "en": "Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free",
-   "de": "Scharf- und Unscharfschalten im Notfall-Knopf, der Test der Notbeleuchtung und die Karte von Tür, Garage und Tor mit ihren Öffnern. Ein ausgelöster Alarm, Schlösser und der Alarmpuls bleiben kostenlos"
+   "en": "Arm and disarm, open and close garage doors and gates in their card, and test the emergency lights. A triggered alarm, locks, shades and Alert pulse stay free",
+   "de": "Scharf- und Unscharfschalten, Garagentore und Tore in ihrer Karte öffnen und schließen, und die Notbeleuchtung testen. Ein ausgelöster Alarm, Schlösser, Beschattung und der Alarmpuls bleiben kostenlos"
   },
   {
    "en": "Wi-Fi coverage <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$3.22 CAD</span>",
@@ -867,64 +867,56 @@
    "de": "Die Karte der UniFi-WLAN-Abdeckung"
   },
   {
-   "en": "Climate map <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$8.65 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$4.32 CAD</span>",
-   "de": "Klimakarte <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
+   "en": "Climate &amp; air quality <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$8.65 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$4.32 CAD</span>",
+   "de": "Klima &amp; Luftqualität <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
   },
   {
-   "en": "Half off until January 1 (normally $8.65)",
-   "de": "Halber Preis bis 1. Januar (sonst 8,65 CAD)"
+   "en": "Half off through January 1 (normally $8.65)",
+   "de": "Halber Preis bis einschließlich 1. Januar (sonst 8,65 CAD)"
   },
   {
-   "en": "The Heatmap: rooms by temperature, humidity and CO₂",
-   "de": "Die Heatmap: Räume nach Temperatur, Luftfeuchtigkeit und CO₂"
+   "en": "The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card",
+   "de": "Die ♨ Heatmap: Räume nach Temperatur, Luftfeuchtigkeit und CO₂, dazu die Thermostate jedes Raums in seiner Karte"
   },
   {
-   "en": "Half off until January 1 (normally $7.55)",
-   "de": "Halber Preis bis 1. Januar (sonst 7,55 CAD)"
+   "en": "Half off through January 1 (normally $7.55)",
+   "de": "Halber Preis bis einschließlich 1. Januar (sonst 7,55 CAD)"
   },
   {
-   "en": "The day replayed on the Atlas map (Playback on the Atlas)",
-   "de": "Der Tag noch einmal abgespielt auf der Atlas-Karte (Playback auf dem Atlas)"
+   "en": "The day replayed in Traceback on your Atlas map: lights, doors, sensors and who was where",
+   "de": "Der Tag noch einmal abgespielt, in Traceback auf deiner Atlas-Karte: Lichter, Türen, Sensoren und wer wo war"
   },
   {
    "en": "Vacation Mode &amp; presets <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$4.25 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.12 CAD</span>",
    "de": "Urlaubsmodus &amp; Voreinstellungen <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,12 CAD · ca. 1,40 €</span>"
   },
   {
-   "en": "Half off until January 1 (normally $4.25)",
-   "de": "Halber Preis bis 1. Januar (sonst 4,25 CAD)"
+   "en": "Half off through January 1 (normally $4.25)",
+   "de": "Halber Preis bis einschließlich 1. Januar (sonst 4,25 CAD)"
   },
   {
-   "en": "Vacation Mode and Whole House Presets",
-   "de": "Urlaubsmodus und Presets fürs ganze Haus"
+   "en": "Vacation Mode and Whole house presets",
+   "de": "Urlaubsmodus und Voreinstellungen fürs ganze Haus"
   },
   {
    "en": "Looks pack <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$4.25 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.12 CAD</span>",
    "de": "Looks-Paket <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,12 CAD · ca. 1,40 €</span>"
   },
   {
-   "en": "Day and three more themes, Showcase and the forest",
-   "de": "Day und drei weitere Designs, Showcase und der Wald"
+   "en": "Four panel themes, 20 Showcase looks for the map including the West Coast Forest, and saved look presets. The light glow (Automorph) is Advanced smart lighting's",
+   "de": "Vier Designs fürs Panel, 20 Showcase-Looks für die Karte, darunter der West Coast Forest, und gespeicherte Look-Presets. Der Lichtschein (Automorph) gehört zur Erweiterten smarten Beleuchtung"
   },
   {
-   "en": "Forensics <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$5.56 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.78 CAD</span>",
-   "de": "Forensik <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">5,56 CAD · ca. 3,70 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,78 CAD · ca. 1,85 €</span>"
-  },
-  {
-   "en": "Half off until January 1 (normally $5.56)",
-   "de": "Halber Preis bis 1. Januar (sonst 5,56 CAD)"
-  },
-  {
-   "en": "Which Bluetooth devices were near a scanner in any time window",
-   "de": "Welche Bluetooth-Geräte in einem beliebigen Zeitraum in der Nähe eines Scanners waren"
+   "en": "Half off through January 1 (normally $5.56)",
+   "de": "Halber Preis bis einschließlich 1. Januar (sonst 5,56 CAD)"
   },
   {
    "en": "Presence insights <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$5.56 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.78 CAD</span>",
    "de": "Präsenz-Auswertungen <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">5,56 CAD · ca. 3,70 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,78 CAD · ca. 1,85 €</span>"
   },
   {
-   "en": "Busy Times and Locate",
-   "de": "Stoßzeiten und Finden"
+   "en": "Locate walks you to a lost tag room by room; Busy Times shows each room's busy hours; Forensics shows which Bluetooth devices were near a receiver in any time window",
+   "de": "Finden führt dich Raum für Raum zu einem verlorenen Tag; Stoßzeiten zeigt die belebten Stunden jedes Raums; Forensik zeigt, welche Bluetooth-Geräte in einem beliebigen Zeitraum in der Nähe eines Empfängers waren"
   },
   {
    "en": "PadSpan Bright",
@@ -1239,16 +1231,16 @@
    "de": "<b>Die Extras von Live Aboard.</b> Das Haus in 3D ist kostenlos. Pro bringt Regen und Schnee draußen, Personen und Tags im Haus, den 3D-Editor und die Einrichtung Schritt für Schritt."
   },
   {
-   "en": "<b>Fixture shapes</b>: every light in its real shape, size and angle, with WLED control, Automorph and Showcase. Placing each light and device exactly is free. See <a href=\"#lights\">Lights</a>.",
-   "de": "<b>Leuchtenformen</b>: jedes Licht in echter Form, Größe und echtem Winkel, mit WLED-Steuerung, Automorph und Showcase. Jedes Licht und Gerät genau zu platzieren ist kostenlos. Siehe <a href=\"#lights\">Licht</a>."
+   "en": "<b>Fixture shapes</b>: every light in its real shape, size and angle, with WLED's Advanced controls, Automorph and Showcase. Placing each light and device exactly is free. See <a href=\"#lights\">Lights</a>.",
+   "de": "<b>Leuchtenformen</b>: jedes Licht in echter Form, Größe und echtem Winkel, mit der Advanced-Steuerung von WLED, Automorph und Showcase. Jedes Licht und Gerät genau zu platzieren ist kostenlos. Siehe <a href=\"#lights\">Licht</a>."
   },
   {
    "en": "<b>Wall mode's extras</b>: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake. The plain wall screen is free.",
    "de": "<b>Die Extras des Wandmodus</b>: nächtliches Dimmen, die Verschiebung gegen Einbrennen, Etagen im Wechsel und Aufwecken per Bewegung mit Fully Kiosk. Das einfache Wanddisplay ist kostenlos."
   },
   {
-   "en": "<b>Every add-on.</b> Audio, Alarm &amp; security, Wi-Fi coverage, Climate map, Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301), Vacation Mode &amp; presets, Looks pack, Forensics, Presence insights and Advanced smart lighting all come with Pro<span data-from-basics style=\"display:none\">, and so do Advanced map creation and Robot vacuum</span>. <a href=\"/add-ons/\">What each one does</a>",
-   "de": "<b>Jedes Add-on.</b> Audio, Alarm &amp; Sicherheit, WLAN-Abdeckung, Klimakarte, Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als Zeitreise aufgeführt), Urlaubsmodus &amp; Voreinstellungen, Looks-Paket, Forensik, Präsenz-Auswertungen und Erweiterte smarte Beleuchtung gehören alle zu Pro<span data-from-basics style=\"display:none\">, ebenso Erweiterte Kartenerstellung und Saugroboter</span>. <a href=\"/add-ons/de/\">Was jedes davon kann</a>"
+   "en": "<b>Every add-on.</b> Audio, Alarm &amp; security, Climate &amp; air quality, Vacation Mode &amp; presets, Advanced smart lighting, Wi-Fi coverage, Looks pack, Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301) and Presence insights all come with Pro<span data-from-basics style=\"display:none\">, and so do Advanced map creation and Robot vacuum</span>. <a href=\"/add-ons/\">What each one does</a>",
+   "de": "<b>Jedes Add-on.</b> Audio, Alarm &amp; Sicherheit, Klima &amp; Luftqualität, Urlaubsmodus &amp; Voreinstellungen, Erweiterte smarte Beleuchtung, WLAN-Abdeckung, Looks-Paket, Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als Zeitreise aufgeführt) und Präsenz-Auswertungen gehören alle zu Pro<span data-from-basics style=\"display:none\">, ebenso Erweiterte Kartenerstellung und Saugroboter</span>. <a href=\"/add-ons/de/\">Was jedes davon kann</a>"
   },
   {
    "en": "<b>Furnish</b>, people and the editor in the 3D house",
@@ -1283,8 +1275,8 @@
    "de": "Erweiterte Kartenerstellung <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
   },
   {
-   "en": "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan",
-   "de": "Pläne lesen mit KI, Türen, Fenster, Möbel und Treppen aus einem LiDAR-Scan im 3D-Haus und Grundrisse aus einem LiDAR-Scan"
+   "en": "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan",
+   "de": "Pläne lesen mit KI, Türen, Fenster, Möbel und Treppen aus einem LiDAR-Scan im 3D-Haus, Möbel aus Scans und Grundrisse aus einem LiDAR-Scan"
   },
   {
    "en": "30% off ($6.05 CAD) if you already own Robot vacuum: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.",
@@ -1295,16 +1287,16 @@
    "de": "Erweiterte smarte Beleuchtung <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
   },
   {
-   "en": "Power teams that follow the day, sleep and wake you, WLED control, Automorph, Scene, Ripple, Light spread, Fit room and fixture shapes",
-   "de": "Power-Teams, die dem Tag folgen, schlafen gehen und dich wecken, WLED-Steuerung, Automorph, Scene, Ripple, Light spread, Fit room und Leuchtenformen"
+   "en": "Smart bulbs behind a wall switch work as one light that follows the day, dims for sleep and wakes you; WLED's Advanced controls; a glow from each light into its room; fixture shapes with their size and angle, the type override, Hide untouched and Showcase's Classic theme",
+   "de": "Smarte Birnen hinter einem Wandschalter arbeiten als ein Licht, das dem Tag folgt, zum Schlafen dimmt und dich weckt; die Advanced-Steuerung von WLED; ein Schein von jedem Licht in seinen Raum; Leuchtenformen mit ihrer Größe und ihrem Winkel, das Festlegen der Art, Hide untouched und das Showcase-Thema Classic"
   },
   {
    "en": "Robot vacuum <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$3.22 CAD</span>",
    "de": "Saugroboter <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">3,22 CAD · ca. 2,15 €</span>"
   },
   {
-   "en": "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans",
-   "de": "Die Karte deines Saugroboters als Grundriss, der Roboter auf der Atlas-Karte und in 3D, Ortungsfahrten durch die Räume, die Fehlersuche und WLAN-Messung beim Saugen"
+   "en": "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder, and Wi-Fi while it cleans (with Wi-Fi coverage)",
+   "de": "Die Karte deines Saugroboters als Grundriss, der Roboter auf der Atlas-Karte und in 3D, Ortungsfahrten durch die Räume, die Fehlersuche und WLAN-Messung beim Saugen (mit WLAN-Abdeckung)"
   },
   {
    "en": "30% off ($4.51 CAD) if you already own Advanced map creation: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.",

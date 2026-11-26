@@ -80,18 +80,17 @@ on up to three homes. **PadSpan Pro includes them all.** Prices, and where to bu
 
 | Add-on | What it unlocks |
 | --- | --- |
-| Audio | Volume, mute and off for each room's players: the **⋯** list's Audio line on the new layout, **Settings → Atlas → Audio** on the classic one ([chapter 15](15-the-atlas.md#audio)) |
-| Alarm & security | Arm and Disarm in the emergency button, the emergency lights test, a door's card with its opener and lock, **Devices → Door Openers**, and openers and locks built from relays |
-| Wi-Fi coverage | The Wi-Fi coverage tab |
-| Climate map | The ♨ Heatmap on the Atlas |
-| Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301) | The day replayed on the Atlas (Traceback → Playback) |
+| Audio | Volume, mute and off for each room's players, the speaker beside a playing room's name, and Room off: the **⋯** list's Audio line on a wall screen and the new layout, **Settings → Atlas → Audio** on the classic one ([chapter 15](15-the-atlas.md#audio)) |
+| Alarm & security | Arm and Disarm in the emergency button, a door's card with its opener and lock for garage doors and gates, **Devices → Door Openers**, openers and locks built from relays, and the emergency lights test |
+| Climate & air quality | The ♨ Heatmap on the Atlas, and each room's thermostats in its sheet: the **⋯** list's Thermostats line, **Settings → Atlas → Thermostats** on the classic layout ([chapter 15](15-the-atlas.md#heatmap-and-thermostats-pro-or-the-climate--air-quality-add-on)) |
 | Vacation Mode & presets | Vacation Mode and the Whole house presets |
-| Looks pack | The Graphite, Ocean, Dusk and Day themes; on the Atlas, Showcase with its themes, the West Coast Forest and the presets bar |
-| Forensics | Forensics recording |
-| Presence insights | Busy Times and Locate |
-| Advanced smart lighting | Power teams: making, changing and removing them, following the day, Sleep, the bedtime, the night light and the wake-up; on the Atlas, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, fixture shapes and the type override (with Showcase in its Classic theme as their stage). Placing a light where it really is stays Pro's until December 1, 2026, when it becomes free |
+| Advanced smart lighting | Power teams: making, changing and removing them, following the day, Sleep, the bedtime, the night light and the wake-up; on the Atlas, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, fixture shapes with their size and angle, and the type override (with Showcase in its Classic theme as their stage). Placing a light where it really is stays Pro's until December 1, 2026, when it becomes free |
+| Wi-Fi coverage | The Wi-Fi coverage tab |
+| Looks pack | The Graphite, Ocean, Dusk and Day themes; on the Atlas, Showcase with its themes, the West Coast Forest and look presets |
+| Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301) | The day replayed in Traceback on the Atlas map (Traceback → Playback) |
+| Presence insights | Locate, Busy Times and Forensics recording (Forensics was sold on its own before; a key that holds it has all of Presence insights) |
 | Advanced map creation (from December 1, 2026) | AI plan reading ([chapter 19](19-ai-features.md)), a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan |
-| Robot vacuum (from December 1, 2026) | Your robot vacuum's map as a floor plan (**🤖 Import from a robot vacuum**, and Setup's **Use your robot vacuum's map**), the robot on the Atlas and in 3D with its card, room location runs, **Find mistakes**, and Wi-Fi while it cleans ([chapter 9](09-setup-the-map.md#room-location-runs-with-the-robot)) |
+| Robot vacuum (from December 1, 2026) | Your robot vacuum's map as a floor plan (**🤖 Import from a robot vacuum**, and Setup's **Use your robot vacuum's map**), the robot on the Atlas and in 3D with its card, room location runs, **Find mistakes**, and Wi-Fi while it cleans (with Wi-Fi coverage) ([chapter 9](09-setup-the-map.md#room-location-runs-with-the-robot)) |
 
 Advanced map creation and Robot vacuum are on sale from December 1, 2026. A floor plan from a LiDAR
 scan and the robot vacuum's features are free until then; from then they need PadSpan Pro or their
@@ -101,7 +100,7 @@ email the key was sent to. The better of that and any sale applies, never both.
 
 Free on every install, with or without them: an alarm going off (in the emergency button, with
 nothing to press, and in the red banner), locking and unlocking on the map and in a room's card,
-Alert pulse, the Insights tab, a device's 📍 Locate flash, and a power team already made, as one
+Shades in a room's card, Alert pulse, Traceback's Insights tab, a device's 📍 Locate flash, and a power team already made, as one
 light (on, off, dimming, its power and each bulb).
 
 - Your add-ons share one key: buy another with the same email and it joins that key. Enter it here
