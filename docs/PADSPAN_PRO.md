@@ -208,9 +208,10 @@ experimental. More in [manual chapter 19](manual/19-ai-features.md).
 ## What else a Pro key includes
 
 - **Every add-on:** [Audio](#audio), [Alarm & security](#alarm--security),
-  [Wi-Fi coverage](#wi-fi-coverage), [Climate map](#climate-map), [Replay](#replay) (listed as Time
-  travel in PadSpan 0.38.300 and 0.38.301), [Vacation Mode & presets](#vacation-mode--presets),
-  [Looks pack](#looks-pack), [Forensics](#forensics) and [Presence insights](#presence-insights).
+  [Wi-Fi coverage](#wi-fi-coverage), [Climate map](#climate-map),
+  [Full house activity](#full-house-activity) (listed as Time travel in PadSpan 0.38.300 and
+  0.38.301), [Vacation Mode & presets](#vacation-mode--presets), [Looks pack](#looks-pack),
+  [Forensics](#forensics) and [Presence insights](#presence-insights).
   A Pro key never needs one.
 - **Every new feature while the key runs.** PadSpan gets new releases every week. One purchase covers
   all of it, and buying Pro is what keeps the releases coming.
@@ -221,8 +222,8 @@ experimental. More in [manual chapter 19](manual/19-ai-features.md).
 A PadSpan Bright Pro key (sold until December 15, 2026) gives placement, shapes and sizes, WLED's
 Advanced controls, Automorph, Showcase, moving weather and the alarm controls. It doesn't open Live
 Aboard, Furnish, wall mode, the Atlas as Overview, people on the map, **What is this?** or Heights,
-or the add-ons' other features (Vacation Mode and presets, the Heatmap, Audio, Replay, Wi-Fi
-coverage, Forensics, Busy Times, Locate and the four panel themes).
+or the add-ons' other features (Vacation Mode and presets, the Heatmap, Audio, Full house
+activity, Wi-Fi coverage, Forensics, Busy Times, Locate and the four panel themes).
 
 ## Prices
 
@@ -364,7 +365,7 @@ Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Prices
 | [Alarm & security](#alarm--security) | $6.45 | Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers and lock (a triggered alarm, locks and Alert pulse stay free) |
 | [Wi-Fi coverage](#wi-fi-coverage) | $6.45 | The UniFi Wi-Fi coverage map, with what to fix |
 | [Climate map](#climate-map) | $8.65 | The Heatmap: rooms by temperature, humidity and CO₂ |
-| [Replay](#replay) | $7.55 | The house played back on the Atlas: people, lights, doors, locks and sensors |
+| [Full house activity](#full-house-activity) | $7.55 | The house played back on the Atlas: people, lights, doors, locks and sensors |
 | [Vacation Mode & presets](#vacation-mode--presets) | $4.25 | Vacation Mode and Whole House Presets |
 | [Looks pack](#looks-pack) | $4.25 | Day and three more themes, Showcase and the forest |
 | [Forensics](#forensics) | $5.56 | Which Bluetooth devices were near a scanner in any time window |
@@ -504,15 +505,16 @@ its sensors. With Pro, the colour blends between placed sensors.
 **Price and terms:** $8.65 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
 No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
 
-### Replay
+### Full house activity
 
 Back from a day out, play the house back and see who came home when, which door was left open and
 whether the lights burned all afternoon.
 
 **What it adds:**
 
-- **🏠 Full house activity** in **Traceback → Playback**: the replay moves onto your Atlas, with every
-  tracked person and tag on it, run by Traceback's own play, pause and timeline.
+- **The 🏠 Full house activity switch** in **Traceback → Playback**: turn it on and the playback
+  moves onto your Atlas, with every tracked person and tag on it, run by Traceback's own play, pause
+  and timeline.
 - **💡 Devices** (with Full house activity on): every device the Atlas shows plays back through its
   states over the chosen time (lights, doors, locks, motion, temperature, humidity and air), and what
   changed is ringed on the map. Lights Vacation Mode switched are marked as Vacation Mode's.
@@ -524,7 +526,7 @@ tags, and Home Assistant's recorder for devices. People and tags come from Trace
 devices come from Home Assistant's history, so nothing new is recorded.
 **Free without it:** Traceback's own Playback of people and tags, New Objects, Insights, and
 **Share a replay** (a 10 to 30 second clip you can post).
-**One limit:** without Pro, Replay plays back the free map, with each light in its room. Placement
+**One limit:** without Pro, the add-on plays back the free map, with each light in its room. Placement
 puts them where they hang.
 **Price and terms:** $7.55 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
 No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.

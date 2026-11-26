@@ -112,7 +112,7 @@ Just want one thing? Each add-on adds one area of PadSpan to an install without 
 | [Alarm & security](https://padspan.traks.ca/add-ons/#alarm) | Arm and disarm your Home Assistant alarm from the Atlas's emergency button (each one asks first, with the code when the alarm has one), the emergency lights test, and one card per door, garage door or gate with its opener and lock. Openers and locks can be built from plain relays | An alarm panel in Home Assistant, such as Alarmo; covers, switches or relays for openers. An alarm going off, leak and smoke alarms, locks and Alert pulse stay free without it |
 | [Wi-Fi coverage](https://padspan.traks.ca/add-ons/#wifi) | A Wi-Fi map of each floor, 2.4 GHz and 5 GHz apart, with each room's signal and a list of what to fix | UniFi access points and the UniFi Utopia integration, whose survey is still a test build |
 | [Climate map](https://padspan.traks.ca/add-ons/#climate) | The Heatmap chip colours each room by its temperature, humidity or CO₂, from that room's own sensors | Those sensors in the Home Assistant areas that match your rooms |
-| [Replay](https://padspan.traks.ca/add-ons/#replay) (listed as Time travel in PadSpan 0.38.300 and 0.38.301) | Traceback's **Full house activity** plays any stretch of the last week back on the Atlas: every light, door, lock and sensor, with the people and tags | Rooms on a floor plan; Bluetooth scanners for the people; Home Assistant's recorder for the devices |
+| [Full house activity](https://padspan.traks.ca/add-ons/#activity) (listed as Time travel in PadSpan 0.38.300 and 0.38.301) | Turns on **🏠 Full house activity** in **Traceback → Playback**, which plays any stretch of the last week back on the Atlas: every light, door, lock and sensor, with the people and tags | Rooms on a floor plan; Bluetooth scanners for the people; Home Assistant's recorder for the devices |
 | [Vacation Mode & presets](https://padspan.traks.ca/add-ons/#vacation) | Vacation Mode learns each light's routine from Home Assistant's history and keeps it going while you're away. Whole-house presets save how every light and fan is set, and **Apply** puts it all back after asking | A week of light history in Home Assistant's recorder before a trip |
 | [Looks pack](https://padspan.traks.ca/add-ons/#looks) | Day, Graphite, Ocean and Dusk themes for the panel, and Showcase, 20 looks for the whole Atlas, the West Coast Forest among them, with saved look presets | Nothing more |
 | [Forensics](https://padspan.traks.ca/add-ons/#forensics) | Records which Bluetooth devices were near your scanners, searchable by time and exported as CSV, kept 7 to 90 days on your own Home Assistant | Bluetooth scanners |
@@ -173,7 +173,7 @@ Guests get a small Bluetooth tag for their visit, so PadSpan shows which room th
 - **Yesterday at home** sends one morning message about the day before: comings and goings, guests, the rooms empty longest and lights left on in empty rooms (off until you turn it on).
 - **Lights follow people** turns a room's lights on when someone with a named phone, watch or tag walks in, and off once the room has been empty for the time you set (2 minutes by default). It can wait for dark and keep quiet hours, and a light you turn off by hand stays off. Off until you turn it on, in **Settings → Tracking → Home Assistant and integrations**.
 - **Occupancy** counts people in the building, never devices.
-- **Busy Times** and **Locate** are Pro or the Presence insights add-on. **Full house activity** on the Atlas is Pro or the Replay add-on, and **Forensics** is Pro or the Forensics add-on.
+- **Busy Times** and **Locate** are Pro or the Presence insights add-on. **Full house activity** on the Atlas is Pro or the add-on of the same name, and **Forensics** is Pro or the Forensics add-on.
 
 ### What Home Assistant gets
 
@@ -213,7 +213,7 @@ The Atlas is the house as a control panel. It has its own page in the Home Assis
 **Pro or an add-on**
 - **Audio:** each room's speakers, shades and thermostat, and Room off, in its card.
 - **Alarm & security:** Arm and Disarm in the emergency button, the emergency lights test, the door, garage and gate card with its opener and lock, and **Devices → Door Openers**.
-- **Climate map:** the Heatmap chip. **Vacation Mode & presets:** Vacation Mode and whole-house presets. **Looks pack:** Showcase and its 20 looks. **Replay:** Full house activity.
+- **Climate map:** the Heatmap chip. **Vacation Mode & presets:** Vacation Mode and whole-house presets. **Looks pack:** Showcase and its 20 looks. **Full house activity:** Traceback's playback of the whole house on the Atlas.
 
 ### The 3D house and Furnish (Pro)
 

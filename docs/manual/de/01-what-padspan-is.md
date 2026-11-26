@@ -157,7 +157,7 @@ Nutzungsbericht an).
 |---|:---:|---|
 | **PadSpan HA** | keiner | Alles aus der kostenlosen Liste oben. Kein Schlüssel, und es läuft nicht ab. |
 | **PadSpan Pro** | `pro` | Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandmodus und das neue Layout, der Atlas als Übersicht, Personen auf der Karte, die KI-Funktionen und jedes Add-on. |
-| **Add-ons** | `free`, mit Add-ons | Je eine Funktion, für eine Installation ohne Pro: Audio, Alarm & Sicherheit, WLAN-Abdeckung, Klimakarte, Wiedergabe (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt), Urlaubsmodus & Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen. Jedes gilt 2 Jahre, auf bis zu drei Zuhause ([Kapitel 25](25-padspan-pro.md#add-ons)). |
+| **Add-ons** | `free`, mit Add-ons | Je eine Funktion, für eine Installation ohne Pro: Audio, Alarm & Sicherheit, WLAN-Abdeckung, Klimakarte, Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt), Urlaubsmodus & Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen. Jedes gilt 2 Jahre, auf bis zu drei Zuhause ([Kapitel 25](25-padspan-pro.md#add-ons)). |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | keiner | Ein eigener, leichterer Download aus demselben Code: nur der Atlas, für ein Haus, das seine Lichter auf einer Karte will und keine Anwesenheitserkennung. |
 | **PadSpan Bright Pro** | `bright` | Brights Werkzeuge zum Platzieren (Platzieren, Formen, die Advanced-Steuerung für WLED, Automorph, Showcase) und die Alarmsteuerung, auf einer Bright-Installation. Verkauft bis zum 15. Dezember 2026. |
 

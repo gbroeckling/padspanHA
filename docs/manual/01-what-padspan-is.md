@@ -141,7 +141,7 @@ One Pro key covers up to five homes (with more than two, each keeps its usage re
 |---|:---:|---|
 | **PadSpan HA** | none | Everything in the free list above. No key, and it doesn't run out. |
 | **PadSpan Pro** | `pro` | Everything above, plus: exact placement on the Atlas (each light's shape, size and angle, WLED, Automorph, Showcase), Live Aboard (your house in 3D, experimental) with Furnish, wall mode and the new layout, the Atlas as Overview, people on the map, the AI features, and every add-on. |
-| **Add-ons** | `free`, with add-ons | One feature each, for an install without Pro: Audio, Alarm & security, Wi-Fi coverage, Climate map, Replay (listed as Time travel in PadSpan 0.38.300 and 0.38.301), Vacation Mode & presets, Looks pack, Forensics and Presence insights. Each covers 2 years, on up to three homes ([chapter 25](25-padspan-pro.md#add-ons)). |
+| **Add-ons** | `free`, with add-ons | One feature each, for an install without Pro: Audio, Alarm & security, Wi-Fi coverage, Climate map, Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301), Vacation Mode & presets, Looks pack, Forensics and Presence insights. Each covers 2 years, on up to three homes ([chapter 25](25-padspan-pro.md#add-ons)). |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter download made from the same code: only the Atlas, for a house that wants its lights on a map and no presence tracking. |
 | **PadSpan Bright Pro** | `bright` | Bright's placement tools (placement, shapes, WLED's Advanced controls, Automorph, Showcase) and the alarm controls, on a Bright install. Sold until December 15, 2026. |
 
