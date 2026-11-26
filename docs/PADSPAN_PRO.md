@@ -36,7 +36,7 @@ Starting a trial, entering a key and signing up as a tester need a Home Assistan
 ## What only PadSpan Pro has
 
 No add-on on sale includes these, except Showcase, which is also in the Looks pack, and the
-lighting tools (shapes, Automorph, Fit room, Light spread, Hide untouched, Scene, Ripple and WLED's
+lighting tools (shapes with their sizes and angles, Automorph, Fit room, Light spread, Hide untouched, Scene, Ripple and WLED's
 Advanced controls), which are also in [Advanced smart lighting](#advanced-smart-lighting). Each comes
 with a Pro key: a year, two years, lifetime, the trial, a tester's key or an invite's free year. From
 December 1, 2026, placing devices, the 3D house with Walk, and the plain wall screen are free for
@@ -50,7 +50,7 @@ strip, a chandelier, at its real width, length and angle in centimetres. A tempe
 the colour of its reading. Motion flashes, then fades the longer it stays quiet. Until December 1,
 2026 the free map shows one marker per light, gathered in the middle of its room. From then placing
 is free, and each device draws as a plain marker at its spot; the shapes, sizes and angles stay
-Pro's.
+Pro's (and Advanced smart lighting's).
 
 **What you tap:** in **Mapping → Atlas builder**, drag a device's pulsing pin onto the floor, or
 press **+ Place** and tap where it belongs. **Queue all unplaced** lines up the rest. The inspector
@@ -225,11 +225,10 @@ are also in the [Advanced map creation](#advanced-map-creation) add-on.
 ## What else a Pro key includes
 
 - **Every add-on:** [Audio](#audio), [Alarm & security](#alarm--security),
-  [Wi-Fi coverage](#wi-fi-coverage), [Climate map](#climate-map),
-  [Full house activity](#full-house-activity) (listed as Time travel in PadSpan 0.38.300 and
-  0.38.301), [Vacation Mode & presets](#vacation-mode--presets), [Looks pack](#looks-pack),
-  [Forensics](#forensics), [Presence insights](#presence-insights) and
-  [Advanced smart lighting](#advanced-smart-lighting), and from December 1, 2026
+  [Climate & air quality](#climate--air-quality), [Vacation Mode & presets](#vacation-mode--presets),
+  [Advanced smart lighting](#advanced-smart-lighting), [Wi-Fi coverage](#wi-fi-coverage),
+  [Looks pack](#looks-pack), [Full house activity](#full-house-activity) (listed as Time travel in
+  PadSpan 0.38.300 and 0.38.301) and [Presence insights](#presence-insights), and from December 1, 2026
   [Advanced map creation](#advanced-map-creation) and [Robot vacuum](#robot-vacuum).
   A Pro key never needs one.
 - **Every new feature while the key runs.** PadSpan gets new releases every week, and one purchase
@@ -242,8 +241,8 @@ A PadSpan Bright Pro key (sold until December 15, 2026) gives placement, shapes 
 Advanced controls, Automorph, Showcase, moving weather, the alarm controls, Advanced smart lighting
 and, from December 1, 2026, the robot vacuum's features. It doesn't open Live Aboard (free for
 everyone from December 1, 2026), Furnish, wall mode (the plain wall screen is free from then), the Atlas as Overview, people on the map, **What is this?** or Heights,
-or the add-ons' other features (Vacation Mode and presets, the Heatmap, Audio, Full house
-activity, Wi-Fi coverage, Forensics, Busy Times, Locate and the four panel themes).
+or the add-ons' other features (Vacation Mode and presets, the Heatmap and the thermostats, Audio,
+Full house activity, Wi-Fi coverage, Forensics, Busy Times, Locate and the four panel themes).
 
 ## Prices
 
@@ -366,7 +365,9 @@ An add-on adds one feature to an install without Pro. PadSpan Pro includes every
 **The terms, the same for every add-on:**
 
 - One payment covers 2 years. There's no subscription.
-- Up to 3 homes. A reinstalled Home Assistant can take the place of a home not seen for 14 days, and
+- Black Friday: every add-on is half off, rounded down to the cent, from November 27 at midnight
+  Pacific through January 1.
+- Up to 3 homes, with no usage-report rule. A reinstalled Home Assistant can take the place of a home not seen for 14 days, and
   a home silent for 45 days frees its place.
 - One key carries all your add-ons. Buy another with the same email and it joins that key; buy one
   again and it runs on from its own date.
@@ -374,7 +375,7 @@ An add-on adds one feature to an install without Pro. PadSpan Pro includes every
 - Updates are included, and it keeps working when the internet is down, like any key.
 - Enter the key in **Settings → Features → PadSpan licence**, like any key. The licence card then lists
   each add-on with its date.
-- Add-ons need the latest PadSpan.
+- Add-ons need PadSpan 0.38.300 or later. This page describes the latest PadSpan.
 - Whoever holds Advanced map creation or Robot vacuum pays 30% less for the other ($6.05 for
   Advanced map creation, $4.51 for Robot vacuum). Buy it from the licence card, which links to the
   payment at that price, and pay with the email the key was sent to. The better of that and any
@@ -382,23 +383,28 @@ An add-on adds one feature to an install without Pro. PadSpan Pro includes every
 - An add-on key is not a Pro key and opens nothing else. You can still try Pro: the 90-day trial keeps
   your add-on key aside and puts it back when the trial ends. Buying Pro with the same email makes
   your add-on key Pro, from that day.
+- Forensics is part of [Presence insights](#presence-insights) and isn't sold on its own any more.
+  A key that holds Forensics has all of Presence insights.
 
 Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Prices in CAD:
 
 | Add-on | Price | What it adds |
 | --- | --- | --- |
-| [Audio](#audio) | $6.45 | Each room's players, shades and thermostats in its card on the map, and Room off |
-| [Alarm & security](#alarm--security) | $6.45 | Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers and lock (a triggered alarm, locks and Alert pulse stay free) |
+| **Control the house from the map** | | |
+| [Audio](#audio) | $6.45 | Each room's players in its card on the map, the speaker beside a playing room's name, and Room off |
+| [Alarm & security](#alarm--security) | $6.45 | Arm and disarm, open and close garage doors and gates (the door, garage and gate card with its openers and lock), and test the emergency lights (a triggered alarm, locks, shades and Alert pulse stay free) |
+| [Climate & air quality](#climate--air-quality) | $8.65 | The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card |
+| [Vacation Mode & presets](#vacation-mode--presets) | $4.25 | Vacation Mode and Whole house presets |
+| [Advanced smart lighting](#advanced-smart-lighting) | $8.65 | Power teams that follow the day, sleep and wake you (making and changing a team too; one already made keeps switching without it), WLED's Advanced controls, Automorph, Scene, Ripple, Light spread, Fit room, Hide untouched, fixture shapes with their size and angle, and the type override. Placement stays Pro's until December 1, 2026, when it becomes free |
+| **See the house** | | |
 | [Wi-Fi coverage](#wi-fi-coverage) | $6.45 | The UniFi Wi-Fi coverage map, with what to fix |
-| [Climate map](#climate-map) | $8.65 | The Heatmap: rooms by temperature, humidity and CO₂ |
-| [Full house activity](#full-house-activity) | $7.55 | The house played back on the Atlas: people, lights, doors, locks and sensors |
-| [Vacation Mode & presets](#vacation-mode--presets) | $4.25 | Vacation Mode and Whole House Presets |
-| [Looks pack](#looks-pack) | $4.25 | Day and three more themes, Showcase and the forest |
-| [Forensics](#forensics) | $5.56 | Which Bluetooth devices were near a scanner in any time window |
-| [Presence insights](#presence-insights) | $5.56 | Busy Times and Locate |
-| [Advanced smart lighting](#advanced-smart-lighting) | $8.65 | Power teams that follow the day, sleep and wake you (making and changing a team too; one already made keeps switching without it), WLED control, Automorph, Scene, Ripple, Light spread, Fit room, Hide untouched, fixture shapes and the type override. Placement stays Pro's until December 1, 2026, when it becomes free |
+| [Looks pack](#looks-pack) | $4.25 | Day and three more themes, Showcase's 20 looks with the West Coast Forest, and look presets (the light glow, Automorph, is Advanced smart lighting's) |
+| **Presence and history** | | |
+| [Full house activity](#full-house-activity) | $7.55 | The day replayed in Traceback on your Atlas map: people, lights, doors, locks and sensors |
+| [Presence insights](#presence-insights) | $5.56 | Locate, Busy Times and Forensics (which Bluetooth devices were near a receiver in any time window) |
+| **Build the map** | | |
 | [Advanced map creation](#advanced-map-creation) (on sale from December 1, 2026) | $8.65 | AI plan reading, reading a photo, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan (free until it is on sale) |
-| [Robot vacuum](#robot-vacuum) (on sale from December 1, 2026) | $6.45 | Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D with its card, room location runs, the mistake finder and Wi-Fi while it cleans (free until it is on sale; a Bright Pro key keeps them) |
+| [Robot vacuum](#robot-vacuum) (on sale from December 1, 2026) | $6.45 | Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D with its card, room location runs, the mistake finder and Wi-Fi while it cleans (with Wi-Fi coverage; free until it is on sale; a Bright Pro key keeps them) |
 
 Where a feature is locked, PadSpan names what opens it: "PadSpan Pro or the … add-on".
 
@@ -409,15 +415,10 @@ same card as its lights.
 
 **What it adds**, in each room's card on the Atlas (tap a room's name):
 
-- **A status line**: the room's temperature and humidity (the middle reading of its sensors), and
-  who is there when the screen shows people (Pro).
 - **Room off (n)**: turns off the room's lights and players that are on. It never touches a lock, a
-  shade, the thermostat or a plug.
+  shade, a thermostat or a plug.
 - **Audio**: a row for each player, named by its system ("Control4 · Great Room"), with On, Off or
   Muted, **Mute**, **−**, the level, **+** and **⏻**. Buttons show only for what the player can do.
-- **Shades**: one row for all the room's covers, with how far open they are and **Open**, **Stop**
-  and **Close** for all of them at once. Garage doors, gates and doors stay on their door's card.
-- **Climate**: each thermostat's temperature now, its mode, and its setpoint with **−** and **+**.
 - **On the map**: a small speaker beside a room's name while one of its players is on, struck
   through while it's muted. A tap on it opens the room's card; only the card's buttons change
   anything.
@@ -426,15 +427,17 @@ same card as its lights.
 - **Include Home Assistant speakers** on that card adds every other player with a volume: Music
   Assistant, ESPHome, Cast, TVs.
 
-**Where:** turn it on in **Settings → Atlas → Atlas — Mapped Light Control → Audio** (off by
-default), for the whole house. With Pro's new layout, each screen ticks **Audio** in its **⋯** list
-instead, and the 3D house shows it too.
+**Where:** on a wall screen, and with Pro's new layout, each screen ticks **Audio** in its **⋯**
+list, and the 3D house shows it too. Elsewhere, on the classic layout, **Settings → Atlas → Atlas —
+Mapped Light Control → Audio** (off by default) turns it on for the whole house.
 **Needs:** players from Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad,
 Denon, Yamaha or Anthem in Home Assistant (or any player with a volume, with Include Home Assistant
-speakers ticked); rooms on the map that are Home Assistant areas; the room's covers and thermostats
-in its area.
+speakers ticked); rooms on the map that are Home Assistant areas.
 **Free without it:** the rest of the room's card: lights and fans with All on and All off, the room's
-scenes and scripts, and its locks.
+scenes and scripts, its locks, and **Shades** (every blind and shade in the room, how far open, and
+**Open**, **Stop** and **Close** for all at once; the ⋯ list's Shades line, in "Doors, windows and
+locks", or **Settings → Atlas → Shades**). A room's thermostats are
+[Climate & air quality](#climate--air-quality)'s.
 **One limit:** without Pro, Audio is on or off for the whole house. Choosing it screen by screen
 needs Pro's new layout.
 **Price and terms:** $6.45 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
@@ -444,7 +447,8 @@ No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
 
 Arm the alarm from the hallway screen on the way out, or check from bed that the garage is shut.
 
-**What it adds:**
+**What it adds:** arm and disarm, open and close garage doors and gates, and test the emergency
+lights.
 
 - **Your house alarm inside the emergency button**, top right of the Atlas. The button's centre is
   the alarm's shield, in a colour for its state (grey disarmed, blue armed, amber pending, red going
@@ -452,11 +456,6 @@ Arm the alarm from the hallway screen on the way out, or check from bed that the
   custom bypass** (the ones your alarm supports) while it's disarmed, **Disarm** while it's armed.
   Every arm and disarm asks first, with a field for the code when the alarm wants one. PadSpan never
   keeps the code. A wrong code shows Home Assistant's own refusal.
-- **The emergency lights test**: the red **Test emergency lighting** button. A tap on the centre
-  turns every emergency light on, and a tap again ends it, leaving on the lights that were already
-  on. **Force off** turns them all off, after a second tap. If a Home Assistant automation with
-  "emergency" in its name has run since the test started (a power-failure one, say), ending the test
-  switches nothing off. It was free until PadSpan 0.38.300.
 - **The door, garage and gate card**: tap a linked door on the Atlas for one card with its state
   ("Closed & Locked", "Closed, Unlocked", "Open"), **Open** and **Close** for a cover, **Trigger** for
   a relay, button or script, and its lock.
@@ -464,7 +463,12 @@ Arm the alarm from the hallway screen on the way out, or check from bed that the
   it to the door, with its lock, in Mapping → Atlas builder.
 - **Openers and locks built from relays**: a momentary opener (garage door, gate), a two-direction
   opener (a motorized window, a blind, an awning) or a door-strike lock, made into a proper Home
-  Assistant cover or lock. A light built from relays stays Pro's.
+  Assistant script, cover or lock. A light built from relays stays Pro's.
+- **The emergency lights test**: the red **Test emergency lighting** button. A tap on the centre
+  turns every emergency light on, and a tap again ends it, leaving on the lights that were already
+  on. **Force off** turns them all off, after a second tap. If a Home Assistant automation with
+  "emergency" in its name has run since the test started (a power-failure one, say), ending the test
+  switches nothing off. It was free until PadSpan 0.38.300.
 
 **Where:** the Atlas page, top right; **Devices → Door Openers**; Mapping → Atlas builder.
 **Needs:** for the alarm, an `alarm_control_panel` in Home Assistant (Alarmo, or your alarm system's
@@ -474,7 +478,9 @@ cover, switch, button, script or lock to link.
 **Free without it:** an alarm going off shows on the button and as a row in the red banner on every
 PadSpan screen ("Alarm going off: House · Back door"). Leak, smoke, gas and CO alarms still latch and
 ring their room red. Locks lock and unlock on the map and in a room's card. Alert pulse still rings a
-room amber when a door is left open. A test already running can always be ended.
+room amber when a door is left open. Shades are free too, with the doors and windows; garage doors,
+gates, doors and any cover linked as a door's opener are never shown under Shades, and stay this
+add-on's. A test already running can always be ended.
 **One limit:** arming runs with the login on the screen. Anyone whose Home Assistant login can use
 the alarm can arm or disarm it from the Atlas, on a wall screen too.
 **Price and terms:** $6.45 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
@@ -497,7 +503,8 @@ When a device keeps dropping off Wi-Fi, see which access point it clings to and 
   the devices that hear it best suggest. **Place in Mapping** puts it there (placing needs Pro
   until December 1, 2026, and is free from then).
 - **Which Wi-Fi device is which phone** (administrators), when the names differ.
-- **The robot vacuum's readings**, when it runs room location runs.
+- **The robot vacuum's readings**, when it runs room location runs, and with the
+  [Robot vacuum](#robot-vacuum) add-on, its Wi-Fi while it cleans.
 
 **Where:** the Wi-Fi coverage tab, under More tools. It shows only while UniFi Utopia's survey
 answers.
@@ -510,9 +517,10 @@ from the lights and devices placed on the plan (with Pro until December 1, 2026)
 **Price and terms:** $6.45 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
 No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
 
-### Climate map
+### Climate & air quality
 
-One look at the wall screen shows which bedroom is cold or which office needs air.
+One look at the wall screen shows which bedroom is cold or which office needs air, and the
+bedroom's thermostat is in its card.
 
 **What it adds:**
 
@@ -523,13 +531,18 @@ One look at the wall screen shows which bedroom is cold or which office needs ai
   red at 1,500. Fahrenheit sensors work too.
 - **Each room from its own sensors:** nothing crosses a wall, outdoor rooms are never coloured, and a
   reading over an hour old isn't used.
+- **Thermostats in a room's card:** each thermostat's temperature now, its mode, and its setpoint
+  with **−** and **+**, with the room's temperature and humidity line at the top of the card.
 
-**Where:** turn it on in **Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the
-Atlas (temperature, humidity, CO₂)** (off by default). The chip is on the Atlas page and in Mapping →
-Atlas builder.
-**Needs:** temperature, humidity or CO₂ sensors in the Home Assistant areas that match your rooms.
-**Free without it:** your sensors still show on the Atlas as markers, and their readings stay in
-Home Assistant. Thermostat control in a room's card is part of [Audio](#audio).
+**Where:** turn the chip on in **Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on
+the Atlas (temperature, humidity, CO₂)** (off by default). The chip is on the Atlas page and in
+Mapping → Atlas builder. For the thermostats, on a wall screen and with Pro's new layout, each
+screen ticks **Thermostats** in its **⋯** list ("Motion and sensors"); elsewhere, **Settings → Atlas →
+Thermostats** turns them on for the whole house. Both are off until ticked.
+**Needs:** temperature, humidity or CO₂ sensors, and thermostats, in the Home Assistant areas that
+match your rooms.
+**Free without it:** the temperature, humidity and air chips under room names, and Air in a room's
+card. Your sensors still show on the Atlas as markers, and their readings stay in Home Assistant.
 **One limit:** until December 1, 2026, without Pro, sensors aren't placed, so each room takes one
 colour from the average of its sensors. With placed sensors (Pro, or free from then), the colour
 blends between them.
@@ -551,7 +564,7 @@ whether the lights burned all afternoon.
   changed is ringed on the map. Lights Vacation Mode switched are marked as Vacation Mode's.
 - Any of Traceback's ranges: 5 minutes to 7 days, or your own.
 
-**Where:** Traceback → Playback.
+**Where:** Traceback → Playback. It isn't on the Atlas page or a wall screen.
 **Needs:** a floor plan with rooms (Traceback plays on a plan), Bluetooth receivers for people and
 tags, and Home Assistant's recorder for devices. People and tags come from Traceback's own 7 days;
 devices come from Home Assistant's history, so nothing new is recorded.
@@ -570,7 +583,7 @@ away. At home, a "Movie night" preset puts every light back the way you saved it
 
 **What it adds:**
 
-- **Whole House Presets**, a **Whole house** bar on the Atlas. **Set** remembers how every light and
+- **Whole house presets**, a **Whole house** bar on the Atlas. **Set** remembers how every light and
   fan is now (on or off, brightness, colour, effect, speed) under a name you type. **Apply** puts the
   whole house back that way, turning off what was off, after a second tap. Locks are never included.
 - **🌴 Vacation Mode**, first in that list. It learns each light's routine for each day of the week
@@ -607,7 +620,7 @@ For a wall screen that's part of the room, or a light panel by day.
 - **Showcase** on the Atlas: 20 themes for the whole map, each changing colour, room edges, glow and
   light pools together. Atlas toolbar → **Presentation**.
 - **The West Coast Forest**, the Showcase theme with trees round the house.
-- **The presets bar**: save a whole look under a name, and **Apply** brings it back.
+- **Look presets**: save a whole look under a name, and **Apply** brings it back.
 
 **Where:** Settings → Appearance, and the Atlas toolbar.
 **Needs:** nothing else.
@@ -619,52 +632,45 @@ stays dark with every theme.
 **Price and terms:** $4.25 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
 No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
 
-### Forensics
+### Presence insights
 
-Check whether an unknown tracker or a pair of earbuds was near the house last night, and for how
-long.
+See which rooms the house really uses, and when. Find the keys or the dog's tag, room by room. Check
+whether an unknown tracker was near the house last night.
 
 **What it adds:**
 
-- **Recording**: **Settings → Features → Forensics → Enable presence-session recording** (it asks you
-  to confirm). Every 60 seconds PadSpan notes which devices it hears, as presence sessions; 5 minutes
-  of silence ends one.
-- **The Forensics tab**: pick a start and an end, or **Last hour**, **Last 24 h** or **Last 7 days**.
-  **Recorded — actually present** lists each device with its time in the window, its strongest signal
-  and the receivers that heard it. **Possible** adds lower-confidence matches. **Hide my labelled
-  devices** lets the unknown ones stand out. **Export CSV** saves the results.
-- **Retention** of 7, 14 (the default), 30, 60 or 90 days, and **Delete all recorded data**.
+- **📍 Locate** (Follow → 📍 Locate): directions to a tag or phone you're looking for. Under **You are
+  carrying:**, pick your own phone. In another room it says which room to head to next, and up or
+  down a floor. In the same room it shows the distance in metres, getting closer or further.
+- **Busy Times** (Traceback → Busy Times): over the last 1, 3 or 7 days, one box per room, busiest
+  first, each with a 24-hour bar chart and its busiest hour marked.
+- **Forensics**, which shows which Bluetooth devices were near a receiver in any time window:
+  - **Recording**: **Settings → Features → Forensics → Enable presence-session recording** (it asks
+    you to confirm). Every 60 seconds PadSpan notes which devices it hears, as presence sessions; 5
+    minutes of silence ends one.
+  - **The Forensics tab**: pick a start and an end, or **Last hour**, **Last 24 h** or **Last 7
+    days**. **Recorded — actually present** lists each device with its time in the window, its
+    strongest signal and the receivers that heard it. **Possible** adds lower-confidence matches.
+    **Hide my labelled devices** lets the unknown ones stand out. **Export CSV** saves the results.
+  - **Retention** of 7, 14 (the default), 30, 60 or 90 days, and **Delete all recorded data**.
 
-**Where:** Settings → Features, and the Forensics tab in the main list while recording is on.
-**Needs:** Bluetooth receivers, and PadSpan's data mode on Live.
-**Free without it:** the presence tracking, Traceback and each device's history.
-**One limit:** a Bluetooth address is not a person. Phones change their address and addresses can be
+Presence insights isn't Traceback's **Insights** mode, which is free (below).
+
+**Where:** Follow → 📍 Locate; Traceback → Busy Times; Settings → Features, and the Forensics tab in
+the main list while recording is on.
+**Needs:** Bluetooth receivers and tracked phones or tags. Locate needs rooms that touch on the map;
+Busy Times uses Traceback's 7 days of history. Forensics needs PadSpan's data mode on Live.
+**Free without it:** the **Insights** mode of Traceback (time in each room, entries and peak
+occupancy), a device's 📍 Locate flash on the map, the presence tracking, Traceback and each
+device's history.
+**One limit:** Locate gives room-by-room directions, not an arrow, and you pick which device is you.
+For Forensics, a Bluetooth address is not a person. Phones change their address and addresses can be
 faked, so it finds fixed-address devices (earbuds, trackers, speakers) best. Treat results as leads,
 not proof. It records neighbours' and passers-by's devices too; recordings stay in your Home
 Assistant and are never uploaded.
 **Price and terms:** $5.56 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
-No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
-
-### Presence insights
-
-See which rooms the house really uses, and when. Find the keys or the dog's tag, room by room.
-
-**What it adds:**
-
-- **Busy Times** (Traceback → Busy Times): over the last 1, 3 or 7 days, one box per room, busiest
-  first, each with a 24-hour bar chart and its busiest hour marked.
-- **📍 Locate** (Follow → 📍 Locate): directions to a tag or phone you're looking for. Under **You are
-  carrying:**, pick your own phone. In another room it says which room to head to next, and up or
-  down a floor. In the same room it shows the distance in metres, getting closer or further.
-
-**Where:** Traceback → Busy Times; Follow → 📍 Locate.
-**Needs:** Bluetooth receivers and tracked phones or tags. Locate needs rooms that touch on the map;
-Busy Times uses Traceback's 7 days of history.
-**Free without it:** the **Insights** mode of Traceback (time in each room, entries and peak
-occupancy) and a device's 📍 Locate flash on the map.
-**One limit:** Locate gives room-by-room directions, not an arrow, and you pick which device is you.
-**Price and terms:** $5.56 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
-No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
+No subscription, and 14 days' grace after it ends. PadSpan Pro includes it. Forensics was sold on its
+own before; a key that holds it has all of Presence insights.
 
 ### Advanced smart lighting
 
@@ -677,7 +683,7 @@ On sale now. A wall dimmer and its smart bulbs that follow the day, and the map'
   a team are the add-on's too.
 - **WLED's Advanced controls** and **Exact look** on a WLED light's card.
 - **Automorph**, **Scene**, **Ripple**, **Light spread**, **Fit room** and **Hide untouched** on the
-  Atlas, with fixture shapes and the type override.
+  Atlas, with fixture shapes (their size and angle too) and the type override.
 
 **Where:** Settings → Atlas → Power teams, the Atlas toolbar, and a light's card.
 **Needs:** lights in Home Assistant; for a power team, a wall dimmer or switch and the smart bulbs it
@@ -699,9 +705,11 @@ house, **Furniture from scans**, and floor plans from a LiDAR scan.
 
 **Where:** Setup's Draw the rooms step, Live Aboard → Edit → Plans, Furnish, and the RoomPlan import
 in Mapping → Layout.
-**Needs:** for the AI parts, an AI Task picked in **Settings → AI**; for a scan, an iPhone 12 Pro or
+**Needs:** for the AI parts, an AI connected to Home Assistant through its AI Task feature, picked
+in **Settings → AI**; for a scan, an iPhone 12 Pro or
 a newer Pro model, or an iPad Pro from 2020 or later.
-**Free without it:** every other way to a floor plan, and drawing the rooms by hand.
+**Free without it:** every other way to a floor plan except a robot vacuum's map (the
+[Robot vacuum](#robot-vacuum) add-on), and drawing the rooms by hand.
 **Price and terms:** $8.65 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
 Holding Robot vacuum takes 30% off ($6.05). PadSpan Pro includes it.
 
@@ -710,7 +718,8 @@ Holding Robot vacuum takes 30% off ($6.05). PadSpan Pro includes it.
 On sale from December 1, 2026. Until then all of it is free, as it was.
 
 **What it adds:** your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D with
-its card, room location runs, the mistake finder (**Find mistakes**) and Wi-Fi while it cleans.
+its card, room location runs, the mistake finder (**Find mistakes**) and Wi-Fi while it cleans
+(which draws on the Wi-Fi coverage map, so it needs [Wi-Fi coverage](#wi-fi-coverage) too).
 From December 1, 2026 these need PadSpan Pro, this add-on or a Bright Pro key, and nothing stored
 is deleted.
 

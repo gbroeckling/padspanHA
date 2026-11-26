@@ -92,12 +92,13 @@ Automorph und Showcase. Whole house presets, Vacation Mode und die Heatmap brauc
 ihr Add-on.</p>
 <p>Ohne Pro schaltet ein Add-on einen Teil des Atlas frei (<a href="/manual/padspan-pro/de/#add-ons">Kapitel 25</a>):
 <b>Audio</b>; <b>Alarm &amp; Sicherheit</b> (scharf und unscharf schalten im Notfallknopf, der Test der
-Notbeleuchtung und die Karte einer Tür mit ihrem Öffner und ihrem Schloss); <b>Klimakarte</b> (die
-Heatmap); <b>Urlaubsmodus &amp; Voreinstellungen</b>; das <b>Looks-Paket</b> (Showcase mit seinen Themen, der
-West Coast Forest und die Presets-Leiste, auf der kostenlosen Karte: Formen bleiben bei Pro);
-<b>Erweiterte smarte Beleuchtung</b> (Power-Teams, die dem Tag folgen, schlafen gehen und dich wecken,
-die Advanced-Steuerung von WLED, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched,
-Leuchtenformen und das Festlegen der Art; Platzieren bleibt bis zum 1. Dezember 2026 bei Pro); und ab
+Notbeleuchtung und die Karte einer Tür mit ihrem Öffner und ihrem Schloss); <b>Klima &amp; Luftqualität</b>
+(die Heatmap und die Thermostate jedes Raums); <b>Urlaubsmodus &amp; Voreinstellungen</b>; das
+<b>Looks-Paket</b> (Showcase mit seinen Themen, der West Coast Forest und die Look-Presets, auf der
+kostenlosen Karte: Formen bleiben bei Pro); <b>Erweiterte smarte Beleuchtung</b> (Power-Teams, die dem
+Tag folgen, schlafen gehen und dich wecken, die Advanced-Steuerung von WLED, Automorph, Fit room,
+Light spread, Scene, Ripple, Hide untouched, Leuchtenformen mit ihrer Größe und ihrem Winkel und das
+Festlegen der Art; Platzieren bleibt bis zum 1. Dezember 2026 bei Pro); und ab
 dem 1. Dezember 2026 <b>Saugroboter</b> (der Roboter auf der Karte und in 3D, mit seiner Karte).</p>
 <h2 id="so-kommst-du-hin">So kommst du hin</h2>
 <ul>
@@ -165,6 +166,12 @@ Atlas-Editor</b> mit der Tür oder dem Fenster, neben ihrem Sensor und ihrem Sch
 die Tür öffnet dann eine Karte: ob sie offen oder zu ist, <b>Open</b> oder <b>Close</b> für eine Abdeckung
 (<b>Trigger</b> für einen Schalter, einen Taster oder ein Skript) und das Schloss. Eine Abdeckung, die
 ohne Sensor verknüpft ist, meldet offen oder zu selbst.</p>
+<p><b>Beschattung</b> (kostenlos): Hak im <b>⋯</b> der Karte <b>Beschattung</b> an, in der Gruppe „Türen, Fenster
+und Schlösser“ (auf dem klassischen Layout <b>Einstellungen → Atlas → Atlas — Mapped Light Control →
+Beschattung</b>, für das ganze Haus), und das Blatt jedes Raums bekommt eine Zeile für alle Jalousien
+und Rollos des Raums: wie weit sie offen sind, und <b>Öffnen</b>, <b>Stopp</b> und <b>Schließen</b> für alle
+zugleich. Ab Werk ist es aus, bis es angehakt wird. Garagentore, Tore, Türen und jede Abdeckung, die
+als Öffner einer Tür verknüpft ist, sind nie dabei; sie bleiben auf der Karte ihrer Tür.</p>
 <h2 id="alarme-und-das-notfall-banner">Alarme und das Notfall-Banner</h2>
 <p>Wasser-, Rauch-, Gas- und Kohlenmonoxidmelder werden als Pfütze oder als runder Melder gezeichnet
 und zeigen <b>WET</b>, <b>SMOKE</b>, <b>GAS</b> oder <b>CO</b>, <b>ALARM</b>, solange der Alarm gehalten wird, und
@@ -181,11 +188,14 @@ alle ihre Lichter schon an, schaltet ein Tippen sie aus. <b>+ New scene</b> und 
 Szenen-Editor von Home Assistant, für einen Administrator, und nie auf einem Wandbildschirm.</p>
 <h2 id="audio">Audio</h2>
 <p>Hak im <b>⋯</b> der Karte (Show on this screen, in der Leiste neben der Karte, und im eigenen ⋯ der
-3D-Ansicht) <b>Audio</b> an, und das Blatt jedes Raums (in 3D sein Feld) bekommt seine Musik, seine
-Beschattung und sein Thermostat. Ab Werk ist es aus, bis ein Bildschirm es anhakt, und jeder
-Bildschirm (ein Handy, eine Wand) hat seinen eigenen Haken. Aus sind die Karte und die Blätter genau
-wie vorher. <b>Einrichten ›</b> in derselben Zeile öffnet die Zuordnungskarte (unten) gleich dort über
-der Karte, angehakt oder nicht, für einen Administrator, auch auf einem Wandbildschirm.</p>
+3D-Ansicht) <b>Audio</b> an, und das Blatt jedes Raums (in 3D sein Feld) bekommt seine Musik und
+<b>Raum aus</b>. Ab Werk ist es aus, bis ein Bildschirm es anhakt, und jeder Bildschirm (ein Handy, eine
+Wand) hat seinen eigenen Haken. Aus sind die Karte und die Blätter genau wie vorher. <b>Einrichten ›</b>
+in derselben Zeile öffnet die Zuordnungskarte (unten) gleich dort über der Karte, angehakt oder
+nicht, für einen Administrator, auch auf einem Wandbildschirm. Die Beschattung und die Thermostate
+eines Raums haben in derselben Liste eigene Zeilen: <b>Beschattung</b> (kostenlos,
+<a href="#türen-fenster-und-schlösser">oben</a>) und <b>Thermostate</b>
+(<a href="#heatmap-und-thermostate-pro-oder-das-add-on-klima--luftqualität">Klima &amp; Luftqualität</a>).</p>
 <ul>
 <li><p><b>Auf der Karte</b>: ein kleines rundes Lautsprecher-Abzeichen neben dem Namen eines Raums,
 solange einer seiner Player an ist, durchgestrichen, solange der erste Player des Raums stumm ist.
@@ -195,10 +205,9 @@ Zeichen. Tipp darauf oder auf den Namen für das Blatt des Raums: Ein Tippen auf
 nie etwas. Die 3D-Ansicht zeigt dasselbe Abzeichen neben dem Namen und den Werten des Raums (sind
 die Namen ausgeblendet, neben den Werten); ein Tippen darauf öffnet das Feld des Raums, das sich
 unterhalb des Notfallknopfs öffnet, nie darunter verdeckt.</p></li>
-<li><p><b>Das Blatt</b>: unter dem Namen des Raums seine Temperatur und Luftfeuchtigkeit (der mittlere Wert
-seiner Sensoren) und wer da ist. <b>Raum aus (n)</b> schaltet die Lichter und Player des Raums aus,
-nie ein Schloss, eine Beschattung, das Thermostat oder eine Steckdose, und erscheint nur, solange
-etwas an ist. Dann die Szenen wie bisher, und:</p>
+<li><p><b>Das Blatt</b>: <b>Raum aus (n)</b> schaltet die Lichter und Player des Raums aus, nie ein Schloss,
+eine Beschattung, ein Thermostat oder eine Steckdose, und erscheint nur, solange etwas an ist. Dann
+die Szenen wie bisher, und:</p>
 <ul>
 <li><b>Audio</b>: eine Zeile für jeden Player, mit seinem System benannt („Control4 · Great Room“,
 „Denon · Zone 2“), ob er an, aus oder stumm ist, <b>Stumm</b>, <b>−</b>, die Lautstärke, <b>+</b> und ⏻
@@ -207,11 +216,7 @@ angezeigte Lautstärke sofort um einen Schritt (1 von 100 bei einem Player, der 
 regelt, etwa einem Control4-Raum), und schnelle Tipps zählen zusammen; meldet Home Assistant eine
 Lautstärke, wird sie gezeigt. Was ein Player nicht kann, fehlt oder ist grau: Ein
 ausgeschalteter Player zeigt seine Lautstärke als —.</li>
-<li>die Lichter des Raums wie bisher;</li>
-<li><b>Beschattung</b>: eine Zeile für alle Abdeckungen des Raums, <b>Öffnen</b>, <b>Stopp</b> und
-<b>Schließen</b> für alle zugleich, und wie weit sie offen sind. Garagentore, Tore und Türen bleiben
-auf der Karte ihrer Tür.</li>
-<li><b>Klima</b>: die Temperatur jedes Thermostats, sein Sollwert mit − und + und seine Betriebsart.</li>
+<li>die Lichter des Raums wie bisher.</li>
 </ul>
 <p>Jeder Druck ist ein Aufruf an Home Assistant, ohne Rückfrage. Wer die Lichter schalten kann, kann
 sie benutzen, auch auf einem Wandbildschirm. Lehnt Home Assistant ab, sagt es mit eigenen Worten,
@@ -236,12 +241,12 @@ Triad, Denon, Yamaha und Anthem, nach der Integration in Home Assistant, aus der
 jeden anderen Player mit Lautstärke dazu: Music Assistant, ESPHome, Cast, Fernseher.</p></li>
 </ul>
 <p>Audio braucht PadSpan Pro oder das Add-on Audio. Die <b>⋯</b>-Liste gehört zum neuen Layout von
-PadSpan Pro; auf dem klassischen Layout macht <b>Einstellungen → Atlas → Atlas — Mapped Light Control
+PadSpan Pro und eines Wanddisplays; auf dem klassischen Layout macht <b>Einstellungen → Atlas → Atlas — Mapped Light Control
 → Audio</b> (ab Werk aus, da, wo Audio freigeschaltet ist) dasselbe für das ganze Haus: den
 Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, auch in der 3D-Ansicht, und Audio im
 Blatt mit <b>Räume zuordnen</b>. Dort ist es der einzige Schalter: Das <b>⋯</b> der 3D-Ansicht hat keine
 eigene Audio-Zeile.</p>
-<h2 id="heatmap-pro-oder-das-add-on-klimakarte">Heatmap (Pro oder das Add-on Klimakarte)</h2>
+<h2 id="heatmap-und-thermostate-pro-oder-das-add-on-klima--luftqualität">Heatmap und Thermostate (Pro oder das Add-on Klima &amp; Luftqualität)</h2>
 <p><b>Einstellungen → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)</b>, ab Werk aus, gibt dem Atlas einen Chip <b>♨ Heatmap</b>. Tipp darauf, um
 <b>Temperature</b>, <b>Humidity</b> und <b>CO₂</b> durchzugehen (die Arten, für die dein Haus einen Sensor
@@ -249,6 +254,13 @@ hat), dann aus. Jeder Raum wird nach seinen eigenen Sensoren eingefärbt: den pl
 keiner platziert ist, dem Durchschnitt der Sensoren des Raums in seiner Mitte. Nichts geht durch
 eine Wand, ein Raum ohne Sensor bleibt ungefärbt, und ein Messwert, der älter als eine Stunde ist,
 wird nicht benutzt.</p>
+<p><b>Thermostate</b>: Hak im <b>⋯</b> der Karte <b>Thermostate</b> an, in der Gruppe „Bewegung und Sensoren“
+(auf dem klassischen Layout <b>Einstellungen → Atlas → Atlas — Mapped Light Control → Thermostate</b>,
+für das ganze Haus), und das Blatt jedes Raums bekommt jedes seiner Thermostate: seine Temperatur
+jetzt, seine Betriebsart und seinen Sollwert mit − und +. Die Zeile unter dem Namen des Raums mit
+seiner Temperatur und Luftfeuchtigkeit (der mittlere Wert seiner Sensoren) gehört dazu. Ab Werk ist
+es aus, bis es angehakt wird. Jeder Druck ist ein Aufruf an Home Assistant, wie bei Audio. Die Chips
+für Temperatur, Luftfeuchtigkeit und Luft unter den Raumnamen bleiben kostenlos.</p>
 <h2 id="power-teams">Power-Teams</h2>
 <p>Smarte Farbbirnen in Fassungen, die an einem Wanddimmer oder Wandschalter hängen (zum Beispiel
 Zigbee-Birnen an einem Control4-Dimmer), werden dunkel, wenn jemand an der Wand ausschaltet, und
@@ -311,18 +323,18 @@ wird bis dahin voll hell. Ein Team, das schon an ist, bleibt, wie es ist. <b>Sav
 <p>Ein Administrator ändert das Wecken und die Kurve (mit Pro oder dem Add-on Erweiterte smarte
 Beleuchtung). Die Sonnenkurve ist aus Adaptive Lighting übernommen.</p>
 <h2 id="showcase-automorph-und-presets-pro">Showcase, Automorph und Presets (Pro)</h2>
-<p>Showcase, seine Themen, der West Coast Forest und die Presets-Leiste gibt es auch mit dem Add-on
+<p>Showcase, seine Themen, der West Coast Forest und die Look-Presets gibt es auch mit dem Add-on
 Looks-Paket, auf der kostenlosen Karte; Whole house presets mit dem Add-on Urlaubsmodus &amp;
 Voreinstellungen. Automorph, Fit room, Light spread, Scene, Ripple und Hide untouched gibt es mit dem
 Add-on Erweiterte smarte Beleuchtung, mit Showcase im Thema Classic als Bühne (seine Themen, der Wald
-und die Presets-Leiste bleiben beim Looks-Paket).</p>
+und die Look-Presets bleiben beim Looks-Paket).</p>
 <ul>
 <li><b>Showcase</b>: 20 Themen für die ganze Karte (Farbe, Raumkanten, Schein und Lichtflecken
 zusammen). Wähl eines in der Werkzeugleiste des Atlas unter <b>Presentation</b>.</li>
 <li><b>Automorph</b>: ein weicher Schein, auf der Karte von einer Leuchte hinaus in ihren Raum gezeichnet,
 in verschiedenen Stilen zur Wahl (Werkzeugleiste → Automorph). Er ändert das Aussehen der Karte,
 nicht die Lichter.</li>
-<li><b>Die Presets-Leiste</b> speichert einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
+<li><b>Look-Presets</b> speichern einen ganzen Look (Thema, Automorph-Stil, und wenn du willst
 Etage, Abstand und Anordnung) unter einem Namen, und <b>Apply</b> holt ihn zurück.</li>
 <li><b>Whole house presets</b> merkt sich das Haus selbst: <b>Set</b> hält den Zustand jedes Lichts und
 Ventilators fest (an oder aus, Helligkeit, Farbe, Effekt, Ventilatorstufe), und <b>Apply</b> stellt

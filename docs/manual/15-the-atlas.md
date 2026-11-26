@@ -23,12 +23,12 @@ Mode and the heatmap need PadSpan Pro or their add-on.
 
 Without Pro, an add-on unlocks one part of the Atlas ([chapter 25](25-padspan-pro.md#add-ons)):
 **Audio**; **Alarm & security** (Arm and Disarm in the emergency button, the emergency lights test,
-and a door's card with its opener and lock); **Climate map** (the heatmap); **Vacation Mode &
-presets**; the **Looks pack** (Showcase with its themes, the West Coast Forest and the presets bar,
-on the free map: shapes stay Pro's); **Advanced smart lighting** (power teams that follow the day,
-sleep and wake you, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple,
-Hide untouched, fixture shapes and the type override; placement stays Pro's until December 1,
-2026); and, from December 1, 2026, **Robot vacuum** (the robot on the map and in 3D, with its card).
+and a door's card with its opener and lock); **Climate & air quality** (the heatmap and each room's
+thermostats); **Vacation Mode & presets**; the **Looks pack** (Showcase with its themes, the West
+Coast Forest and look presets, on the free map: shapes stay Pro's); **Advanced smart lighting**
+(power teams that follow the day, sleep and wake you, WLED's Advanced controls, Automorph, Fit room,
+Light spread, Scene, Ripple, Hide untouched, fixture shapes with their size and angle, and the type
+override; placement stays Pro's until December 1, 2026); and, from December 1, 2026, **Robot vacuum** (the robot on the map and in 3D, with its card).
 
 ## Getting there
 
@@ -94,6 +94,13 @@ its lock. A tap on the door then opens one card: whether it is open or closed, *
 for a cover (**Trigger** for a switch, button or script), and the lock. A cover linked with no sensor
 says open or shut itself.
 
+**Shades** (free): tick **Shades** in the map's **⋯**, in the group "Doors, windows and locks" (on
+the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Shades**, for the whole
+house), and each room's sheet gains one row for every blind and shade in the room: how far open
+they are, and **Open**, **Stop** and **Close** for all of them at once. It is off until ticked.
+Garage doors, gates, doors and any cover linked as a door's opener are never in it; they stay on
+their door's card.
+
 ## Alarms and the emergency banner
 
 Leak, smoke, gas and carbon monoxide sensors are drawn as a puddle or a round detector, and say
@@ -114,10 +121,13 @@ Assistant's own scene editor, for an administrator, and never on a wall screen.
 ## Audio
 
 Tick **Audio** in the map's **⋯** (Show on this screen, in the rail beside the map, and in the 3D
-view's own ⋯) and each room's sheet (in 3D, its panel) gains its music, shades and thermostat. It is
-off until a screen ticks it, and each screen (a phone, a wall) has its own tick. Off, the map and the
+view's own ⋯) and each room's sheet (in 3D, its panel) gains its music and **Room off**. It is off
+until a screen ticks it, and each screen (a phone, a wall) has its own tick. Off, the map and the
 sheets are exactly as before. **Set up ›** on the same line opens the matching card (below) right
-there over the map, ticked or not, for an administrator, on a wall screen too.
+there over the map, ticked or not, for an administrator, on a wall screen too. A room's shades and
+thermostats are lines of their own in the same list: **Shades** (free,
+[above](#doors-windows-and-locks)) and **Thermostats**
+([Climate & air quality](#heatmap-and-thermostats-pro-or-the-climate--air-quality-add-on)).
 
 - **On the map**: a small round speaker badge beside a room's name while one of its players is on,
   struck through while the room's first player is muted. It keeps clear of the name and of the
@@ -126,20 +136,16 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
   on the map never changes anything. The 3D view shows the same badge beside the room's name and
   readings (where the names are hidden, beside the readings); a tap on it opens the room's panel,
   which opens below the emergency button, never under it.
-- **The sheet**: under the room's name, its temperature and humidity (the middle reading of its
-  sensors) and who is there. **Room off (n)** turns off the room's lights and its players, never a
-  lock, a shade, the thermostat or a plug, and shows only while something is on. Then the scenes,
-  as before, and:
+- **The sheet**: **Room off (n)** turns off the room's lights and its players, never a lock, a
+  shade, a thermostat or a plug, and shows only while something is on. Then the scenes, as before,
+  and:
   - **Audio**: a row for each player, named by its system ("Control4 · Great Room", "Denon · Zone
     2"), with whether it is on, off or muted, **Mute**, **−**, the level, **+** and ⏻ (that player
     off), these five always on one line. Each **−** or **+** moves the level shown at once, one step
     a press (1 in 100 on a player that steps itself, such as a Control4 room), and quick presses add
     up; the level Home Assistant reports is shown as soon as it reports one. What a player can't do
     is left out or greyed: a player that is off shows its level as —.
-  - the room's lights, as before;
-  - **Shades**: one row for all the room's covers, **Open**, **Stop** and **Close** for all of them
-    at once, and how far open they are. Garage doors, gates and doors stay on their door's card.
-  - **Climate**: each thermostat's temperature now, its setpoint with − and +, and its mode.
+  - the room's lights, as before.
 
   Each press is one call to Home Assistant, with no question first. Anyone who can switch the lights
   can use them, on a wall screen too. If Home Assistant refuses, it says why in its own words.
@@ -161,12 +167,12 @@ there over the map, ticked or not, for an administrator, on a wall screen too.
   volume: Music Assistant, ESPHome, Cast, TVs.
 
 Audio needs PadSpan Pro or the Audio add-on. The **⋯** list is part of the new layout, PadSpan
-Pro's; on the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Audio** (off by
+Pro's and a wall screen's; on the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Audio** (off by
 default, shown where Audio is allowed) does the same for the whole house: the speaker beside a
 playing room's name, in the 3D view too, and the sheet's Audio with **Match rooms**. It is the one
 switch there: the 3D view's **⋯** has no Audio line of its own.
 
-## Heatmap (Pro or the Climate map add-on)
+## Heatmap and thermostats (Pro or the Climate & air quality add-on)
 
 **Settings → Atlas → Atlas — Mapped Light Control → Heatmap chip on the Atlas (temperature,
 humidity, CO₂)**, off by default, adds a **♨ Heatmap** chip to the Atlas. Tap it to step through
@@ -174,6 +180,13 @@ humidity, CO₂)**, off by default, adds a **♨ Heatmap** chip to the Atlas. Ta
 room is coloured from its own sensors: the placed ones, or, with none placed, the average of the
 room's sensors at its centre. Nothing crosses a wall, a room with no sensor stays uncoloured, and a
 reading over an hour old isn't used.
+
+**Thermostats**: tick **Thermostats** in the map's **⋯**, in the group "Motion and sensors" (on the
+classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Thermostats**, for the whole
+house), and each room's sheet gains each of its thermostats: its temperature now, its mode, and its
+setpoint with − and +. The line under the room's name with its temperature and humidity (the middle
+reading of its sensors) comes with them. It is off until ticked. Each press is one call to Home
+Assistant, as in Audio. The temperature, humidity and air chips under room names stay free.
 
 ## Power teams
 
@@ -238,17 +251,17 @@ The sun curve is adapted from Adaptive Lighting.
 
 ## Showcase, Automorph and presets (Pro)
 
-Showcase, its themes, the West Coast Forest and the presets bar also come with the Looks pack add-on,
+Showcase, its themes, the West Coast Forest and look presets also come with the Looks pack add-on,
 on the free map; Whole house presets with the Vacation Mode & presets add-on. Automorph, Fit room,
 Light spread, Scene, Ripple and Hide untouched come with the Advanced smart lighting add-on, with
-Showcase in its Classic theme as their stage (its themes, the forest and the presets bar stay the
+Showcase in its Classic theme as their stage (its themes, the forest and look presets stay the
 Looks pack's).
 
 - **Showcase**: 20 themes for the whole map (colour, room edges, glow and light pools together).
   Pick one in the Atlas toolbar under **Presentation**.
 - **Automorph**: a soft glow drawn on the map from a fixture out into its room, in a choice of styles
   (toolbar → Automorph). It changes the map's look, not the lights.
-- **The presets bar** saves a whole look (theme, Automorph style, and if you like floor, spacing and
+- **Look presets** save a whole look (theme, Automorph style, and if you like floor, spacing and
   layout) under a name, and **Apply** brings it back.
 - **Whole house presets** remembers the house itself: **Set** keeps every light's and fan's state
   (on or off, brightness, colour, effect, fan speed), and **Apply** puts the whole house back that

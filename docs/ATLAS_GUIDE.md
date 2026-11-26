@@ -11,11 +11,11 @@ Atlas works two ways depending on which PadSpan you installed:
 
 Either free version gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it — plus locks, the leak, smoke, gas and CO alarms and the emergency banner. From December 1, 2026, it also places every light and device where it really is, drawn as a plain marker; until then placing lights and sensors where they are needs a PadSpan Pro or a Bright Pro key. Shapes and sizes, Automorph, Showcase, WLED's Advanced controls and moving weather need a PadSpan Pro or a Bright Pro key. Other parts need PadSpan Pro or one add-on:
 
-- **Shapes and sizes, the type override, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, and power teams that follow the day, sleep and wake you** also come with the Advanced smart lighting add-on. A Bright Pro key keeps them.
-- **Whole House Presets and Vacation Mode**: Pro or the Vacation Mode & presets add-on. A Bright Pro key doesn't include them.
-- **Showcase, its themes and the presets bar** also come with the Looks pack add-on, on the free map.
-- **The emergency lighting test, arming the house alarm, and a door's card with its opener and lock**: Pro or the Alarm & security add-on. A Bright Pro key keeps them.
-- **A room sheet's music, shades and thermostats**: Pro or the Audio add-on.
+- **Shapes with their sizes and angles, the type override, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, and power teams that follow the day, sleep and wake you** also come with the Advanced smart lighting add-on. A Bright Pro key keeps them.
+- **Whole house presets and Vacation Mode**: Pro or the Vacation Mode & presets add-on. A Bright Pro key doesn't include them.
+- **Showcase, its themes and look presets** also come with the Looks pack add-on, on the free map.
+- **Arming the house alarm, a door's card with its opener and lock (garage doors and gates), and the emergency lighting test**: Pro or the Alarm & security add-on. A Bright Pro key keeps them.
+- **A room sheet's music and Room off**: Pro or the Audio add-on. **Its thermostats, and the Heatmap**: Pro or the Climate & air quality add-on. **Its shades** are free.
 - **The robot vacuum on the map, with its card**: free until December 1, 2026; from then Pro, the Robot vacuum add-on or a Bright Pro key.
 - **Heights and What is this?**: PadSpan Pro only.
 
@@ -66,15 +66,15 @@ With PadSpan Pro, a Bright Pro key or the Advanced smart lighting add-on, Automo
 
 Showcase is a set of 20 curated visual themes for the whole map — colour, room edges, glow and light-pool style change together, each theme with its own distinct hook (a mandala-poled neon HUD look, a plain white-marble-and-brass "real estate" look, a bioluminescent deep-sea look with no room edges at all, and so on). Pick one from the Atlas toolbar under **Presentation**.
 
-The **presets bar** saves a whole look — Showcase theme, Automorph style, and optionally floor/spacing/layout — under a name you choose, and loads it back later with **Apply**. Older presets saved before layout was included never move your camera when applied.
+**Look presets** save a whole look — Showcase theme, Automorph style, and optionally floor/spacing/layout — under a name you choose, and loads it back later with **Apply**. Older presets saved before layout was included never move your camera when applied.
 
-Showcase, its themes, the West Coast Forest and the presets bar come with PadSpan Pro, a Bright Pro key, or the Looks pack add-on. With the Looks pack alone the lights aren't placed, so Showcase draws them in the middle of their rooms.
+Showcase, its themes, the West Coast Forest and look presets come with PadSpan Pro, a Bright Pro key, or the Looks pack add-on. With the Looks pack alone the lights aren't placed, so Showcase draws them in the middle of their rooms.
 
-## Whole House Presets and Vacation Mode
+## Whole house presets and Vacation Mode
 
 Both need PadSpan Pro or the Vacation Mode & presets add-on. A Bright Pro key doesn't include them.
 
-**Whole House Presets** is a different kind of preset from the presets bar, right beside it: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
+**Whole house presets** is a different kind of preset from look presets, right beside them: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
 
 **🌴 Vacation Mode** is the one permanent entry at the top of that same list. It isn't a saved snapshot: it learns your house's own day-to-day routine from Home Assistant's history (per light, per day of the week) and keeps switching lights to match it, with some randomness so it doesn't look like a timer, until you turn it off. While it's on, a banner sits in the middle of both Atlas screens with an **Energy saving** slider (100% follows the full routine; lower settings light less at once). Turning it on or off needs an administrator account.
 
@@ -124,9 +124,11 @@ device shows its height ("2.40 m up"). Live Aboard's Edit → Heights sets the s
 
 Tap a room's name on the map for its sheet: every device in the room, **All lights on / off**,
 fans on / off, and a **▶ button for each of the room's scenes and scripts** in Home Assistant (the
-ones in that room's area, up to six). Tap a floor's badge for the floor's sheet. With PadSpan Pro
-or the Audio add-on, the sheet also has **Room off**, each player's volume, the room's shades and
-its thermostats ([manual chapter 15, Audio](manual/15-the-atlas.md#audio)).
+ones in that room's area, up to six). Tap a floor's badge for the floor's sheet. Ticked in **⋯**
+(or, on the classic layout, in **Settings → Atlas**), the sheet also has the room's **Shades**
+(free), each player's volume and **Room off** (Audio: PadSpan Pro or the Audio add-on), and its
+thermostats (PadSpan Pro or the Climate & air quality add-on); see
+[manual chapter 15, Audio](manual/15-the-atlas.md#audio).
 
 **◎ Find active** (in the floor and device-type bar) scrolls the map to the first device that's
 doing something right now, a light on or motion, and points it out.

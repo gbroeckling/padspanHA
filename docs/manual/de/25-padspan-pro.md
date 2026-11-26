@@ -91,18 +91,17 @@ zu drei Zuhause. **PadSpan Pro enthält sie alle.** Preise, und wo du eines kauf
 
 | Add-on | Was es freischaltet |
 | --- | --- |
-| Audio | Lautstärke, Stummschalten und Aus für die Player jedes Raums: die Zeile Audio in der **⋯**-Liste auf dem neuen Layout, **Einstellungen → Atlas → Audio** auf dem klassischen ([Kapitel 15](15-the-atlas.md#audio)) |
-| Alarm & Sicherheit | Scharf und unscharf schalten im Notfallknopf, der Test der Notbeleuchtung, die Karte einer Tür mit Öffner und Schloss, **Geräte → Türöffner** und Öffner und Schlösser aus Relais |
-| WLAN-Abdeckung | Der Reiter Wi-Fi coverage |
-| Klimakarte | Die ♨ Heatmap im Atlas |
-| Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt) | Der Tag noch einmal im Atlas abgespielt (Traceback → Playback) |
+| Audio | Lautstärke, Stummschalten und Aus für die Player jedes Raums, der Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, und Raum aus: die Zeile Audio in der **⋯**-Liste am Wanddisplay und auf dem neuen Layout, **Einstellungen → Atlas → Audio** auf dem klassischen ([Kapitel 15](15-the-atlas.md#audio)) |
+| Alarm & Sicherheit | Scharf und unscharf schalten im Notfallknopf, die Karte einer Tür mit Öffner und Schloss für Garagentore und Tore, **Geräte → Türöffner**, Öffner und Schlösser aus Relais und der Test der Notbeleuchtung |
+| Klima & Luftqualität | Die ♨ Heatmap im Atlas und die Thermostate jedes Raums in seinem Blatt: die Zeile Thermostate in der **⋯**-Liste, **Einstellungen → Atlas → Thermostate** auf dem klassischen Layout ([Kapitel 15](15-the-atlas.md#heatmap-und-thermostate-pro-oder-das-add-on-klima--luftqualität)) |
 | Urlaubsmodus & Voreinstellungen | Der Urlaubsmodus und die Whole house presets |
-| Looks-Paket | Die Themen Graphit, Ozean, Dämmerung und Tag; im Atlas Showcase mit seinen Themen, der West Coast Forest und die Presets-Leiste |
-| Forensik | Die Aufzeichnung von Forensik |
-| Präsenz-Auswertungen | Stoßzeiten und Finden |
-| Erweiterte smarte Beleuchtung | Power-Teams: anlegen, ändern und entfernen, dem Tag folgen, Sleep, die Schlafenszeit, das Nachtlicht und das Wecken; im Atlas die Advanced-Steuerung von WLED, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, Leuchtenformen und das Festlegen der Art (mit Showcase im Thema Classic als Bühne). Ein Licht dort platzieren, wo es wirklich ist, bleibt bis zum 1. Dezember 2026 bei Pro, dann ist es kostenlos |
+| Erweiterte smarte Beleuchtung | Power-Teams: anlegen, ändern und entfernen, dem Tag folgen, Sleep, die Schlafenszeit, das Nachtlicht und das Wecken; im Atlas die Advanced-Steuerung von WLED, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, Leuchtenformen mit ihrer Größe und ihrem Winkel und das Festlegen der Art (mit Showcase im Thema Classic als Bühne). Ein Licht dort platzieren, wo es wirklich ist, bleibt bis zum 1. Dezember 2026 bei Pro, dann ist es kostenlos |
+| WLAN-Abdeckung | Der Reiter Wi-Fi coverage |
+| Looks-Paket | Die Themen Graphit, Ozean, Dämmerung und Tag; im Atlas Showcase mit seinen Themen, der West Coast Forest und die Look-Presets |
+| Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt) | Der Tag noch einmal abgespielt, in Traceback auf der Atlas-Karte (Traceback → Playback) |
+| Präsenz-Auswertungen | Finden, Stoßzeiten und die Aufzeichnung von Forensik (Forensik gab es vorher einzeln; ein Schlüssel mit Forensik hat alle Präsenz-Auswertungen) |
 | Erweiterte Kartenerstellung (ab dem 1. Dezember 2026) | Das Lesen von Plänen mit KI ([Kapitel 19](19-ai-features.md)), die Türen, Fenster, Möbel und Treppen eines LiDAR-Scans im 3D-Haus und Grundrisse aus einem LiDAR-Scan |
-| Saugroboter (ab dem 1. Dezember 2026) | Die Karte deines Saugroboters als Grundriss (**🤖 Import from a robot vacuum** und in der Einrichtung **Die Karte deines Saugroboters nutzen**), der Roboter im Atlas und in 3D mit seiner Karte, die Raumortungsfahrten, **Fehler finden** und das WLAN beim Saugen ([Kapitel 9](09-setup-the-map.md#raumortung-mit-dem-roboter)) |
+| Saugroboter (ab dem 1. Dezember 2026) | Die Karte deines Saugroboters als Grundriss (**🤖 Import from a robot vacuum** und in der Einrichtung **Die Karte deines Saugroboters nutzen**), der Roboter im Atlas und in 3D mit seiner Karte, die Raumortungsfahrten, **Fehler finden** und das WLAN beim Saugen (mit WLAN-Abdeckung) ([Kapitel 9](09-setup-the-map.md#raumortung-mit-dem-roboter)) |
 
 Erweiterte Kartenerstellung und Saugroboter gibt es ab dem 1. Dezember 2026 zu kaufen. Ein Grundriss
 aus einem LiDAR-Scan und die Funktionen für den Saugroboter sind bis dahin kostenlos; danach brauchen
@@ -113,7 +112,7 @@ bessere Preis: dieser Rabatt oder ein Sonderangebot, nie beides.
 
 Kostenlos auf jeder Installation, mit oder ohne sie: eine auslösende Alarmanlage (im Notfallknopf,
 ohne etwas zum Drücken, und im roten Banner), Auf- und Zuschließen auf der Karte und in der Karte
-eines Raums, Alert pulse, der Reiter Auswertungen, das 📍 Locate-Blinken eines Geräts und ein schon
+eines Raums, die Beschattung in der Karte eines Raums, Alert pulse, der Reiter Auswertungen in Traceback, das 📍 Locate-Blinken eines Geräts und ein schon
 angelegtes Power-Team als ein Licht (an, aus, dimmen, seine Stromquelle und jede Birne).
 
 - Deine Add-ons teilen sich einen Schlüssel: Kaufst du ein weiteres mit derselben E-Mail, kommt es
