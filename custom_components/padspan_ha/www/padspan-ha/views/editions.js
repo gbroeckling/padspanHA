@@ -95,7 +95,8 @@ export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
 // nothing offers it until then (the licence card, the site); Pro includes it
 // meanwhile, and a feature that was free and moves into it stays everyone's
 // until it is (addonGate). licence.ADDON_ON_SALE_FROM says the same for the
-// backend.
+// backend. on_sale: false with no moment: not sold until one is set
+// (licence.NOT_ON_SALE; the specialty c4local until it is published).
 export const ADDON_TERM = "2 years";
 // December 1, 2026, 00:00 Pacific (the owner, 2026-11-25): the free basics (licence.free_basics; the panel reads the
 // backend's word, settings.free_basics), the "3D house is now free" card, and maps and vacuum on sale. The backend's
@@ -118,11 +119,21 @@ export const ADDONS = Object.freeze([
   { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Power teams that follow the day, sleep and wake you, WLED control, Automorph, Scene, Ripple, Light spread, Fit room and fixture shapes" },
   { name: "vacuum", words: "Robot vacuum", price: "$6.45 CAD", on_sale_from: FREE_BASICS_FROM,
     desc: "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans" },
+  // Specialty (the owner, 2026-11-25): a product of its own, sold beside the add-ons and never in their list or their
+  // sale. OS 2 Local for Control4 is a separate Home Assistant integration (domain control4) PadSpan can install
+  // (views/c4local.js, c4local_install.py); one payment, good for life (lifetime). on_sale: false until it is
+  // published (licence.NOT_ON_SALE); on_sale_from, an ISO moment, puts it on sale by itself from then (addonOnSale).
+  // The site's #c4local box shows exactly while it is on sale (tests/test_site_claims.py).
+  { name: "c4local", words: "OS 2 Local for Control4", price: "$26 CAD", on_sale: false, on_sale_from: "", category: "specialty",
+    lifetime: true, url: "https://padspan.traks.ca/#c4local",
+    desc: "Home Assistant's Control4 integration for OS 2 controllers: a local login with the controller's system password, and room volume, mute and off" },
 ]);
-/** Whether add-on `name` is sold at `now`: a known add-on whose on_sale_from, if any, has come. */
+/** Whether add-on `name` is sold at `now`: a known add-on whose on_sale_from, if any, has come; without one, an
+ *  entry that is not on_sale: false. */
 export function addonOnSale(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
-  return !!a && (!a.on_sale_from || now >= Date.parse(a.on_sale_from));
+  if (!a) return false;
+  return a.on_sale_from ? now >= Date.parse(a.on_sale_from) : a.on_sale !== false;
 }
 /** Whether add-on `name`'s features may be used: always on Pro, else the
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
@@ -159,11 +170,11 @@ export function halfPrice(price) {
   return `$${(Math.floor(cents / 2) / 100).toFixed(2)} CAD`;
 }
 /** What add-on `name` costs at `now`: { price ("$3.22 CAD" in the sale, else "$6.45 CAD"), normal ("$6.45"), half
- *  (true in the sale) }, or null for no such add-on. One that isn't on sale yet is never half off. */
+ *  (true in the sale) }, or null for no such add-on. One that isn't on sale yet, or a specialty, is never half off. */
 export function addonPriceParts(name, now = Date.now()) {
   const a = ADDONS.find(x => x.name === name);
   if (!a) return null;
-  const half = addonHalfOff(now) && addonOnSale(name, now);
+  const half = addonHalfOff(now) && addonOnSale(name, now) && a.category !== "specialty";   // a specialty is never in a sale
   return { price: half ? halfPrice(a.price) : a.price, normal: a.price.replace(/ CAD$/, ""), half };
 }
 /** An add-on's price now, as the site sells it ("$8.65 CAD"; "$4.32 CAD" in the sale), "" for no such add-on: what a
@@ -241,7 +252,7 @@ export function addonSaleCardDue(settings, now = Date.now()) {
   if (typeof s.pro_has_key !== "boolean") return false;            // not loaded yet: no flash
   if (!addonSaleCardPicks(s, now).length) return false;            // it names what it offers: never an empty list
   if (s.license_is_trial && s.pro_active !== false) return true;
-  return ADDONS.some(a => addonOnSale(a.name, now) && !addonAllowed(s, a.name));
+  return ADDONS.some(a => addonOnSale(a.name, now) && a.category !== "specialty" && !addonAllowed(s, a.name));   // never in the sale
 }
 // The few the card names with their half price: the first three on sale this
 // install can't use yet, in this order.

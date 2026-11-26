@@ -71,6 +71,7 @@ def test_the_summary_lists_are_the_senders():
     assert S._ADDON_KEY_WORDS == T.ADDON_KEY_WORDS and S._ADDON_SALE_CARD == T.ADDON_SALE_CARD_WORDS
     assert S._ADDON_SALE_WHEN == AR.SALE_WHEN
     assert {a: _ts(t) for a, t in S._ADDON_ON_SALE_FROM.items()} == L.ADDON_ON_SALE_FROM
+    assert S._ADDON_NOT_ON_SALE == L.NOT_ON_SALE
     assert {k for _, keys in S._ADDON_MARKET for k, _ in keys} == set(AR.MARKET_COUNTS)
     assert S._ADDON_AUDIO == AR.AUDIO_SYSTEMS and S._ADDON_C4_OS == AR.C4_OS_WORDS and S._ADDON_C4_ENTRY == AR.C4_ENTRY_WORDS
     assert tuple(w for w, _ in S._ADDON_WIFI) == AR.WIFI_WORDS and S._ADDON_HISTORY == AR.HISTORY_WORDS
@@ -193,6 +194,7 @@ def test_stats_php_adds_up_the_section_with_the_senders_words():
     assert set(re.findall(r"'(\w+)'(?! =>)", market)) == set(AR.MARKET_COUNTS)
     on_sale = re.search(r"\$ADDON_ON_SALE_FROM = array\((.*?)\);", src, re.S).group(1)
     assert {a: _ts(t) for a, t in re.findall(r"'(\w+)' => '([^']+)'", on_sale)} == L.ADDON_ON_SALE_FROM
+    assert _words_in(src, "ADDON_NOT_ON_SALE") == set(L.NOT_ON_SALE)
     for k in ("held", "kept", "was", "moved", "used", "market", "audio", "c4", "wifi", "history", "plans", "os", "entry",
               "local"):
         assert f"['{k}']" in src, k
@@ -239,13 +241,14 @@ def test_stats_php_adds_it_up_when_php_is_here(tmp_path):
         return json.loads(out.stdout)["addons"]
     # Before December 1 Advanced map creation and Robot vacuum are not sold: everyone's, so every install is on them.
     b = run("before", FREE_BASICS_FROM_TS - 1)
-    assert b["not_sold"] == ["maps", "vacuum"], b["not_sold"]
+    assert b["not_sold"] == ["maps", "vacuum", "c4local"], b["not_sold"]
     assert b["on_it"]["maps"] == 3 and b["on_it"]["vacuum"] == 3 and b["used"]["maps"] == 1
     assert b["reach"]["maps"] == {"installs": 1, "on_it": 1} and b["reach"]["vacuum"] == {"installs": 1, "on_it": 1}
     assert b["moved"]["lidar"]["into"] == "maps"
-    # From December 1 every add-on is on sale.
+    # From December 1 every add-on is on sale but OS 2 Local for Control4, which has no moment yet, and is never
+    # everyone's: on it is Pro (B) or a key carrying it.
     a = run("from", FREE_BASICS_FROM_TS)
-    assert a["not_sold"] == []
+    assert a["not_sold"] == ["c4local"] and a["not_on_sale"] == ["c4local"] and a["on_it"]["c4local"] == 1
     assert a["on_it"]["maps"] == 1 and a["on_it"]["vacuum"] == 1
     assert a["reach"]["vacuum"] == {"installs": 1, "on_it": 1}
     assert a["installs"] == 3 and a["licence"] == {"addon": 1, "pro_year": 1, "trial": 1}
@@ -268,7 +271,8 @@ def test_stats_php_and_the_dashboard_read_the_same_keys():
     m = re.search(r"\$addons = array\((.*?)\);", src, re.S)
     keys = set(re.findall(r"'(\w+)' =>", m.group(1)))
     assert {"installs", "licence", "held", "kept", "was", "changes", "moved", "on_it", "used", "refused", "market", "reach",
-            "audio", "c4", "c4_local", "c4_os2_local", "wifi", "history", "plans", "roomplan", "valetudo", "not_sold"} == keys
+            "audio", "c4", "c4_local", "c4_os2_local", "wifi", "history", "plans", "roomplan", "valetudo", "not_sold",
+            "not_on_sale"} == keys
     ib = _IB.read_text(encoding="utf-8")
     for k in keys:
         assert f"ao.{k}" in ib, k

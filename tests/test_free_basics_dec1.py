@@ -105,14 +105,15 @@ def test_one_moment_in_the_backend_the_panel_and_the_add_ons() -> None:
 def test_the_rungs_and_the_add_ons_on_sale_switch_at_the_moment(monkeypatch) -> None:
     assert licence.free_basics(_JUST_BEFORE) is False and licence.free_basics(_T) is True
     for a in licence.ADDONS:
-        assert licence.addon_on_sale(a, _JUST_BEFORE) is (a not in ("maps", "vacuum")), a
-        assert licence.addon_on_sale(a, _T) is True, a
+        # OS 2 Local for Control4 (licence.NOT_ON_SALE) is not on sale at either moment: it has none yet.
+        assert licence.addon_on_sale(a, _JUST_BEFORE) is (a not in ("maps", "vacuum", *licence.NOT_ON_SALE)), a
+        assert licence.addon_on_sale(a, _T) is (a not in licence.NOT_ON_SALE), a
     _at(monkeypatch, _JUST_BEFORE)
     assert (licence.placement_tier(), licence.house3d_tier()) == ("bright", "pro")
     assert "maps" not in licence.addons_on_sale() and "vacuum" not in licence.addons_on_sale()
     _at(monkeypatch, _T)
     assert (licence.placement_tier(), licence.house3d_tier()) == ("free", "free")
-    assert licence.addons_on_sale() == list(licence.ADDONS)
+    assert licence.addons_on_sale() == [a for a in licence.ADDONS if a not in licence.NOT_ON_SALE]
 
 
 def test_a_running_install_tells_the_panel_with_its_next_settings_read(monkeypatch) -> None:
@@ -121,10 +122,10 @@ def test_a_running_install_tells_the_panel_with_its_next_settings_read(monkeypat
     _at(monkeypatch, _JUST_BEFORE)
     before = ws._get_settings(h)
     assert "free_basics" not in before
-    assert before["addons_on_sale"] == [a for a in licence.ADDONS if a not in ("maps", "vacuum")]
+    assert before["addons_on_sale"] == [a for a in licence.ADDONS if a not in ("maps", "vacuum", *licence.NOT_ON_SALE)]
     _at(monkeypatch, _T)
     after = ws._get_settings(h)
-    assert after["free_basics"] is True and after["addons_on_sale"] == list(licence.ADDONS)
+    assert after["free_basics"] is True and after["addons_on_sale"] == [a for a in licence.ADDONS if a not in licence.NOT_ON_SALE]
 
 
 async def _store(stored: dict | None):
@@ -343,7 +344,8 @@ def test_the_free_house_cards_flag_is_kept_settable_and_survives_a_restore() -> 
     assert ss.trial_state_kept({"house3d_free_card_done": True}, {"house3d_free_card_done": False})["house3d_free_card_done"] is True
     pj = (_ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
     # In the Overview's one-card-at-a-time line, after the lifetime card (which ends with lifetime).
-    assert "|| this._freeHouseCard() || this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);" in pj
+    assert ("|| this._freeHouseCard() || this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned)"
+            " || this._c4localOverviewCard();") in pj
 
 
 # ═══ A stable 0.38.274 install updating ════════════════════════════════════════
@@ -369,7 +371,7 @@ async def test_a_stable_0_38_274_install_before_and_from_the_moment(monkeypatch,
     assert "atlas_3d_default_v1_applied" not in store.data, "the once-marker written before the moment"
     _at(monkeypatch, _T)
     got = await _settings_get(store)
-    assert got["free_basics"] is True and got["addons_on_sale"] == list(licence.ADDONS)
+    assert got["free_basics"] is True and got["addons_on_sale"] == [a for a in licence.ADDONS if a not in licence.NOT_ON_SALE]
     assert got["atlas_3d_enabled"] is (not key)
     assert vi.licensed(h) is bool(key)
     assert got["tier"] == ("pro" if key else "free")

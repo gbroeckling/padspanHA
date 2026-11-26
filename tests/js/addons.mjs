@@ -22,11 +22,12 @@ const KEY = { tier: "free", pro_has_key: true, addon_key: true, pro_active: true
   license_addons_until: { audio: "2028-11-25 10:00:00", wifi: "2028-12-01 10:00:00" }, addons_licensed: ["audio", "wifi"] };
 const LAPSED = { ...KEY, pro_active: false, license_addons: [], addons_licensed: [] };
 
-// The table: twelve add-ons, the owner's prices, words and a line each (maps and vacuum: on sale from December 1).
+// The table: twelve add-ons and one specialty, the owner's prices, words and a line each (maps and vacuum: on sale from
+// December 1; c4local: not on sale yet, 2026-11-25).
 const want = { audio: "$6.45 CAD", alarm: "$6.45 CAD", wifi: "$6.45 CAD", climate: "$8.65 CAD", timetravel: "$7.55 CAD",
   vacation: "$4.25 CAD", looks: "$4.25 CAD", forensics: "$5.56 CAD", insights: "$5.56 CAD", maps: "$8.65 CAD",
-  lighting: "$8.65 CAD", vacuum: "$6.45 CAD" };
-check("eleven add-ons, in order", JSON.stringify(E.ADDONS.map(a => a.name)) === JSON.stringify(Object.keys(want)),
+  lighting: "$8.65 CAD", vacuum: "$6.45 CAD", c4local: "$26 CAD" };
+check("twelve add-ons and one specialty, in order", JSON.stringify(E.ADDONS.map(a => a.name)) === JSON.stringify(Object.keys(want)),
   E.ADDONS.map(a => a.name));
 for (const a of E.ADDONS) {
   check(`${a.name}: its price`, a.price === want[a.name], a.price);
@@ -35,6 +36,23 @@ for (const a of E.ADDONS) {
 check("the table can't be changed at run time", Object.isFrozen(E.ADDONS));
 check("the term", E.ADDON_TERM === "2 years", E.ADDON_TERM);
 check("the buy link", E.ADDONS_URL === "https://padspan.traks.ca/#addons", E.ADDONS_URL);
+
+// Specialty (the owner, 2026-11-25): OS 2 Local for Control4, for life, its own box on the site, not on sale yet, and
+// never in a sale; the only specialty and the only one for life.
+const C4 = E.ADDONS.find(a => a.name === "c4local") || {};
+check("c4local: a specialty, for life", C4.category === "specialty" && C4.lifetime === true
+  && E.ADDONS.filter(a => a.category === "specialty" || a.lifetime).length === 1, JSON.stringify(C4));
+check("c4local: OS 2 Local for Control4 at its own box", C4.words === "OS 2 Local for Control4" && C4.url === "https://padspan.traks.ca/#c4local");
+check("c4local: not on sale, and no date yet", C4.on_sale === false && C4.on_sale_from === ""
+  && E.addonOnSale("c4local") === false && E.addonOnSale("c4local", Date.parse("2030-01-01T00:00:00Z")) === false);
+for (const at of ["2026-11-27T08:00:00Z", "2026-12-24T12:00:00Z", "2027-01-02T07:59:59Z", "2027-03-01T00:00:00Z"]) {
+  const p = E.addonPriceParts("c4local", Date.parse(at));
+  check(`c4local: never half off (${at})`, p.price === "$26 CAD" && p.half === false && E.addonPrice("c4local", Date.parse(at)) === "$26 CAD",
+    JSON.stringify(p));
+}
+check("the sale still halves the feature add-ons", E.addonPriceParts("audio", Date.parse("2026-12-24T12:00:00Z")).half === true);
+check("c4local: an add-on key holding it may use it", E.addonAllowed({ ...KEY, addons_licensed: ["c4local"] }, "c4local") === true
+  && E.addonAllowed(KEY, "c4local") === false && E.addonAllowed({ tier: "pro" }, "c4local") === true);
 
 // Pro has every add-on; an active add-on key has its own; nothing else has any.
 for (const a of E.ADDONS) check(`addonAllowed: Pro has ${a.name}`, E.addonAllowed({ tier: "pro" }, a.name) === true);

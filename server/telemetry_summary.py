@@ -811,9 +811,12 @@ def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[st
 # market and the moved cohort are each install's latest report; the funnel is summed over every report; use and licence
 # changes read each install's reports over the window. tests/test_addon_dashboards.py holds these lists to the sender's.
 _ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting",
-           "vacuum")
+           "vacuum", "c4local")
 # Not sold before these moments (licence.ADDON_ON_SALE_FROM): everyone's until then, so "on it" is every install.
 _ADDON_ON_SALE_FROM = {"maps": "2026-12-01T08:00:00Z", "vacuum": "2026-12-01T08:00:00Z"}
+# Not on sale, no moment yet (licence.NOT_ON_SALE): OS 2 Local for Control4, the specialty. Nothing free moved into it,
+# so it is never everyone's: "on it" is a key carrying it, or Pro, which includes it.
+_ADDON_NOT_ON_SALE = ("c4local",)
 _ADDON_LICENCES = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                    "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 _ADDON_DAYS = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
@@ -868,9 +871,10 @@ def _on_pro(a: dict) -> bool:
 
 
 def _sold(addon: str, now: float) -> bool:
-    """An add-on on sale at `now`: not a used word alone (_ADDON_NOT_SOLD), and its moment (if any) has come."""
+    """An add-on on sale at `now`: not a used word alone (_ADDON_NOT_SOLD), not without a moment yet
+    (_ADDON_NOT_ON_SALE), and its moment (if any) has come."""
     start = _ADDON_ON_SALE_FROM.get(addon)
-    return addon not in _ADDON_NOT_SOLD and (start is None or now >= datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp())
+    return addon not in _ADDON_NOT_SOLD and addon not in _ADDON_NOT_ON_SALE and (start is None or now >= datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp())
 
 
 def addons_section(latest: dict[str, dict], reports: list[dict], now: float | None = None) -> list[str]:
@@ -964,12 +968,12 @@ def addons_section(latest: dict[str, dict], reports: list[dict], now: float | No
     out.append("  Used over the window, of the installs on it now (an add-on key carrying it, or Pro)")
     out.append(f"    {'add-on':<11}{'on it':>7}{'used it':>9}")
     for addon in _ADDON_USED:
-        if not _sold(addon, at):
+        if not _sold(addon, at) and addon not in _ADDON_NOT_ON_SALE:
             on = set(told)
             note = "  not sold yet: every install that says"
         else:
             on = {iid for iid, a in told.items() if _holds(a, addon) or _on_pro(a)}
-            note = ""
+            note = "  not sold yet: Pro includes it" if not _sold(addon, at) else ""
         n_used = len(on & used_by[addon])
         out.append(f"    {addon:<11}{len(on):>7}{n_used:>9}  {pct(n_used, len(on))}{note}")
 

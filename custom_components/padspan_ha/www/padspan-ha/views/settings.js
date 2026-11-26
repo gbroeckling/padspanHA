@@ -59,6 +59,11 @@ const POWER_TEAMS = await import(`./power_teams.js${new URL(import.meta.url).sea
 const LIGHTS_FOLLOW = await import(`./lights_follow.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: lights_follow failed to load", err); return null; });
 
+// Settings → Tracking → Home Assistant and integrations → OS 2 Local for Control4 (views/c4local.js), for an
+// administrator. Optional, as the others are.
+const C4LOCAL = await import(`./c4local.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: c4local failed to load", err); return null; });
+
 // Its words in the panel's language (views/i18n.js; English is the key). So far the frame, Appearance, Scanner Map
 // and Tracking; the other tabs are still English.
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
@@ -2971,6 +2976,8 @@ function _settingsPresence(ctx, el){
 
   // ── Lights follow people (lights_follow.py): off until turned on here ──
   if (LIGHTS_FOLLOW) put("integrations", LIGHTS_FOLLOW.lightsFollowSection(ctx, el));
+  const c4local = C4LOCAL ? C4LOCAL.settingsCard(ctx, el) : null;
+  if (c4local) put("integrations", c4local);
 
   // ── Suspend Databases (raw radio test) ─────────────────────────────────
   {
@@ -3480,7 +3487,7 @@ const ADDON_WORDS = {
   climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
   maps: () => t("Advanced map creation"), lighting: () => t("Advanced smart lighting"), vacuum: () => t("Robot vacuum"),
-};
+};   // c4local (OS 2 Local for Control4) is a product's name, the same in every language: addonWords gives a.words
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 // What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
 // panel's language with its price (editions.js ADDONS).
@@ -3499,6 +3506,24 @@ function addonPriceSaid(name, settings){
     return t("{price} — 30% off with {addon} (normally {normal})", { price: p.price, addon: addonWords(w), normal: p.normal });
   }
   return p.half ? t("{price} — half off until January 1 (normally {normal})", { price: p.price, normal: p.normal }) : p.price;
+}
+// Specialty (editions.js ADDONS category "specialty"): a part of its own under the add-ons, never in their list and
+// never in their sale. Without Pro: each one the key holds, its words and "for life", or, while it is on sale
+// (addonOnSale), an offer at its full price linking to its box on the site. Pro includes them: nothing shown.
+export function specialtyPart(el, s, now = Date.now()){
+  if (currentTier(s) === "pro") return null;
+  const rows = [];
+  for (const a of ADDONS.filter(x => x.category === "specialty")) {
+    if (addonAllowed(s, a.name)) {
+      rows.push(el("div", { "data-specialty": a.name, style: "color:#a7f3d0" }, addonWords(a) + " \u00B7 " + t("for life")));
+    } else if (addonOnSale(a.name, now)) {
+      rows.push(el("a", { href: a.url, target: "_blank", rel: "noopener", "data-specialty": a.name,
+        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + t("{price}, once, for life", { price: a.price })));
+    }
+  }
+  if (!rows.length) return null;
+  return el("div", { class: "addon-specialty", style: "font-size:12px;margin-top:8px;line-height:1.6" },
+    [el("div", { style: "color:#cbd5e1;font-weight:700" }, t("Specialty")), ...rows]);
 }
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
@@ -3607,15 +3632,17 @@ function _settingsLicence(ctx, el){
       const until = (s.license_addons_until && typeof s.license_addons_until === "object") ? s.license_addons_until : {};
       const on = Array.isArray(s.license_addons) ? s.license_addons : [];
       const today = new Date(Date.now()).toISOString().slice(0, 10);
-      const held = ADDONS.filter(a => typeof until[a.name] === "string" || on.includes(a.name)).map(a => {
+      const held = ADDONS.filter(a => a.category !== "specialty" && (typeof until[a.name] === "string" || on.includes(a.name))).map(a => {
         const d = String(until[a.name] || exp).slice(0, 10);
         return d >= today ? t("{addon} until {date}", { addon: addonWords(a), date: d })
                           : t("{addon} ended on {date}", { addon: addonWords(a), date: d });
       });
-      line = "\u2713 " + t("PadSpan add-ons: {list}", { list: held.join(" \u00B7 ") });
+      const specialtyHeld = ADDONS.some(a => a.category === "specialty" && (typeof until[a.name] === "string" || on.includes(a.name)));
+      // A key that holds only a specialty (OS 2 Local for Control4) says so in the Specialty part below.
+      line = "\u2713 " + (held.length ? t("PadSpan add-ons: {list}", { list: held.join(" \u00B7 ") }) : t("Your PadSpan add-on key is active."));
       colour = expiringSoon ? "#fbbf24" : "#a7f3d0";
       // Add-ons this PadSpan doesn't know (the server said needs_update, or none it knows is on the key): never Pro.
-      if (s.license_home_status === "needs_update" || !held.length) { line = "\u26A0 " + NEEDS_UPDATE(); colour = "#fbbf24"; }
+      if (s.license_home_status === "needs_update" || (!held.length && !specialtyHeld)) { line = "\u26A0 " + NEEDS_UPDATE(); colour = "#fbbf24"; }
     }
   } else if (lapsed) {
     const what = isTrial ? t("Your 90-day trial") : t("The {name} licence", { name: keyProd });
@@ -3721,8 +3748,8 @@ function _settingsLicence(ctx, el){
   // The add-ons, in one list beside Pro, to an install without Pro: the ones
   // it can't use yet, each linking to the site's #addons (editions.js ADDONS),
   // or at the cross discount straight to its payment (addonBuyUrl). Never one
-  // that isn't on sale yet (addonOnSale).
-  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => addonOnSale(a.name) && !addonAllowed(s, a.name));
+  // that isn't on sale yet (addonOnSale), never a specialty (its own part below).
+  const addonOffer = currentTier(s) === "pro" ? [] : ADDONS.filter(a => addonOnSale(a.name) && a.category !== "specialty" && !addonAllowed(s, a.name));
   if (addonOffer.length) {
     const offer = el("div", { class: "addon-offer", style: "font-size:12px;margin-top:8px;line-height:1.6" });
     offer.appendChild(el("div", { style: "color:#cbd5e1" },
@@ -3743,6 +3770,8 @@ function _settingsLicence(ctx, el){
     }
     card.appendChild(offer);
   }
+  const specialty = specialtyPart(el, s);
+  if (specialty) card.appendChild(specialty);
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key, or only an add-on key (kept
   // aside for the trial). Its own Buy link is off — this card already has one

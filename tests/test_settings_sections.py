@@ -40,6 +40,9 @@ EXPECTED = {
                      "Ask Assist which room someone is in", "Ignore Bermuda"],
     "privacy": ["Update Check", "Device makers", "Enhanced security", "💡 Suggest an idea", "Help improve PadSpan"],
 }
+# Cards drawn only sometimes, so not in the drawing above: OS 2 Local for Control4, to an administrator once Home
+# Assistant has Control4 (views/c4local.js; tests/test_c4local.py draws it in its section).
+SOMETIMES = {"integrations": ["OS 2 Local for Control4"]}
 
 
 def _presence_src() -> str:
@@ -72,7 +75,7 @@ def test_every_presence_card_goes_into_a_known_section():
     keys = _section_keys()
     assert keys == list(EXPECTED), "the sections and their order"
     used = re.findall(r'put\("([a-z]+)",', src)
-    assert len(used) == sum(len(v) for v in EXPECTED.values())
+    assert len(used) == sum(len(v) for v in EXPECTED.values()) + sum(len(v) for v in SOMETIMES.values())
     assert set(used) == set(keys), "a section with no card, or a card in a section that isn't listed"
     # wrap only takes the heading and the sections: no card goes around them.
     direct = re.findall(r"wrap\.appendChild\(", src)

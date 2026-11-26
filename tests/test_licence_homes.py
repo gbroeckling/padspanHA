@@ -35,7 +35,7 @@ def test_a_check_says_which_home_it_is():
     # addons: the add-ons this PadSpan knows; the licence server answers an
     # add-on key only to a PadSpan that says which ones it knows.
     assert p == {"t": "1", "token": "a" * 32, "version": VERSION, "label": "Cabin", "report": "0",
-                 "addons": "audio,alarm,wifi,climate,timetravel,vacation,looks,forensics,insights,maps,lighting,vacuum"}
+                 "addons": "audio,alarm,wifi,climate,timetravel,vacation,looks,forensics,insights,maps,lighting,vacuum,c4local"}
     assert LH.home_params(None)["token"] == "", "a home without a token yet asks for one"
     for k in ("license_home_token", "license_home_label", "license_home_status"):
         assert DEFAULT_SETTINGS[k] == ""

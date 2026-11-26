@@ -233,5 +233,9 @@
 "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} days. Lights stay where you placed them.": {
 "one": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times se désactivent et Forensique cesse d’enregistrer dans {n} jour. Les lumières restent là où vous les avez placées.",
 "other": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times se désactivent et Forensique cesse d’enregistrer dans {n} jours. Les lumières restent là où vous les avez placées."
-}
+},
+"for life": "à vie",
+"{price}, once, for life": "{price}, une fois, à vie",
+"Specialty": "Spécialité",
+"Your PadSpan add-on key is active.": "Votre clé de module PadSpan est active."
 }

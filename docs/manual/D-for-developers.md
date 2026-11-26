@@ -125,7 +125,7 @@ between versions. For automations, use the entities, services and events in
 [chapter 14](14-home-assistant-reference.md). More: [Websocket API](../02_WEBSOCKET_API.md).
 
 <!-- generated:websocket (scripts/build_manual_reference.py) -->
-284 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
+288 commands. Each takes `id` and `type` as well; a field marked (optional) may be left out.
 
 | Command | Fields | Administrator | Module | What it does (its handler's first sentence, or a line written for this table) |
 |---|---|---|---|---|
@@ -141,6 +141,10 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/auto_diagnostics` | – | – | `ws_diagnostics.py` | Run quick health checks and return pass/fail with recommendations. |
 | `padspan_ha/bright_import` | – | always | `ws_bright_import.py` | Back up, refuse a non-empty target, copy the house, reload. |
 | `padspan_ha/bright_import_status` | – | – | `ws_bright_import.py` | Whether a PadSpan Bright house is on this Home Assistant, whether it was imported, and whether it can be. |
+| `padspan_ha/c4local_check` | – | always | `c4local_install.py` | Check for an update: the newest release's version (pressed by an administrator). |
+| `padspan_ha/c4local_install` | – | always | `c4local_install.py` | Install or update (pressed by an administrator). |
+| `padspan_ha/c4local_status` | – | always | `c4local_install.py` | Settings' OS 2 Local for Control4 card and the Overview's offer: what is there now (reads only). |
+| `padspan_ha/c4local_undo` | – | always | `c4local_install.py` | Undo (pressed by an administrator): never locked behind the licence. |
 | `padspan_ha/calibration_beacon_profiles` | – | – | `ws_calibration.py` | Compute per-beacon signal profiles grouped by model. |
 | `padspan_ha/calibration_clear` | – | always | `ws_calibration.py` | Delete all calibration points and reset the model. |
 | `padspan_ha/calibration_clear_map` | `map_id` | always | `ws_calibration.py` | Delete all calibration points collected on a specific map. |

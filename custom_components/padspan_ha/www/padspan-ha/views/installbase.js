@@ -322,8 +322,10 @@ function renderUnlocked(ctx, root) {
       const both = (k) => (u(k) ? `${fmt(u(k))} · ${fmt(u(k, "installs"))}` : "–");
       const pick = (re) => Object.fromEntries(Object.entries(aUse).filter(([k]) => re.test(k)));
       const order = Object.keys(W_ADDONS.addon), places = Object.keys(W_ADDONS.place), days = Object.keys(W_ADDONS.days);
-      // Not sold yet (the feed's not_sold: an add-on before its moment, licence.ADDON_ON_SALE_FROM): everyone's.
+      // Not sold yet (the feed's not_sold: an add-on before its moment, licence.ADDON_ON_SALE_FROM): everyone's; one
+      // with no moment yet (not_on_sale, licence.NOT_ON_SALE: OS 2 Local for Control4) is Pro's, never everyone's.
       const notSold = (a) => Array.isArray(ao.not_sold) && ao.not_sold.includes(a);
+      const proOnly = (a) => Array.isArray(ao.not_on_sale) && ao.not_on_sale.includes(a);
       const onPro = Object.entries(lic).reduce((t, [k, v]) => t + (/^pro_/.test(k) ? Number(v) || 0 : 0), 0);
       const gained = total(Object.fromEntries(Object.entries(pick(/^addon_gained:/)).map(([k, v]) => [k, v.count])));
       // Offers and buy clicks per add-on and place: whatever the window's events name.
@@ -373,7 +375,7 @@ function renderUnlocked(ctx, root) {
             Object.entries(ao.refused).sort((x, y) => y[1].installs - x[1].installs).flatMap(([a, v]) => [
               [`${aw("addon", a)}: offered where refused`, v.installs, nA], ["  ↳ still without it", v.without, v.installs]]))] : []),
           ...(Object.keys(ao.on_it || {}).length ? [kvCard(el, `Used by the people on it (${W} days)`, "Of the installs on each add-on (its key carries it, or Pro), how many used it",
-            order.filter(a => ao.on_it[a]).map(a => [notSold(a) ? `${aw("addon", a)} (not sold yet: everyone)` : aw("addon", a), (ao.used || {})[a] || 0, ao.on_it[a]]))] : []),
+            order.filter(a => ao.on_it[a]).map(a => [notSold(a) ? `${aw("addon", a)} (not sold yet: ${proOnly(a) ? "Pro includes it" : "everyone"})` : aw("addon", a), (ao.used || {})[a] || 0, ao.on_it[a]]))] : []),
           ...(Object.keys(ao.moved || {}).length ? [kvCard(el, "Moved from free", "Installs that had each feature in use when it moved into an add-on, and how many are on that add-on now",
             Object.entries(ao.moved).flatMap(([w, v]) => [[`${aw("moved", w)} → ${aw("addon", v.into)}`, v.installs, nA],
               ...(notSold(v.into) ? [["  ↳ not sold yet", "–", null]] : [[`  ↳ holding ${aw("addon", v.into)}`, v.holds, v.installs], ["  ↳ on Pro", v.pro, v.installs]])]))] : []),
@@ -948,7 +950,7 @@ const W_ADDON_BUY_PLACES = ["licence_card", "power_teams", "team_card"];
 const W_ADDONS = {
   addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Time travel",
     vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
-    maps: "Advanced map creation", lighting: "Advanced smart lighting", vacuum: "Robot vacuum" },
+    maps: "Advanced map creation", lighting: "Advanced smart lighting", vacuum: "Robot vacuum", c4local: "OS 2 Local for Control4" },
   licence: { free: "Free", trial: "Pro trial", pro_year: "Pro, a year", pro_pass: "Pro, a two-year pass", pro_life: "Pro for life",
     pro_tester: "Pro, a tester's or a free year", bright: "Bright (Atlas only)", addon: "An add-on key", lapsed_trial: "Trial ended",
     lapsed_pro: "Pro ended", lapsed_bright: "Bright ended", lapsed_addon: "Add-on key ended" },

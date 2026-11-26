@@ -474,11 +474,14 @@ foreach ($tabs as $t => $n) { $tabs_out[$t] = array('count' => $n, 'installs' =>
 // is in `usage` with every other event; `refused` sets the offers where a
 // feature refused an add-on against each install's latest report.
 $ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps', 'lighting',
-                     'vacuum');
+                     'vacuum', 'c4local');
 // Not sold before these moments (licence.ADDON_ON_SALE_FROM): everyone's until then. The moment is read against now
 // (PADSPAN_STATS_NOW, a Unix time, when the includer defines one: the tests).
 $ADDON_ON_SALE_FROM = array('maps' => '2026-12-01T08:00:00Z', 'vacuum' => '2026-12-01T08:00:00Z');
 $ADDON_NOW = defined('PADSPAN_STATS_NOW') ? (int)PADSPAN_STATS_NOW : time();
+// Not on sale, no moment yet (licence.NOT_ON_SALE): OS 2 Local for Control4, the specialty. Nothing free moved into
+// it, so it is never everyone's: on it is a key carrying it, or Pro.
+$ADDON_NOT_ON_SALE = array('c4local');
 $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pro_tester', 'bright', 'addon',
                         'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
@@ -504,17 +507,22 @@ function addon_holds($a, $name) {
     return isset($held[$name]) && $held[$name] !== 'ended' && strpos($a['licence'], 'lapsed_') !== 0;
 }
 function addon_pro($a) { return strpos($a['licence'], 'pro_') === 0; }
-// On sale now: its moment, if it has one, has come.
+// On sale now: not without a moment yet, and its moment, if it has one, has come.
 function addon_sold($name) {
-    global $ADDON_ON_SALE_FROM, $ADDON_NOW;
+    global $ADDON_ON_SALE_FROM, $ADDON_NOW, $ADDON_NOT_ON_SALE;
+    if (in_array($name, $ADDON_NOT_ON_SALE, true)) { return false; }
     return !isset($ADDON_ON_SALE_FROM[$name]) || $ADDON_NOW >= strtotime($ADDON_ON_SALE_FROM[$name]);
 }
-// Holds it or is on Pro; an add-on not on sale yet is everyone's.
-function addon_on_it($a, $name) { return !addon_sold($name) || addon_holds($a, $name) || addon_pro($a); }
+// Holds it or is on Pro; an add-on not on sale yet before its moment is everyone's (one with no moment yet is not).
+function addon_on_it($a, $name) {
+    global $ADDON_NOT_ON_SALE;
+    return (!addon_sold($name) && !in_array($name, $ADDON_NOT_ON_SALE, true)) || addon_holds($a, $name) || addon_pro($a);
+}
 $addons = array('installs' => 0, 'licence' => array(), 'held' => array(), 'kept' => 0, 'was' => array(), 'changes' => array(),
                 'moved' => array(), 'on_it' => array(), 'used' => array(), 'refused' => array(), 'market' => array(),
                 'reach' => array(), 'audio' => array(), 'c4' => array(), 'c4_local' => 0, 'c4_os2_local' => 0,
                 'wifi' => array(), 'history' => array(), 'plans' => array(), 'roomplan' => 0, 'valetudo' => 0,
+                'not_on_sale' => $ADDON_NOT_ON_SALE,
                 'not_sold' => array_values(array_filter($ADDON_NAMES, function ($n) { return !addon_sold($n); })));
 $addon_used_by = array();     // add-on => id => 1: a row in the window said it was used
 $addon_seq = array();         // id => day => that row's addons

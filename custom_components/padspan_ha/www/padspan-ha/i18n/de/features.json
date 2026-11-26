@@ -233,5 +233,9 @@
 "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} days. Lights stay where you placed them.": {
 "one": "Leuchtenformen, Showcase, der 3D-Editor, Furnish, Personen in 3D, die Nachtdimmung des Wandbildschirms, Finden und Busy Times gehen in {n} Tag aus, und Forensik hört dann auf aufzuzeichnen. Die Lichter bleiben, wo du sie platziert hast.",
 "other": "Leuchtenformen, Showcase, der 3D-Editor, Furnish, Personen in 3D, die Nachtdimmung des Wandbildschirms, Finden und Busy Times gehen in {n} Tagen aus, und Forensik hört dann auf aufzuzeichnen. Die Lichter bleiben, wo du sie platziert hast."
-}
+},
+"for life": "lebenslang",
+"{price}, once, for life": "{price}, einmal, lebenslang",
+"Specialty": "Spezial",
+"Your PadSpan add-on key is active.": "Dein PadSpan-Add-on-Schlüssel ist aktiv."
 }

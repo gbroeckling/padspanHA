@@ -339,22 +339,26 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
 
 def test_maps_and_vacuum_go_on_sale_at_the_moment_in_both_halves(gates) -> None:
     """editions.js on_sale_from and licence.ADDON_ON_SALE_FROM say the same moment; before it nothing offers them (the
-    licence card; the site: tests/test_site_claims.py), from it the licence card does."""
-    late = ("maps", "vacuum")
-    assert all(a in ADDONS for a in late)
+    licence card; the site: tests/test_site_claims.py), from it the licence card does. OS 2 Local for Control4 (c4local,
+    the specialty) is on sale at neither moment (licence.NOT_ON_SALE, editions.js on_sale: false), and is never in the
+    add-ons' list (tests/test_c4local.py: its own part of the card, its own box on the site, hidden until it is)."""
+    late, not_yet = ("maps", "vacuum"), ("c4local",)
+    assert all(a in ADDONS for a in late + not_yet) and licence.NOT_ON_SALE == not_yet
     assert licence.ADDON_ON_SALE_FROM == {"maps": FREE_BASICS_FROM_TS, "vacuum": FREE_BASICS_FROM_TS}
     for a in ADDONS:
-        assert licence.addon_on_sale(a, FREE_BASICS_FROM_TS - 1) is (a not in late), a
-        assert licence.addon_on_sale(a, FREE_BASICS_FROM_TS) is True, a
+        assert licence.addon_on_sale(a, FREE_BASICS_FROM_TS - 1) is (a not in late + not_yet), a
+        assert licence.addon_on_sale(a, FREE_BASICS_FROM_TS) is (a not in not_yet), a
     assert not licence.addon_on_sale("maps") and not licence.addon_on_sale("vacuum")    # the suite's day: before
-    assert gates["onSale"] == {"before": {a: a not in late for a in ADDONS}, "from": {a: True for a in ADDONS}}
+    assert gates["onSale"] == {"before": {a: a not in late + not_yet for a in ADDONS},
+                               "from": {a: a not in not_yet for a in ADDONS}}
     ed = _src("views/editions.js")
     for name in late:
         assert re.search(r'\{ name: "%s", words: "[^"]+", price: "\$[\d.]+ CAD", on_sale_from: FREE_BASICS_FROM,' % name, ed), name
-    assert gates["offered"]["before"]["free"] == [a for a in ADDONS if a not in late]
-    assert gates["offered"]["before"]["audio"] == [a for a in ADDONS if a not in ("audio", *late)]
-    assert gates["offered"]["from"]["free"] == list(ADDONS)
-    assert gates["offered"]["from"]["audio"] == [a for a in ADDONS if a != "audio"]
+    assert '{ name: "c4local", words: "OS 2 Local for Control4", price: "$26 CAD", on_sale: false, on_sale_from: "",' in ed
+    assert gates["offered"]["before"]["free"] == [a for a in ADDONS if a not in late + not_yet]
+    assert gates["offered"]["before"]["audio"] == [a for a in ADDONS if a not in ("audio", *late, *not_yet)]
+    assert gates["offered"]["from"]["free"] == [a for a in ADDONS if a not in not_yet]
+    assert gates["offered"]["from"]["audio"] == [a for a in ADDONS if a not in ("audio", *not_yet)]
 
 
 def test_the_free_floor_plan_from_a_scan_stays_free_until_maps_is_on_sale(gates) -> None:

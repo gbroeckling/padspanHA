@@ -35,7 +35,7 @@ from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 _PKG = Path(licence.__file__).parent
 _VIEWS = _PKG / "www" / "padspan-ha" / "views"
 NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps",
-         "lighting", "vacuum")
+         "lighting", "vacuum", "c4local")
 LATER = (datetime.now(timezone.utc) + timedelta(days=700)).strftime("%Y-%m-%d %H:%M:%S")
 KEY = {"forensics_license_key": "PSPAN-ADDO-NNNN-NNNN-0001", "license_tier": "free", "license_addons": ["audio"],
        "license_addons_until": {"audio": LATER}}
@@ -284,6 +284,9 @@ def test_the_panels_words_for_each_add_on_are_the_tables() -> None:
     ed = (_VIEWS / "editions.js").read_text(encoding="utf-8")
     st = (_VIEWS / "settings.js").read_text(encoding="utf-8")
     for name, words in re.findall(r'\{ name: "(\w+)", words: "([^"]+)"', ed):
+        if name == "c4local":   # a product's name, the same in every language: addonWords falls back to a.words
+            assert f"{name}: () =>" not in st and "ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words" in st
+            continue
         assert f'{name}: () => t("{words}")' in st, name
 
 

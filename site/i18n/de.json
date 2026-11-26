@@ -1529,6 +1529,38 @@
   {
    "en": "Add-ons need the latest PadSpan.",
    "de": "Add-ons brauchen das neueste PadSpan."
+  },
+  {
+   "en": "Specialty",
+   "de": "Spezial"
+  },
+  {
+   "en": "For one kind of home · one payment, good for life",
+   "de": "Für eine bestimmte Art von Zuhause · eine Zahlung, gilt lebenslang"
+  },
+  {
+   "en": "OS 2 Local for Control4 <span style=\"color:var(--mut);font-weight:600\">$26 CAD</span>",
+   "de": "OS 2 Local for Control4 <span style=\"color:var(--mut);font-weight:600\">26 CAD · ca. 17,25 €</span>"
+  },
+  {
+   "en": "Once, good for life. PadSpan Pro includes it.",
+   "de": "Einmal zahlen, gilt lebenslang. PadSpan Pro enthält es."
+  },
+  {
+   "en": "For homes with a Control4 controller on OS 2. Cloud services for Control4 OS 2 ended on November 1, 2026, and Home Assistant's built-in Control4 integration logs in through that cloud, so it stopped working with OS 2 controllers.",
+   "de": "Für Zuhause mit einem Control4-Controller unter OS 2. Die Cloud-Dienste für Control4 OS 2 endeten am 1. November 2026, und die eingebaute Control4-Integration von Home Assistant meldet sich über diese Cloud an. Mit OS-2-Controllern funktioniert sie deshalb nicht mehr."
+  },
+  {
+   "en": "OS 2 Local for Control4 is Home Assistant's Control4 integration with a local login: it logs in to the controller itself with the controller's system password, no cloud account. Each room becomes a media player with volume, mute and off; lights, blinds and thermostats work as before.",
+   "de": "OS 2 Local for Control4 ist die Control4-Integration von Home Assistant mit lokaler Anmeldung: Sie meldet sich mit dem Systempasswort des Controllers direkt beim Controller an, ohne Cloud-Konto. Jeder Raum wird ein Mediaplayer mit Lautstärke, Stummschalten und Aus; Lichter, Rollos und Thermostate funktionieren wie bisher."
+  },
+  {
+   "en": "Install it from PadSpan (Settings → Tracking → Home Assistant and integrations) or with HACS from <a href=\"https://github.com/gbroeckling/control4-os2-local\" target=\"_blank\" rel=\"noopener\">GitHub</a>. It works with or without PadSpan installed, and a key that has worked keeps working offline.",
+   "de": "Installiere es aus PadSpan (Einstellungen → Ortung → Home Assistant und Integrationen) oder mit HACS von <a href=\"https://github.com/gbroeckling/control4-os2-local\" target=\"_blank\" rel=\"noopener\">GitHub</a>. Es funktioniert mit und ohne installiertes PadSpan, und ein Schlüssel, der einmal funktioniert hat, funktioniert auch offline weiter."
+  },
+  {
+   "en": "Control4 is a trademark of its owner; not affiliated with Control4, Snap One or Resideo.",
+   "de": "Control4 ist eine Marke ihres Inhabers; keine Verbindung zu Control4, Snap One oder Resideo."
   }
  ],
  "attrs": {

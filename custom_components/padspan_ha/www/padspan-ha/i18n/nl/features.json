@@ -233,5 +233,9 @@
 "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} days. Lights stay where you placed them.": {
 "one": "armatuurvormen, Showcase, de 3D-editor, Furnish, mensen in 3D, het nachtdimmen van het wandscherm, Zoeken en Busy Times gaan uit en Forensisch stopt met opnemen over {n} dag. Lampen blijven waar je ze hebt geplaatst.",
 "other": "armatuurvormen, Showcase, de 3D-editor, Furnish, mensen in 3D, het nachtdimmen van het wandscherm, Zoeken en Busy Times gaan uit en Forensisch stopt met opnemen over {n} dagen. Lampen blijven waar je ze hebt geplaatst."
-}
+},
+"for life": "voor altijd",
+"{price}, once, for life": "{price}, eenmalig, voor altijd",
+"Specialty": "Specialiteit",
+"Your PadSpan add-on key is active.": "Je PadSpan-add-onsleutel is actief."
 }

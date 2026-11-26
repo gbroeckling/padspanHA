@@ -58,7 +58,7 @@ _RANK = {t: i for i, t in enumerate(TIERS)}
 # The add-ons this PadSpan knows. Sent with every validate (licence_homes.home_params);
 # views/editions.js ADDONS has their words and prices.
 ADDONS: tuple[str, ...] = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics",
-                           "insights", "maps", "lighting", "vacuum")
+                           "insights", "maps", "lighting", "vacuum", "c4local")
 # The plan the licence server names an add-on key's answers with. Stored with the key (license_plan) at activation
 # and on every check, so a key whose add-ons this PadSpan doesn't know yet still reads as an add-on key, never Pro.
 ADDON_PLAN = "addons"
@@ -71,6 +71,12 @@ NEEDS_UPDATE = "needs_update"
 # today and moves into one stays everyone's until it is on sale (hass_addon_gate), so nobody loses one before it can
 # be bought. Read on every call: an install running across the moment switches by itself.
 ADDON_ON_SALE_FROM: dict[str, int] = {"maps": FREE_BASICS_FROM_TS, "vacuum": FREE_BASICS_FROM_TS}
+# Add-ons not on sale, with no moment yet. Specialty (the owner, 2026-11-25): c4local, OS 2 Local for Control4, a
+# separate integration PadSpan can install (c4local_install.py). One payment for life (no end date: the server's list
+# of running add-ons decides), never in a sale, PadSpan Pro includes it; not on sale until the product is published
+# (views/editions.js on_sale: false says the same). Nothing free moves into it, so its gate is Pro or the add-on
+# (hass_addon_allowed) whether or not it is on sale.
+NOT_ON_SALE: tuple[str, ...] = ("c4local",)
 
 # The clock the moments here are read by (the tests pin it: tests/conftest.py).
 _clock = time.time
@@ -82,8 +88,9 @@ def _now(now: float | None = None) -> float:
 
 
 def addon_on_sale(name: str, now: float | None = None) -> bool:
-    """Whether add-on `name` is sold at `now` (a known add-on whose ADDON_ON_SALE_FROM moment, if any, has come)."""
-    return name in ADDONS and _now(now) >= ADDON_ON_SALE_FROM.get(name, 0)
+    """Whether add-on `name` is sold at `now` (a known add-on not in NOT_ON_SALE whose ADDON_ON_SALE_FROM moment, if
+    any, has come)."""
+    return name in ADDONS and name not in NOT_ON_SALE and _now(now) >= ADDON_ON_SALE_FROM.get(name, 0)
 
 
 def addons_on_sale(now: float | None = None) -> list[str]:

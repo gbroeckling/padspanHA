@@ -94,7 +94,8 @@ def test_the_report_facts_are_backend_only_and_kept() -> None:
 
 def test_the_card_is_in_the_overview_line_with_the_lifetime_cards_gates() -> None:
     pj = _src(_WWW / "panel.js")
-    assert "|| this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);" in pj
+    assert ("|| this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned)"
+            " || this._c4localOverviewCard();") in pj
     i = pj.index("\n  _addonSaleCard(){")
     card = pj[i:pj.index("\n  }\n", i)]
     for gate in ("this.state.kioskMode", 'this.state.dataMode !== "live"', "this._hass.user.is_admin", "this._overviewCardShown",
@@ -106,8 +107,9 @@ def test_the_card_is_in_the_overview_line_with_the_lifetime_cards_gates() -> Non
     # The add-ons' names in the card are editions.js's English, through t() (translated in i18n/<lang>/panel.json).
     ed = _src(_VIEWS / "editions.js")
     for name, words in re.findall(r'\{ name: "(\w+)", words: "([^"]+)"', ed):
-        if name != "maps":
+        if name not in ("maps", "c4local"):              # c4local, the specialty: never in the sale, never on its card
             assert f'{name}: t("{words}")' in card, name
+    assert "c4local" not in card
     for lang in ("de", "fr", "nl"):
         tr = json.loads((_WWW / "i18n" / lang / "panel.json").read_text(encoding="utf-8"))
         for k in ("Half off every add-on until January 1", "Now {list}. Each is paid once and covers 2 years.",

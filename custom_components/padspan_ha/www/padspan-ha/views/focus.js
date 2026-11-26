@@ -51,6 +51,8 @@ export const PARTS = {
   roomWalk:    { view: "settings", tab: "presence", part: "room_walk", title: "Walk a Room (Calibration)", cardSaysTitle: true },
   // Setup's "Track your phone or watch": the phone wizard on Bluetooth → IRK Manager (views/bluetooth.js).
   phoneWizard: { view: "bluetooth", tab: "irk_panel", part: "phone_wizard", title: "Track your phone", cardSaysTitle: true },
+  // The Overview's Control4 card: Settings' OS 2 Local for Control4 card (views/c4local.js).
+  c4local:     { view: "settings", tab: "presence", part: "c4local", title: "OS 2 Local for Control4", cardSaysTitle: true },
 };
 
 /** One of PARTS with what this link is about (the room, the receiver). */
