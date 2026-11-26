@@ -1,15 +1,19 @@
 # Live Aboard Guide
 
 Live Aboard is the Atlas in 3D: your floors, rooms, walls, doors, windows, lights and sensors as a
-little house you can turn, zoom and tap, the way you'd look into a house in The Sims. It's built
-from the map you already drew, so there's nothing new to set up before you see it.
+little house you can turn, zoom and tap, the way you'd look into a house in The Sims. You run the
+house from it as you do from the flat map: tap a light to switch it, tap a room's name for
+everything in it. It's built from the map you already drew, so there's nothing new to set up before
+you see it.
 
 It's **experimental** and still changing. If something looks wrong in your house, please say so.
 
 - [Turning it on](#turning-it-on)
 - [Getting around](#getting-around)
+- [Walking through the house](#walking-through-the-house)
 - [Reading the house](#reading-the-house)
 - [Using it](#using-it)
+- [Flying to what goes off](#flying-to-what-goes-off)
 - [Building: doors, windows, heights and strips](#building-doors-windows-heights-and-strips)
 - [On a wall screen](#on-a-wall-screen)
 - [When something's off](#when-somethings-off)
@@ -18,7 +22,8 @@ It's **experimental** and still changing. If something looks wrong in your house
 
 ## Turning it on
 
-Live Aboard comes with PadSpan Pro.
+Live Aboard comes with PadSpan Pro, the 90-day trial included. No add-on and no Bright Pro key opens
+it. See [PadSpan Pro](PADSPAN_PRO.md).
 
 1. Go to **Settings → Atlas**, find **💡 Atlas — Mapped Light Control**.
 2. Under **🏠 Live Aboard**, turn on **Show Live Aboard on the Atlas**. It saves right away, no
@@ -92,8 +97,8 @@ and pick **Save this view**. **Set as home** makes the current view the one the 
 and goes back to.
 
 **Views ▾ → Look** picks the colours and light for this screen: **Same as Settings** (the Look
-above, and the Atlas's Showcase theme), **Classic**, **Studio**, or one of the Showcase themes (with
-PadSpan Bright Pro or PadSpan Pro), each with a small swatch. Tick **By the sun** to have one look
+above, and the Atlas's Showcase theme), **Classic**, **Studio**, or one of the Showcase themes, each
+with a small swatch. Tick **By the sun** to have one look
 by day and another after sunset, by Home Assistant's sun. Each screen keeps its own.
 
 **Rooms:** **Rooms ▾** at the top lists every named room under its floor's name. Pick one: its
@@ -104,6 +109,33 @@ A tap on a room's name in the house opens the same panel: beside the house, or a
 phone. It has the room's devices with their buttons (each switch with **Undo**),
 the room's scenes, and **More devices of the area (n)**: what Home Assistant has in that room's
 area that the map doesn't show. Tap one for its own controls. **✕** or Escape closes the panel.
+
+---
+
+## Walking through the house
+
+**Walk** (bottom right; on a narrow screen, in **View ▾**) puts you in the house at eye height, just
+inside the front door, or in the room you have open. Every floor shows and every wall stands while
+you walk.
+
+| To... | Do this |
+|---|---|
+| Walk | **W A S D** or **↑ ↓** on a keyboard; on a touch screen, push the stick (bottom left) |
+| Turn | **← →**, or drag |
+| Look round, up and down | Drag with a finger or the mouse |
+| Hurry | Hold **Shift** |
+| Go back to the 3D view | **✕ Stop walking** (top right), or **Esc** |
+
+- Walls, railings, window sills and closed doors stop you. Furniture doesn't.
+- A door with a sensor opens when the sensor says it's open. A door with no sensor stands as its
+  sheet says (ajar inside, shut on an outside wall).
+- Stairs take you up to the floor they reach and back down. Out through an open outside door, you're
+  on the ground round the house.
+- The stick shows on a touch screen, or as soon as you touch the view.
+- **Stop walking** puts the camera, the floors (pulled apart or not) and the walls back as they were.
+  Standing still, Live Aboard draws nothing.
+
+If it lets you walk through a wall somewhere, please say where.
 
 ---
 
@@ -179,6 +211,31 @@ overlap, the farther one steps aside; its device still shows and still takes tap
 - **Tap a room's name** for the room's sheet: every device in it, **All lights on / off**, fans, and
   **▶ buttons for the room's own scenes and scripts** (whatever Home Assistant has in that area).
 - **Tap a floor's name** (in the stepper) for the floor's sheet.
+- **Audio**, ticked in **⋯**, adds each room's music, shades and thermostats to its panel, and a
+  small speaker at the name of a room whose player is on ([manual chapter 15, Audio](manual/15-the-atlas.md#audio)).
+
+---
+
+## Flying to what goes off
+
+On the Atlas page in the sidebar, and on a wall screen, Live Aboard can fly to what just happened:
+
+- **Fly to when it goes off**: a doorbell that rings, a door that opens, a sensor that goes off or
+  an alarm that's triggered. The view flies to where that device is drawn (or its room), shows a card
+  saying what happened, and goes back to its home view after 20 seconds. Pick a camera beside it and
+  the card shows that camera's snapshot: one picture, not a stream.
+- **Fly to when they arrive**: a person or tag you pick, when they go into a room you pick (or, with
+  no room picked, any room, or a person arriving home). Same card, at most once every 2 minutes for
+  each one, and never in place of another card that's up. Only people and tags Live Aboard shows are
+  flown to (**Show people**, **Show tags & scanners**).
+
+Only a change counts: what each device was when the screen first looked is never news. If someone
+touched the screen in the last 20 seconds, or a card, Edit or Furnish is open, only the card shows
+and the camera stays where they put it.
+
+Set both in **Settings → Atlas → Atlas — Mapped Light Control → Live Aboard** (shown once Live Aboard
+is on): pick from the list, then **Add**; **Remove** takes one off. Nothing picked is off. Only an
+administrator can change them.
 
 ---
 

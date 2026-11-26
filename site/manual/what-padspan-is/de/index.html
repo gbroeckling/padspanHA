@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>1. Was PadSpan ist | PadSpan-HA-Handbuch</title>
-<meta name="description" content="PadSpan HA ist eine Home-Assistant-Integration für die Anwesenheit pro Raum über Bluetooth. Es hört auf die Bluetooth-Empfänger, die dein Home Assistant…">
+<meta name="description" content="PadSpan HA ist ein Bedienfeld für dein Haus, direkt in Home Assistant. Es zeichnet deine Etagen und Räume, setzt jedes Licht, jedes Schloss und jeden Sensor…">
 <link rel="canonical" href="https://padspan.traks.ca/manual/what-padspan-is/de/">
 <link rel="alternate" hreflang="en" href="https://padspan.traks.ca/manual/what-padspan-is/">
 <link rel="alternate" hreflang="de" href="https://padspan.traks.ca/manual/what-padspan-is/de/">
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="PadSpan">
 <meta property="og:locale" content="de_DE">
 <meta property="og:title" content="1. Was PadSpan ist">
-<meta property="og:description" content="PadSpan HA ist eine Home-Assistant-Integration für die Anwesenheit pro Raum über Bluetooth. Es hört auf die Bluetooth-Empfänger, die dein Home Assistant…">
+<meta property="og:description" content="PadSpan HA ist ein Bedienfeld für dein Haus, direkt in Home Assistant. Es zeichnet deine Etagen und Räume, setzt jedes Licht, jedes Schloss und jeden Sensor…">
 <meta property="og:url" content="https://padspan.traks.ca/manual/what-padspan-is/de/">
 <meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
 <meta property="og:image:width" content="1200">
@@ -68,75 +68,187 @@ footer p{margin:4px 0}
 <main>
 <h1 id="1-was-padspan-ist">1. Was PadSpan ist</h1>
 <p><a href="/manual/de/">Inhalt</a></p>
-<p>PadSpan HA ist eine Home-Assistant-Integration für die Anwesenheit pro Raum über Bluetooth. Es hört
-auf die Bluetooth-Empfänger, die dein Home Assistant schon hat (ESPHome-Bluetooth-Proxys, Shellys,
-das eigene Bluetooth des Rechners, ESPresense oder Tasmota), ermittelt alle 5 Sekunden, in welchem
-Raum jedes Handy, jede Uhr, jeder Tag und jeder Beacon ist, und gibt deinen Automationen für jedes
-Gerät, das du benennst, einen Raum, eine Entfernung und zu Hause oder weg. Es läuft auf deinem Home
-Assistant: Die Ortung braucht keine Cloud.</p>
-<p>PadSpan hat eine eigene Seite in der Seitenleiste von Home Assistant. Dort siehst du, wer wo ist,
-folgst einem Gerät, spielst ab, wo es war, und zeichnest, wenn du willst, dein Haus auf einen
-Grundriss, damit du alles auf einer Karte siehst.</p>
+<p>PadSpan HA ist ein Bedienfeld für dein Haus, direkt in Home Assistant. Es zeichnet deine Etagen und
+Räume, setzt jedes Licht, jedes Schloss und jeden Sensor in seinen Raum und zeigt mit
+Bluetooth-Empfängern, in welchem Raum jede Person ist. Ein Tippen auf ein Licht schaltet es. Ein
+Wasser- oder Rauchalarm färbt seinen Raum rot, und ein rotes Banner zeigt ihn auf jedem
+PadSpan-Bildschirm. Es kann so einfach oder so umfangreich sein, wie du es brauchst: Fang mit deinen
+Räumen und ihren Lichtern an, nimm Empfänger dazu, um zu sehen, wer wo ist, und nimm PadSpan Pro
+dazu, wenn du mehr willst.</p>
+<p>PadSpan hat zwei Seiten in der Seitenleiste von Home Assistant. <b>PadSpan HA</b> ist das ganze Panel:
+wer wo ist, <b>Folgen</b> für ein Handy oder einen Tag, das Abspielen, wo Geräte waren, Einrichtung und
+Einstellungen. <b>Atlas</b> ist die Karte deines Hauses, gemacht für ein Handy oder einen Bildschirm an
+der Wand. PadSpan läuft auf deinem Home Assistant, und die Ortung braucht keine Cloud.</p>
 <p>Du kannst es vor der Installation ausprobieren: <a href="/demo/">padspan.traks.ca/demo</a>
-ist das echte Panel an einem Beispielhaus, in deinem Browser.</p>
+ist das echte Panel an einem Beispielhaus, in deinem Browser. Die Demo zeigt PadSpan Pro, also auch
+die kostenpflichtigen Teile.</p>
 <h2 id="was-du-kostenlos-bekommst">Was du kostenlos bekommst</h2>
-<p>PadSpan HA ist kostenlos und Open Source (GPL v3). Ohne Schlüssel bekommst du:</p>
+<p>PadSpan HA ist kostenlos und Open Source (GPL v3). Die kostenlose Version braucht keinen Schlüssel
+und läuft nicht ab. Manche Funktionen brauchen PadSpan Pro oder ein Add-on, und PadSpan sagt dir an
+Ort und Stelle, welches. Pro enthält jedes Add-on. Ohne Schlüssel bekommst du alles hier unten.</p>
+<h3 id="dein-haus-auf-einem-bildschirm">Dein Haus auf einem Bildschirm</h3>
+<p>Dafür brauchst du nur Home Assistant, keinen Bluetooth-Empfänger.</p>
+<ul>
+<li><b>Der Atlas</b>: deine Etagen und Räume, jedes Licht und jeder Ventilator in seinem Raum, und ein
+Tippen schaltet es. Tipp auf den Namen eines Raums für seine Karte: jedes Gerät darin, <b>Alle
+Lichter an / aus</b> und ein Knopf für jede Szene und jedes Skript des Raums in Home Assistant (bis
+zu sechs). Siehe <a href="/manual/the-atlas/de/">Kapitel 15</a>.</li>
+<li><b>Schlösser</b> auf der Karte: Ihre Karte verriegelt und entriegelt sie, und vor dem Entriegeln
+fragt sie nach.</li>
+<li><b>Wasser-, Rauch-, Gas- und CO-Alarme</b> färben ihren Raum rot und bleiben 2 Tage lang stehen oder
+bis jemand sie zurücksetzt. Ein rotes Banner zeigt sie auf jedem PadSpan-Bildschirm, und du
+bekommst eine Benachrichtigung, wenn einer losgeht, und eine, wenn er wieder ruhig ist
+(<a href="/manual/alerts/de/">Kapitel 13</a>).</li>
+<li><b>Eine Alarmanlage, die losgeht</b> (eine Alarmzentrale in Home Assistant, etwa Alarmo), erscheint
+am Notfallknopf des Atlas und als Zeile im roten Banner.</li>
+<li><b>Alert pulse</b> (aus, bis du es einschaltest): Eine Tür, ein Fenster, ein Tor oder eine Abdeckung,
+die länger als 6 Stunden offen ist, oder ein Fenster oder eine Abdeckung, die bei Regen oder Schnee
+offen ist, bekommt einen gelben Ring um ihren Raum.</li>
+<li><b>Regen und Schnee</b> rund ums Haus im Atlas, als stilles Bild, aus deiner Wetter-Entität oder einem
+Regensensor.</li>
+<li><b>Offene Bildschirme</b> (aus, bis du es einschaltest): jede offene PadSpan-Seite in einer Liste, um
+eine oder alle neu zu laden, und, aus einer Automation, eine Nachricht mit Gong auf den
+Bildschirmen, die du nennst (<a href="/manual/home-assistant-reference/de/#dienste">Kapitel 14</a>).</li>
+<li><b>Ein Kiosk-Link</b>, <code>/padspan-ha?kiosk=1</code>, blendet PadSpans Menü für ein Tablet aus
+(<a href="/manual/wall-screens-and-kiosks/de/">Kapitel 18</a>). Der Wandmodus auf der Atlas-Seite gehört zu
+PadSpan Pro.</li>
+<li><b>Die Designs Nacht, Hell und Hoher Kontrast.</b> Das Panel spricht die Sprache deines Home
+Assistant: Englisch und Deutsch, und vieles davon auch Französisch und Niederländisch.</li>
+</ul>
+<h3 id="deine-lichter">Deine Lichter</h3>
+<p>Auch dafür brauchst du nur Home Assistant.</p>
+<ul>
+<li><b>Jedes Licht im Atlas</b>, in seinem Raum, und ein Tippen schaltet es (siehe oben).</li>
+<li><b>Power-Teams</b>: Ein Wanddimmer oder -schalter und die smarten Birnen dahinter werden in Home
+Assistant ein einziges Licht. Es folgt dem Tag, kann dich wecken und stellt die Birnen neu ein, wenn
+der Wandschalter sie wieder einschaltet (<a href="/manual/the-atlas/de/#power-teams">Kapitel 15</a>).</li>
+</ul>
+<h3 id="wer-in-welchem-raum-ist">Wer in welchem Raum ist</h3>
+<p>Dafür brauchst du mindestens einen Bluetooth-Empfänger. Einer unterscheidet zu Hause von weg; einer
+in jedem Raum, den du unterscheiden willst, gibt dir Räume.</p>
 <ul>
 <li><b>Räume ohne Grundriss.</b> Der Raum jedes Empfängers ist sein Home-Assistant-Bereich. Ein Gerät
 kommt in den Raum, dessen Empfänger es am besten hört. Die Karte <b>Wer ist wo</b> in der Übersicht
-listet jeden Raum und wer darin ist.</li>
+listet jeden Raum und wer darin ist. <b>Raum festlegen</b> gibt einem Empfänger ohne Bereich seinen
+Raum, und <b>Verfolgen</b> nimmt ein Handy auf, das Home Assistant schon unterscheiden kann.</li>
 <li><b>Entitäten für deine Automationen.</b> Jedes Gerät, das du benennst, bekommt einen Device Tracker
 (sein Zustand ist der Raum oder <code>not_home</code>), einen Bereichssensor und Entfernungssensoren.
-Ereignisse werden ausgelöst, wenn ein benanntes Gerät ankommt, geht oder den Raum wechselt. Siehe
+Ereignisse werden ausgelöst, wenn ein benanntes Gerät ankommt, geht oder den Raum wechselt, und
+Assist beantwortet „In welchem Raum ist Alex?“, sobald du seine Sätze hinzufügst. Siehe
 <a href="/manual/home-assistant-reference/de/">Kapitel 14</a>.</li>
-<li><b>Eine Karte deines Hauses.</b> Lade einen Grundriss hoch (oder fang ohne an), leg seinen Maßstab
-fest, zeichne deine Räume und platziere deine Empfänger. Mit drei oder mehr Empfängern auf einem
-Grundriss mit Maßstab verortet PadSpan Geräte auch zwischen ihnen, sogar in einem Raum ohne
-eigenen Empfänger.</li>
-<li><b>Kalibrierung.</b> Geh mit deinem Handy durchs Haus, damit PadSpan lernt, wie jede Stelle wirklich
-klingt.</li>
-<li><b>Folgen</b>, mit Alarmen aufs Handy oder per E-Mail, wenn ein Gerät den Raum wechselt, ankommt oder
-geht.</li>
-<li><b>Traceback</b>, eine Wiedergabe, wohin Geräte gegangen sind, mit <b>Insights</b> (Zeit in jedem Raum).</li>
-<li><b>Belegung</b>, eine Schätzung, wie viele Leute im Gebäude sind.</li>
-<li><b>Der Atlas</b>, die Lichtkarte deines Hauses: jedes Licht auf seiner Etage und in seinem Raum, und
-ein Tippen schaltet es.</li>
+<li><b>Folgen</b>, für ein Gerät: sein Raum jetzt und seine Wege, mit Alarmen aufs Handy oder per E-Mail,
+wenn es den Raum wechselt, ankommt oder geht.</li>
+<li><b>Live-Tracker</b>, eine Live-Karte über den ganzen Bildschirm, und <b>Belegung</b>, eine Schätzung, wie
+viele Leute im Gebäude sind.</li>
+<li><b>Traceback</b>: 7 Tage, wohin deine Geräte gegangen sind, auf deinen Etagen abgespielt, mit
+<b>Insights</b> (Zeit in jedem Raum) und <b>New Objects</b> (<a href="/manual/the-screens/de/#traceback">Kapitel 12</a>).</li>
+<li><b>Wiedergabe teilen</b>: ein Clip von 10 bis 30 Sekunden, in dem Leute durchs Haus gehen, mit
+verborgenen Namen, in deinem Browser gemacht. Nichts wird hochgeladen.</li>
+<li><b>Gestern zu Hause</b> (aus, bis du es einschaltest): jeden Morgen eine Nachricht über den Vortag,
+mit Kommen und Gehen, Gästen, den am längsten leeren Räumen und Lichtern, die in leeren Räumen
+brannten (<a href="/manual/alerts/de/#gestern-zu-hause">Kapitel 13</a>).</li>
+<li><b>Licht folgt Personen</b>: Die Lichter eines Raums gehen an, wenn jemand mit einem benannten Handy,
+einer Uhr oder einem Tag hereinkommt, und aus, wenn der Raum lange genug leer war. Ein Licht, das
+jemand von Hand ausschaltet, bleibt aus, bis alle gegangen sind
+(<a href="/manual/home-assistant-reference/de/#licht-folgt-personen">Kapitel 14</a>). Drei Blueprints für Home
+Assistant machen dasselbe in deinen eigenen Automationen.</li>
+<li><b>Gast-Tags</b>: ein kleiner Bluetooth-Tag, den ein Gast für seinen Besuch bekommt, mit Räumen, die
+er nicht betreten soll, und einem Bericht über den Aufenthalt (<a href="/manual/tags-and-beacons/de/#gast-tags">Kapitel 7</a>).</li>
+<li><b>Kalibrierung</b>, mit <b>Raum abgehen</b>: Trag dein Handy etwa 90 Sekunden durch einen Raum, damit
+PadSpan lernt, wie er klingt (<a href="/manual/calibration/de/#raum-abgehen">Kapitel 11</a>).</li>
+<li><b>Positionen zwischen Empfängern.</b> Mit drei oder mehr Empfängern auf einem Grundriss mit Maßstab
+verortet PadSpan Geräte auch zwischen ihnen, sogar in einem Raum ohne eigenen Empfänger.</li>
+</ul>
+<h3 id="dein-grundriss-in-jeder-form">Dein Grundriss, in jeder Form</h3>
+<p>Dafür brauchst du nur Home Assistant.</p>
+<ul>
+<li><b>Ein grobes Haus aus deinen Home-Assistant-Räumen</b>: ein Kasten pro Bereich auf einer leeren
+Etage, mit <b>Zeigen, was angelegt wird</b> und <b>Grobes Haus anlegen</b>
+(<a href="/manual/setup-the-map/de/#mit-einem-groben-haus-beginnen">Kapitel 9</a>).</li>
+<li><b>Jeder Plan, den du hast</b>: ein Bild oder ein Foto einer Skizze, ein PDF, eine leere Etage in
+einer Größe, die du eintippst, eine Plandatei aus Easy Floorplan, eine DXF- oder Floorplanner-Datei,
+eine Sweet-Home-3D-Datei, ein Raumscan von einem iPhone oder iPad Pro mit LiDAR (maßstabsgetreu,
+nichts zu messen) oder die Karte eines Saugroboters (experimentell). Siehe
+<a href="/manual/setup-the-map/de/">Kapitel 9</a>.</li>
+<li><b>Räume, Etagen und Höhen</b>: Zeichne jeden Raum, leg die Höhe jeder Etage fest und gib einem Raum
+seine Deckenhöhe und ein Halbgeschoss.</li>
+<li><b>Wände und Türen</b>: Wandmaterialien und offene Kanten für das Signal, und Türen und Fenster an den
+Wänden, mit ihren Sensoren verknüpft (<a href="/manual/walls-and-signal-loss/de/">Kapitel 10</a>).</li>
+<li><b>Die Übersicht</b> zeichnet deine Etagen übereinander als Haus. Das Haus in 3D, Live Aboard, gehört
+zu PadSpan Pro.</li>
+</ul>
+<h3 id="außerdem-kostenlos">Außerdem kostenlos</h3>
+<ul>
+<li><b>Erweiterte Sicherheit</b> (bei einer neuen Installation an): Nur Administratoren ändern die
+gemeinsame Einrichtung, und alle im Haus können sie ansehen und benutzen
+(<a href="/manual/users-and-security/de/">Kapitel 21</a>).</li>
+<li><b>Sicherungen und Wiederherstellen</b>, und die eigene Sicherung von Home Assistant enthält ganz
+PadSpan (<a href="/manual/backup-restore-moving/de/">Kapitel 22</a>).</li>
+<li><b>Training</b>, die animierten Rundgänge, und die Hilfe in PadSpan (das <b>?</b> neben einer
+Überschrift).</li>
 </ul>
 <h2 id="was-padspan-pro-dazu-bringt">Was PadSpan Pro dazu bringt</h2>
-<p>Ein Lizenzschlüssel schaltet die kostenpflichtigen Teile auf derselben Installation frei. Nichts
-neu installieren, nichts neu einrichten.</p>
+<p>PadSpan Pro ist ein Schlüssel auf derselben Installation. Nichts neu installieren, nichts neu
+einrichten. Es bringt:</p>
+<ul>
+<li><b>Jedes Licht und jedes Gerät genau da, wo es ist</b>, in seiner echten Form, Größe und seinem
+Winkel, mit Automorph, Showcase, der Advanced-Steuerung für WLED und bewegtem Regen und Schnee
+(<a href="/manual/the-atlas/de/">Kapitel 15</a>).</li>
+<li><b>Live Aboard</b>, dein Haus in 3D, wie der Blick in ein Haus bei Die Sims: erleuchtete Fenster in
+der Nacht, Regen und Schnee, der Studio-Himmel, ein Gang durchs Haus auf Augenhöhe und eine
+Ansicht, die zur Türklingel, zu einer Tür oder zu einem Alarm fliegt. Es ist experimentell
+(<a href="/manual/live-aboard/de/">Kapitel 16</a>).</li>
+<li><b>Furnish</b>: Möbel, Treppen, Böden und Wandfarben, Geräte, die mitlaufen, wenn das echte läuft,
+und eine Figur für jede Person (<a href="/manual/furnish/de/">Kapitel 17</a>).</li>
+<li><b>Den Wandmodus</b> auf der Atlas-Seite und das neue Layout des Atlas, in dem jeder Bildschirm
+wählt, was er zeigt (<a href="/manual/wall-screens-and-kiosks/de/">Kapitel 18</a>).</li>
+<li><b>Den Atlas als deine Übersicht</b>, und Personen und Tags auf der Karte.</li>
+<li><b>Die KI-Helfer</b>, die das Haus aus deinen Grundrissen bauen (<a href="/manual/ai-features/de/">Kapitel 19</a>).</li>
+<li><b>Jedes Add-on</b> (siehe unten) und jede neue Funktion, solange der Schlüssel läuft.</li>
+</ul>
+<p>Ein Pro-Schlüssel gilt für bis zu fünf Zuhause (bei mehr als zwei lässt jedes seinen
+Nutzungsbericht an).</p>
 <div style="overflow-x:auto">
 <table>
   <tr><th>Edition</th><th style="text-align:center">Schlüssel</th><th>Was es ist</th></tr>
-  <tr><td><b>PadSpan HA</b></td><td style="text-align:center">keiner</td><td>Anwesenheit pro Raum, Grundrisse, Kalibrierung, Bewegungsverlauf und die Sensoren für deine Automationen. Kostenlos.</td></tr>
-  <tr><td><b>PadSpan Pro</b></td><td style="text-align:center"><code>pro</code></td><td>Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandbildschirm, Whole house presets und Vacation Mode, Forensik, Busy Times, Finden und die Designs Graphit, Ozean, Dämmerung und Tag.</td></tr>
-  <tr><td><b>Add-ons</b></td><td style="text-align:center"><code>free</code>, mit Add-ons</td><td>Je ein Teil von Pro, für eine Installation ohne Pro: Audio, Alarm &amp; Sicherheit, WLAN-Abdeckung, Klimakarte, Zeitreise, Urlaubsmodus &amp; Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen. Jedes gilt 2 Jahre, auf bis zu drei Zuhause (<a href="/manual/padspan-pro/de/#add-ons">Kapitel 25</a>).</td></tr>
+  <tr><td><b>PadSpan HA</b></td><td style="text-align:center">keiner</td><td>Alles aus der kostenlosen Liste oben. Kein Schlüssel, und es läuft nicht ab.</td></tr>
+  <tr><td><b>PadSpan Pro</b></td><td style="text-align:center"><code>pro</code></td><td>Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandmodus und das neue Layout, der Atlas als Übersicht, Personen auf der Karte, die KI-Funktionen und jedes Add-on.</td></tr>
+  <tr><td><b>Add-ons</b></td><td style="text-align:center"><code>free</code>, mit Add-ons</td><td>Je eine Funktion, für eine Installation ohne Pro: Audio, Alarm &amp; Sicherheit, WLAN-Abdeckung, Klimakarte, Wiedergabe (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt), Urlaubsmodus &amp; Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen. Jedes gilt 2 Jahre, auf bis zu drei Zuhause (<a href="/manual/padspan-pro/de/#add-ons">Kapitel 25</a>).</td></tr>
   <tr><td><a href="https://github.com/gbroeckling/padspanBright"><b>PadSpan Bright</b></a></td><td style="text-align:center">keiner</td><td>Ein eigener, leichterer Download aus demselben Code: nur der Atlas, für ein Haus, das seine Lichter auf einer Karte will und keine Anwesenheitserkennung.</td></tr>
-  <tr><td><b>PadSpan Bright Pro</b></td><td style="text-align:center"><code>bright</code></td><td>Brights volle Atlas-Werkzeuge (Platzieren, Formen, WLED, Automorph, Showcase), auf einer Bright-Installation. Verkauft bis zum 15. Dezember 2026.</td></tr>
+  <tr><td><b>PadSpan Bright Pro</b></td><td style="text-align:center"><code>bright</code></td><td>Brights Werkzeuge zum Platzieren (Platzieren, Formen, die Advanced-Steuerung für WLED, Automorph, Showcase) und die Alarmsteuerung, auf einer Bright-Installation. Verkauft bis zum 15. Dezember 2026.</td></tr>
 </table>
 </div>
-<p>Ein PadSpan-Pro-Schlüssel schaltet auch Brights Werkzeuge frei, wenn du stattdessen Bright
-installierst.</p>
-<p>Wenn ein Schlüssel abläuft, wird nichts gelöscht, was du eingerichtet hast. Die Platzierung der
-Lichter ist dann schreibgeschützt, Forensik hört auf aufzuzeichnen (was es aufgezeichnet hat, bleibt
-für seine Aufbewahrungszeit), und das 3D-Haus, der Wandbildschirm, Finden und Busy Times schalten
-sich ab. Wenn du verlängerst, kommt alles so zurück, wie du es verlassen hast.</p>
+<p>Ein PadSpan-Pro-Schlüssel öffnet auch Brights Werkzeuge, wenn du stattdessen Bright installierst.</p>
+<p>Wenn ein Schlüssel abläuft, funktioniert er noch 14 Tage weiter. Danach wird nichts gelöscht, was du
+eingerichtet hast. Die Platzierung der Lichter ist dann schreibgeschützt, Forensik hört auf
+aufzuzeichnen (was es aufgezeichnet hat, bleibt für seine Aufbewahrungszeit), und das 3D-Haus, der
+Wandbildschirm, Finden und Busy Times schalten sich ab. Wenn du verlängerst, kommt alles so zurück,
+wie du es verlassen hast.</p>
 <h3 id="der-kostenlose-testzeitraum">Der kostenlose Testzeitraum</h3>
 <p>Ist kein Schlüssel auf der Installation, hat <b>Einstellungen → Funktionen → PadSpan-Lizenz</b> den
-Knopf <b>Start 90-day free trial</b>: ganz Pro für 90 Tage, ohne Kreditkarte, ein Testzeitraum pro
-Zuhause. Ein Administrator startet ihn. Dafür muss der Nutzungsbericht an sein, und er bleibt an, bis
-der Testzeitraum endet. Schlüssel und Preise stehen auf <a href="https://padspan.traks.ca">padspan.traks.ca</a>.
-Testzeitraum, Schlüssel, Zuhause und Tester erklärt <a href="/manual/padspan-pro/de/">Kapitel 25</a>.</p>
+Knopf <b>Start 90-day free trial</b>: ganz Pro für 90 Tage, jedes Add-on dabei, ohne Kreditkarte, ein
+Testzeitraum pro Zuhause. Ein Administrator startet ihn. Dafür muss der Nutzungsbericht an sein, und
+er bleibt an, bis der Testzeitraum endet. Schlüssel und Preise stehen auf
+<a href="https://padspan.traks.ca">padspan.traks.ca</a>. Testzeitraum, Schlüssel, Zuhause und Tester erklärt
+<a href="/manual/padspan-pro/de/">Kapitel 25</a>.</p>
+<h3 id="du-willst-nur-eine-sache">Du willst nur eine Sache?</h3>
+<p>Ein Add-on bringt einer Installation ohne Pro eine Funktion. Eine Zahlung gilt 2 Jahre auf bis zu
+drei Zuhause, und ein Schlüssel trägt jedes Add-on, das du kaufst. PadSpan Pro enthält sie alle. Was
+jedes bringt, steht in <a href="/manual/padspan-pro/de/#add-ons">Kapitel 25</a>, ausführlicher (auf Englisch) in
+<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/PADSPAN_PRO.md#just-want-one-thing-the-add-ons">PadSpan Pro and the add-ons</a>. Zu kaufen gibt
+es sie auf <a href="/#addons">padspan.traks.ca/#addons</a>.</p>
 <h2 id="passt-es-zu-mir">Passt es zu mir?</h2>
 <p>PadSpan passt gut, wenn:</p>
 <ul>
+<li><b>du dein Haus auf einem Bildschirm willst</b>: die Lichter in ihren Räumen, nur ein Tippen entfernt,
+die Schlösser und die Alarme. Dafür brauchst du nur Home Assistant, keinen Empfänger.</li>
 <li><b>du wissen willst, in welchem Raum jemand ist</b>, nicht nur, ob er zu Hause ist. Dafür braucht es
 einen Empfänger in jedem Raum, den du unterscheiden willst. Ein Empfänger unterscheidet zu Hause
 von weg und mehr nicht.</li>
 <li><b>du schon Bluetooth-Proxys hast</b>, oder Shellys (Gen2 oder neuer), oder in ein paar Räume ein
 ESP32-Board stellen kannst. PadSpan nutzt, was Home Assistant schon hört. Es braucht keine eigene
 Firmware.</li>
-<li><b>die Leute, denen du folgen willst, ein Handy, eine Uhr oder einen Tag tragen.</b> Ein
+<li><b>alle, die in einem Raum erscheinen sollen, ein Handy, eine Uhr oder einen Tag dabeihaben.</b> Ein
 Android-Handy mit der Home Assistant Companion App funktioniert nach einem Schalter in der App. Ein
 iPhone oder eine Apple Watch braucht einmal seinen Schlüssel (den IRK). Ein Beacon oder
 Schlüsselanhänger mit fester Adresse funktioniert, sobald du ihn benennst.</li>
@@ -177,7 +289,7 @@ gut, und viele nutzen sie. Hier steht, was jedes kann, nach ihren eigenen Dokume
   <tr><td>iPhones und Apple Watches (IRK)</td><td>Ja, über Private BLE Device oder irk-capture, mit einer Einrichtungsanleitung</td><td>Ja, über Private BLE Device</td><td>Ja, auf der Webseite des Knotens eingetragen</td></tr>
   <tr><td>Tags, die ihre Adresse wechseln (AirTag, SmartTag)</td><td>Experimentell</td><td>Nein</td><td>Nein (AirTags lassen sich nur zählen)</td></tr>
   <tr><td>Entitäten für Raum, Entfernung und Tracker</td><td>Ja</td><td>Ja</td><td>Ein Raumsensor mit Entfernung; ein Tracker von Companion</td></tr>
-  <tr><td>Bewegungsverlauf</td><td>Wiedergabe (Traceback)</td><td>Der eigene Verlauf von HA</td><td>Pfadansicht in Companion</td></tr>
+  <tr><td>Bewegungsverlauf</td><td>Abspielen in Traceback</td><td>Der eigene Verlauf von HA</td><td>Pfadansicht in Companion</td></tr>
   <tr><td>Alarme, wenn ein Gerät den Raum wechselt</td><td>Eingebaut (Folgen)</td><td>Mit deinen eigenen Automationen</td><td>Mit deinen eigenen Automationen</td></tr>
   <tr><td>Wo du es einrichtest</td><td>Eine PadSpan-Seite in der HA-Seitenleiste</td><td>Die Einrichtungsdialoge von Home Assistant</td><td>Die Webseite des Knotens und die Companion-App</td></tr>
 </table>
