@@ -1631,7 +1631,7 @@ class PadSpanHaApp extends HTMLElement {
     return card;
   }
 
-  // ── "Half off every add-on until January 1", once per install ───────────
+  // ── "Half off every add-on through January 1", once per install ───────────
   // The Black Friday sale (editions.js addonHalfOff, addonSaleCardDue: who and
   // when; addonPrice: the prices). The lifetime card's discipline: to an
   // administrator, in live data, never on a wall; addon_sale_card_done is
@@ -1665,7 +1665,7 @@ class PadSpanHaApp extends HTMLElement {
     const list = EDITIONS.addonSaleCardPicks(st).map(n => (NAMES[n] || n) + " " + EDITIONS.addonPrice(n)).join(", ");
     const card = el("div", { "data-sale-card": "card",
       style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
-    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("Half off every add-on until January 1")));
+    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("Half off every add-on through January 1")));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
       t("Now {list}. Each is paid once and covers 2 years.", { list })));
     // A page that fills the screen can't close the tab a link opens: say where instead.

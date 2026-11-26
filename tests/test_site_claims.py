@@ -138,7 +138,7 @@ _SKUS = {
     # vacuum are on the page from December 1 (the free-basics switch shows them).
     **{f"padspan-addon-{name}": (price, ("padspan", "addon"), ("upgrade", "bright", "lifetime", "2year"))
        for name, price in (("audio", 6.45), ("alarm", 6.45), ("wifi", 6.45), ("climate", 8.65), ("timetravel", 7.55),
-                           ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56),
+                           ("vacation", 4.25), ("looks", 4.25), ("insights", 5.56),
                            ("maps", 8.65), ("lighting", 8.65), ("vacuum", 6.45))},
     # The specialty OS 2 Local for Control4 (2026-11-25): an add-on SKU like the others, for life, never half price.
     "padspan-addon-c4local":        (26.00, ("padspan", "addon"),      ("upgrade", "bright", "lifetime", "2year")),
@@ -164,8 +164,9 @@ def test_the_add_ons_are_sold_as_the_panel_says(html: str) -> None:
     said to be in Pro."""
     ed = _ED.read_text(encoding="utf-8")
     table = _ADDON_ROW.findall(ed)
+    # Forensics is part of Presence insights since 2026-11-26 (editions.js part_of): never sold, no row of its own.
     assert [n for n, *_ in table] == ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
-                                      "forensics", "insights", "maps", "lighting", "vacuum"]
+                                      "insights", "maps", "lighting", "vacuum"]
     # The site has one switch for an add-on going on sale: December 1's (test_the_free_basics_switch_is_the_panels_moment).
     assert {f for _, _, _, f, _ in table} == {"", "FREE_BASICS_FROM"}
     term = re.search(r'ADDON_TERM = "(\d+) years"', ed).group(1)
@@ -180,7 +181,8 @@ def test_the_add_ons_are_sold_as_the_panel_says(html: str) -> None:
         assert (behind in box) == bool(on_sale_from), name
         row = row.group(0)
         assert "-basics" not in row, name
-        assert (f' id="{name}"' in row) == (name in ("audio", "maps", "vacuum")), name
+        # Every add-on at its own anchor (the review, 2026-11-26): its name, Full house activity's "activity".
+        assert f' id="{"activity" if name == "timetravel" else name}"' in row, name
         assert f'{words.replace("&", "&amp;")} <span' in row and f"${price} CAD</span>" in row, name
         assert desc.replace("&", "&amp;") in row, name
         assert f'name="item_number" value="padspan-addon-{name}"' in row and f'name="amount" value="{price}"' in row, name
@@ -581,7 +583,7 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
     box = html[html.index('<div class="ed" id="addons"'):]
     box = box[:box.index('<div class="ed">')]
     assert f'data-half-from="{start}" data-half-until="{until}"' in box, "the site switches at other moments than the panel"
-    assert "Black Friday: every add-on is half off until January 1." in box
+    assert "Black Friday: every add-on is half off through January 1." in box
     assert 'input[data-half-amount]' in box and 'e.value=e.getAttribute("data-half-amount")' in box
     assert 'n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until"))' in box
     node = shutil.which("node")
@@ -605,6 +607,10 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
             # A specialty, in its own box (#specialty), never half off.
             assert row is None and got["first"][name] == got["last"][name] == price, "no box among the add-ons, and never half off"
             continue
+        if name == "forensics":
+            # Part of Presence insights since 2026-11-26 (editions.js part_of): no box, never sold on its own.
+            assert row is None, "Forensics has no box of its own"
+            continue
         row = row.group(0)
         # Half off from the sale's start; one not sold yet is never half off until it is (its box shows then).
         assert got["from"][name] in ("", got["basics"]), name
@@ -614,7 +620,7 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
         assert f'name="amount" value="{normal}" data-half-amount="{sale}"' in row, name
         assert f'data-addon-price="normal" style="color:var(--mut);font-weight:600">${normal} CAD</span>' in row, name
         assert f'data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">${sale} CAD</span>' in row, name
-        assert f"Half off until January 1 (normally ${normal})" in row, name
+        assert f"Half off through January 1 (normally ${normal})" in row, name
 
 
 def test_the_add_ons_version_note_holds_on_stable_day_and_after(html: str) -> None:
@@ -678,7 +684,7 @@ def test_each_add_on_has_one_buy_place_and_the_pages_about_them_link_to_it(html:
     and after December 1). /add-ons/ and /pro/, in English and German, describe the add-ons and send every "Price and
     buy" to an anchor that is on the home page (the German page is built from it, ids and all)."""
     names = [row[0] for row in _ADDON_ROW.findall(_ED.read_text(encoding="utf-8"))] + ["c4local"]
-    assert len(names) == len(set(names)) == 13, names
+    assert len(names) == len(set(names)) == 12, names
     for name in names:
         assert len(re.findall(rf'name="item_number" value="padspan-addon-{name}"', html)) == 1, name
     ids = set(re.findall(r'\sid="([^"]+)"', html))
@@ -692,7 +698,7 @@ def test_each_add_on_has_one_buy_place_and_the_pages_about_them_link_to_it(html:
             assert anchor in ids, (page.relative_to(_ROOT), anchor)
     # The add-ons' own anchors: Audio and Full house activity (the timetravel add-on, the owner's name for it),
     # and the two that go on sale on December 1.
-    for anchor, name in (("audio", "audio"), ("activity", "timetravel"), ("maps", "maps"), ("vacuum", "vacuum")):
+    for anchor, name in [(("activity" if n == "timetravel" else n), n) for n in names if n != "c4local"]:
         assert re.search(rf'<div id="{anchor}" data-addon="{name}"', html), anchor
 
 

@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0
 """The add-ons, seen: the sale's Overview card and the usage report's Add-ons section.
 
-1. "Half off every add-on until January 1" (panel.js _addonSaleCard, editions.js addonSaleCardDue): once, to an
+1. "Half off every add-on through January 1" (panel.js _addonSaleCard, editions.js addonSaleCardDue): once, to an
    administrator, never on a wall, while the sale runs, to an install without paid Pro; its own flag
    (addon_sale_card_done) kept like the lifetime card's. The rule runs in tests/js/addon_sale.mjs, the card in
    tests/js/whats_new_card.mjs; here the backend's flag, and the card as a 0.38.274 install sees it after updating.
@@ -114,7 +114,7 @@ def test_the_card_is_in_the_overview_line_with_the_lifetime_cards_gates() -> Non
     assert "c4local" not in card and "forensics:" not in card
     for lang in ("de", "fr", "nl"):
         tr = json.loads((_WWW / "i18n" / lang / "panel.json").read_text(encoding="utf-8"))
-        for k in ("Half off every add-on until January 1", "Now {list}. Each is paid once and covers 2 years.",
+        for k in ("Half off every add-on through January 1", "Now {list}. Each is paid once and covers 2 years.",
                   "See the add-ons", "No thanks", "At padspan.traks.ca", "Presence insights"):
             assert tr.get(k) and tr[k] != k or k in ("At padspan.traks.ca",), (lang, k)
 

@@ -3510,7 +3510,7 @@ function proOrAddon(name){
   return t("PadSpan Pro or the {addon} add-on ({price})", { addon: addonWords(a), price: addonPrice(a.name) });
 }
 // An add-on's price as the licence card offers it to this install, in the panel's language (editions.js
-// addonPriceFor): "$3.22 CAD — half off until January 1 (normally $6.45)" in the Black Friday sale, "$4.51 CAD — 30%
+// addonPriceFor): "$3.22 CAD — half off through January 1 (normally $6.45)" in the Black Friday sale, "$4.51 CAD — 30%
 // off with Advanced map creation (normally $6.45)" where the other of the two map add-ons is held, the price otherwise.
 function addonPriceSaid(name, settings){
   const p = addonPriceFor(settings, name);
@@ -3519,7 +3519,7 @@ function addonPriceSaid(name, settings){
     const w = ADDONS.find(x => x.name === p.with);
     return t("{price} — 30% off with {addon} (normally {normal})", { price: p.price, addon: addonWords(w), normal: p.normal });
   }
-  return p.half ? t("{price} — half off until January 1 (normally {normal})", { price: p.price, normal: p.normal }) : p.price;
+  return p.half ? t("{price} — half off through January 1 (normally {normal})", { price: p.price, normal: p.normal }) : p.price;
 }
 // Specialty (editions.js ADDONS category "specialty"): a part of its own under the add-ons, never in their list and
 // never in their sale. Without Pro: each one the key holds, its words and "for life", or, while it is on sale

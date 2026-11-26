@@ -302,7 +302,7 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
 
     def on_sale(item: str) -> str:
         words, price = item.rsplit(" ", 2)[0], item.rsplit(" ", 2)[1]
-        return f"{words} {half[price]} CAD — half off until January 1 (normally {price})"
+        return f"{words} {half[price]} CAD — half off through January 1 (normally {price})"
     # From December 1 (editions.js FREE_BASICS_FROM) Advanced map creation and Robot vacuum are on sale too, in the
     # table's order (editions.js ADDONS): Advanced map creation before Advanced smart lighting, Robot vacuum last.
     every_late = every[:8] + ["Advanced map creation $8.65 CAD", every[8], "Robot vacuum $6.45 CAD"]

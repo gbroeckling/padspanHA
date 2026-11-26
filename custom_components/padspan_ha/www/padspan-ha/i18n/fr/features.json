@@ -208,7 +208,7 @@
 "Licence activated. It doesn't include Forensics: that needs {what}.": "Licence activée. Elle n’inclut pas Forensique : il faut {what}.",
 "Needs {what}. Enter a key in PadSpan licence at the top of this tab, or you will be asked for it when enabling.": "Nécessite {what}. Saisissez une clé dans Licence PadSpan en haut de cet onglet, ou elle vous sera demandée à l’activation.",
 "Advanced map creation": "Création de plans avancée",
-"{price} — half off until January 1 (normally {normal})": "{price} — moitié prix jusqu’au 1er janvier (au lieu de {normal})",
+"{price} — half off through January 1 (normally {normal})": "{price} — moitié prix jusqu’au 1er janvier (au lieu de {normal})",
 "Advanced smart lighting": "Éclairage intelligent avancé",
 "This add-on needs a newer PadSpan — update PadSpan.": "Ce module nécessite un PadSpan plus récent — mettez PadSpan à jour.",
 "Robot vacuum": "Robot aspirateur",

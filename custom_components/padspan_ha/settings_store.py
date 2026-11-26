@@ -95,7 +95,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "tester_nudge_done": False,     # the Overview "test it, get Pro free" card was shown; never again (views/pro_invite.js)
     "launch_card_done": False,      # the Overview "launch price ends November 30" card was shown (the card is gone; kept so old backups still read)
     "lifetime_card_done": False,    # the Overview "Pro for life ends Dec 15" card was shown; never again (panel.js _launchPriceCard)
-    "addon_sale_card_done": False,  # the Overview "Half off every add-on until January 1" card was shown; never again (panel.js _addonSaleCard)
+    "addon_sale_card_done": False,  # the Overview "Half off every add-on through January 1" card was shown; never again (panel.js _addonSaleCard)
     "house3d_free_card_done": False,  # the Overview "The 3D house is now free" card was shown; never again (panel.js _freeHouseCard)
     "c4local_offer_done": False,      # No thanks on the Overview's OS 2 Local for Control4 card: this install's (views/c4local.js)
     "telemetry_install_id": "",

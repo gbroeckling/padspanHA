@@ -105,22 +105,22 @@ export const FREE_BASICS_FROM = "2026-12-01T08:00:00Z";
 export const ADDONS_URL = "https://padspan.traks.ca/#addons";
 export const ADDONS = Object.freeze([
   { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map, and Room off" },
-  { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free" },
+  { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm, open and close garage doors and gates in their card, and test the emergency lights. A triggered alarm, locks, shades and Alert pulse stay free" },
   { name: "wifi", words: "Wi-Fi coverage", price: "$6.45 CAD", desc: "The UniFi Wi-Fi coverage map" },
-  { name: "climate", words: "Climate & air quality", price: "$8.65 CAD", desc: "The Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card" },
+  { name: "climate", words: "Climate & air quality", price: "$8.65 CAD", desc: "The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card" },
   { name: "timetravel", words: "Full house activity", price: "$7.55 CAD", desc: "The day replayed in Traceback on your Atlas map: lights, doors, sensors and who was where" },
-  { name: "vacation", words: "Vacation Mode & presets", price: "$4.25 CAD", desc: "Vacation Mode and Whole House Presets" },
-  { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
+  { name: "vacation", words: "Vacation Mode & presets", price: "$4.25 CAD", desc: "Vacation Mode and Whole house presets" },
+  { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Four panel themes, 20 Showcase looks for the map including the West Coast Forest, and saved look presets. The light glow (Automorph) is Advanced smart lighting's" },
   // Forensics is part of Presence insights (the owner, 2026-11-26: merged): never sold on its own (on_sale: false), and
   // a key holding either has both (licence.ADDON_PART_OF; the backend's addons_licensed says so).
   { name: "forensics", words: "Forensics", price: "$5.56 CAD", on_sale: false, part_of: "insights", desc: "Which Bluetooth devices were near a receiver in any time window" },
-  { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Locate, Busy Times and Forensics: where a lost tag is, each room's busy hours, and which Bluetooth devices were near a receiver in any time window" },
+  { name: "insights", words: "Presence insights", price: "$5.56 CAD", desc: "Locate walks you to a lost tag room by room; Busy Times shows each room's busy hours; Forensics shows which Bluetooth devices were near a receiver in any time window" },
   // maps and vacuum go on sale with the free 3D house (the December 1 free basics, FREE_BASICS_FROM).
   { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale_from: FREE_BASICS_FROM,
-    desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
-  { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Power teams that follow the day, sleep and wake you, WLED's Advanced controls, Automorph, Scene, Ripple, Light spread, Fit room, and fixture shapes with their size and angle" },
+    desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan" },
+  { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Smart bulbs behind a wall switch work as one light that follows the day, dims for sleep and wakes you; WLED's Advanced controls; a glow from each light into its room; fixture shapes with their size and angle, the type override, Hide untouched and Showcase's Classic theme" },
   { name: "vacuum", words: "Robot vacuum", price: "$6.45 CAD", on_sale_from: FREE_BASICS_FROM,
-    desc: "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans" },
+    desc: "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder, and Wi-Fi while it cleans (with Wi-Fi coverage)" },
   // Specialty (the owner, 2026-11-25): a product of its own, sold beside the add-ons and never in their list or their
   // sale. OS 2 Local for Control4 is a separate Home Assistant integration (domain control4) PadSpan can install
   // (views/c4local.js, c4local_install.py); one payment, good for life (lifetime). on_sale: false until it is
@@ -186,12 +186,12 @@ export function addonPrice(name, now = Date.now()) {
   const p = addonPriceParts(name, now);
   return p ? p.price : "";
 }
-/** The price in full, in English: "$3.22 CAD — half off until January 1 (normally $6.45)" in the sale, the price
+/** The price in full, in English: "$3.22 CAD — half off through January 1 (normally $6.45)" in the sale, the price
  *  otherwise. settings.js says the same in the panel's language (addonPriceSaid). */
 export function addonPriceWords(name, now = Date.now()) {
   const p = addonPriceParts(name, now);
   if (!p) return "";
-  return p.half ? `${p.price} — half off until January 1 (normally ${p.normal})` : p.price;
+  return p.half ? `${p.price} — half off through January 1 (normally ${p.normal})` : p.price;
 }
 // Cross discount (the owner, 2026-11-25): an install that holds Advanced map creation pays 30% off Robot vacuum,
 // and one that holds Robot vacuum pays 30% off Advanced map creation, rounded down to the cent ($8.65 -> $6.05,
@@ -240,7 +240,7 @@ export function addonBuyUrl(settings, name, now = Date.now()) {
 export function addonKey(settings) {
   return !!settings && settings.addon_key === true;
 }
-// "Half off every add-on until January 1", the one Overview card about the
+// "Half off every add-on through January 1", the one Overview card about the
 // sale (panel.js _addonSaleCard; the owner, 2026-11-25), held to the lifetime
 // card's discipline: once, to an administrator, never on a wall, only while
 // addonHalfOff, and only once the backend says it was never shown
