@@ -5,6 +5,8 @@ know about, that the sitemap doesn't list, or whose canonical link names another
 address is a page nobody finds, or one a search engine files under the wrong
 URL. Prices stay on the main page: they change (the launch price ends on
 November 30), and a guide that quoted one would go stale without anyone noticing.
+The Pro page (/pro/) and the add-ons page (/add-ons/) sell, so they link to the
+main page's prices for the same reason, and each has a German twin.
 """
 from __future__ import annotations
 
@@ -17,8 +19,12 @@ import pytest
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _SITE = _ROOT / "site"
-# The creators kit at /creators/ and the manual at /manual/ are deployed and checked like a guide.
-_GUIDES = sorted(p for folder in ("guides", "creators", "manual") for p in (_SITE / folder).rglob("index.html"))
+# The creators kit at /creators/, the manual at /manual/, the Pro page at /pro/ and the
+# add-ons page at /add-ons/ are deployed and checked like a guide.
+_FOLDERS = ("guides", "creators", "manual", "pro", "add-ons")
+_GUIDES = sorted(p for folder in _FOLDERS for p in (_SITE / folder).rglob("index.html"))
+# The pages that sell: each must be there in English and German, and in the sitemap.
+_SALES_PAGES = ("pro", "add-ons")
 
 pytestmark = pytest.mark.skipif(not _GUIDES, reason="no guides in this tree")
 
@@ -53,6 +59,16 @@ def test_every_guide_names_its_own_address() -> None:
         assert f'<meta property="og:url" content="{_url(page)}">' in html, page
         assert re.search(r"<title>[^<]{20,}</title>", html), page
         assert re.search(r'<meta name="description" content="[^"]{50,}">', html), page
+
+
+@pytest.mark.parametrize("folder", _SALES_PAGES)
+def test_each_sales_page_is_there_in_english_and_german(folder: str) -> None:
+    """The home page links to /pro/ and /add-ons/, and the two link to each other in
+    both languages. A missing page or German twin is a dead link from all of them."""
+    sitemap = (_SITE / "sitemap.xml").read_text(encoding="utf-8")
+    for page in (_SITE / folder / "index.html", _SITE / folder / "de" / "index.html"):
+        assert page.is_file(), page
+        assert f"<loc>{_url(page)}</loc>" in sitemap, page
 
 
 def test_no_guide_quotes_a_price() -> None:
@@ -101,7 +117,7 @@ def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     beside = {f"{mod.REMOTE_DIR}/{n}" for n in ("sitemap.xml",) + mod.INDEXNOW_KEYS}
     assert beside <= set(targets)
     assert {f"{mod.REMOTE_DIR}/{g}" for g in mod.GUIDES} <= set(targets)
-    pages = (f"{mod.REMOTE_DIR}/guides/", f"{mod.REMOTE_DIR}/creators/", f"{mod.REMOTE_DIR}/manual/")
+    pages = tuple(f"{mod.REMOTE_DIR}/{folder}/" for folder in _FOLDERS)
     assert all(t.startswith(pages) or t in beside for t in targets), targets
     # One submission with every guide; the order is the deploy's own (sorted as text).
     assert len(sent) == 1 and sorted(sent[0]) == sorted(_url(p) for p in _GUIDES)
