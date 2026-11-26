@@ -1,7 +1,7 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Control4 OS 2 Local from inside PadSpan (the owner, 2026-11-25): c4local_install.py and views/c4local.js.
+"""OS 2 Local for Control4 from inside PadSpan (the owner, 2026-11-25): c4local_install.py and views/c4local.js.
 
 The specialty add-on c4local is a separate integration (domain control4). PadSpan installs it only
 from its one release URL, refuses anything that is not the product, backs up what was there and
@@ -32,7 +32,7 @@ from custom_components.padspan_ha import licence
 _ROOT = Path(__file__).resolve().parents[1]
 _PKG = _ROOT / "custom_components" / "padspan_ha"
 _WWW = _PKG / "www" / "padspan-ha"
-PRODUCT = {"domain": "control4", "name": "Control4 OS 2 Local", "version": "1.0.0", "requirements": ["pyControl4==1.5.0"]}
+PRODUCT = {"domain": "control4", "name": "OS 2 Local for Control4", "version": "1.0.0", "requirements": ["pyControl4==1.5.0"]}
 
 
 def _zip(files: dict[str, bytes | str] | None = None, *, manifest: dict | None = PRODUCT, link: str | None = None) -> bytes:
@@ -59,6 +59,9 @@ def _run(coro):
 
 def test_the_products_zip_is_taken() -> None:
     assert C.check_zip(_zip())["version"] == "1.0.0"
+    # Its first releases' manifest says the name it had before the owner's rename: still the product.
+    assert C.check_zip(_zip(manifest={**PRODUCT, "name": "Control4 OS 2 Local"}))["name"] == "Control4 OS 2 Local"
+    assert C.is_product({**PRODUCT, "name": "Control4 OS 2 Local"}) and not C.is_product({**PRODUCT, "name": "OS 2 Local"})
 
 
 BAD = {
@@ -226,7 +229,7 @@ def test_install_backs_up_what_was_there_and_undo_puts_it_back(tmp_path) -> None
     out = C.install_files(str(tmp_path), _zip(), "20261125T120000Z")
     target = tmp_path / "custom_components" / "control4"
     assert out == {"version": "1.0.0", "backup": "control4-20261125T120000Z"}
-    assert json.loads((target / "manifest.json").read_text())["name"] == "Control4 OS 2 Local"
+    assert json.loads((target / "manifest.json").read_text())["name"] == "OS 2 Local for Control4"
     assert (target / "translations" / "en.json").is_file()
     back = tmp_path / "padspan_ha" / "control4_backups" / "control4-20261125T120000Z"
     assert (back / "__init__.py").read_text() == "# the fork\n"
@@ -244,7 +247,7 @@ def test_install_backs_up_what_was_there_and_undo_puts_it_back(tmp_path) -> None
 
 def test_on_a_house_with_nothing_there_undo_removes_it_and_the_built_in_comes_back(tmp_path) -> None:
     assert C.install_files(str(tmp_path), _zip(), "20261125T120000Z")["backup"] is None
-    assert C.disk_state(str(tmp_path)) == {"disk": {"name": "Control4 OS 2 Local", "version": "1.0.0", "ours": True},
+    assert C.disk_state(str(tmp_path)) == {"disk": {"name": "OS 2 Local for Control4", "version": "1.0.0", "ours": True},
                                            "undo": {"what": "remove"}}
     assert C.undo_files(str(tmp_path), "20261125T130000Z") == {"what": "remove", "version": None}
     assert not (tmp_path / "custom_components" / "control4").exists() and _backups(tmp_path) == []
@@ -338,7 +341,7 @@ def test_the_status_says_what_home_assistant_has(ha) -> None:
     C.install_files(str(ha.root), _zip(), "20261125T120000Z")
     st = _run(C.async_status(ha.hass))
     assert st["disk"]["ours"] and st["restart_needed"] is True, "on disk, not loaded yet"
-    ha.running.value = SimpleNamespace(name="Control4 OS 2 Local", version="1.0.0")
+    ha.running.value = SimpleNamespace(name="OS 2 Local for Control4", version="1.0.0")
     assert _run(C.async_status(ha.hass))["restart_needed"] is False, "loaded since the restart"
     C.undo_files(str(ha.root), "20261125T130000Z")
     assert _run(C.async_status(ha.hass))["restart_needed"] is True, "removed, still loaded"
@@ -478,9 +481,9 @@ def test_the_card_the_overview_and_the_licence_cards_specialty_part() -> None:
     run = _node(_WWW / "views")
     assert len(run["checks"]) >= 35
     out = run["out"]
-    assert out["c4only"] == {"status": "✓ Your PadSpan add-on key is active.", "specialty": "SpecialtyControl4 OS 2 Local · for life"}
+    assert out["c4only"] == {"status": "✓ Your PadSpan add-on key is active.", "specialty": "SpecialtyOS 2 Local for Control4 · for life"}
     assert out["both"]["status"] == "✓ PadSpan add-ons: Audio until 2028-11-25", "never mixed with the feature add-ons"
-    assert out["both"]["specialty"] == "SpecialtyControl4 OS 2 Local · for life"
+    assert out["both"]["specialty"] == "SpecialtyOS 2 Local for Control4 · for life"
     assert out["nokey"] == {"specialty": None, "offer": ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
                                                          "forensics", "insights"]}, "not on sale: offered nowhere"
     assert out["pro"]["specialty"] is None
@@ -520,4 +523,4 @@ def _offer_at(views: Path, now: str) -> str | None:
 def test_on_sale_by_its_date_the_offer_is_the_full_price_even_in_black_friday(on_sale_copy) -> None:
     assert _offer_at(on_sale_copy, "2026-12-20T07:59:59Z") == {"text": None, "href": None}
     got = _offer_at(on_sale_copy, "2026-12-24T12:00:00Z")   # inside the half-price sale (ADDON_HALF_UNTIL is Jan 2)
-    assert got == {"text": "Control4 OS 2 Local $26 CAD, once, for life", "href": "https://padspan.traks.ca/#c4local"}
+    assert got == {"text": "OS 2 Local for Control4 $26 CAD, once, for life", "href": "https://padspan.traks.ca/#c4local"}

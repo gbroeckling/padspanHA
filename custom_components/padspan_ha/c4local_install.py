@@ -2,11 +2,11 @@
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
-"""Control4 OS 2 Local, installed from inside PadSpan (the owner, 2026-11-25).
+"""OS 2 Local for Control4, installed from inside PadSpan (the owner, 2026-11-25).
 
 The specialty add-on c4local is its own Home Assistant integration, published at PROJECT_URL: the
 domain `control4`, taking the place of Home Assistant's built-in Control4 integration, for OS 2
-controllers (Control4 ended OS 2 cloud services on 2026-11-01, and the built-in one logs in through
+controllers (cloud services for Control4 OS 2 ended on 2026-11-01, and the built-in one logs in through
 that cloud). HACS installs it too; this is the other way, from Settings → Tracking → Home Assistant
 and integrations (views/c4local.js).
 
@@ -15,7 +15,7 @@ the update check also need PadSpan Pro or the c4local add-on, licence.hass_addon
   Install   downloads ZIP_URL, that one URL and nothing a caller sends, following GitHub's own
             redirects only (_HOSTS); refuses anything that is not the product: not a zip, over
             MAX_ZIP, a path that leaves the folder, a link, too much unpacked, or a manifest.json
-            whose domain is not "control4" and whose name is not PRODUCT_NAME. Then it moves any
+            whose domain is not "control4" and whose name is not one of PRODUCT_NAMES. Then it moves any
             custom_components/control4 into BACKUPS (timestamped) and unpacks in its place.
   Undo      puts the newest backup back, or removes the folder when there is none, so the
             built-in Control4 comes back. It never touches a control4 folder that isn't the
@@ -52,7 +52,10 @@ _LOGGER = logging.getLogger(__name__)
 
 ADDON = "c4local"
 C4_DOMAIN = "control4"
-PRODUCT_NAME = "Control4 OS 2 Local"
+PRODUCT_NAME = "OS 2 Local for Control4"
+# Its manifest's name: the product's name since the owner's rename (2026-11-25), or the one its first releases
+# were built with. Either is the product.
+PRODUCT_NAMES = (PRODUCT_NAME, "Control4 OS 2 Local")
 PROJECT_URL = "https://github.com/gbroeckling/control4-os2-local"
 ZIP_URL = PROJECT_URL + "/releases/latest/download/control4.zip"
 # Where GitHub sends ZIP_URL: the release's page, then its file store. No other host is followed.
@@ -67,7 +70,7 @@ _TIMEOUT_S = 60
 _FAILED = ("setup_error", "setup_retry", "migration_error")
 _LOCK = "c4local_lock"
 
-NEED_ADDON = "Installing Control4 OS 2 Local takes PadSpan Pro or the Control4 OS 2 Local add-on."
+NEED_ADDON = "Installing OS 2 Local for Control4 takes PadSpan Pro or the OS 2 Local for Control4 add-on."
 
 
 class C4LocalError(Exception):
@@ -103,9 +106,9 @@ def _manifest(folder: Path) -> dict[str, Any] | None:
 
 
 def is_product(manifest: Any) -> bool:
-    """Whether a manifest is Control4 OS 2 Local's: the domain control4, its name and a version."""
+    """Whether a manifest is OS 2 Local for Control4's: the domain control4, its name and a version."""
     return (isinstance(manifest, dict) and manifest.get("domain") == C4_DOMAIN
-            and manifest.get("name") == PRODUCT_NAME and isinstance(manifest.get("version"), str))
+            and manifest.get("name") in PRODUCT_NAMES and isinstance(manifest.get("version"), str))
 
 
 def _said(manifest: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -291,7 +294,7 @@ async def _running(hass: HomeAssistant) -> dict[str, Any] | None:
         return None
     name = str(getattr(ci, "name", "") or "")
     version = getattr(ci, "version", None)
-    return {"name": name, "version": str(version) if version is not None else "", "ours": name == PRODUCT_NAME}
+    return {"name": name, "version": str(version) if version is not None else "", "ours": name in PRODUCT_NAMES}
 
 
 async def async_status(hass: HomeAssistant) -> dict[str, Any]:
@@ -416,7 +419,7 @@ async def async_undo(hass: HomeAssistant) -> dict[str, Any]:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_c4local_status(hass: HomeAssistant, connection, msg) -> None:
-    """Settings' Control4 OS 2 Local card and the Overview's offer: what is there now (reads only)."""
+    """Settings' OS 2 Local for Control4 card and the Overview's offer: what is there now (reads only)."""
     connection.send_result(msg["id"], await async_status(hass))
 
 

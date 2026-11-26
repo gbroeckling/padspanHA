@@ -143,7 +143,7 @@ between versions. For automations, use the entities, services and events in
 | `padspan_ha/bright_import_status` | – | – | `ws_bright_import.py` | Whether a PadSpan Bright house is on this Home Assistant, whether it was imported, and whether it can be. |
 | `padspan_ha/c4local_check` | – | always | `c4local_install.py` | Check for an update: the newest release's version (pressed by an administrator). |
 | `padspan_ha/c4local_install` | – | always | `c4local_install.py` | Install or update (pressed by an administrator). |
-| `padspan_ha/c4local_status` | – | always | `c4local_install.py` | Settings' Control4 OS 2 Local card and the Overview's offer: what is there now (reads only). |
+| `padspan_ha/c4local_status` | – | always | `c4local_install.py` | Settings' OS 2 Local for Control4 card and the Overview's offer: what is there now (reads only). |
 | `padspan_ha/c4local_undo` | – | always | `c4local_install.py` | Undo (pressed by an administrator): never locked behind the licence. |
 | `padspan_ha/calibration_beacon_profiles` | – | – | `ws_calibration.py` | Compute per-beacon signal profiles grouped by model. |
 | `padspan_ha/calibration_clear` | – | always | `ws_calibration.py` | Delete all calibration points and reset the model. |

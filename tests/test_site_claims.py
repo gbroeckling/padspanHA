@@ -138,7 +138,7 @@ _SKUS = {
     **{f"padspan-addon-{name}": (price, ("padspan", "addon"), ("upgrade", "bright", "lifetime", "2year"))
        for name, price in (("audio", 6.45), ("alarm", 6.45), ("wifi", 6.45), ("climate", 8.65), ("timetravel", 7.55),
                            ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56))},
-    # The specialty Control4 OS 2 Local (2026-11-25): an add-on SKU like the others, for life, never half price.
+    # The specialty OS 2 Local for Control4 (2026-11-25): an add-on SKU like the others, for life, never half price.
     "padspan-addon-c4local":        (26.00, ("padspan", "addon"),      ("upgrade", "bright", "lifetime", "2year")),
 }
 
@@ -457,7 +457,7 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
 
 
 def test_the_specialty_is_sold_as_the_panel_says_and_shown_only_while_on_sale(html: str) -> None:
-    """Control4 OS 2 Local (editions.js ADDONS c4local, the owner, 2026-11-25): its own Specialty box in #editions,
+    """OS 2 Local for Control4 (editions.js ADDONS c4local, the owner, 2026-11-25): its own Specialty box in #editions,
     apart from the add-ons; $26 CAD once, for life, PadSpan Pro includes it, never in the Black Friday sale; who it is
     for, said as facts; the trademark line; a PayPal form like the add-ons'. The whole box is hidden exactly while
     editions.js says it is not on sale (on_sale: false), and its on_sale_from date is the box's, so the page shows it at
@@ -465,7 +465,7 @@ def test_the_specialty_is_sold_as_the_panel_says_and_shown_only_while_on_sale(ht
     from pathlib import Path
     ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
           / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
-    m = re.search(r'\{ name: "c4local", words: "Control4 OS 2 Local", price: "\$(\d+) CAD", on_sale: (true|false), '
+    m = re.search(r'\{ name: "c4local", words: "OS 2 Local for Control4", price: "\$(\d+) CAD", on_sale: (true|false), '
                   r'on_sale_from: "([^"]*)", category: "specialty",\s+lifetime: true, url: "https://padspan\.traks\.ca/#c4local"', ed)
     assert m, "editions.js's c4local entry"
     price, on_sale, sale_from = m.group(1), m.group(2) == "true", m.group(3)
@@ -479,11 +479,11 @@ def test_the_specialty_is_sold_as_the_panel_says_and_shown_only_while_on_sale(ht
     assert f'data-on-sale-from="{sale_from}"' in head
     assert ("display:none" in head) == (not on_sale), "hidden exactly while it is not on sale"
     assert "<h3>Specialty</h3>" in box and ' id="c4local"' in box
-    assert f'Control4 OS 2 Local <span style="color:var(--mut);font-weight:600">${price} CAD</span>' in box
+    assert f'OS 2 Local for Control4 <span style="color:var(--mut);font-weight:600">${price} CAD</span>' in box
     assert "Once, good for life. PadSpan Pro includes it." in box
-    assert "Control4 ended its cloud services for OS 2 on November 1, 2026" in box
+    assert "Cloud services for Control4 OS 2 ended on November 1, 2026" in box
     assert "Home Assistant's built-in Control4 integration logs in through that cloud" in box
-    assert "Control4 is a trademark of Snap One, LLC." in box and "not affiliated" in box
+    assert "Control4 is a trademark of its owner; not affiliated with Control4, Snap One or Resideo." in box
     form = re.search(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", box, re.S).group(0)
     for field, value in (("cmd", "_xclick"), ("item_number", "padspan-addon-c4local"), ("amount", f"{price}.00"),
                          ("currency_code", "CAD"), ("notify_url", "https://traks.ca/license/?action=ipn")):

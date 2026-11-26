@@ -111,11 +111,11 @@ export const ADDONS = Object.freeze([
   { name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,
     desc: "AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan" },
   // Specialty (the owner, 2026-11-25): a product of its own, sold beside the add-ons and never in their list or their
-  // sale. Control4 OS 2 Local is a separate Home Assistant integration (domain control4) PadSpan can install
+  // sale. OS 2 Local for Control4 is a separate Home Assistant integration (domain control4) PadSpan can install
   // (views/c4local.js, c4local_install.py); one payment, good for life (lifetime). on_sale: false until it is
   // published; on_sale_from, an ISO moment, puts it on sale by itself from then (addonOnSale). The site's #c4local
   // box shows exactly while it is on sale (tests/test_site_claims.py).
-  { name: "c4local", words: "Control4 OS 2 Local", price: "$26 CAD", on_sale: false, on_sale_from: "", category: "specialty",
+  { name: "c4local", words: "OS 2 Local for Control4", price: "$26 CAD", on_sale: false, on_sale_from: "", category: "specialty",
     lifetime: true, url: "https://padspan.traks.ca/#c4local",
     desc: "Home Assistant's Control4 integration for OS 2 controllers: a local login with the controller's system password, and room volume, mute and off" },
 ]);

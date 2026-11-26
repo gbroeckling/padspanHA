@@ -330,7 +330,7 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
 
 def test_maps_is_known_and_not_on_sale_in_both_halves(gates) -> None:
     """editions.js on_sale: false and licence.NOT_ON_SALE say the same; nothing offers it: not the licence card, not
-    the site. Control4 OS 2 Local (c4local, the specialty) is not on sale yet either, and is never in the add-ons' list
+    the site. OS 2 Local for Control4 (c4local, the specialty) is not on sale yet either, and is never in the add-ons' list
     (tests/test_c4local.py: its own part of the card, its own box on the site, hidden until it is)."""
     not_yet = ("maps", "c4local")
     assert "maps" in ADDONS and licence.NOT_ON_SALE == not_yet and not licence.addon_on_sale("maps")

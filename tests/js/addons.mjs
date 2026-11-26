@@ -37,12 +37,12 @@ check("the table can't be changed at run time", Object.isFrozen(E.ADDONS));
 check("the term", E.ADDON_TERM === "2 years", E.ADDON_TERM);
 check("the buy link", E.ADDONS_URL === "https://padspan.traks.ca/#addons", E.ADDONS_URL);
 
-// Specialty (the owner, 2026-11-25): Control4 OS 2 Local, for life, its own box on the site, not on sale yet, and
+// Specialty (the owner, 2026-11-25): OS 2 Local for Control4, for life, its own box on the site, not on sale yet, and
 // never in a sale; the only specialty and the only one for life.
 const C4 = E.ADDONS.find(a => a.name === "c4local") || {};
 check("c4local: a specialty, for life", C4.category === "specialty" && C4.lifetime === true
   && E.ADDONS.filter(a => a.category === "specialty" || a.lifetime).length === 1, JSON.stringify(C4));
-check("c4local: Control4 OS 2 Local at its own box", C4.words === "Control4 OS 2 Local" && C4.url === "https://padspan.traks.ca/#c4local");
+check("c4local: OS 2 Local for Control4 at its own box", C4.words === "OS 2 Local for Control4" && C4.url === "https://padspan.traks.ca/#c4local");
 check("c4local: not on sale, and no date yet", C4.on_sale === false && C4.on_sale_from === ""
   && E.addonOnSale("c4local") === false && E.addonOnSale("c4local", Date.parse("2030-01-01T00:00:00Z")) === false);
 for (const at of ["2026-11-27T08:00:00Z", "2026-12-24T12:00:00Z", "2027-01-02T07:59:59Z", "2027-03-01T00:00:00Z"]) {

@@ -40,9 +40,9 @@ EXPECTED = {
                      "Ask Assist which room someone is in", "Ignore Bermuda"],
     "privacy": ["Update Check", "Device makers", "Enhanced security", "💡 Suggest an idea", "Help improve PadSpan"],
 }
-# Cards drawn only sometimes, so not in the drawing above: Control4 OS 2 Local, to an administrator once Home
+# Cards drawn only sometimes, so not in the drawing above: OS 2 Local for Control4, to an administrator once Home
 # Assistant has Control4 (views/c4local.js; tests/test_c4local.py draws it in its section).
-SOMETIMES = {"integrations": ["Control4 OS 2 Local"]}
+SOMETIMES = {"integrations": ["OS 2 Local for Control4"]}
 
 
 def _presence_src() -> str:

@@ -92,31 +92,30 @@ Alert pulse, the Insights tab and a device's 📍 Locate flash.
 - The 90-day trial is still yours: it keeps the add-on key aside and puts it back when it ends.
 - Where a feature is locked, it says what unlocks it: "PadSpan Pro or the … add-on", with the price.
 
-## Control4 OS 2 Local
+## OS 2 Local for Control4
 
-A specialty add-on of its own, for homes with a Control4 controller on OS 2. Control4 ended its
-cloud services for OS 2 on November 1, 2026, and Home Assistant's built-in Control4 integration
-logs in through that cloud, so it stopped working with OS 2 controllers. **Control4 OS 2 Local** is
+A specialty add-on of its own, for homes with a Control4 controller on OS 2. Cloud services for Control4 OS 2 ended on November 1, 2026, and Home Assistant's built-in Control4 integration
+logs in through that cloud, so it stopped working with OS 2 controllers. **OS 2 Local for Control4** is
 a separate Home Assistant integration that takes the built-in one's place: it logs in to the
-controller itself with the controller's system password, no Control4 account or cloud, and makes
+controller itself with the controller's system password, no cloud account, and makes
 each room a media player with volume, mute and off. It is one payment, good for life, and
 **PadSpan Pro includes it**. Its own page:
 [github.com/gbroeckling/control4-os2-local](https://github.com/gbroeckling/control4-os2-local).
 
 ### Install it from PadSpan
 
-1. Open **Settings → Tracking → Home Assistant and integrations → Control4 OS 2 Local**. It is
+1. Open **Settings → Tracking → Home Assistant and integrations → OS 2 Local for Control4**. It is
    there for an administrator once Home Assistant has Control4 (an entry, or a controller it
    found) or the key holds the add-on. The Overview offers it too when a Control4 entry failed to
    set up or the controller runs OS 2.
-2. Press **Install Control4 OS 2 Local** and confirm. PadSpan downloads the newest release from the
-   product's GitHub page (that one file, nothing else), checks that it is Control4 OS 2 Local,
+2. Press **Install OS 2 Local for Control4** and confirm. PadSpan downloads the newest release from the
+   product's GitHub page (that one file, nothing else), checks that it is OS 2 Local for Control4,
    moves any `custom_components/control4` that is already there into
    `padspan_ha/control4_backups/` in your configuration folder, and puts the new one in its place.
 3. Press **Restart Home Assistant** and confirm. PadSpan never restarts Home Assistant by itself.
 4. Open **Settings → Devices & services → Control4 → Configure**, enter the controller's system
-   password and your key (a Control4 OS 2 Local key, or your PadSpan Pro key), and press
-   **Submit**. Adding Control4 for the first time: **Add integration → Control4 OS 2 Local**, with
+   password and your key (an OS 2 Local for Control4 key, or your PadSpan Pro key), and press
+   **Submit**. Adding Control4 for the first time: **Add integration → OS 2 Local for Control4**, with
    the controller's IP address, its system password and the key.
 
 **Check for an update** on the same card asks GitHub for the newest release; **Update to …** installs
@@ -125,16 +124,15 @@ it, the version before going into the backups.
 ### Undo
 
 **Undo** on the card puts back the folder that was there before (after an update, the version
-before), or, when there was none, removes Control4 OS 2 Local so that Home Assistant's built-in
+before), or, when there was none, removes OS 2 Local for Control4 so that Home Assistant's built-in
 Control4 integration comes back. Restart Home Assistant afterwards. Undo works without a key, and it
-never touches a `custom_components/control4` that isn't Control4 OS 2 Local. Your Control4 entry
+never touches a `custom_components/control4` that isn't OS 2 Local for Control4. Your Control4 entry
 and its entities stay; on an OS 2 controller the built-in integration can't connect.
 
 You can also install it with HACS instead: add the product's GitHub page as a custom repository of
 the type Integration.
 
-Control4 is a trademark of Snap One, LLC. Control4 OS 2 Local is not affiliated with or endorsed by
-Snap One or Control4.
+Control4 is a trademark of its owner; not affiliated with Control4, Snap One or Resideo.
 
 ## Get Pro free by testing it
 

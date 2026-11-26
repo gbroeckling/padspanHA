@@ -56,7 +56,7 @@ const POWER_TEAMS = await import(`./power_teams.js${new URL(import.meta.url).sea
 const LIGHTS_FOLLOW = await import(`./lights_follow.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: lights_follow failed to load", err); return null; });
 
-// Settings → Tracking → Home Assistant and integrations → Control4 OS 2 Local (views/c4local.js), for an
+// Settings → Tracking → Home Assistant and integrations → OS 2 Local for Control4 (views/c4local.js), for an
 // administrator. Optional, as the others are.
 const C4LOCAL = await import(`./c4local.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: c4local failed to load", err); return null; });
@@ -3469,7 +3469,7 @@ const ADDON_WORDS = {
   climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
   maps: () => t("Advanced map creation"),
-};   // c4local (Control4 OS 2 Local) is a product's name, the same in every language: addonWords gives a.words
+};   // c4local (OS 2 Local for Control4) is a product's name, the same in every language: addonWords gives a.words
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 // What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
 // panel's language with its price (editions.js ADDONS).
@@ -3608,7 +3608,7 @@ function _settingsLicence(ctx, el){
         return d >= today ? t("{addon} until {date}", { addon: addonWords(a), date: d })
                           : t("{addon} ended on {date}", { addon: addonWords(a), date: d });
       });
-      // A key that holds only a specialty (Control4 OS 2 Local) says so in the Specialty part below.
+      // A key that holds only a specialty (OS 2 Local for Control4) says so in the Specialty part below.
       line = "\u2713 " + (held.length ? t("PadSpan add-ons: {list}", { list: held.join(" \u00B7 ") }) : t("Your PadSpan add-on key is active."));
       colour = expiringSoon ? "#fbbf24" : "#a7f3d0";
     }

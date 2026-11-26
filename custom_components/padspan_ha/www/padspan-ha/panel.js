@@ -125,7 +125,7 @@ let AIW = null;
 import(`./views/ai_wizard_offer.js?b=${BUILD_ID}`)
   .then(m => { AIW = m; })
   .catch(err => console.warn("PadSpan: ai_wizard_offer module failed to load", err));
-// Control4 OS 2 Local (views/c4local.js): the Overview's card when a Control4 entry failed to set up or a
+// OS 2 Local for Control4 (views/c4local.js): the Overview's card when a Control4 entry failed to set up or a
 // controller runs OS 2. Optional like the others.
 let C4L = null;
 import(`./views/c4local.js?b=${BUILD_ID}`)
@@ -1565,7 +1565,7 @@ class PadSpanHaApp extends HTMLElement {
   // beside the Getting started card or another Overview card (the caller).
   // Let Claude draw your rooms (views/ai_wizard_offer.js): the Overview's own
   // card when Getting started isn't showing, one card at a time.
-  // Control4 OS 2 Local (views/c4local.js): to an administrator, in live data, never on a wall; one card at a time.
+  // OS 2 Local for Control4 (views/c4local.js): to an administrator, in live data, never on a wall; one card at a time.
   _c4localOverviewCard(){
     if (!C4L || this.state.kioskMode) return null;
     if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;

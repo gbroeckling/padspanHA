@@ -143,7 +143,7 @@ def test_after_the_switch_the_page_sells_the_pass_and_the_year_only(site: str) -
     forms = re.findall(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", after, re.S)
     skus = sorted(re.search(r'name="item_number" value="([^"]+)"', f).group(1) for f in forms)
     addons = [s for s in skus if s.startswith("padspan-addon-")]
-    # Nine add-ons and the specialty Control4 OS 2 Local (padspan-addon-c4local, its own box, for life by design).
+    # Nine add-ons and the specialty OS 2 Local for Control4 (padspan-addon-c4local, its own box, for life by design).
     assert len(addons) == 10 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
     assert 'name="amount" value="85.00"' in next(f for f in forms if "padspan-pro-2year" in f)
     sales = after[after.index('id="lights"'):after.index('id="donate"')]

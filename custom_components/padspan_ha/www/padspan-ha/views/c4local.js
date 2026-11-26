@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 //
-// Control4 OS 2 Local from inside PadSpan (the owner, 2026-11-25): the specialty add-on c4local
+// OS 2 Local for Control4 from inside PadSpan (the owner, 2026-11-25): the specialty add-on c4local
 // (editions.js ADDONS) is its own Home Assistant integration, and an administrator can install it
 // here as well as with HACS. Two places:
 //   settingsCard   Settings → Tracking → Home Assistant and integrations, data-focus-part "c4local":
@@ -37,7 +37,7 @@ const _call = (ctx, type, data) => (ctx.actions.wsCall ? ctx.actions.wsCall(type
 const _rerender = (ctx) => { try { ctx.actions.renderRooms(); } catch (_) { /* nothing to draw */ } };
 const _word = () => {
   const a = ED.ADDONS.find(x => x.name === NAME);
-  return a ? a.words : "Control4 OS 2 Local";
+  return a ? a.words : "OS 2 Local for Control4";
 };
 
 /** The status, asked once per page load (force: again, after a press). Only for an administrator. */
@@ -64,14 +64,14 @@ const _ours = (st) => !!(st && st.disk && st.disk.ours);
 
 // What a refusal says, by its code (c4local_install.py C4LocalError); its English message otherwise.
 const ERRORS = {
-  addon_required: () => t("This needs PadSpan Pro or the Control4 OS 2 Local add-on."),
+  addon_required: () => t("This needs PadSpan Pro or the OS 2 Local for Control4 add-on."),
   busy: () => t("An install or undo is already running."),
   offline: () => t("GitHub couldn't be reached. Nothing was changed."),
-  no_release: () => t("Control4 OS 2 Local has no release on GitHub yet."),
+  no_release: () => t("OS 2 Local for Control4 has no release on GitHub yet."),
   download_failed: () => t("The download didn't come from the product's GitHub release. Nothing was changed."),
   too_big: () => t("The download is far bigger than the product. Nothing was changed."),
   not_a_zip: () => t("The download is not the product's zip. Nothing was changed."),
-  not_the_product: () => t("The download is not Control4 OS 2 Local. Nothing was changed."),
+  not_the_product: () => t("The download is not OS 2 Local for Control4. Nothing was changed."),
   not_a_folder: () => t("custom_components/control4 is not a plain folder. Nothing was changed."),
   not_ours: () => t("custom_components/control4 holds another integration, so PadSpan leaves it alone."),
   nothing: () => t("There is nothing to undo."),
@@ -84,7 +84,7 @@ export function errorWords(e) {
 }
 
 // Why it exists, said plainly (README of the product).
-const _why = () => t("Control4 ended its cloud services for OS 2 on November 1, 2026, and Home Assistant's built-in Control4 integration logs in through that cloud. Control4 OS 2 Local logs in to the controller itself, with the controller's system password, and adds room volume, mute and off on OS 2.");
+const _why = () => t("Cloud services for Control4 OS 2 ended on November 1, 2026, and Home Assistant's built-in Control4 integration logs in through that cloud. OS 2 Local for Control4 logs in to the controller itself, with the controller's system password, and adds room volume, mute and off on OS 2.");
 
 function _findings(el, st) {
   const out = [];
@@ -128,12 +128,12 @@ function _install(ctx) {
   const st = _status || {};
   const over = st.disk && !st.disk.ours;
   const q = over
-    ? t("Download Control4 OS 2 Local from its GitHub release and install it? custom_components/control4 holds another integration now: PadSpan moves it into a backup first, and Undo puts it back.")
-    : t("Download Control4 OS 2 Local from its GitHub release and install it? It takes the place of Home Assistant's built-in Control4 integration once Home Assistant restarts, and Undo takes it out again.");
+    ? t("Download OS 2 Local for Control4 from its GitHub release and install it? custom_components/control4 holds another integration now: PadSpan moves it into a backup first, and Undo puts it back.")
+    : t("Download OS 2 Local for Control4 from its GitHub release and install it? It takes the place of Home Assistant's built-in Control4 integration once Home Assistant restarts, and Undo takes it out again.");
   if (!confirm(q)) return;
   _press(ctx, "install", "padspan_ha/c4local_install", (r) => {
     _latest = null;
-    return { ok: true, text: t("Control4 OS 2 Local {version} is installed. Restart Home Assistant to load it.", { version: r.version || "" }) };
+    return { ok: true, text: t("OS 2 Local for Control4 {version} is installed. Restart Home Assistant to load it.", { version: r.version || "" }) };
   });
 }
 
@@ -141,13 +141,13 @@ function _undo(ctx) {
   const u = (_status && _status.undo) || {};
   const q = u.what === "restore"
     ? t("Put back the control4 folder that was there before ({name} {version})? Home Assistant loads it when it restarts.", { name: u.name || "control4", version: u.version || "" })
-    : t("Remove Control4 OS 2 Local? Home Assistant's built-in Control4 integration comes back when Home Assistant restarts. Your Control4 entry and its entities stay, but on an OS 2 controller the built-in integration can't connect.");
+    : t("Remove OS 2 Local for Control4? Home Assistant's built-in Control4 integration comes back when Home Assistant restarts. Your Control4 entry and its entities stay, but on an OS 2 controller the built-in integration can't connect.");
   if (!confirm(q)) return;
   _press(ctx, "undo", "padspan_ha/c4local_undo", (r) => {
     _latest = null;
     return { ok: true, text: r.what === "restore"
       ? t("The earlier control4 folder is back. Restart Home Assistant to load it.")
-      : t("Control4 OS 2 Local is removed. Restart Home Assistant to bring back the built-in Control4 integration.") };
+      : t("OS 2 Local for Control4 is removed. Restart Home Assistant to bring back the built-in Control4 integration.") };
   });
 }
 
@@ -218,14 +218,14 @@ export function settingsCard(ctx, el, now = Date.now()) {
     // How to use it: the key and the controller's password go into the entry's Configure.
     const hasEntry = (st.entries || []).length > 0;
     lines.appendChild(el("div", { "data-c4local": "setup", style: "margin-top:4px" }, hasEntry
-      ? [t("To use it: open Settings → Devices & services → Control4 → Configure, and enter the controller's system password and your PadSpan key (a Control4 OS 2 Local key or a PadSpan Pro key)."), " ",
+      ? [t("To use it: open Settings → Devices & services → Control4 → Configure, and enter the controller's system password and your PadSpan key (an OS 2 Local for Control4 key or a PadSpan Pro key)."), " ",
          _link(el, HA_CONFIGURE, t("Open Control4"), "configure")]
-      : [t("To use it: open Settings → Devices & services → Add integration → Control4 OS 2 Local, and enter the controller's IP address, the controller's system password and your PadSpan key (a Control4 OS 2 Local key or a PadSpan Pro key)."), " ",
+      : [t("To use it: open Settings → Devices & services → Add integration → OS 2 Local for Control4, and enter the controller's IP address, the controller's system password and your PadSpan key (an OS 2 Local for Control4 key or a PadSpan Pro key)."), " ",
          _link(el, HA_ADD, t("Add Control4"), "add")]));
   } else {
     if (st.disk && !st.disk.ours)
       lines.appendChild(el("div", { "data-c4local": "other" }, t("custom_components/control4 holds another integration ({name}). Installing moves it into a backup first.", { name: st.disk.name || "control4" })));
-    buttons.push(_btn(el, _busy === "install" ? t("Installing…") : t("Install Control4 OS 2 Local"), "install", () => _install(ctx), true));
+    buttons.push(_btn(el, _busy === "install" ? t("Installing…") : t("Install OS 2 Local for Control4"), "install", () => _install(ctx), true));
   }
   if (st.undo && (st.undo.what === "remove" || st.undo.what === "restore"))
     buttons.push(_btn(el, _busy === "undo" ? t("Undoing…") : t("Undo"), "undo", () => _undo(ctx)));

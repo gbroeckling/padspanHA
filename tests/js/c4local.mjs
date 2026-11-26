@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 //
-// RUN Control4 OS 2 Local in the panel (views/c4local.js, the specialty part of the licence card in
+// RUN OS 2 Local for Control4 in the panel (views/c4local.js, the specialty part of the licence card in
 // views/settings.js): the Settings card for each state the backend can report, every press (nothing
 // is sent before a confirm, Home Assistant restarts only from its own button after its confirm),
 // the Overview's card, the card in its Settings section, and the licence card's Specialty part.
@@ -83,7 +83,7 @@ const C4KEY = { tier: "free", pro_has_key: true, addon_key: true, pro_active: tr
 const BASE = { allowed: true, entries: [{ title: "Control4 HC-800", state: "setup_retry" }], failed: true, os2: ["2.10.6"],
   discovered: false, disk: null, running: null, restart_needed: false, undo: null, project_url: "https://github.com/gbroeckling/control4-os2-local" };
 const INSTALLED = { ...BASE, failed: false, entries: [{ title: "Control4 HC-800", state: "loaded" }],
-  disk: { name: "Control4 OS 2 Local", version: "1.0.0", ours: true }, running: { name: "Control4 OS 2 Local", version: "1.0.0", ours: true },
+  disk: { name: "OS 2 Local for Control4", version: "1.0.0", ours: true }, running: { name: "OS 2 Local for Control4", version: "1.0.0", ours: true },
   undo: { what: "remove" } };
 const text = (n) => (n ? n.textContent : null);
 
@@ -109,7 +109,7 @@ const text = (n) => (n ? n.textContent : null);
   check("its focus part", card.getAttribute("data-focus-part") === "c4local");
   check("says what PadSpan found", /failed to set up/.test(text(find(card, "found"))) && /runs OS 2\.10\.6/.test(text(find(card, "found"))),
     text(find(card, "found")));
-  check("says why, as facts", /Control4 ended its cloud services for OS 2 on November 1, 2026/.test(out.fresh)
+  check("says why, as facts", /Cloud services for Control4 OS 2 ended on November 1, 2026/.test(out.fresh)
     && /logs in through that cloud/.test(out.fresh));
   check("no undo and no restart before anything was done", !find(card, "undo") && !find(card, "restart"));
   confirmSays = false;
@@ -148,7 +148,7 @@ const text = (n) => (n ? n.textContent : null);
     "padspan_ha/c4local_undo": { ok: true, what: "remove", restart_needed: true, status: { ...BASE, disk: null, running: INSTALLED.running, restart_needed: true } },
   } });
   let card = C.settingsCard(h.ctx, el);
-  check("no entry yet: Add integration, with its link", /Add integration → Control4 OS 2 Local/.test(text(find(card, "setup")))
+  check("no entry yet: Add integration, with its link", /Add integration → OS 2 Local for Control4/.test(text(find(card, "setup")))
     && find(card, "add").getAttribute("href") === "/config/integrations/dashboard/add?domain=control4");
   check("installed: Check for an update, no Install", !!find(card, "check") && !find(card, "install"));
   press(find(card, "check")); await tick(); await tick();
@@ -156,7 +156,7 @@ const text = (n) => (n ? n.textContent : null);
   check("a newer release: Update to it", /Version 1\.1\.0 is out/.test(text(card)) && text(find(card, "update")) === "Update to 1.1.0", text(card));
   press(find(card, "update")); await tick(); await tick();
   card = C.settingsCard(h.ctx, el);
-  check("a refusal is said in words", text(find(card, "note")) === "The download is not Control4 OS 2 Local. Nothing was changed.", text(find(card, "note")));
+  check("a refusal is said in words", text(find(card, "note")) === "The download is not OS 2 Local for Control4. Nothing was changed.", text(find(card, "note")));
   asked.length = 0; confirmSays = false;
   press(find(card, "undo")); await tick();
   check("Undo: nothing sent without the confirm", !h.calls.includes("padspan_ha/c4local_undo") && /built-in Control4 integration comes back/.test(asked[0]), asked[0]);
