@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.304",
+  "title": "The add-ons, sorted out: free shades, Climate & air quality, Presence insights with Forensics",
+  "date": "2026-11-26",
+  "body_markdown": "### Changed\n- **Shades are free.** A room's blinds and shades are in its card on the Atlas, with how far open they are and Open, Stop and Close for them all, on any install with no key. Tick **Shades** in a screen's ⋯ list, under \"Doors, windows and locks\", or turn on **Settings → Atlas → Shades** on the classic layout. They used to come with Audio. Garage doors, gates and any cover linked as a door's opener never show up under Shades: they stay in their own door card, part of Alarm & security.\n- **Thermostats moved to the climate add-on, now called Climate & air quality.** Each thermostat in a room's card, with its mode and setpoint, and the room's temperature and humidity at the top of the card, are now part of the add-on that has the ♨ Heatmap. It was called Climate map, and the price is the same. Tick **Thermostats** in the ⋯ list, under \"Motion and sensors\", or turn on **Settings → Atlas → Thermostats**.\n- **Audio** is now each room's players, Room off, the speaker beside a room's name and Match rooms.\n- **A screen that had Audio on keeps its shades and thermostats.** Their new lines, or the Settings switches on the classic layout, start ticked there, so nothing disappears from a room's card after the update.\n- **Forensics is part of Presence insights.** One add-on now has Locate, Busy Times and Forensics, at the same price. A key that already holds Forensics gets all of Presence insights.\n- **A light's size and angle come with Advanced smart lighting,** alongside its fixture shape. Use Transform, or Width, Length and Rotate in the builder. They used to need PadSpan Pro.\n- **A wall screen goes by its own ⋯ list for Audio** too, the same way its map's speakers already did. The classic layout's Settings switch stays for the house.\n- **The add-on sale says \"through January 1\"**, which is the last day it runs."
+ },
+ {
   "version": "0.38.302",
   "title": "The add-on sale on Overview; add-ons in the usage report; Advanced smart lighting, the eleventh add-on; Add-ons: fixes before the stable; Audio on a wall: the room panel clear of the emergency button, the volume at once, the speaker its own badge; The 3D house free from December 1; Robot vacuum and Advanced map creation add-ons; Full house activity, the add-on's new name",
   "date": "2026-11-25",
@@ -76,11 +82,5 @@
   "title": "The help and docs say what PadSpan does; The usage report fits a big house again",
   "date": "2026-11-24",
   "body_markdown": "### Changed\n- **The 3D house's descriptions say \"turn, pan and zoom\".** Settings, the help and the Atlas's tooltip said you could walk around the house; the 3D view turns, pans and zooms.\n- **The weather tip names Bright Pro too.** The moving rain and snow on the Atlas come with Bright Pro as well as PadSpan Pro, and Settings and the help now say so.\n- **The Live Aboard wizard's tip says PadSpan Pro.** It said the 3D house also came with Bright Pro, which it does not.\n- **The README, the manual and the website's guides were checked against the product.** A lock opens its card on a tap and asks before unlocking; alerts go through Home Assistant's notify services; the floor-plans guide lists the iPhone or iPad scan and the blank floor; the manual's Atlas chapter covers blind and garage openers, the scene row and the heatmap; the install steps match the release zip.\n\n### Fixed\n- **A big house's usage report goes again.** The opt-in report had a hard cap of 8 KB, and a house that uses a lot of PadSpan outgrew it: first screen and tool counts were dropped to make it fit, then the whole report was refused, every day. The cap is now 32 KB, in PadSpan and on the server that receives it. Most reports are about 7 KB."
- },
- {
-  "version": "0.38.288",
-  "title": "Access points are placed in Mapping",
-  "date": "2026-11-23",
-  "body_markdown": "### New\n- **Wi-Fi access points on the Atlas.** With UniFi Utopia, each access point is a Home Assistant device, and Mapping places it like any other device: it has its own symbol and the \"Wi-Fi\" filter. The Wi-Fi coverage screen draws each one where it is placed (until then dashed, where the devices that hear it best suggest), and \"Place in Mapping\" opens Mapping with that access point selected.\n\n### Changed\n- **Wi-Fi coverage no longer drags access points.** One place to put them: Mapping.\n- **The note under far-access-point findings** says devices differ in their transmitters and antennas, not only antennas."
  }
 ]
