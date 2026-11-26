@@ -239,24 +239,37 @@ def test_the_free_basics_switch_is_the_panels_moment(html: str) -> None:
 
 # Words that are true only before December 1 (light placement, the 3D house and the wall screen paid), and the words
 # that replace them, true from it. Each set is on the page in its own blocks only.
-_PAID_BASICS = ("PadSpan Pro, experimental", "(the full 3D house, Live Aboard, is Pro)",
-                "Place each light exactly where it hangs", "Fans, motion & temperature sensors and locks placed the same way",
-                "the whole house in 3D: walls cut away", "Light placement, shapes, WLED, Showcase",
-                "Live Aboard, the house in 3D", "Light placement — that is Bright Pro",
-                "Light placement, fixture shapes and sizes", "it unlocks light placement inside PadSpan HA",
-                "Light and device placement on the Atlas — place each light", "your house in 3D (still experimental)",
-                "Wall mode — the Atlas on a wall screen", "free to run, with real placement, WLED control")
-_FREE_BASICS = ("Free, no key. Furniture, people and the 3D editor with PadSpan Pro",
-                "Place each light and device exactly where it is, in metres",
+_PAID_BASICS = ("Wall mode fits the whole house to a wall screen and dims it at night", "3D is Pro",
+                "like looking into a house in The Sims, and Furnish fills the rooms.",
+                "Each light sits exactly where it hangs, in its real shape and size",
+                "Place each light exactly where it hangs, in metres", "Fans, locks and sensors placed the same way",
+                "Placement comes with PadSpan Pro at $45 a year", "PadSpan Pro for exact placement, the 3D house and wall mode",
+                "Wall mode on the Atlas page is PadSpan Pro.", "The 3D house (Pro)", "PadSpan Pro's 3D house.",
+                "PadSpan Pro adds the 3D house, exact placement and wall mode",
+                "Lights glow in their real colour, lit windows glow at night", "Walk through the 3D house at eye height",
+                "Exact placement of every light, fan, lock and sensor",
+                "Wall mode fits the whole house to a wall screen, sizes the text for the room",
+                "Live Aboard, the house in 3D, and Furnish", "Light placement, shapes, WLED, Showcase",
+                "Wall mode and the Atlas as your Overview", "a PDF, a LiDAR scan or a blank floor",
+                "Light placement — that is Bright Pro", "Light placement, fixture shapes and sizes",
+                "It's free to run, and placement takes a key.")
+_FREE_BASICS = ("It dims at night and shifts against burn-in",
+                "A LiDAR scan's plan takes Pro or the Advanced map creation add-on",
+                "Its real shape and size, WLED effects and Automorph, and a power team",
+                "Each light and device placed exactly where it is, in metres",
                 "Wall mode: the Atlas on a wall screen, sized for the room",
                 "Live Aboard: the house in 3D, built from the map you already drew",
-                "the director that turns the view to a doorbell, door or alarm",
-                "On a wall screen: night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake",
-                "Exact light and device placement, the wall screen and the 3D house", "Fixture shapes, WLED, Showcase",
-                "Live Aboard's editor, furniture and people", "Exact light and device placement",
-                "(the 3D house, Live Aboard, too; its editor, furniture and people are Pro)",
-                "Placing each light and device exactly is free.", "The house in 3D itself is free.",
-                "The plain wall screen is free.", "free to run, with real placement too, and fixture shapes",
+                "PadSpan Pro for Furnish, fixture shapes and the wall screen's extras",
+                "Wall mode on the Atlas page is free; its night dimming and burn-in shift are PadSpan Pro.",
+                "and a RoomPlan app that shares USDZ, and PadSpan Pro or the Advanced map creation add-on",
+                "The sample house in Live Aboard, furnished with PadSpan Pro.",
+                "PadSpan Pro adds Furnish, fixture shapes and the wall screen's extras",
+                "Live Aboard's extras. The house in 3D is free.", "Placing each light and device exactly is free.",
+                "The plain wall screen is free.", ", and so do Advanced map creation and Robot vacuum",
+                "Furnish, people and the editor in the 3D house", "Fixture shapes, WLED, Showcase",
+                "The wall screen's extras and the Atlas as your Overview",
+                "Exact light and device placement, the wall screen and the 3D house", "Exact light and device placement",
+                "It's free to run, placement included, and fixture shapes, WLED and Automorph take a key.",
                 "30% off ($6.05 CAD) if you already own Robot vacuum",
                 "30% off ($4.51 CAD) if you already own Advanced map creation")
 
@@ -277,7 +290,10 @@ def test_the_free_basics_read_right_before_december_1_until_december_15_and_afte
     assert "Fixture shapes, WLED and Showcase — that is Bright Pro" in seen["december"]
     assert 'name="item_number" value="padspan-bright-annual"' in pages["december"]
     assert "Fixture shapes, WLED and Showcase — that takes a Pro key" in seen["after"]
-    assert "there it unlocks fixture shapes and sizes, WLED and Showcase" in seen["after"]
+    assert "A PadSpan Pro key works there too, for fixture shapes and the other lighting features." in seen["after"]
+    # The lights' price line: placement free, the rest at Pro's and Bright Pro's price, then at Pro's new one.
+    assert "Placing each light is free. Shapes, WLED and Automorph come with PadSpan Pro at $45 a year" in seen["december"]
+    assert "Placing each light is free. Shapes, WLED and Automorph come with a PadSpan Pro key, $49 a year" in seen["after"]
     # The two new add-ons: not on the page before December 1, sold from it.
     for name in ("maps", "vacuum"):
         assert f'name="item_number" value="padspan-addon-{name}"' not in pages["before"], name
@@ -651,3 +667,53 @@ def test_the_specialty_is_sold_as_the_panel_says_and_shown_only_while_on_sale(ht
     assert 'var b=document.getElementById("addons")' in html
     # The date, when there is one, shows it by itself (the visitor's clock, as the sale does).
     assert 'var f=b.getAttribute("data-on-sale-from");' in box and 'if(f&&Date.now()>=Date.parse(f))b.style.display="";' in box
+
+
+_SALES_PAGES = [_ROOT / "site" / f / lang / "index.html" for f in ("add-ons", "pro") for lang in ("", "de")]
+
+
+def test_each_add_on_has_one_buy_place_and_the_pages_about_them_link_to_it(html: str) -> None:
+    """The home page sells each add-on in exactly one PayPal form (#addons, the specialty in #specialty); no other page
+    on the site carries one, so a price lives in one place (pinned above, before, during and after the sale and before
+    and after December 1). /add-ons/ and /pro/, in English and German, describe the add-ons and send every "Price and
+    buy" to an anchor that is on the home page (the German page is built from it, ids and all)."""
+    names = [row[0] for row in _ADDON_ROW.findall(_ED.read_text(encoding="utf-8"))] + ["c4local"]
+    assert len(names) == len(set(names)) == 13, names
+    for name in names:
+        assert len(re.findall(rf'name="item_number" value="padspan-addon-{name}"', html)) == 1, name
+    ids = set(re.findall(r'\sid="([^"]+)"', html))
+    for page in sorted((_ROOT / "site").rglob("*.html")):
+        if page == _SITE or "demo" in page.relative_to(_ROOT / "site").parts:
+            continue
+        assert "padspan-addon-" not in page.read_text(encoding="utf-8"), page
+    for page in _SALES_PAGES:
+        text = page.read_text(encoding="utf-8")
+        for anchor in re.findall(r'href="(?:https://padspan\.traks\.ca)?/(?:de/)?#([\w-]+)"', text):
+            assert anchor in ids, (page.relative_to(_ROOT), anchor)
+    # The add-ons' own anchors: Audio and Full house activity (the timetravel add-on, the owner's name for it),
+    # and the two that go on sale on December 1.
+    for anchor, name in (("audio", "audio"), ("activity", "timetravel"), ("maps", "maps"), ("vacuum", "vacuum")):
+        assert re.search(rf'<div id="{anchor}" data-addon="{name}"', html), anchor
+
+
+def test_every_link_padspan_makes_to_the_site_lands_on_an_anchor(html: str) -> None:
+    """The panel's and the backend's links to padspan.traks.ca/#x (editions.js ADDONS_URL, BUY_URL and the specialty's
+    url, the refusals in the backend, the release's notes) and the docs' links to /add-ons/#x each land on an id that
+    is there: a dead anchor drops the reader at the top of a long page."""
+    ids = set(re.findall(r'\sid="([^"]+)"', html))
+    found: dict[str, set[str]] = {}
+    sources = [*(_ROOT / "custom_components" / "padspan_ha").rglob("*.js"),
+               *(_ROOT / "custom_components" / "padspan_ha").rglob("*.py"), _ROOT / "scripts" / "release.py"]
+    for src in sources:
+        for anchor in re.findall(r'padspan\.traks\.ca/?(?:\?[^#"\'`\s]*)?#([\w-]+)', src.read_text(encoding="utf-8")):
+            found.setdefault(anchor, set()).add(src.name)
+    assert {"addons", "c4local", "pro"} <= set(found), found
+    for anchor, where in found.items():
+        assert anchor in ids, (anchor, sorted(where))
+    addon_ids = set(re.findall(r'\sid="([^"]+)"', (_ROOT / "site" / "add-ons" / "index.html").read_text(encoding="utf-8")))
+    addon_ids_de = set(re.findall(r'\sid="([^"]+)"',
+                                  (_ROOT / "site" / "add-ons" / "de" / "index.html").read_text(encoding="utf-8")))
+    assert addon_ids == addon_ids_de, addon_ids ^ addon_ids_de
+    for doc in [_ROOT / "README.md", *(_ROOT / "docs").rglob("*.md")]:
+        for anchor in re.findall(r'padspan\.traks\.ca/add-ons/(?:de/)?#([\w-]+)', doc.read_text(encoding="utf-8")):
+            assert anchor in addon_ids, (doc.relative_to(_ROOT), anchor)

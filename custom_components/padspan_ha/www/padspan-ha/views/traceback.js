@@ -295,7 +295,7 @@ export function render(ctx) {
       tb.rangePreset = Math.round(tb.endTs - tb.startTs);
     }
   }
-  // PadSpan Pro or the Time travel add-on — without either the switch is not offered at all.
+  // PadSpan Pro or the Full house activity add-on — without either the switch is not offered at all.
   const _houseOK = addonAllowed(ctx.state.settings, "timetravel");
   const _houseActive = () => _houseOK && tb.house.on && tb.mode === "playback";
   // Full house activity has two modes (2026-09-24: "split it in two,
@@ -2333,7 +2333,7 @@ export function render(ctx) {
   modeRow.appendChild(_makeModeBtn(t("Insights"), "insights"));
   modeRow.appendChild(_makeModeBtn(t("Busy Times"), "busytimes"));
 
-  // Full house activity (PadSpan Pro or the Time travel add-on) — an option of Playback, off until picked.
+  // Full house activity (PadSpan Pro or the add-on of the same name) — an option of Playback, off until picked.
   const houseBtn = document.createElement("button");
   houseBtn.className = "btn inline";
   const _paintHouseBtn = () => {
@@ -2344,7 +2344,7 @@ export function render(ctx) {
   };
   houseBtn.addEventListener("click", () => {
     tb.house.on = !tb.house.on;
-    // Time travel used (the usage report's add-ons.used, once per page load).
+    // Full house activity used (the usage report's add-ons.used, once per page load).
     if (tb.house.on) addonUsedSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "timetravel");
     _paintHouseBtn();
     _applyHouseFrames();    // back to beacon-only frames when it goes off

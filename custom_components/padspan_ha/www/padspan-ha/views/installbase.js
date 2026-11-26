@@ -948,7 +948,7 @@ const W_WALL_KIND = { kiosk: "as a wall screen (kiosk link)", fullscreen_idle: "
 // The places whose offer links to the site (telemetry.ADDON_BUY_PLACES): their clicks per offer, even at none.
 const W_ADDON_BUY_PLACES = ["licence_card", "power_teams", "team_card", "c4local_card"];
 const W_ADDONS = {
-  addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Time travel",
+  addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Full house activity",
     vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
     maps: "Advanced map creation", lighting: "Advanced smart lighting", vacuum: "Robot vacuum", c4local: "OS 2 Local for Control4" },
   licence: { free: "Free", trial: "Pro trial", pro_year: "Pro, a year", pro_pass: "Pro, a two-year pass", pro_life: "Pro for life",

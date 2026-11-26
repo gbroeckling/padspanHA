@@ -108,7 +108,7 @@ export const ADDONS = Object.freeze([
   { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free" },
   { name: "wifi", words: "Wi-Fi coverage", price: "$6.45 CAD", desc: "The UniFi Wi-Fi coverage map" },
   { name: "climate", words: "Climate map", price: "$8.65 CAD", desc: "The Heatmap: rooms by temperature, humidity and CO₂" },
-  { name: "timetravel", words: "Time travel", price: "$7.55 CAD", desc: "The day replayed on the Atlas map (Playback on the Atlas)" },
+  { name: "timetravel", words: "Full house activity", price: "$7.55 CAD", desc: "The day replayed on the Atlas map (Playback on the Atlas)" },
   { name: "vacation", words: "Vacation Mode & presets", price: "$4.25 CAD", desc: "Vacation Mode and Whole House Presets" },
   { name: "looks", words: "Looks pack", price: "$4.25 CAD", desc: "Day and three more themes, Showcase and the forest" },
   { name: "forensics", words: "Forensics", price: "$5.56 CAD", desc: "Which Bluetooth devices were near a scanner in any time window" },

@@ -78,9 +78,10 @@ SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html") + 
 # own address. The creators kit (site/creators/, served at /creators/) is a
 # standalone page of the same kind, so it goes up with them, and so does the
 # manual (site/manual/, served at /manual/), whose pages scripts/build_site_manual.py
-# makes from docs/manual/.
+# makes from docs/manual/. The Pro page (site/pro/) and the add-ons page (site/add-ons/)
+# are standalone pages of the same kind, each with its German twin in de/.
 GUIDES = tuple(sorted(p.relative_to(SRC.parent).as_posix()
-                      for folder in ("guides", "creators", "manual")
+                      for folder in ("guides", "creators", "manual", "pro", "add-ons")
                       for p in (SRC.parent / folder).rglob("index.html")))
 URL = "https://padspan.traks.ca/"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
@@ -355,7 +356,8 @@ def sitemap_with_dates() -> bytes:
     try:
         xml = plain.decode("utf-8")
         changed = {line[3:].strip() for line in
-                   git("status --porcelain --untracked-files=all -- site/guides site/creators site/manual").splitlines()}
+                   git("status --porcelain --untracked-files=all -- site/guides site/creators site/manual"
+                       " site/pro site/add-ons").splitlines()}
         for name in GUIDES:
             path = f"site/{name}"
             day = datetime.date.today().isoformat() if path in changed else git(f"log -1 --format=%cs -- {path}").strip()

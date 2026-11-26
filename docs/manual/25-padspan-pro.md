@@ -84,7 +84,7 @@ on up to three homes. **PadSpan Pro includes them all.** Prices, and where to bu
 | Alarm & security | Arm and Disarm in the emergency button, the emergency lights test, a door's card with its opener and lock, **Devices → Door Openers**, and openers and locks built from relays |
 | Wi-Fi coverage | The Wi-Fi coverage tab |
 | Climate map | The ♨ Heatmap on the Atlas |
-| Time travel | Full house activity: the day replayed on the Atlas (Traceback → Playback) |
+| Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301) | The day replayed on the Atlas (Traceback → Playback) |
 | Vacation Mode & presets | Vacation Mode and the Whole house presets |
 | Looks pack | The Graphite, Ocean, Dusk and Day themes; on the Atlas, Showcase with its themes, the West Coast Forest and the presets bar |
 | Forensics | Forensics recording |

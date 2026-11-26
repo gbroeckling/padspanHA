@@ -1,15 +1,25 @@
 # Atlas Guide
 
-Atlas is PadSpan's device map — floors and rooms drawn as an isometric plan, with lights, fans, locks, sensors, doors and windows placed where they really are. It used to be called "Lights"; it was renamed once it grew past lighting (see [What's in a name](#whats-in-a-name) below). This guide covers placing and controlling devices on Atlas. For uploading floor plans and drawing room boundaries in the first place, see [Floor Plan Setup](FLOOR_PLAN_SETUP.md).
+The Atlas is the map you run the house from: your floors and rooms drawn as an isometric plan, with the lights, fans, locks, sensors, doors and windows on it. A tap switches a light or a fan, a lock opens its card, and a room's name opens everything in that room. With a key, each device sits where it really is. It used to be called "Lights"; it was renamed once it grew past lighting (see [What's in a name](#whats-in-a-name) below). This guide covers placing and controlling devices on the Atlas. For uploading floor plans and drawing room boundaries in the first place, see [Floor Plan Setup](FLOOR_PLAN_SETUP.md).
 
 ## Who this is for
 
 Atlas works two ways depending on which PadSpan you installed:
 
-- **[PadSpan HA](https://github.com/gbroeckling/padspanHA)** — Atlas sits alongside BLE presence tracking. Free by default; a **PadSpan Pro** key unlocks the lighting tools.
-- **[PadSpan Bright](https://github.com/gbroeckling/padspanBright)** — the same Atlas map on its own, no BLE tracking. Free by default; a **PadSpan Bright Pro** key unlocks the lighting tools.
+- **[PadSpan HA](https://github.com/gbroeckling/padspanHA)** — Atlas sits alongside BLE presence tracking. Free with no key; a **PadSpan Pro** key adds placement (free from December 1, 2026) and the rest of this guide.
+- **[PadSpan Bright](https://github.com/gbroeckling/padspanBright)** — the same Atlas map on its own, no BLE tracking. Free with no key; a PadSpan Pro key adds placement there too (free from December 1, 2026), and so does a **PadSpan Bright Pro** key (sold until December 15, 2026).
 
-Either free tier gets floors, rooms and, from December 1, 2026, every light and device placed where it really is, drawn as a plain marker — tap the marker (or its sidebar row) to toggle it. Until then a free map shows one marker per light in its room, and placement needs a key. A Pro/Bright Pro key on either install unlocks shapes, sizes and angles, Fit room, Automorph and Showcase. See [Editions](../README.md#editions) in the README for the full breakdown, and **Settings → Features → PadSpan licence** for a one-time 90-day free trial if you don't have a key yet (see [PadSpan Pro](PADSPAN_PRO.md)).
+Either free version gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it — plus locks, the leak, smoke, gas and CO alarms and the emergency banner. From December 1, 2026, it also places every light and device where it really is, drawn as a plain marker; until then placing lights and sensors where they are needs a PadSpan Pro or a Bright Pro key. Shapes and sizes, Automorph, Showcase, WLED's Advanced controls and moving weather need a PadSpan Pro or a Bright Pro key. Other parts need PadSpan Pro or one add-on:
+
+- **Shapes and sizes, the type override, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, and power teams that follow the day, sleep and wake you** also come with the Advanced smart lighting add-on. A Bright Pro key keeps them.
+- **Whole House Presets and Vacation Mode**: Pro or the Vacation Mode & presets add-on. A Bright Pro key doesn't include them.
+- **Showcase, its themes and the presets bar** also come with the Looks pack add-on, on the free map.
+- **The emergency lighting test, arming the house alarm, and a door's card with its opener and lock**: Pro or the Alarm & security add-on. A Bright Pro key keeps them.
+- **A room sheet's music, shades and thermostats**: Pro or the Audio add-on.
+- **The robot vacuum on the map, with its card**: free until December 1, 2026; from then Pro, the Robot vacuum add-on or a Bright Pro key.
+- **Heights and What is this?**: PadSpan Pro only.
+
+[PadSpan Pro](PADSPAN_PRO.md) lists what each key and add-on covers. **Settings → Features → PadSpan licence** has a one-time 90-day free trial of all of Pro if you don't have a key yet.
 
 ## Getting there
 
@@ -31,12 +41,13 @@ This works for lights, fans, locks, and motion, temperature, humidity, air-quali
 
 ## Doors, windows and locks
 
-Mark a door or window on a wall from the Layout tab's wall list (or the Atlas map's own door/window tool) and it becomes a real signal wall, not just a picture:
+Mark a door or window on a wall from the Layout tab's wall list (or, with a Pro or Bright Pro key, the Atlas map's own door/window tool) and it becomes a real signal wall, not just a picture:
 
 - **Material** sets attenuation — a steel door blocks a BLE signal harder than a hollow-core one.
 - **Live open/closed state** draws on the map from the linked binary sensor.
 - **Invert** — next to Delete in the wall list — flips the on/off reading for a sensor that reports backwards (some vibration-based door sensors report `state=="on"` as *closed*, not open). If a door on the map seems to show the wrong state, this is the first thing to check.
 - Locks placed on the map show their live state. A lock is never turned by a tap on the map: a tap or a hold opens its card, which has **Lock** or **Unlock**, and **Unlock** asks "Unlock {name}?" before anything is sent.
+- **A door's card with its opener and lock** (PadSpan Pro or the Alarm & security add-on; a Bright Pro key too): tick a cover (a garage door, a gate, a blind), switch, button or script on **Devices → Door Openers**, then link it to the door in **Mapping → Atlas builder**, beside its sensor and its lock. A tap on the door then opens one card with its state, **Open** or **Close** for a cover (**Trigger** for a switch, button or script), and the lock. More in the [manual's Atlas chapter](manual/15-the-atlas.md#doors-windows-and-locks).
 
 ## Finding a device buried under another
 
@@ -49,7 +60,7 @@ Fixtures placed close together (a light stacked over a fan, say) can be hard to 
 
 ## Automorph
 
-Automorph grows a soft aura from a fixture out into its room — a decorative render mode, on top of whatever the fixture's real position and shape already are. The set of styles is still growing and gets pruned when two styles turn out to look the same at real marker size (ten near-duplicates were retired for six genuinely distinct new ones as of v0.38.47) — open the Automorph picker in-app (toolbar → Automorph) for the current list rather than relying on a name here going stale. A few of the longer-lived styles: **Glow**, **Blueprint**, **Nebula**, **Halo**, **Bloom**.
+With PadSpan Pro, a Bright Pro key or the Advanced smart lighting add-on, Automorph grows a soft aura from a fixture out into its room — a decorative render mode, on top of whatever the fixture's real position and shape already are. The set of styles is still growing and gets pruned when two styles turn out to look the same at real marker size (ten near-duplicates were retired for six genuinely distinct new ones as of v0.38.47) — open the Automorph picker in-app (toolbar → Automorph) for the current list rather than relying on a name here going stale. A few of the longer-lived styles: **Glow**, **Blueprint**, **Nebula**, **Halo**, **Bloom**.
 
 ## Showcase
 
@@ -57,7 +68,13 @@ Showcase is a set of 20 curated visual themes for the whole map — colour, room
 
 The **presets bar** saves a whole look — Showcase theme, Automorph style, and optionally floor/spacing/layout — under a name you choose, and loads it back later with **Apply**. Older presets saved before layout was included never move your camera when applied.
 
-**Whole House Presets** is a different kind of preset, right beside it: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
+Showcase, its themes, the West Coast Forest and the presets bar come with PadSpan Pro, a Bright Pro key, or the Looks pack add-on. With the Looks pack alone the lights aren't placed, so Showcase draws them in the middle of their rooms.
+
+## Whole House Presets and Vacation Mode
+
+Both need PadSpan Pro or the Vacation Mode & presets add-on. A Bright Pro key doesn't include them.
+
+**Whole House Presets** is a different kind of preset from the presets bar, right beside it: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
 
 **🌴 Vacation Mode** is the one permanent entry at the top of that same list. It isn't a saved snapshot: it learns your house's own day-to-day routine from Home Assistant's history (per light, per day of the week) and keeps switching lights to match it, with some randomness so it doesn't look like a timer, until you turn it off. While it's on, a banner sits in the middle of both Atlas screens with an **Energy saving** slider (100% follows the full routine; lower settings light less at once). Turning it on or off needs an administrator account.
 
@@ -69,6 +86,10 @@ The **presets bar** saves a whole look — Showcase theme, Automorph style, and 
   - **Pause while someone is home**: anyone in Home Assistant's People at home, and nothing is switched until they leave. Nothing is forced off.
   - **Bedtime**: every light it runs goes off from about then until 5 am; the time moves up to 20 minutes either way each night.
   - **Longest on**: a light it turned on goes off after this long, and stays off as long.
+  - **Most lights on at once**: lights it already has on keep their place; the rest wait.
+  - **Evening lights**: up to 10 lights (a porch or hall light) on when they were on in the evening last week, and off at bedtime.
+  - **Routine from**: **Last week** (each day plays like the same day last week; the default) or **Monthly average**. A change applies the next time Vacation Mode is turned on.
+  - **Preview**: what it would switch over the next 24 hours with these options. Nothing is switched.
 - **For your own automations:** `binary_sensor.padspan_vacation_mode` is on while it runs (its attributes give the start, the end, which routine, the options, whether it's paused, and who last turned it off), and the `padspan_ha_vacation_mode` event fires on every change with `on` and `how`.
 - Restoring a PadSpan backup leaves Vacation Mode as it is.
 
@@ -93,7 +114,7 @@ Set it up in **Settings → Atlas** (Advanced mode) **→ Atlas — Mapped Light
 ## Heights
 
 Every placed device has a height above its floor, used by [Live Aboard](LIVE_ABOARD_GUIDE.md) (the
-3D house) to put it where it really is. In **Mapping → Atlas builder**, pick a device and use its **Height**
+3D house) to put it where it really is. Heights need PadSpan Pro, with Live Aboard on. In **Mapping → Atlas builder**, pick a device and use its **Height**
 row: tap one of the spots offered for its kind (a motion sensor: Corner, Ceiling, High on the
 wall…; a leak sensor: Floor), type centimetres, or **Default**. The **Heights** list shows every
 placed device with its height (or "default"); tick several and set them all at once. Hovering a
@@ -103,7 +124,9 @@ device shows its height ("2.40 m up"). Live Aboard's Edit → Heights sets the s
 
 Tap a room's name on the map for its sheet: every device in the room, **All lights on / off**,
 fans on / off, and a **▶ button for each of the room's scenes and scripts** in Home Assistant (the
-ones in that room's area, up to six). Tap a floor's badge for the floor's sheet.
+ones in that room's area, up to six). Tap a floor's badge for the floor's sheet. With PadSpan Pro
+or the Audio add-on, the sheet also has **Room off**, each player's volume, the room's shades and
+its thermostats ([manual chapter 15, Audio](manual/15-the-atlas.md#audio)).
 
 **◎ Find active** (in the floor and device-type bar) scrolls the map to the first device that's
 doing something right now, a light on or motion, and points it out.
@@ -112,7 +135,9 @@ doing something right now, a light on or motion, and points it out.
 
 A round red button at the top right of the map, **Test emergency lighting**. It only appears when
 PadSpan finds emergency lights: any Home Assistant group with "emergency" in its name (nested groups
-included), or else WLED lights named "emergency".
+included), or else WLED lights named "emergency". The test needs PadSpan Pro or the Alarm & security
+add-on (a Bright Pro key keeps it); it was free until PadSpan 0.38.300. Without either, there is no
+test, and the button shows only an alarm going off. A test already running can always be ended.
 
 - **Tap the red centre** to start the test: every emergency light comes on. The dial pulses and says
   **Test on — tap to end**; tap again to end it. Lights that were already on before the test stay on.
@@ -125,15 +150,15 @@ included), or else WLED lights named "emergency".
   Control → Show the Test emergency lighting button on the Atlas**. It saves straight away, no restart.
 - **Your house alarm** (a Home Assistant alarm panel, such as Alarmo) is inside the button: the
   centre becomes the alarm's shield in its colour, and the button opens one card with the alarm on top
-  (on PadSpan Bright and Pro, Arm and Disarm, every time after a question and with the code when the
-  alarm wants one) and the emergency lights below; the test then starts from **Start test** in that
+  (with PadSpan Pro, the Alarm & security add-on or a Bright Pro key, Arm and Disarm, every time after
+  a question and with the code when the alarm wants one) and the emergency lights below; the test then starts from **Start test** in that
   card. A house with an alarm and no emergency lights gets the alarm's own button, a plain ring. An
   alarm going off shows on the button and in the red banner on every edition. More in the
   [manual's alerts chapter](manual/13-alerts.md#your-house-alarm-on-the-emergency-button).
 
 ## WLED: Advanced and Exact look
 
-With PadSpan Pro or Bright Pro, a WLED light's card has **Controls | Advanced**. Advanced is a full
+With PadSpan Pro, Bright Pro or the Advanced smart lighting add-on, a WLED light's card has **Controls | Advanced**. Advanced is a full
 WLED workbench in tabs: **Layout** (segments), **Effect**, **Presets & playlists**, **LEDs**,
 **Sync & team**, **Exact look**, **Settings**, **Backup** and **Info**.
 
@@ -152,7 +177,9 @@ Only an administrator can change who runs a light.
 Got a garage door, window opener, door strike or light wired to plain relays (a ProDino channel, a
 PoE port, any switch or light entity)? **Build an Opener, Lock, or Light from Relays** turns them
 into a proper Home Assistant cover, lock or light. Find it in **Mapping → Atlas builder** (**+ Build an
-opener, lock, or light from relays** in the device list) or on the **Devices** page. PadSpan Pro.
+opener, lock, or light from relays** in the device list) or on the **Devices** page. An opener or a
+lock needs PadSpan Pro or the Alarm & security add-on; a light needs PadSpan Pro. A Bright Pro key
+covers all three.
 
 - **Opener:** pick the open and close relays (they must be different), the **travel time** for a
   full open or close, and a position sensor if you have one (**Invert** if it reads backwards).
@@ -177,4 +204,4 @@ Atlas used to be called "Lights" — both the Mapping tab and the standalone sid
 - [Floor Plan Setup](FLOOR_PLAN_SETUP.md) — uploading maps and drawing rooms, before there's anything to place fixtures onto
 - [Wall Screen Guide](WALL_SCREEN_GUIDE.md) — the Atlas on a tablet or a screen on the wall
 - The in-app **Training Hub** has animated walkthroughs alongside this guide
-- [Editions](../README.md#editions) — what's free vs. what needs a Pro/Bright Pro key
+- [PadSpan Pro](PADSPAN_PRO.md) — what's free, what Pro adds, and each add-on

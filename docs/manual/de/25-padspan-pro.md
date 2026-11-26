@@ -95,7 +95,7 @@ zu drei Zuhause. **PadSpan Pro enthält sie alle.** Preise, und wo du eines kauf
 | Alarm & Sicherheit | Scharf und unscharf schalten im Notfallknopf, der Test der Notbeleuchtung, die Karte einer Tür mit Öffner und Schloss, **Geräte → Türöffner** und Öffner und Schlösser aus Relais |
 | WLAN-Abdeckung | Der Reiter Wi-Fi coverage |
 | Klimakarte | Die ♨ Heatmap im Atlas |
-| Zeitreise | Full house activity: der Tag noch einmal im Atlas abgespielt (Traceback → Playback) |
+| Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt) | Der Tag noch einmal im Atlas abgespielt (Traceback → Playback) |
 | Urlaubsmodus & Voreinstellungen | Der Urlaubsmodus und die Whole house presets |
 | Looks-Paket | Die Themen Graphit, Ozean, Dämmerung und Tag; im Atlas Showcase mit seinen Themen, der West Coast Forest und die Presets-Leiste |
 | Forensik | Die Aufzeichnung von Forensik |

@@ -343,7 +343,7 @@ export function atlasShownEids(model, settings, lights, shapeOverrides = {}, fra
 // What this install may show on the replayed Atlas, as the Atlas itself does
 // (lights_map.js lightsHostForTier): placed lights and the tools that need
 // them only with Bright or Pro, Showcase with those or the Looks pack; the
-// Time travel add-on alone replays the free map. Its model and its look.
+// Full house activity add-on alone replays the free map. Its model and its look.
 function _asShown(settings, model) {
   const s = settings || {};
   return lightsHostForTier({ tier: s.tier, addons: s.addons_licensed, model, ...atlasLookFromSettings(s) });
@@ -622,7 +622,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   // settings and look") — the same reading the Atlas panel makes. Its
   // "hide untouched" filter hides on the drawing only, as there. Daylight is
   // the replayed moment's sun, from the house's own location. As this
-  // install may show it (_asShown): the Time travel add-on alone draws no
+  // install may show it (_asShown): the Full house activity add-on alone draws no
   // placement and no Showcase.
   const look = _asShown(settings, model);
   const hiddenOnMap = _hiddenOnMap(settings, look, lights, shapeOverrides);

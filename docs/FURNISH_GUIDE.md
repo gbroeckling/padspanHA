@@ -1,9 +1,10 @@
 # Furnish Guide
 
-Furnish puts furniture, devices and people into [Live Aboard](LIVE_ABOARD_GUIDE.md), the 3D house.
-It needs PadSpan Pro and Live Aboard turned on, and it's in **Mapping → Furnish** (the tab appears
-next to Atlas once Live Aboard is on, in Advanced mode). Like Edit, nothing is stored until you press **Save**, and
-**Undo** steps back through everything.
+Furnish puts furniture, devices and people into [Live Aboard](LIVE_ABOARD_GUIDE.md), the 3D house,
+so it looks like your house, and a lamp, a TV or a washer in it shows what the real one is doing.
+It needs PadSpan Pro and Live Aboard turned on; no add-on on sale includes it. It's in **Mapping → Furnish**
+(the tab appears next to Atlas once Live Aboard is on, in Advanced mode). Like Edit, nothing is
+stored until you press **Save**, and **Undo** steps back through everything.
 
 ## Adding a piece
 
@@ -63,6 +64,28 @@ L-shaped**, **Bathroom**, **Bedroom**, **Living room**, **Dining room** or **Off
 - It's a first go to adjust: drag, turn, change or delete any piece. In an odd-shaped room expect
   fewer pieces, and an L-shaped kitchen can leave a small gap in its corner. One **Undo** takes the
   whole set away, and nothing is kept until **Save**.
+
+## Floors and walls
+
+Tap a room's floor (with no piece picked) and its panel opens (for the kitchen, **Kitchen: floor and
+walls**). Tap another room to switch to it; tap outside the house to close it.
+
+- **Floor**: **As drawn** (the room's colour), or a material: **Wood**, **Light wood**, **Tile**,
+  **Stone**, **Carpet** or **Concrete**. Each is drawn with its own colour and its planks or joints,
+  laid square to the room's longest wall.
+- **Walls**: the colour of the room's walls on the inside. The other side of a wall it shares keeps
+  the next room's colour.
+- **One wall a colour of its own**: lists the room's walls by number and length; pointing at a row
+  outlines that wall. Give one an accent colour.
+- **Outside walls**: the colour of the outside walls of the whole floor.
+- **As drawn** next to any colour takes it back to how it was.
+
+Each change is one **Undo**, and nothing is kept until **Save**. The floors and walls are in Live
+Aboard's own file, so a PadSpan backup carries them and a restore brings them back.
+
+They show in Live Aboard's own looks, **Classic** and **Studio** (**Views ▾ → Look**). A Showcase
+theme, and the Atlas's look, keep their own colours, so there the house looks as it did. Until you
+pick something, nothing changes anywhere.
 
 ## Moving and setting a piece
 

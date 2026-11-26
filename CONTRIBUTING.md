@@ -1,7 +1,9 @@
 # Contributing to PadSpan HA
 
 Thanks for your interest in contributing to PadSpan HA! This is a Home Assistant
-custom integration for BLE room-level presence tracking.
+custom integration that turns your floor plan into a control panel for the house,
+with every light, lock and alarm in its room and Bluetooth room presence for
+phones, watches and tags.
 
 ## Reporting Bugs
 
@@ -55,12 +57,12 @@ template. Describe your use case so we understand *why* the feature matters.
 
 ## How This Project Is Built
 
-PadSpan HA is built by [Garry Broeckling](https://github.com/gbroeckling) — a
-30+ year veteran of coding and scripting who has never claimed to be a fast
-typist. All architecture, product decisions, testing, and releases are
-human-directed. Implementation is AI-assisted using
-[Claude](https://claude.ai) by Anthropic, which accelerates the
-write-test-ship cycle considerably.
+I'm [Garry Broeckling](https://github.com/gbroeckling), and I make PadSpan. I
+write it with the help of AI coding tools, mostly Claude. PadSpan is still my
+design. I decide what it does and how it works, I test it in my own house, and I
+sign off on every release.
+[How PadSpan is built and checked](./docs/HOW_PADSPAN_IS_BUILT.md) explains how
+changes are tested and released.
 
 If you contribute a PR, there is no requirement to use (or not use) AI tools.
 Write code however you are most productive — what matters is that it works,
@@ -68,4 +70,4 @@ follows the existing patterns, and passes review.
 
 ## Code of Conduct
 
-Be kind, be constructive. We are all here to make presence tracking better.
+Be kind, be constructive. We are all here to make PadSpan better.

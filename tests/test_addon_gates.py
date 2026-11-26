@@ -224,7 +224,7 @@ def test_what_stays_free() -> None:
     assert "this.state._alertPulse = s.atlas_alert_pulse === true;" in lp
 
 
-# ── Wi-Fi coverage, Time travel ─────────────────────────────────────────────
+# ── Wi-Fi coverage, Full house activity ─────────────────────────────────────────────
 
 
 def test_the_wifi_tab_is_wifi_coverage() -> None:
@@ -328,7 +328,7 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
     help_src = (_WWW / "help_content.js").read_text(encoding="utf-8")
     for tag in ("(PadSpan Pro or the Presence insights add-on)", "(PadSpan Pro or the Alarm & security add-on)",
                 "(PadSpan Pro or the Climate map add-on)", "(PadSpan Pro or the Vacation Mode & presets add-on)",
-                "(PadSpan Pro or the Time travel add-on)", "Audio (PadSpan Pro or the Audio add-on)",
+                "(PadSpan Pro or the Full house activity add-on)", "Audio (PadSpan Pro or the Audio add-on)",
                 # The help can't read the moment (HELP is built once, at import), so the vacuum's says both sides.
                 "Robot Vacuum Import (PadSpan Pro or the Robot vacuum add-on from December 1, 2026; free before then)"):
         assert tag in help_src, tag

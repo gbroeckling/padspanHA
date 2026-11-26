@@ -73,7 +73,7 @@ code{font-size:14px;background:var(--card);border:1px solid var(--line);border-r
 </div>
 
 <h2>What PadSpan is</h2>
-<p>PadSpan is a Home Assistant integration that shows which room every phone, watch and tag is in, live, on a plan of your home, using the Bluetooth proxies you already have. The core is free and open source. PadSpan Pro places every light and device where it really is on the Atlas, PadSpan's map of the whole house, and adds Live Aboard, which shows the same house in 3D to turn and zoom the way you'd look into a house in The Sims.</p>
+<p>PadSpan is a control panel for your house in Home Assistant. It puts every light, door, lock, alarm and sensor on a plan of your home, each in its room, and a tap on a light switches it. With the Bluetooth proxies you already have, it also shows which room every phone, watch and tag is in, live. The core is free and open source. PadSpan Pro places every light and device where it really is on the Atlas, PadSpan's map of the whole house, adds Live Aboard, which shows the same house in 3D to turn and zoom the way you'd look into a house in The Sims, and includes every add-on (<a href="/pro/">what Pro adds</a>).</p>
 
 <h2>Record the demo</h2>
 <p>The demo is the real PadSpan panel running in your browser on a sample house laid out like a real 5,000 sq ft test home, with three furnished floors (the top one has a loft over the garage) and two residents and a guest moving between the rooms. There's nothing to install, and you can screen-record it at any size. It runs with PadSpan Pro switched on, so Live Aboard, the wall screen and the placed lights can all be shown.</p>
@@ -85,7 +85,7 @@ code{font-size:14px;background:var(--card);border:1px solid var(--line);border-r
   <tr><td><a href="/demo/?page=atlas3d&amp;kiosk=1">/demo/?page=atlas3d&amp;kiosk=1</a></td><td>The house as a wall screen (PadSpan Pro). Make the browser full screen.</td></tr>
   <tr><td><a href="/demo/?page=atlas">/demo/?page=atlas</a></td><td>The Atlas: every floor of the house on one map, with its lights, doors and sensors.</td></tr>
   <tr><td><a href="/demo/?page=panel">/demo/?page=panel</a></td><td>PadSpan's own panel: who's where, the maps, calibration and the rest.</td></tr>
-  <tr><td><a href="/demo/?page=panel&amp;fresh=1">/demo/?page=panel&amp;fresh=1</a></td><td>What a new install shows first, from 0.38.174: its own house and who's where right now, before any floor plan is drawn.</td></tr>
+  <tr><td><a href="/demo/?page=panel&amp;fresh=1">/demo/?page=panel&amp;fresh=1</a></td><td>What a new install shows first: its own house and who's where right now, before any floor plan is drawn.</td></tr>
   <tr><td><a href="/demo/?house=classic">/demo/?house=classic</a></td><td>The earlier, simpler sample house.</td></tr>
 </table>
 <p>Add <code>&amp;quality=high</code> for the sharpest 3D. For the phone layout, make the window phone-sized, for example with your browser's device toolbar (the phone pictures below are 390 pixels wide). The demo's <b>Share</b> button gives you a link to the view you're on.</p>
@@ -100,7 +100,7 @@ code{font-size:14px;background:var(--card);border:1px solid var(--line);border-r
   <figure><a href="/demo/media/estate-3d-main-floor-night.jpg"><img src="/demo/media/estate-3d-main-floor-night.jpg" width="1920" height="1080" alt="The main floor of the demo house in 3D after dark, with the lights that are on" loading="lazy"></a>
     <figcaption>The same floor after dark, with the lights that are on. <a href="/demo/media/estate-3d-main-floor-night.jpg">1920×1080</a></figcaption></figure>
   <figure><a href="/demo/media/estate-3d-guest-tag.jpg"><img src="/demo/media/estate-3d-guest-tag.jpg" width="1920" height="1080" alt="Close in on the demo house in 3D: a guest's tag in the sunroom labelled Jordan, Guest, and the keys on the hall console" loading="lazy"></a>
-    <figcaption>A guest's tag in the sunroom and the keys on the hall console. Guest tags are new in 0.38.178. <a href="/demo/media/estate-3d-guest-tag.jpg">1920×1080</a></figcaption></figure>
+    <figcaption>A guest's tag in the sunroom and the keys on the hall console. <a href="/demo/media/estate-3d-guest-tag.jpg">1920×1080</a></figcaption></figure>
   <figure><a href="/demo/media/estate-wall-3d-4k.jpg"><img src="/demo/media/estate-wall-3d.jpg" width="1920" height="1080" alt="The demo house's main floor in 3D as a wall screen, with who's home and where there's motion along the top" loading="lazy"></a>
     <figcaption>The house as a wall screen (PadSpan Pro), with who's home and where there's motion along the top. <a href="/demo/media/estate-wall-3d.jpg">1920×1080</a> · <a href="/demo/media/estate-wall-3d-4k.jpg">3840×2160</a></figcaption></figure>
   <figure><a href="/demo/media/estate-wall-atlas-4k.jpg"><img src="/demo/media/estate-wall-atlas.jpg" width="1920" height="1080" alt="The Atlas as a wall screen: every floor of the demo house on one screen, with the people, a guest's tag and the keys" loading="lazy"></a>
@@ -128,9 +128,9 @@ code{font-size:14px;background:var(--card);border:1px solid var(--line);border-r
   <tr><th>Name</th><td>PadSpan, one word with a capital S. The integration is PadSpan HA, and the paid key is PadSpan Pro.</td></tr>
   <tr><th>What it does</th><td>Works out which room each phone, watch, tag and beacon is in, every 5 seconds, from what your Bluetooth proxies hear, and shows it on a plan of your home, one floor at a time or all floors stacked. Your automations get room, distance and home/away sensors, with <a href="/guides/room-presence-automations/">eight recipes to paste in</a>.</td></tr>
   <tr><th>What you need</th><td>Home Assistant 2024.8 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a <a href="/guides/shelly-bluetooth-proxy/">Shelly Gen2 or newer</a> set as a Bluetooth scanner, or your Home Assistant machine's own Bluetooth. One tells you home or away; one in each room you want told apart gives you rooms. A floor plan is optional, because rooms come from each scanner's area in Home Assistant.</td></tr>
-  <tr><th>Install</th><td>It's in the HACS default list, and one click opens it in HACS. From Home Assistant 2026.11 (out in November), the same link opens it in Settings → Marketplace. What comes next, step by step: <a href="/guides/get-started/">From the Marketplace to your first room</a>.</td></tr>
-  <tr><th>Free</th><td>Room presence and its sensors, floor plans and rooms, calibration, the coverage tools, and the Atlas with your floors and rooms and a tap-to-toggle marker for each light in its room. Free and open source under GPL-3.0.</td></tr>
-  <tr><th>PadSpan Pro</th><td>Every light and device placed exactly on the Atlas, Live Aboard (the 3D house, still experimental) with its furniture, the wall screen, Forensics, Busy Times and Locate. Anyone can try all of Pro free for 90 days, no card: one trial per home, with the key sent by email. From the 0.38.180 beta, the trial also needs the usage report on until it ends. Keys and prices are on <a href="/">padspan.traks.ca</a>.</td></tr>
+  <tr><th>Install</th><td>It's in the HACS default list, and one click opens it in HACS. From Home Assistant 2026.11, the same link opens it in Settings → Marketplace. What comes next, step by step: <a href="/guides/get-started/">From the Marketplace to your first room</a>.</td></tr>
+  <tr><th>Free</th><td>Room presence and its sensors, floor plans and rooms, calibration, the Bluetooth coverage tools, and the Atlas with your floors and rooms and a tap-to-toggle marker for each light in its room. Free and open source under GPL-3.0. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and Pro includes every add-on.</td></tr>
+  <tr><th>PadSpan Pro</th><td>Every light and device placed exactly on the Atlas, Live Aboard (the 3D house, still experimental) with its furniture, wall mode, people and tags on the map, and every add-on, the features that are also sold one at a time (<a href="/add-ons/">the add-ons</a>). Anyone can try all of Pro free for 90 days, no card: one trial per home, with the key sent by email. The trial needs the usage report on until it ends. <a href="/pro/">What Pro adds</a>; keys and prices are on <a href="/">padspan.traks.ca</a>.</td></tr>
   <tr><th>Bermuda</th><td>PadSpan doesn't need Bermuda. If you already run it, keep it: PadSpan runs next to it on the same proxies. See <a href="/guides/bermuda/">Bermuda and PadSpan together</a>.</td></tr>
   <tr><th>Privacy</th><td>It runs on your own Home Assistant and works offline. It checks for updates once a day, which you can turn off, and with a key it checks the licence once a day. Device makers come from the device's own broadcast and lists built into PadSpan, so nothing is sent for those. The usage report is opt-in and off by default.</td></tr>
   <tr><th>Who makes it</th><td><a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed, and the implementation is AI-assisted using Claude (<a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">how it's built</a>).</td></tr>
@@ -139,10 +139,10 @@ code{font-size:14px;background:var(--card);border:1px solid var(--line);border-r
 
 <h2>Good to know before you record</h2>
 <ul>
-  <li>The demo and its pictures come from recent builds, and everything they show is in the 0.38.199 stable release.</li>
+  <li>The demo and its pictures come from recent builds, which can be a little ahead of the stable release that the Marketplace and HACS install.</li>
   <li>The demo has PadSpan Pro switched on, with Live Aboard, <b>Show people</b> and <b>Show tags &amp; scanners</b> turned on. In a new install, the Pro parts need a key or the 90-day trial, and those three stay off until you turn them on. Without the last two, the Atlas and the wall show no people or tags.</li>
   <li>Forensics, Busy Times and Traceback's movement playback have no data in the demo, so show those on a real install.</li>
-  <li>The panel is in English.</li>
+  <li>The demo's panel is in English. In a real install on a beta release, the panel follows each person's Home Assistant language (English, German, French or Dutch). French and Dutch don't cover the Atlas and Live Aboard yet.</li>
 </ul>
 
 <h2 id="free-pro">PadSpan Pro free</h2>

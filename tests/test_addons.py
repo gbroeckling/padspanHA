@@ -294,7 +294,7 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
     out = _node("licence_card.mjs")["addons"]
     lead = "Add-ons, each paid once and covering 2 years. PadSpan Pro includes them all:"
     every = ["Audio $6.45 CAD", "Alarm & security $6.45 CAD", "Wi-Fi coverage $6.45 CAD", "Climate map $8.65 CAD",
-             "Time travel $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD", "Forensics $5.56 CAD",
+             "Full house activity $7.55 CAD", "Vacation Mode & presets $4.25 CAD", "Looks pack $4.25 CAD", "Forensics $5.56 CAD",
              "Presence insights $5.56 CAD", "Advanced smart lighting $8.65 CAD"]
     # Black Friday (editions.js ADDON_HALF_FROM .. UNTIL): the card's "after" (December 1) and "pass" (December 16) are in
     # it, so each add-on is offered at half, rounded down to the cent, with its usual price beside it.

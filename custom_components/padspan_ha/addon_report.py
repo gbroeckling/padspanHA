@@ -271,7 +271,7 @@ def _c4(hass: Any, entries: list[Any]) -> dict[str, Any]:
 
 
 def _history_word(hass: Any) -> str:
-    """How many days of history the recorder keeps (Time travel and Vacation Mode replay it), as a band."""
+    """How many days of history the recorder keeps (Full house activity and Vacation Mode replay it), as a band."""
     try:
         from homeassistant.helpers.recorder import get_instance  # noqa: PLC0415
         days = getattr(get_instance(hass), "keep_days", None)

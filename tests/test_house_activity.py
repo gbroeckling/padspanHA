@@ -146,7 +146,7 @@ out.inVac = [HA.inVacation([[100, 200], [500, null]], 150_000), HA.inVacation([[
 
 
 def test_full_house_activity_is_offered_to_pro_or_time_travel_only():
-    """PadSpan Pro or the Time travel add-on (the owner, 2026-11-25; tests/test_addon_gates.py)."""
+    """PadSpan Pro or the Full house activity add-on (the owner, 2026-11-25; tests/test_addon_gates.py)."""
     src = (_VIEWS / "traceback.js").read_text(encoding="utf-8")
     m = re.search(r"const _houseOK = ([^;]+);", src)
     assert m, "traceback.js no longer computes _houseOK"
@@ -786,8 +786,8 @@ out.ev = HA.activityEvents(HA.buildStateTimeline({ "sensor.t": rows }), (e) => e
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def test_the_replay_draws_only_what_the_install_may_show():
-    """The replay drew placed lights and the Showcase look whatever the key (the owner, 2026-11-25): the Time travel
-    add-on alone replays the free map, no placement and no Showcase; with the Looks pack too, Showcase but still no
+    """The replay drew placed lights and the Showcase look whatever the key (the owner, 2026-11-25): the Full house
+    activity add-on alone replays the free map, no placement and no Showcase; with the Looks pack too, Showcase but still no
     placement; Pro, both. And a placed reading counts as shown only where it is drawn placed."""
     out = _run("""
 const placed = { "light.hall": { x_m: 0.5, y_m: 3.5, floor_id: "main" } };
@@ -802,7 +802,7 @@ const draw = (model, settings) => HA.renderHouseFrame({ state: { model, settings
   hass: { states: { "light.hall": light }, callWS: async () => ({}), config: { latitude: 49.28, longitude: -123.12 } } }, hs, frames, 0, {}, () => {});
 const SC = { lights_showcase: true, lights_showcase_theme: "classic" };
 const tt = { tier: "free", addons_licensed: ["timetravel"] }, ttLooks = { tier: "free", addons_licensed: ["timetravel", "looks"] };
-// Time travel alone: exactly the free map (no placement, no Showcase), whatever is stored.
+// Full house activity alone: exactly the free map (no placement, no Showcase), whatever is stored.
 out.ttFree = draw(modelOf(placed), { ...tt, ...SC }) === draw(modelOf({}), tt);
 // With the Looks pack: Showcase is drawn, and placement still is not.
 out.looksShowcase = draw(modelOf({}), { ...ttLooks, ...SC }) !== draw(modelOf({}), ttLooks);

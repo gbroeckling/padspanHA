@@ -208,7 +208,7 @@ The row at the top switches between four modes:
     out. The clip is made in your browser and saved to your computer: nothing is uploaded. A video
     records in real time, so keep the tab in front until it is saved. It plays on the floor stack;
     the 3D house comes later. Free in every edition.
-  - **Full house activity** (PadSpan Pro or the Time travel add-on) plays the same back on your Atlas, and with **💡 Devices**
+  - **Full house activity** (PadSpan Pro or the add-on of the same name) plays the same back on your Atlas, and with **💡 Devices**
     on, the house too: lights, locks, motion, doors and windows, and sensor readings, from Home
     Assistant's recorder.
 - **New Objects**: which devices were first heard in a window (up to 7 days back).

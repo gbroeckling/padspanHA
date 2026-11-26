@@ -652,7 +652,7 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
   });
   st("sale card: an add-on holder is offered only what it lacks", () => {
     const out = sale({ ...SFREE, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ["audio", "climate"] }).card();
-    assert(out && out.textContent.includes("Now Advanced smart lighting $4.32 CAD, Time travel $3.77 CAD, Looks pack $2.12 CAD."), out && out.textContent);
+    assert(out && out.textContent.includes("Now Advanced smart lighting $4.32 CAD, Full house activity $3.77 CAD, Looks pack $2.12 CAD."), out && out.textContent);
   });
   st("sale card: never to a non-admin, on a wall, in sample mode or before the mode is known, to a running Pro key or a holder of every add-on, from an older backend, or without editions.js", () => {
     const all = ED.ADDONS.filter(a => a.on_sale !== false).map(a => a.name);

@@ -3498,7 +3498,7 @@ export function reportOffConfirmText(s){
 // English (tests/test_addons.py holds the two equal).
 const ADDON_WORDS = {
   audio: () => t("Audio"), alarm: () => t("Alarm & security"), wifi: () => t("Wi-Fi coverage"),
-  climate: () => t("Climate map"), timetravel: () => t("Time travel"), vacation: () => t("Vacation Mode & presets"),
+  climate: () => t("Climate map"), timetravel: () => t("Full house activity"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
   maps: () => t("Advanced map creation"), lighting: () => t("Advanced smart lighting"), vacuum: () => t("Robot vacuum"),
 };   // c4local (OS 2 Local for Control4) is a product's name, the same in every language: addonWords gives a.words

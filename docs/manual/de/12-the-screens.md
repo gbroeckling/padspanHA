@@ -204,7 +204,7 @@ Die Zeile oben wechselt zwischen vier Modi:
     deinem Computer gespeichert: Nichts wird hochgeladen. Ein Video wird in Echtzeit aufgenommen,
     lass den Tab also im Vordergrund, bis es gespeichert ist. Es spielt auf dem Etagenstapel; das
     3D-Haus kommt später. In jeder Ausgabe kostenlos.
-  - **Full house activity** (PadSpan Pro oder das Add-on Zeitreise) spielt dasselbe auf deinem Atlas ab, und mit
+  - **Aktivität im ganzen Haus** (PadSpan Pro oder das gleichnamige Add-on) spielt dasselbe auf deinem Atlas ab, und mit
     **💡 Devices** auch das Haus: Lichter, Schlösser, Bewegung, Türen und Fenster und Messwerte von
     Sensoren, aus dem Recorder von Home Assistant.
 - **New Objects**: welche Geräte in einem Zeitfenster zum ersten Mal gehört wurden (bis zu 7 Tage

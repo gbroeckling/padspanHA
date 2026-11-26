@@ -1,118 +1,154 @@
 # PadSpan™ HA
 
-### See which room every phone, watch and tag is in, live, on a plan of your home
+### Your house as a Home Assistant control panel: every light on your floor plan, room presence for each phone, watch and tag, and the house in 3D on a wall screen
 
 [![PadSpan on a sample house: the whole house in 3D, lit rooms after dark with a guest's tag, tapping lights on the Atlas, then a new install's free Who's where now screen](./images/padspan-tour.webp)](https://padspan.traks.ca/demo/)
 
-PadSpan is a Home Assistant integration for Bluetooth room presence. It listens to the Bluetooth proxies you already have, works out which room each phone, watch, tag and beacon is in, every 5 seconds, and shows it on a plan of your home: one floor at a time or all floors stacked. Your automations get room, distance and home/away sensors. The tracking runs locally.
+PadSpan is an eminently intuitive control panel that gives you real mastery of your residence. Make it as simple or as complex as you need, and keep what you use most a tap away. Once it's a familiar part of your routine, you'll feel confident you have your space in the palm of your hand.
 
-▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a sample house. Nothing to install.
+It's a Home Assistant integration. It draws your house from its floor plan, floor by floor, with every light, lock and alarm in its room. With Bluetooth scanners it also shows which room each phone, watch and tag is in, every 5 seconds, and your automations get room, distance and home/away sensors. The tracking runs locally. I make PadSpan and use it every day in my own house: three floors, 5,000 sq ft and a 4K wall screen.
+
+▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a sample house. The demo shows PadSpan Pro. Nothing to install.
 
 [![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in **Settings → Marketplace** (Home Assistant 2026.11 and newer) or in HACS (older versions). Or search either one for PadSpan.
 
-PadSpan is an eminently intuitive control panel that gives you real mastery of your residence. Make it as simple or as complex as you need, and keep what you use most a tap away. Once it's a familiar part of your routine, you'll feel confident you have your space in the palm of your hand.
+**Free and open source (GPL-3.0).** The free version needs no key and doesn't run out. From December 1, 2026, placing each light exactly where it hangs, the plain wall screen and the house in 3D are free too; until then they are Pro. PadSpan Pro is the one purchase for the rest: fixture shapes, Furnish, people in 3D, the 3D editor, the wall screen's extras and every add-on. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md)).
 
-**What do you want PadSpan for?**
+🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · [PadSpan Pro](https://padspan.traks.ca/pro/) · [Add-ons](https://padspan.traks.ca/add-ons/) · 📖 **Guides:** [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) · [What can Home Assistant do once it knows the room?](https://padspan.traks.ca/guides/room-presence-automations/) · [Bermuda, NeonPlan 3D or PadSpan?](https://padspan.traks.ca/guides/bermuda-vs-neonplan/) · [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) · [Which Bluetooth tag works?](https://padspan.traks.ca/guides/bluetooth-tags/) · [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
 
-- **The whole house on one screen.** Every light, door, lock, alarm and sensor on a plan of your home, each in its room. Tap a light, see what's open, and a leak or smoke alarm turns its room red on every screen until someone resets it. Put it on a wall tablet with the free kiosk link. Needs only Home Assistant 2024.8 or newer. [See it](https://padspan.traks.ca/demo/?page=atlas)
-- **Who's in which room.** Every phone, watch and tag, room by room, on every floor, with a week of replay. Needs at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/). [See it](https://padspan.traks.ca/demo/?page=panel)
-- **Your floor plan.** Scan your rooms with an iPhone, start from your robot vacuum's map (experimental), or draw them, with split levels, room heights and lofts as they really are. Pro adds the house in 3D. [See it](https://padspan.traks.ca/demo/?page=atlas3d)
-- **Every light in its place.** Free: every light on the map in its room, and a wall dimmer with its smart bulbs working as one light. Pro: each light exactly where it hangs, in its real shape. [See it](https://padspan.traks.ca/demo/?page=atlas)
-
-**Free and open source (GPL-3.0).** From December 1, 2026, exact placement on the Atlas (the touchscreen map of the whole house), the plain wall screen and Live Aboard (your house in 3D, like looking into a house in The Sims) are free too. PadSpan Pro adds fixture shapes and Showcase, Furnish, people in 3D and the 3D editor. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md#try-it-free-for-90-days)).
-
-🎁 **PadSpan Pro free:** testers get two years of Pro (one year if they join from December 16) while the anonymous usage report stays on ([how](./docs/PADSPAN_PRO.md#get-pro-free-by-testing-it)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
-
-🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · 📖 **Guides:** [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) · [What can Home Assistant do once it knows the room?](https://padspan.traks.ca/guides/room-presence-automations/) · [Bermuda, NeonPlan 3D or PadSpan?](https://padspan.traks.ca/guides/bermuda-vs-neonplan/) · [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) · [Which Bluetooth tag works?](https://padspan.traks.ca/guides/bluetooth-tags/) · [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
-
-<sub>The tour is the real panel on the demo's sample house, at real speed, with captions added. The full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
+<sub>The tour is the real panel on the demo's sample house, at real speed, with captions added. Most of it shows PadSpan Pro; the Who's where now screen at the end is free. Each part of the demo, the wall screen included, opens from [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
 ---
 
-## Why PadSpan?
+## What do you want PadSpan for?
 
-Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with alerts to your phone or email, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
+Each of these works on its own, and they all share one map of your house.
 
-It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shelly Gen2+ set as a Bluetooth scanner, the same ones Bermuda uses) and Home Assistant's own Bluetooth are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. ESP32s running Tasmota with Bluetooth come in over MQTT the same way (experimental: **Manage → HA Entities → Tasmota BLE**). No custom firmware. No cloud dependency. The tracking runs locally.
+### The whole house on one screen
+
+**Free** · Pro adds wall mode and exact placement (both free from December 1, 2026)
+
+- **What you see:** the Atlas, a page of its own in the Home Assistant sidebar, with every floor of your house and each light, fan, lock and sensor in its room. A leak, smoke, gas or CO alarm turns its room red, and a red banner stays on every PadSpan screen for two days or until someone presses Reset. A house alarm going off shows in the same banner.
+- **What you tap:** a light to switch it, a room's name for its card with All on, All off and the room's scenes, and a lock to lock or unlock it. Unlocking asks first.
+- **Needs:** Home Assistant 2024.8 or newer and your rooms on a plan (the rough house from your Home Assistant areas takes two presses). No Bluetooth scanner.
+- **With Pro:** wall mode fits every floor to a wall screen, sizes the text for the room and dims at night. From December 1, 2026 the plain wall screen is free, and dimming at night stays Pro. Arming your alarm, the door and garage card, and each room's speakers, shades and thermostat come with Pro or an add-on. [See it in the demo](https://padspan.traks.ca/demo/?page=atlas)
+
+### Who's in which room
+
+**Free** · Busy Times and Locate need Pro or the Presence insights add-on
+
+- **What you see:** **Who's where now**, on the first screen, puts each phone, watch and tag in the room whose Bluetooth scanner hears it best, from each scanner's Home Assistant area. No floor plan needed. Once your rooms are drawn, Overview shows everyone on every floor, and Traceback replays the last 7 days.
+- **What you tap:** **Track** names a phone that Home Assistant already tells apart, and PadSpan tracks it from then on. **Set room** gives a scanner with no area its room. Guests get a small Bluetooth tag for their visit, so PadSpan shows which room they're in.
+- **Needs:** at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away, one in each room you want told apart gives you rooms, and three or more placed on a measured plan add positions between them. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/)
+- **Already running Bermuda?** Keep it. [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/) on the same proxies. [See it in the demo](https://padspan.traks.ca/demo/?page=panel)
+
+### Your floor plan, and the house in 3D
+
+**Free** plan · the 3D house is **Pro** (free from December 1, 2026)
+
+- **What you see:** your floors stacked one above the other, each room drawn to scale. With Pro, and free from December 1, 2026, Live Aboard turns the same map into the house in 3D, like looking into a house in The Sims, with split levels, lofts and room heights as they really are.
+- **What you do:** bring in a plan however you have one: a picture or a PDF, a photo of your own sketch, a blank floor you type the size of, a rough house from your Home Assistant areas, a plan file from Easy Floorplan, DXF or Floorplanner, an iPhone or iPad Pro LiDAR room scan, or your robot vacuum's map (experimental). Every one of these is free until December 1, 2026; from then a LiDAR scan needs Pro or the Advanced map creation add-on, and a robot vacuum's map needs Pro, the Robot vacuum add-on or a Bright Pro key. Then trace the rooms and mark the walls, doors and windows.
+- **Needs:** Home Assistant. A LiDAR scan needs an iPhone 12 Pro or a newer Pro model, or an iPad Pro from 2020 or later, and a RoomPlan app that shares USDZ. The 3D house needs a browser with WebGL. [See the 3D house in the demo](https://padspan.traks.ca/demo/?page=atlas3d)
+
+### Every light where it hangs
+
+**Free** · Pro places each light exactly (free from December 1, 2026)
+
+- **What you see:** every light on the map in its room. With Pro, and free from December 1, 2026, each one sits where it really hangs. Pro gives it its real shape, size and angle, from pot lights and pendants to WLED strips, and Automorph draws its glow into the room.
+- **What you tap:** a light to switch it. A wall dimmer or switch and the smart bulbs it feeds can run as one light, a power team: tap its card to switch it and drag to dim. Its brightness and colour follow the time of day, and it can wake you, wind down for bedtime and keep a night light. Making or changing a team, following the day, Sleep and the wake-up need Pro or the Advanced smart lighting add-on; a team already made keeps switching and dimming without it.
+- **Needs:** your lights in Home Assistant, in the areas that match your rooms. [See it in the demo](https://padspan.traks.ca/demo/?page=atlas)
 
 ---
 
-## Screenshots
+## Start without Bluetooth scanners
 
-### Running on the wall
+You can start with the map and the lights and add room presence later.
 
-![PadSpan live on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices](./images/wall-panel-in-situ.jpg)
+1. Install PadSpan. With no scanner heard yet, it opens on a sample house. Press **Back to my house** (an administrator's press while Enhanced security is on).
+2. In **Setup**, press **Show what it will make**, then **Make the rough house**. You get one box per Home Assistant area, on a floor for each Home Assistant floor. It leaves everything else alone, and a second press makes nothing new. Or upload a plan, a PDF or a LiDAR scan instead.
+3. Open **Atlas** in the Home Assistant sidebar. Your lights are in their rooms. Tap one to switch it.
 
-Not a mockup — this is PadSpan on a wall panel in daily use, next to the
-thermostat and light switches.
-
----
-
-| 3D Multi-Floor Tracking | 3D Heatmap + Signal Overlay |
-|:-:|:-:|
-| ![Live multi-floor isometric view with tracked devices across 3 floors](./images/overview-3d-multifloor.jpg) | ![3D overview with RSSI heatmap crosshatch and device positions](./images/overview-3d-heatmap.jpg) |
-
-| Maps Library | Scanner-to-Device Graph |
-|:-:|:-:|
-| ![9 uploaded floor plans organized by floor](./images/maps-library-live.jpg) | ![Bipartite graph showing scanner-device BLE connections with RSSI](./images/bluetooth-scanner-graph.jpg) |
-
-| Traceback Playback + Distance Traveled | Beacon Tune Calibration |
-|:-:|:-:|
-| ![NVR-style playback timeline with per-device distance and reliability](./images/traceback-distance.jpg) | ![3D beacon tune with floor stack, auto-cal, and live device positions](./images/beacon-tune-calibration.jpg) |
-
-| Live Tracker — Immersive Dashboard | Traceback — Movement Playback |
-|:-:|:-:|
-| ![Full-screen 3D map with pan/zoom, floating stats, scanner sonar, and tracked device strip](./images/purelive-immersive.png) | ![NVR-style replay with 3D map, timeline scrubber, and distance travelled per device](./images/traceback-playback-3d.png) |
-
-| Sandbox Developer Tools | Floor Plan Editor |
-|:-:|:-:|
-| ![Experimental playground — state inspector, floor towers, live signal bars, raw snapshot](./images/sandbox-developer.png) | ![Room boundaries on architectural blueprint](./images/floor-plan-edit.png) |
+Without a scanner you still get locks, the leak, smoke, gas and CO alarms with their red banner and notifications, a house alarm going off, Alert pulse, the power teams already made, every way to a plan (from December 1, 2026, all but a LiDAR scan and a robot vacuum's map), and Open screens with announcements. When you want to know who's in which room, add one Bluetooth scanner.
 
 ---
 
-## Feature Highlights
+## Editions
 
-### Presence Tracking
-- Room-level BLE device tracking (5-second refresh)
-- **Follow mode** — animated room map + movement timeline for any tracked device
-- Multi-device simultaneous tracking with per-device movement alerts to your phone or email (60 s rate limit)
-- Kalman-filtered RSSI smoothing (replaces simple moving averages)
-- Home/away detection: each named device's `device_tracker` is `home` (its state is the room) or `not_home`
-- **Phone & watch tracking** — guided setup wizard with [irk-capture](https://github.com/DerekSeaman/irk-capture) integration, HA Companion App iBeacon for Android, and IRK resolution for Apple devices
-- Private BLE address resolution (iBeacon UUID + IRK support)
-- **Occupancy estimation** — people in the building, never devices: HA person entities (one per phone), unclaimed phones and watches recognised on the air by their rotating addresses and clustered by RSSI co-location, and occupancy/motion sensors by room; tagged things are listed, not counted
+### Free
 
-### Device Identity
-- **Stable device identity (padspan_id)** — every physical device gets an immutable ID that survives MAC rotation, iBeacon UUID changes, and firmware updates
-- O(1) identity resolution from any volatile key (MAC, iBeacon, canonical_id)
-- Automatic migration from older object/tag systems
-- Interactive device registry: merge duplicates, add identities, relabel, delete
+PadSpan HA is free and open source (GPL-3.0). The free version needs no key and doesn't run out. It covers room presence with a week of replay, every way to a floor plan (from December 1, 2026, all but a LiDAR scan and a robot vacuum's map), every light on the map in its room with a tap to switch it, locks, alarms that turn their room red, and the sensors and events for your automations. From December 1, 2026 it also places each light and device exactly where it is, shows the plain wall screen and builds the house in 3D (Live Aboard); until then those are Pro. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on.
 
-### Floor Plans & Maps
-- Upload a floor plan picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works) or a PDF (you pick the page), or start from a phone's room scan, a plan file from another app (Easy Floorplan YAML, DXF or Floorplanner FML) or a blank floor
-- **Two-point measure tool** for precise real-world scale calibration with aspect ratio validation
-- Draw room boundary polygons directly over blueprints
-- Multi-floor **3D isometric visualization** with live object positions
-- **2D flat map mode** with zoom/pan and toggle filters (scanners, tagged, unknown, rooms)
-- Drag-and-place scanner markers with 3-digit radio IDs
-- Auto-detect stale or missing radios on your map
-- Line up floors in 3D Stack: each plan keeps its own place in metres (there is no master map)
+A key turns on the rest in the same install. Enter it in **Settings → Features → PadSpan licence**.
 
-### Calibration
-- Walk-around fingerprint collection from the panel's **Calibration** screen, on a phone, tablet or computer
-- k-NN fingerprint matching + OLS path-loss model fitting per scanner
-- Coverage heatmap with guided "walk here next" target suggestions
-- Leave-one-out cross-validation for model quality scoring
-- 3D isometric tune view with draggable receiver markers
+### PadSpan Pro
 
-### Multi-Floor Intelligence
-- **Floor-transition learning** — adaptive dwell-based velocity gate prevents phantom floor changes
-- Learned cross-floor RSSI attenuation
-- Outdoor penalties for rooms on an Outside floor: while a device is indoors, readings for an outdoor room count 15 dB weaker, and a move between indoors and outdoors needs every vote in the window unless the position on the map agrees
+PadSpan Pro is the one purchase. It covers everything below, including every add-on, and every new PadSpan feature is included while your key runs. Buying it pays for the work and keeps new releases coming every week.
 
-### Phone & Watch Tracking
+With PadSpan Pro you can:
 
-Tracking phones is the hardest problem in BLE presence — they rotate their Bluetooth address every ~15 minutes specifically to prevent tracking. PadSpan offers multiple paths depending on your device:
+- **Put each light and device exactly where it is.** Drag lights, fans, locks and sensors to their real spot, and give each light its real shape (pot light, pendant, sconce, strip, chandelier), size and angle. WLED strips get live brightness, colour and effects, and **Exact look** brings a WLED light on the same way every time. **Automorph** draws each light's glow into its room, and **Fit room** keeps it inside the walls. From December 1, 2026, placing them is free, drawn as plain markers; the shapes, WLED, Automorph and Fit room stay Pro.
+- **Look into your house in 3D.** Live Aboard builds the house from the map you drew, like looking into a house in The Sims. Lights glow in their real colour, the house darkens with the real sun, lit windows show from outside after dark, and rain and snow fall outside the walls. The **Studio** look puts the house on a stage under a sky that follows the sun. Until December 1, 2026, Live Aboard is experimental and off until you turn it on. From then the 3D house itself is free (turn, pan and zoom, floors, rooms, walls and lights), and a new install starts with it on; rain and snow stay Pro.
+- **Walk through it.** **Walk** puts you at eye height just inside the front door. Walls and closed doors stop you, a door with a sensor opens when the real one does, and the stairs take you up and down. From December 1, 2026, Walk comes with the free 3D house.
+- **Have the view fly to what just happened.** An administrator picks what to watch in Settings, and on the sidebar and wall screens the 3D view flies to a doorbell that rings, a door that opens or an alarm that goes off, shows its card (with a camera's snapshot if you pick one), and goes back after 20 seconds.
+- **Furnish it.** 33 kinds of furniture with their own sliders, a whole room furnished in one tap, stairs, floors and wall colours. Link a piece to a device and a lamp glows in its light's colour, the TV lights up while it plays and the washer shakes while it runs.
+- **Put the house on the wall.** Wall mode (`/padspan-lights?kiosk=1`) fits every floor to the screen, sizes the text for the screen and how far away people stand, dims at night and fades its controls 30 seconds after the last touch. With the new Atlas layout, each screen picks what it shows. From December 1, 2026, the plain wall screen is free; dimming at night, the burn-in shift, floors in turn and Fully Kiosk motion wake stay Pro.
+- **Make the Atlas your first screen.** Overview shows the Atlas, or the 3D house, in place of the classic map.
+- **See people and tags on the map**, flat or in 3D, each where PadSpan has them.
+- **Use every add-on below** without buying it separately.
+
+One key covers up to five homes; with more than two, each home keeps its usage report on. A key keeps working for 14 days after its end date. Then the paid features switch off, but nothing you set up is deleted, and it stays readable and exportable.
+
+**Try all of Pro free for 90 days, no card.** An administrator starts it in **Settings → Features → PadSpan licence**, one trial per home, and the anonymous usage report stays on until it ends. Testers get two years of Pro (one year if they join from December 16, 2026) while their usage report stays on, and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
+
+Everything Pro does: [padspan.traks.ca/pro](https://padspan.traks.ca/pro/). Prices and buying: [padspan.traks.ca/#pro](https://padspan.traks.ca/#pro). The trial, keys and homes: [PadSpan Pro](./docs/PADSPAN_PRO.md).
+
+### Add-ons
+
+Just want one thing? Each add-on adds one area of PadSpan to an install without Pro. **PadSpan Pro includes all of them.** Each is one payment that covers two years on up to three homes. There's no subscription, and one key carries every add-on you buy. Add-ons need the latest PadSpan.
+
+| Add-on | What it adds | Needs |
+|:--|:--|:--|
+| [Audio](https://padspan.traks.ca/add-ons/#audio) | Each room's card on the Atlas gets its speakers' volume, mute and off, one row for its shades, its thermostat's setpoint, and **Room off** for the room's lights and music together. A speaker shows beside a room's name while it plays | Players from Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha or Anthem, or any Home Assistant speaker with a volume; rooms that are Home Assistant areas |
+| [Alarm & security](https://padspan.traks.ca/add-ons/#alarm) | Arm and disarm your Home Assistant alarm from the Atlas's emergency button (each one asks first, with the code when the alarm has one), the emergency lights test, and one card per door, garage door or gate with its opener and lock. Openers and locks can be built from plain relays | An alarm panel in Home Assistant, such as Alarmo; covers, switches or relays for openers. An alarm going off, leak and smoke alarms, locks and Alert pulse stay free without it |
+| [Wi-Fi coverage](https://padspan.traks.ca/add-ons/#wifi) | A Wi-Fi map of each floor, 2.4 GHz and 5 GHz apart, with each room's signal and a list of what to fix | UniFi access points and the UniFi Utopia integration, whose survey is still a test build |
+| [Climate map](https://padspan.traks.ca/add-ons/#climate) | The Heatmap chip colours each room by its temperature, humidity or CO₂, from that room's own sensors | Those sensors in the Home Assistant areas that match your rooms |
+| [Full house activity](https://padspan.traks.ca/add-ons/#activity) (listed as Time travel in PadSpan 0.38.300 and 0.38.301) | Turns on **🏠 Full house activity** in **Traceback → Playback**, which plays any stretch of the last week back on the Atlas: every light, door, lock and sensor, with the people and tags | Rooms on a floor plan; Bluetooth scanners for the people; Home Assistant's recorder for the devices |
+| [Vacation Mode & presets](https://padspan.traks.ca/add-ons/#vacation) | Vacation Mode learns each light's routine from Home Assistant's history and keeps it going while you're away. Whole-house presets save how every light and fan is set, and **Apply** puts it all back after asking | A week of light history in Home Assistant's recorder before a trip |
+| [Looks pack](https://padspan.traks.ca/add-ons/#looks) | Day, Graphite, Ocean and Dusk themes for the panel, and Showcase, 20 looks for the whole Atlas, the West Coast Forest among them, with saved look presets | Nothing more |
+| [Forensics](https://padspan.traks.ca/add-ons/#forensics) | Records which Bluetooth devices were near your scanners, searchable by time and exported as CSV, kept 7 to 90 days on your own Home Assistant | Bluetooth scanners |
+| [Presence insights](https://padspan.traks.ca/add-ons/#insights) | **Busy Times** shows which rooms are busiest, hour by hour, over 1, 3 or 7 days. **Locate** gives room-by-room directions from your phone to a tag, such as your keys | Bluetooth scanners and a tracked phone or tag; for Locate, rooms that touch on the plan |
+| [Advanced smart lighting](https://padspan.traks.ca/add-ons/#lighting) | Power teams that follow the day, sleep and wake you (making, changing and removing a team too; a team already made keeps switching and dimming without it), WLED's Advanced controls, Automorph, Scene, Ripple, Light spread, Fit room, Hide untouched, fixture shapes and the type override. Placing a light where it really is stays Pro until December 1, 2026, then it is free | Lights in Home Assistant; for a power team, a wall dimmer or switch and the smart bulbs it feeds |
+| [Advanced map creation](https://padspan.traks.ca/add-ons/#maps) (on sale from December 1, 2026) | AI plan reading, reading a photo, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan. All free until it goes on sale | For a scan, an iPhone 12 Pro or a newer Pro model, or an iPad Pro from 2020 or later |
+| [Robot vacuum](https://padspan.traks.ca/add-ons/#vacuum) (on sale from December 1, 2026) | Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D with its card, room location runs, the mistake finder and Wi-Fi while it cleans. Free until it goes on sale; a Bright Pro key keeps them | A Valetudo, Dreame or Xiaomi robot; a Valetudo robot for the live robot and its card |
+
+Holding Advanced map creation or Robot vacuum takes 30% off the other, bought from the licence card with the email the key was sent to. The better of that and any sale applies, never both.
+
+Details and prices: [padspan.traks.ca/add-ons](https://padspan.traks.ca/add-ons/).
+
+### PadSpan Bright
+
+[PadSpan Bright](https://github.com/gbroeckling/padspanBright) is a separate, lighter download made from this same source: the Atlas on its own, for anyone who wants the lighting map without room presence. A PadSpan Pro key turns on Bright's tools too, one key for either download. Bright's own key, PadSpan Bright Pro, is sold until December 15, 2026.
+
+---
+
+## What's in PadSpan, area by area
+
+Everything here is free unless it says Pro or names an add-on, and Pro includes every add-on.
+
+### Presence
+
+- Each phone, watch, tag and beacon goes to the room whose scanner hears it best, checked every 5 seconds. Signals are smoothed with a Kalman filter, and a move to another room waits 40 seconds by default, so a phone doesn't flick between rooms. [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/)
+- Rooms come from each scanner's Home Assistant area, so a floor plan is optional. With three or more scanners placed on a measured plan, PadSpan also places devices between them.
+- ESPHome Bluetooth proxies, Shelly Gen2 or newer set as Bluetooth scanners, and Home Assistant's own Bluetooth come in through Home Assistant with nothing to set up. ESPresense nodes come in over MQTT once you switch them on in **Manage → HA Entities → ESPresense MQTT** (it needs Home Assistant's MQTT integration). ESP32s running Tasmota with Bluetooth come in the same way (experimental: **Manage → HA Entities → Tasmota BLE**).
+- Readings from another floor count for less. While a device is indoors, readings for a room on an Outside floor count 15 dB weaker, and a move between indoors and outdoors needs every vote in the window unless the position on the map agrees. Floor-transition learning is experimental and off by default.
+- Each device keeps one PadSpan ID through Bluetooth address and iBeacon changes. **Devices** lets you merge duplicates, add identities, relabel and delete.
+- Keys and tags nobody carries can keep their last room for half an hour up to 2 days after they go quiet (off by default).
+- **Calibration:** **Walk a room** has you carry one phone or tag round a room for 90 seconds, or you can calibrate point by point. The Calibration screen also has Tune, Beacon Tune, Pin & Listen, Roam and Accuracy by spot, and it works on the phone you carry.
+- **Scanner hardware:** tested with more than 20 ESP32 boards. The antenna matters more than the chip, so pick a board with an external antenna: an ESP32-S3 with Ethernet or Wi-Fi, or an ESP32-C3. PadSpan shows each scanner's signal health, Wi-Fi and connection, and **Health** lists the problems it finds with a button to the screen that fixes each one.
+
+### Phones, watches and tags
+
+Phones change their Bluetooth address about every 15 minutes for privacy, so each kind of device has its own way in:
 
 | Device | Easiest Method | What You Need |
 |--------|---------------|---------------|
@@ -124,67 +160,140 @@ Tracking phones is the hardest problem in BLE presence — they rotate their Blu
 | **SmartTag** (Samsung) | Not reliably | No stable identifier in the air. MAC Rotation Bridging has only a fingerprint to go on |
 | **AirPods** | Apple auto-classification | Detected and labeled automatically when feature enabled (display only — does not solve identity) |
 
-The **Phone Setup Wizard** (experimental) shows the three ways in for a phone. For irk-capture it asks the device's name and whose it is first, then picks up the key the ESP32 shows in Home Assistant; [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) walks through it.
+iPhones can also come in through Home Assistant's Private BLE Device. The **Phone Setup Wizard** (experimental) shows the three ways in for a phone. For irk-capture it asks the device's name and whose it is first, then picks up the key the ESP32 shows in Home Assistant; [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) walks through it.
 
 For devices where you can't get an IRK, the experimental **MAC Rotation Bridging** feature matches advertisement patterns across address rotations to maintain tracking continuity.
 
 > **Acknowledgement:** The IRK extraction workflow is built on [Derek Seaman's irk-capture](https://github.com/DerekSeaman/irk-capture) — an ingenious ESP32 tool that emulates BLE peripherals to extract Identity Resolving Keys during pairing. It's what makes practical phone tracking in Home Assistant possible without rooting devices or owning a Mac.
 
-### Scanner Hardware & Management
-- **Tested with 20+ ESP32 boards** — the antenna matters more than the chip. Boards with full-size external antennas consistently outperform chip/PCB antennas for room-level accuracy
-- Top picks: ESP32-S3 with Ethernet + antenna, ESP32-S3 with WiFi + antenna, ESP32-C3 with antenna
-- Auto-discover BLE scanners from Home Assistant integrations
-- Per-scanner signal quality metrics and coverage analysis
-- WiFi SSID, IP address, and connection type display
-- Assign scanners to floors and rooms on the map
+### Guests
 
-### Alerts & Automation
-- Alerts when a device changes room, arrives or leaves (per device, 60-second rate limit on room changes), sent through Home Assistant's own notify services: the Companion app for a phone, or a mail integration such as SMTP for email. PadSpan has no mailer of its own, so set those up in Home Assistant first
-- HA entities: **device trackers** (the state is the room, or `not_home`), **area sensors**, **distance sensors**, and binary sensors for Vacation Mode, guests at home and sub-zones
-- Home Assistant events when a named device arrives or leaves (`padspan_device_arrived`, `padspan_device_departed`) and when a followed one changes room (`padspan_room_change`), for your own automations
+Guests get a small Bluetooth tag for their visit, so PadSpan shows which room they're in. Each stay has the guest's name, an end date and its own report (when they arrived and left, and time in each room), kept 30 days by default and then deleted with the name. The name stays in Home Assistant and never goes in the usage report or a backup. Turn it on in **Settings → Tracking → Phones and guest tags → Guest tags**; a **Guests** screen appears while it's on. The [Guest Tags Guide](./docs/GUEST_TAGS_GUIDE.md) has the details.
 
-### Analytics
-- **Insights** (a Traceback mode) — per-object time-in-room and entry-count tables, plus peak concurrent occupancy, with CSV/JSON export
-- **Busy Times** (a Traceback mode, PadSpan Pro) — which rooms are busiest overall and by hour of day, aggregated across every tracked object over a 1/3/7-day range
-- **Locate** (a Follow option, PadSpan Pro) — room-by-room wayfinding to the device or person you're following, from wherever your own tracked phone currently is; a live metre-distance readout once you're in the same room. No compass, no camera — routed over your own room-adjacency map, refreshed on every live poll like Follow
+### History and alerts
 
-### Atlas — The Device Map
-Formerly "Lights" — renamed because it outgrew the name. One isometric map of every floor, drawn the way an electrician draws a lighting plan, for placing and controlling real devices rather than just tracking BLE:
-- **Fixtures** — lights, fans, locks, and motion, temperature, humidity, air-quality and flood sensors, each placed at their real position, shape, size and rotation
-- **Smoke, gas and CO alarms** on the map beside leak sensors — an alarm rings its room red, shows on every PadSpan screen and stays up for 2 days or until someone resets it
-- **WLED control** — brightness, colour and effects live from the map
-- **Outdoor gear** — anything HA puts on an Outside floor (shed, garden, driveway) places on the real floor plate just outside the room it lives beside, instead of falling off the map
-- **Doors & windows** as real RF barriers — material-aware attenuation (steel blocks harder than hollow-core), live open/closed state, and an **Invert** toggle for a sensor that reports backwards. A cover (garage door, gate, blind), switch, button or script that opens it, and its lock, can be linked to the same door or window, for one card with its state, Open/Close and the lock
-- **Automorph** — a soft aura drawn on the map from a fixture into its room, in a growing set of distinct styles (Glow, Blueprint, Nebula, Halo, Bloom and more). It changes how the map looks, not what the lights do
-- **Showcase** — 20 curated visual themes for the map itself, with a presets bar to save and load a look
-- **Scene row** — under the map, a tile for each Home Assistant scene that sets a placed light, drawn as a small map of the lights it uses; a tap runs it
-- **Heatmap** (PadSpan Pro, off by default) — colours each room by its own temperature, humidity or CO₂ sensors
-- A **hover HUD** names what's under the cursor (or a touch hold) with every stacked marker as a clickable row; **Alt+click** cycles the stack when several devices sit on top of each other
-- Full touch support — pinch-zoom, drag and tap are tuned for a wall panel or phone, not just a mouse
+- **Traceback** replays the last 7 days of movement on your floors, NVR-style, with **Insights**: time in each room, entries and peak occupancy, exported as CSV or JSON.
+- **Share a replay** makes a 10 to 30 second clip from a stretch of Traceback. Names become Person 1 or initials, and the clip has no plan picture, address or coordinates in it. It's made in your browser as MP4, WebM or GIF, and nothing is uploaded.
+- **Follow** shows one device's room live with its movement timeline, and alerts you when it changes room, arrives or leaves. Alerts go through Home Assistant's own notify services: the Companion app for a phone, or a mail integration such as SMTP for email. PadSpan has no mailer of its own. Room-change alerts are held to one a minute per device.
+- **Yesterday at home** sends one morning message about the day before: comings and goings, guests, the rooms empty longest and lights left on in empty rooms (off until you turn it on).
+- **Lights follow people** turns a room's lights on when someone with a named phone, watch or tag walks in, and off once the room has been empty for the time you set (2 minutes by default). It can wait for dark and keep quiet hours, and a light you turn off by hand stays off. Off until you turn it on, in **Settings → Tracking → Home Assistant and integrations**.
+- **Occupancy** counts people in the building, never devices.
+- **Busy Times** and **Locate** are Pro or the Presence insights add-on. **Full house activity** on the Atlas is Pro or the add-on of the same name, and **Forensics** is Pro or the Forensics add-on.
 
-See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) for the 3D house. Shapes, Automorph and Showcase are PadSpan Pro (or [PadSpan Bright Pro](https://github.com/gbroeckling/padspanBright), sold until December 15, 2026) features — see [Editions](#editions) below; a free install gets floors, rooms and a tap-to-toggle marker per light, and from December 1, 2026 places each one exactly too.
+### What Home Assistant gets
 
-### UI & Experience
-- **Live Tracker mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
-- **23 dedicated views** with Basic and Advanced modes
-- **Guided setup** with progress tracking
-- Dark forest-green theme designed for always-on displays
-- Built-in **Training Hub** with 16 animated walkthroughs + full manual
-- **Sample mode** — fully functional demo with synthetic data, no hardware needed
-- Calibration is a screen of the main panel that you can open on a phone during walk-around collection
-- **NVR-style movement playback** — replay tracked device movement on the 3D map
+- A device tracker for each named device (its state is the room, or `not_home`), area and distance sensors, occupancy sensors per room (off by default), sub-zone sensors, and binary sensors for Vacation Mode and guests at home. Each power team is one Home Assistant `light`.
+- Events when a named device arrives or leaves (`padspan_device_arrived`, `padspan_device_departed`), when a followed one changes room (`padspan_room_change`), and for guest tags (`padspan_ha_guest`).
+- `padspan_ha.announce` puts a big message with a chime on the PadSpan screens you name, read aloud, and `padspan_ha.reload_screens` reloads them (both need **Open screens** on).
+- Assist answers "Which room is Alex in?" once you add PadSpan's sentences, and `/padspan-ha?room=Kitchen` or `?follow=Alex` opens a room's card or Follow straight away.
+- Three blueprints: room lights follow people, lights on in whichever room you walk into, and lights off when a room is empty. [What can Home Assistant do once it knows the room?](https://padspan.traks.ca/guides/room-presence-automations/) has eight tested recipes.
 
-### Experimental Features (Settings → Features)
-- **Phone Setup Wizard** — guided flow for tracking phones and watches. Points to [irk-capture](https://github.com/DerekSeaman/irk-capture) for IRK extraction. Also shows the easy Android path (HA Companion App iBeacon) and Apple IRK options. Credit to [Derek Seaman](https://github.com/DerekSeaman) for the excellent irk-capture tool that makes IRK extraction practical for everyone.
-- **MAC Rotation Bridging** — when a phone's Bluetooth address rotates (every ~15 min), PadSpan matches advertisement characteristics (company ID, services, signal pattern) to tentatively link old and new addresses. Bridges the tracking gap without requiring an IRK. Probabilistic — may occasionally link wrong devices.
-- **Apple Device Classification** — shows what sent an Apple Find My signal (AirTag, a Find My accessory, which can be another brand's tag or AirPods, or an Apple device such as an iPhone, iPad or Mac) instead of just "Find My", in Devices, Bluetooth → Advertisements and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says which. Display-only — does not affect tracking or identity.
-- **Radio Map** — RSSI heatmap overlay using inverse distance weighting
-- **Signal distortion map** — where positions matched to calibration points (k-NN) disagree with reality
-- **Walk-to-Identify** — discover unknown devices by correlating walking motion
-- **RoomPlan Import** — import an Apple RoomPlan scan (a `.usdz` file, or RoomPlan JSON) in Mapping → Layout, as rooms to review before anything is saved
-- **Robot Vacuum Import** — import a robot vacuum's map (Valetudo, Dreame or Xiaomi) in Mapping → Layout as a floor plan with its rooms
-- **iPhone Setup Path** — walks an iPhone through getting its IRK, adding it and checking it resolves (on by default for a new install)
-- **RSSI Vector Capture** — record what every scanner heard, poll by poll, to replay a walk offline against changed settings
+### Floor plans and rooms
+
+- Every way in is free (from December 1, 2026, a LiDAR scan needs Pro or the Advanced map creation add-on, and a robot vacuum's map Pro, the Robot vacuum add-on or a Bright Pro key): a picture (PNG, JPG, GIF, BMP, WebP or SVG; a photo of a sketch works), a PDF (you pick the page), a blank floor you type the size of, the rough house from your Home Assistant areas, a plan file from another app (Easy Floorplan YAML, DXF or Floorplanner FML), an iPhone or iPad Pro LiDAR room scan (drawn to scale, with room outlines suggested), a Sweet Home 3D file, or a robot vacuum's map (experimental).
+- Set the scale with a two-point measure (a doorway works; a long wall is more exact), then trace each room over the plan.
+- Floors come from Home Assistant's floors and line up in **Mapping → 3D Stack**, each with its own height. Each room can have its own ceiling height and a split level (the 3D house, which is Pro until December 1, 2026 and free from then, draws them).
+- Walls carry their material (metal, concrete, brick or your own figure), which PadSpan counts as signal loss between rooms, and an open edge for a loft. Doors and windows sit on a wall, linked to their sensors.
+- **Sub-zones** mark a bed, a couch or a desk inside a room, each with its own sensor (off by default).
+- Renaming an area in Home Assistant renames it in PadSpan too.
+- Overview draws every floor stacked, with everyone on it and their trails if you want them.
+
+### The Atlas
+
+The Atlas is the house as a control panel. It has its own page in the Home Assistant sidebar, made for a screen you leave up, and anyone in the household can use it without being an administrator.
+
+**Free**
+- Floors and rooms, with each light, fan, lock and sensor as a marker in its room. Tap a light to switch it. Tap a room's name for its card: All on, All off, and its scenes and scripts.
+- Locks lock and unlock from the map and the room's card, and unlocking asks first.
+- Leak, smoke, gas and CO alarms ring their room red and stay up for 2 days or until someone presses Reset, with a red banner on every PadSpan screen and a notification when one goes off and when it clears. A house alarm going off shows in the emergency button and the same banner.
+- **Alert pulse** (off by default) rings a room amber when a door, window, gate or cover there has been open more than 6 hours, or a window is open while it rains or snows.
+- **Power teams** (**Settings → Atlas → Power teams**) run a wall dimmer or switch and the smart bulbs it feeds as one light that follows the day, with a wake-up, a bedtime, a night light and fades of up to 100 minutes. Making or changing a team, following the day, Sleep and the wake-up need Pro or the Advanced smart lighting add-on; a team already made keeps switching and dimming without it.
+- Rain or snow outside the house, from a rain sensor, a weather entity or a weather-warning service, drawn still (Pro animates it).
+- Hover, or hold a finger, to name what's under it; **Alt+click** steps through markers stacked on one spot. Pinch, drag and tap are tuned for a wall panel or a phone.
+
+**Pro**
+- Each light and device placed exactly (free from December 1, 2026, drawn as a plain marker), in its real shape, size and angle; WLED Advanced and **Exact look**; **Automorph** (16 styles, such as Glow, Blueprint, Nebula and Halo); **Fit room**; **Light spread**; spatial scenes (Sunset, Dusk, Ember, Ocean) across the floor; the scene row, a tile for each Home Assistant scene that sets a placed light; animated rain and snow.
+- The new layout, where each screen ticks what it shows; **Edgecut**, where the rooms fill the screen; wall mode (the plain wall screen is free from December 1, 2026); the Atlas as your Overview; people and tags on the map.
+
+**Pro or an add-on**
+- **Audio:** each room's speakers, shades and thermostat, and Room off, in its card.
+- **Alarm & security:** Arm and Disarm in the emergency button, the emergency lights test, the door, garage and gate card with its opener and lock, and **Devices → Door Openers**.
+- **Climate map:** the Heatmap chip. **Vacation Mode & presets:** Vacation Mode and whole-house presets. **Looks pack:** Showcase and its 20 looks. **Full house activity:** Traceback's playback of the whole house on the Atlas.
+- **Advanced smart lighting:** making and changing power teams, with their day, Sleep and wake-up, and from the Pro list above the shapes and type override, WLED Advanced, Automorph, Scene, Ripple, Light spread, Fit room and Hide untouched.
+- From December 1, 2026: **Advanced map creation** for AI plan reading, reading a photo and everything from a LiDAR scan, and **Robot vacuum** for everything a robot vacuum does in PadSpan. Both are free until then.
+
+### The 3D house (free from December 1, 2026) and Furnish (Pro)
+
+Live Aboard is the Atlas in 3D, built from the map you already drew. Until December 1, 2026 it's Pro, experimental and off until you turn it on in **Settings → Atlas**. From then the 3D house itself is free, with Walk, and a new install starts with it on; people figures, Edit and its wizard, the view flying to an alert, Furnish, the shared library and rain and snow stay Pro. It needs a browser with WebGL.
+
+- **Getting around:** drag, pinch or double-tap a room; Top, Iso, turn 90° and Fit; walls cut away, up, down, as glass or with the roof on; one floor at a time, all of them, or pulled apart. Save views and set a home view, and the view can go back to it by itself after 30 seconds to 5 minutes.
+- **Using it:** tap a light to switch it and hold it for brightness, colour and effects; tap a sensor for its card; tap a room's name for its devices and scenes.
+- **What it shows:** each room's temperature, humidity and air quality under its name, motion by how recent it is, leak, smoke, gas and CO alarms ringing their room, and a window open in the rain glowing blue. Lights glow in their real colour, and the house darkens with the real sun.
+- **Looks:** Classic, **Studio** (the house on a stage under a sky that follows the sun, from golden hour to stars) and Showcase, chosen per screen, with one look by day and another after sunset if you like.
+- **People and tags:** each Home Assistant person walks to the phone or tag they carry, as a figure you make with sliders or a soft marker.
+- **Walk** at eye height through the house, and **fly to** a doorbell, a door or an alarm when it goes off.
+- **Edit:** doors in ten kinds (hinged, French, sliding, barn, pocket, bifold, garage, roll-up, tilt-up, gate) that follow their sensor or cover, windows with their sill and head, LED strips round a room or along a rail, and mezzanines inside a tall hall. A step-by-step wizard sets the house up.
+- **Furnish:** 33 kinds of furniture with their own sliders, room sets that furnish a kitchen, bathroom, bedroom, living room, dining room or office in one tap, stairs (straight, L, U, open or floating), floors (wood, tile, stone, carpet, concrete) and wall colours. Pieces linked to a device come alive. A shared furniture library is there if an administrator switches it on, and Sweet Home 3D files bring their doors, windows, furniture and stairs.
+- When nothing in the house changes, it draws nothing.
+
+Guides: [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) and [Furnish Guide](./docs/FURNISH_GUIDE.md).
+
+### Wall screens
+
+- **Wall mode (Pro; the plain wall screen is free from December 1, 2026)** on `/padspan-lights?kiosk=1` fits every floor to the screen, grows the text with the screen (twice the size on 4K), hides Home Assistant's sidebar, keeps the screen awake over HTTPS and fades its controls 30 seconds after the last touch. **Settings → Atlas → Wall screens** sizes it for the room: give the screen's size and how far away people stand, or tap a preset from desk monitor to big TV. **Dim at night** darkens it between sunset and sunrise, and stays Pro with the burn-in shift, floors in turn and Fully Kiosk motion wake.
+- **Open screens** (free, off by default) lists every PadSpan page that's open in the house, so you can reload one or all and give each a name, and lets `padspan_ha.announce` reach them.
+- Guides: [Wall Screen Guide](./docs/WALL_SCREEN_GUIDE.md), [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) and [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/).
+
+### Look, language and help
+
+- **23 dedicated views** with Basic and Advanced modes: Basic keeps a short main list, and the rest sit under More tools.
+- Themes: Night, Light and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro or the Looks pack add-on. **Follow the sun** switches to a light theme by day.
+- The panel speaks your Home Assistant profile's language when it's German, French or Dutch. German covers nearly all of it; French and Dutch leave the Atlas map, the 3D house, Furnish, Rooms and Traceback in English.
+- Metres, or feet and inches.
+- A built-in **Training Hub** with 16 animated walkthroughs, and the full manual.
+- **Sample mode**: **Preview a finished house** shows a sample house with every feature set up, before your own hardware is in. **Back to my house** returns to yours.
+
+### Robot vacuums and Wi-Fi
+
+- **Robot vacuum (experimental, off by default):** a Valetudo, Dreame or Xiaomi map becomes your floor plan with its rooms. A Valetudo robot also shows live on the map with its card (state, battery, Start, Pause, Dock). With a Bluetooth beacon on top, its room location runs add calibration spots as it drives (a backup first, Undo for each run, and it stops below 20 % battery), and **Find mistakes** lists receivers that look misplaced. Free until December 1, 2026; from then it needs Pro, the Robot vacuum add-on or a Bright Pro key, and nothing stored is deleted.
+- **UniFi access points** from UniFi Utopia show on the Atlas with your other devices. The coverage map is the Wi-Fi coverage add-on.
+
+### Experimental (Settings → Features)
+
+- **Phone Setup Wizard**: a guided flow for phones and watches. It points to [irk-capture](https://github.com/DerekSeaman/irk-capture) for IRK extraction, and also shows the easy Android path (HA Companion App iBeacon) and Apple IRK options.
+- **MAC Rotation Bridging**: when a phone's Bluetooth address rotates (every ~15 min), PadSpan matches advertisement characteristics (company ID, services, signal pattern) to tentatively link old and new addresses. It bridges the gap without an IRK, and it's probabilistic, so it may now and then link the wrong devices.
+- **Apple Device Classification**: shows what sent an Apple Find My signal (AirTag, a Find My accessory, which can be another brand's tag or AirPods, or an Apple device such as an iPhone, iPad or Mac) instead of just "Find My", in Devices, Bluetooth → Advertisements and a device's details. It can't tell an iPhone from an iPad or a Watch, because nothing Apple sends over Bluetooth says which. Display only: it doesn't affect tracking or identity.
+- **Radio Map**: an RSSI heatmap overlay using inverse distance weighting.
+- **Signal distortion map**: where positions matched to calibration points (k-NN) disagree with reality.
+- **Walk-to-Identify**: find unknown devices by matching them to your walking.
+- **RoomPlan Import**: import an Apple RoomPlan scan (a `.usdz` file, or RoomPlan JSON) in Mapping → Layout, as rooms to review before anything is saved.
+- **Robot Vacuum Import**: import a robot vacuum's map (Valetudo, Dreame or Xiaomi) in Mapping → Layout as a floor plan with its rooms.
+- **iPhone Setup Path**: walks an iPhone through getting its IRK, adding it and checking it resolves (on by default for a new install).
+- **RSSI Vector Capture**: record what every scanner heard, poll by poll, to replay a walk offline against changed settings.
+
+---
+
+## Screenshots
+
+### On the wall in my house
+
+![PadSpan on a wall-mounted screen in my house, showing its floors with tracked devices, next to the thermostat and the light switches](./images/wall-panel-in-situ.jpg)
+
+It hangs next to the thermostat and the light switches.
+
+### The demo's sample house
+
+| The Atlas on a wall screen (Pro) | The main floor in 3D at night (Pro) |
+|:-:|:-:|
+| ![The Atlas on a wall screen: three floors of a sample house, lights glowing where they hang, a guest and a set of keys in their rooms](https://padspan.traks.ca/demo/media/estate-wall-atlas.jpg) | ![The sample house's main floor in 3D at night, furnished, with lit rooms, room temperatures, a guest's tag and a set of keys](https://padspan.traks.ca/demo/media/estate-3d-main-floor-night.jpg) |
+
+| Who's where now on a new install (free) | The 3D house on a wall screen (Pro) |
+|:-:|:-:|
+| ![Who's where now: phones, watches and keys listed by room from four Bluetooth scanners, with Track beside a phone and a watch, and no floor plan yet](https://padspan.traks.ca/demo/media/setup-whos-where.jpg) | ![The sample house in 3D on a wall screen, walls cut away, with people at home, motion and room temperatures](https://padspan.traks.ca/demo/media/estate-wall-3d.jpg) |
+
+| On a phone: the panel | On a phone: the Atlas | On a phone: the 3D house |
+|:-:|:-:|:-:|
+| ![The PadSpan panel on a phone: Overview with two people at home and the room each is in](https://padspan.traks.ca/demo/media/estate-phone-panel.jpg) | ![The Atlas on a phone: the house map above the Light Index of every light, its room and its state](https://padspan.traks.ca/demo/media/estate-phone-atlas.jpg) | ![The 3D house on a phone: the living room and foyer with a guest's tag and room temperatures](https://padspan.traks.ca/demo/media/estate-phone-3d.jpg) |
 
 ---
 
@@ -215,23 +324,6 @@ Room Assistant isn't in the table: its last release was in March 2022.
 Already running Bermuda? Keep it: PadSpan runs next to it on the same proxies and leaves it as it is. [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) explains how.
 
 Looking at NeonPlan 3D too? It added room presence to its free 3D floor plan in October. [Bermuda, NeonPlan 3D or PadSpan?](https://padspan.traks.ca/guides/bermuda-vs-neonplan/) compares all three.
-
----
-
-## Editions
-
-The presence tracking on this page is **PadSpan HA**: free, GPL v3, no key required.
-A licence key unlocks the rest on the *same install*: nothing to reinstall,
-nothing to reconfigure.
-
-| Edition | Key | What it is |
-|---------|:---:|------------|
-| **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations, and from December 1, 2026 exact placement, the plain wall screen and the 3D house (Live Aboard). Free forever. |
-| **PadSpan Pro** | `pro` | Every gated feature in PadSpan HA and every add-on — Atlas device looks (shape, size, angle, WLED, Automorph, Showcase), Live Aboard's editor, Furnish and people in 3D, the wall screen's night dimming and more, Whole House Presets and Vacation Mode, Forensics, Busy Times, Locate, and anything gated later. Until December 1, 2026 it also covers placement, Live Aboard and the wall screen. |
-| [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter HACS listing generated from this same source — just the Atlas device map, for anyone who wants light control without the BLE presence tracking. |
-| **PadSpan Bright Pro** | `bright` | Bright's full Atlas toolset (placement, shapes, WLED, Automorph, Showcase), priced separately from PadSpan Pro, and sold until December 15, 2026. |
-
-No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day free trial — no card required, no reinstall; it needs the opt-in usage report on, and the report stays on until the trial ends. A PadSpan Pro key also unlocks Bright's tools if you install Bright instead — one key, either download. Pricing and purchase: [padspan.traks.ca](https://padspan.traks.ca).
 
 ---
 
@@ -268,7 +360,7 @@ The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer,
 
 - Home Assistant **2024.8** or newer
 - A machine with **more than 2 GB of RAM** is recommended (a Raspberry Pi 4 or 5 with 4 GB or more, or similar). Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Pi Home Assistant can run out of memory within hours. See [Minimum requirements](./docs/MINIMUM_REQUIREMENTS.md)
-- At least one BLE scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner, your Home Assistant machine's own Bluetooth, ESPresense nodes (they also need HA's MQTT integration, and the ingestion switched on in Manage → HA Entities), or Tasmota devices (experimental, over MQTT)
+- For room presence, at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner, your Home Assistant machine's own Bluetooth, ESPresense nodes (they also need HA's MQTT integration, and the ingestion switched on in Manage → HA Entities), or Tasmota devices (experimental, over MQTT). The map, the lights, the locks and the alarms work without one
 - The Marketplace (built into Home Assistant from 2026.11) or HACS, for easy installation and updates
 
 ---
@@ -277,10 +369,11 @@ The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer,
 
 1. Install from the Marketplace (or with HACS, then restart HA)
 2. Add the PadSpan HA integration
-3. Open the **PadSpan HA** panel in the sidebar. **Who's where now** puts each device in the room of the scanner that hears it best, from each scanner's Home Assistant area. No floor plan needed. From 0.38.276, a scanner with no area gets a room to choose right on that card, guessed from its name when it can be: pick it and choose **Set room**
+3. Open the **PadSpan HA** panel in the sidebar. With a Bluetooth scanner, **Who's where now** puts each device in the room of the scanner that hears it best, from each scanner's Home Assistant area. No floor plan needed. A scanner with no area gets a room to choose right on that card, guessed from its name when it can be: pick it and choose **Set room**
 4. Name your phones and tags: [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) shows how for iPhone, Apple Watch and Android
 5. **Preview a finished house** shows a sample house with every feature set up. **Back to my house** returns to yours
-6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, then **Put it on the map**, track your phone or watch (a step of its own from 0.38.276) and calibrate
+6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, then **Put it on the map**, track your phone or watch and calibrate. No scanner yet? **Make the rough house** in Setup gives you one box per Home Assistant area to start from
+7. Open **Atlas** in the sidebar and tap a light
 
 Every step, with pictures: [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/).
 
@@ -298,7 +391,8 @@ Every step, with pictures: [From the Marketplace to your first room](https://pad
 | [Walls Guide](./docs/WALLS_GUIDE.md) | Wall materials and signal loss: where the numbers come from, real-world ranges, old buildings, and setting your own |
 | [Furnish Guide](./docs/FURNISH_GUIDE.md) | Furniture, devices and people in the 3D house: builders, from a photo, the shared library, Sweet Home 3D import |
 | [Wall Screen Guide](./docs/WALL_SCREEN_GUIDE.md) | PadSpan on a tablet or wall screen: kiosk links, full screen, going back home by itself |
-| [PadSpan Pro](./docs/PADSPAN_PRO.md) | The 90-day trial, entering a key, getting Pro free as a tester, and invites |
+| [Guest Tags Guide](./docs/GUEST_TAGS_GUIDE.md) | Lending a guest a Bluetooth tag for their visit: turning it on, lending the tag, while they stay, when they give it back, and privacy |
+| [PadSpan Pro](./docs/PADSPAN_PRO.md) | Pro and each add-on, the 90-day trial, entering a key, one key on several homes, getting Pro free as a tester, and invites |
 | [Troubleshooting](./docs/manual/26-troubleshooting.md) | Common issues and fixes; [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) for wrong rooms |
 | [Architecture](./docs/00_REPO_LOGIC_OVERVIEW.md) | High-level codebase architecture |
 | [Changelog](./CHANGELOG.md) | Full version history |
