@@ -12,7 +12,11 @@
 //                  Home Assistant's own restart, each behind a confirm. Without: a short offer, only
 //                  while it is on sale (addonOnSale); nothing before.
 //   overviewCard   the Overview's one card, when a Control4 entry failed to set up or a controller
-//                  runs OS 2 and the product isn't installed: to Settings' card, or the offer.
+//                  runs OS 2 and the product isn't installed: to Settings' card, or the offer. Its
+//                  No thanks is the install's (settings.c4local_offer_done), never on a wall.
+// Neither shows, to anyone, PadSpan Pro included, until the product is published (published(): the
+// owner, 2026-11-25), and nothing is asked of the backend until then. A house running a local Control4
+// integration of its own (status local_other: the owner's house) has it: Settings says so, nothing offers.
 // Nothing runs unless an administrator presses; the status is read once per page load
 // (c4local_install.py; padspan_ha/c4local_status reads only). PadSpan never restarts Home
 // Assistant by itself.
@@ -24,13 +28,13 @@ const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`)
 export const NAME = "c4local";
 const HA_CONFIGURE = "/config/integrations/integration/control4";
 const HA_ADD = "/config/integrations/dashboard/add?domain=control4";
-const NO_OFFER = "padspan_c4local_offer";   // localStorage: "no" once the Overview card's No thanks is pressed
 
 let _status = null;     // padspan_ha/c4local_status's answer, once per page load
 let _asked = false;
 let _latest = null;     // the update check's answer: { latest, newer }
 let _busy = "";         // "install" | "undo" | "check" | "restart" while one runs
 let _note = null;       // { ok, text } after a press
+let _declined = false;  // No thanks pressed on this page (saved as settings.c4local_offer_done)
 
 const _admin = (ctx) => !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
 const _call = (ctx, type, data) => (ctx.actions.wsCall ? ctx.actions.wsCall(type, data || {}) : ctx.actions.callWS({ type, ...(data || {}) }));
@@ -50,7 +54,16 @@ export function load(ctx, force = false) {
 }
 
 /** For the tests and a fresh page: forget what was read. */
-export function _reset(status = null) { _status = status; _asked = status !== null; _latest = null; _busy = ""; _note = null; }
+export function _reset(status = null) { _status = status; _asked = status !== null; _latest = null; _busy = ""; _note = null; _declined = false; }
+
+/** Whether OS 2 Local for Control4 is published. Its one switch is its on-sale flag: the backend's word
+ *  (settings.addons_on_sale, from licence.NOT_ON_SALE / ADDON_ON_SALE_FROM, by which Install and the update check
+ *  refuse too) and this panel's table (editions.js ADDONS on_sale / on_sale_from: the price and the site's box),
+ *  flipped together at publish (tests/test_addon_gates.py holds the two equal). Both, so neither alone shows it. */
+export function published(settings, now = Date.now()) {
+  const s = settings || {};
+  return ED.addonOnSale(NAME, now) && Array.isArray(s.addons_on_sale) && s.addons_on_sale.includes(NAME);
+}
 
 /** Whether Home Assistant has Control4 at all: an entry, a discovered controller, or the folder. */
 export function seen(st) {
@@ -61,6 +74,8 @@ export function trouble(st) {
   return !!st && (!!st.failed || (st.os2 || []).length > 0);
 }
 const _ours = (st) => !!(st && st.disk && st.disk.ours);
+// A local Control4 integration of the house's own (c4local_install.py local_other): the house has a local login.
+const _hasLocal = (st) => _ours(st) || !!(st && st.local_other);
 
 // What a refusal says, by its code (c4local_install.py C4LocalError); its English message otherwise.
 const ERRORS = {
@@ -92,8 +107,8 @@ function _findings(el, st) {
     if (["setup_error", "setup_retry", "migration_error"].includes(e.state))
       out.push(t("Home Assistant's Control4 entry \"{name}\" failed to set up.", { name: e.title || "Control4" }));
   }
-  // OS 2 is worth saying until the product is in; after that it is just how the house is.
-  if (!_ours(st)) for (const v of (st.os2 || [])) out.push(t("Your Control4 controller runs OS {version}.", { version: v }));
+  // OS 2 is worth saying until a local login is in; after that it is just how the house is.
+  if (!_hasLocal(st)) for (const v of (st.os2 || [])) out.push(t("Your Control4 controller runs OS {version}.", { version: v }));
   if (!out.length) return null;
   return el("div", { "data-c4local": "found", style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:6px" },
     "⚠ " + out.join(" "));
@@ -190,17 +205,23 @@ function _link(el, href, label, key) {
 
 /** Settings → Tracking → Home Assistant and integrations: the card, or null (nothing to show). */
 export function settingsCard(ctx, el, now = Date.now()) {
-  if (!_admin(ctx)) return null;
+  const settings = (ctx.state && ctx.state.settings) || {};
+  if (!_admin(ctx) || !published(settings, now)) return null;
   load(ctx);
   const st = _status;
   if (!st) return null;
-  const settings = (ctx.state && ctx.state.settings) || {};
   const bought = ED.currentTier(settings) !== "pro" && ED.addonAllowed(settings, NAME);
   if (!seen(st) && !bought) return null;
   const card = el("div", { class: "card", "data-focus-part": "c4local", "data-c4local": "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:4px" }, _word()));
   const found = _findings(el, st);
   if (found) card.appendChild(found);
+  // The house's own local Control4 integration: said, and nothing installs over it (Install refuses it too).
+  if (!_ours(st) && st.local_other) {
+    card.appendChild(el("div", { "data-c4local": "local", style: "font-size:12px;color:#cbd5e1;line-height:1.5" },
+      "✓ " + t("A local Control4 integration is installed (not OS 2 Local for Control4).")));
+    return card;
+  }
   if (!st.allowed) {
     const offer = _offer(el, st, now, ctx);
     if (!offer) return null;
@@ -244,17 +265,18 @@ export function settingsCard(ctx, el, now = Date.now()) {
   return card;
 }
 
-function _noOffer() { try { return localStorage.getItem(NO_OFFER) === "no"; } catch (_) { return false; } }
-
-/** The Overview's card: a Control4 entry failed to set up or a controller runs OS 2, the product is not
- *  installed, and an administrator can get it (Pro or the add-on) or buy it (on sale). Null otherwise. */
+/** The Overview's card: the product published, a Control4 entry failed to set up or a controller runs OS 2,
+ *  no local login here (neither the product nor the house's own), No thanks never pressed on this install, and an
+ *  administrator can get it (Pro or the add-on) or buy it (on sale). Never on a wall. Null otherwise. */
 export function overviewCard(ctx, now = Date.now()) {
-  if (!_admin(ctx) || _noOffer()) return null;
+  const settings = (ctx.state && ctx.state.settings) || {};
+  if (!_admin(ctx) || (ctx.state && ctx.state.kioskMode) || !published(settings, now)) return null;
+  if (_declined || settings.c4local_offer_done === true) return null;
   const comps = (ctx.hass && ctx.hass.config && ctx.hass.config.components) || [];
   if (!_status && !comps.includes("control4")) return null;   // no Control4 in this Home Assistant: nothing asked
   load(ctx);
   const st = _status;
-  if (!st || !trouble(st) || _ours(st)) return null;
+  if (!st || !trouble(st) || _hasLocal(st)) return null;
   const { el } = ctx.helpers;
   const offer = st.allowed ? null : _offer(el, st, now, ctx);
   if (!st.allowed && !offer) return null;
@@ -275,7 +297,12 @@ export function overviewCard(ctx, now = Date.now()) {
     card.appendChild(offer);
   }
   const no = el("button", { class: "btn inline", "data-c4local": "no", style: "font-size:12px;color:#94a3b8" }, t("No thanks"));
-  no.addEventListener("click", () => { try { localStorage.setItem(NO_OFFER, "no"); } catch (_) { /* this page only */ } _rerender(ctx); });
+  // The install's answer (every browser, every administrator): kept through a restore like the other cards' flags.
+  no.addEventListener("click", () => {
+    _declined = true;
+    _rerender(ctx);
+    Promise.resolve(ctx.actions.settingsSet ? ctx.actions.settingsSet({ c4local_offer_done: true }) : null).catch(() => { /* this page only */ });
+  });
   row.push(no);
   card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:6px" }, row));
   return card;

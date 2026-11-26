@@ -79,6 +79,29 @@ async def keep_token(st: Any, data: dict[str, Any]) -> None:
     used = data.get("homes_used")
     if isinstance(used, int) and not isinstance(used, bool) and 0 <= used <= 99 and used != st.data.get("license_homes_used"):
         await st.async_set(license_homes_used=used)
+    # PadSpan's own homes among them (a newer licence server's homes_padspan): the count the reports rule words.
+    own = homes_padspan(data)
+    if own is not None and own != st.data.get("license_homes_padspan"):
+        await st.async_set(license_homes_padspan=own)
+
+
+def homes_padspan(data: dict[str, Any] | None) -> int | None:
+    """The answer's homes_padspan, PadSpan's homes on the key (a home only OS 2 Local for Control4 uses is not one,
+    nor under the reports rule), or None when it gave none (an older licence server: homes_used is the count then)."""
+    own = data.get("homes_padspan") if isinstance(data, dict) else None
+    return own if isinstance(own, int) and not isinstance(own, bool) and 0 <= own <= 99 else None
+
+
+def rule_homes(settings: dict[str, Any] | None) -> int:
+    """The homes the reports rule counts, as last said: homes_padspan when the server said it, else homes_used."""
+    d = settings or {}
+    own = d.get("license_homes_padspan")
+    if isinstance(own, int) and not isinstance(own, bool):
+        return own
+    try:
+        return int(d.get("license_homes_used") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def homes_warning(data: dict[str, Any] | None) -> dict[str, Any]:

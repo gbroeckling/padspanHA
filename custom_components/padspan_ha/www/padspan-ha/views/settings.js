@@ -3448,6 +3448,17 @@ function _homesDate(iso){
   const t = Date.parse(String(iso || ""));
   return isNaN(t) ? String(iso || "").slice(0, 10) : new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
+// The homes the reports rule counts: PadSpan's own (the licence server's homes_padspan, kept as
+// license_homes_padspan; a home only OS 2 Local for Control4 uses is outside the rule), or every home on the key
+// from a server that doesn't say (license_homes_used). licence_homes.rule_homes is the backend's twin.
+export function ruleHomes(s){
+  const own = s && s.license_homes_padspan;
+  return typeof own === "number" ? own : Number((s && s.license_homes_used) || 0);
+}
+// A key with a home only OS 2 Local for Control4 uses: the texts say PadSpan's homes, not every home.
+const _someNotPadSpan = (s) => typeof (s && s.license_homes_padspan) === "number" && s.license_homes_padspan < Number(s.license_homes_used || 0);
+// A home in the key's list that only OS 2 Local for Control4 uses (licence server step 11: client "c4local").
+const C4LOCAL_HOME = "OS 2 Local for Control4";
 export function homesWarningText(s){
   const w = (s && s.license_homes_warning) || {};
   const labels = Array.isArray(w.off_labels) ? w.off_labels.filter(x => typeof x === "string" && x).join(", ") : "";
@@ -3460,8 +3471,9 @@ export function homesWarningText(s){
       : t("This home stopped using Pro because the usage report is off on another home on this key. Turn it back on there and this home picks up again at its next check.");
   }
   if (w.warning !== "reports_off") return "";
-  const n = Number(s.license_homes_used) || 0;
-  return (n > 2 ? t("This key is on {count} homes.", { count: n }) : t("This key is on more than 2 homes.")) + " " +
+  const n = ruleHomes(s);
+  return (n > 2 ? (_someNotPadSpan(s) ? t("This key is on {count} PadSpan homes.", { count: n }) : t("This key is on {count} homes.", { count: n }))
+    : t("This key is on more than 2 homes.")) + " " +
     t("Every home on a key with more than 2 must keep the usage report on.") + " " +
     // A home on PadSpan before 0.38.160 can't say its report is on: the server names it "(update PadSpan)".
     (/\(update PadSpan\)/.test(labels)
@@ -3471,11 +3483,13 @@ export function homesWarningText(s){
 }
 // Asked before the usage report goes off on a home whose key is on more than two homes; "" = no question.
 export function reportOffConfirmText(s){
-  const n = Number((s && s.license_homes_used) || 0);
+  const n = ruleHomes(s);
   if (!s || !s.pro_has_key || addonKey(s) || !(n > 2)) return "";   // an add-on key has no reports rule
   // A grace already running (a report off on another home) has its own date.
   const w = s.license_homes_warning || {};
-  const lead = t("This key is used on {count} homes. With more than 2, every home must keep the report on.", { count: n });
+  const lead = _someNotPadSpan(s)
+    ? t("This key is used on {count} PadSpan homes. With more than 2, every PadSpan home must keep the report on.", { count: n })
+    : t("This key is used on {count} homes. With more than 2, every home must keep the report on.", { count: n });
   return lead + " " + (w.warning === "reports_off" && w.grace_until
     ? t("If you turn it off here, the homes beyond your first two stop using Pro on {date} unless it's back on.", { date: _homesDate(w.grace_until) })
     : t("If you turn it off here, the homes beyond your first two stop using Pro within 14 days unless it's back on."));
@@ -3551,21 +3565,25 @@ function _licenceHomes(ctx, el, s){
     list.textContent = "";
     // The licence they share, said the same way in each of its homes.
     const L = r.licence || {};
+    // The homes the reports rule counts: PadSpan's (a home only OS 2 Local for Control4 uses never needs a report).
+    const padspanHomes = r.homes.filter(h => h.client !== "c4local").length;
     // Down to the first two homes (one just removed): the reports warning no longer applies.
-    if (warnBox && r.homes.length <= (L.homes_free || 2)) warnBox.remove();
+    if (warnBox && padspanHomes <= (L.homes_free || 2)) warnBox.remove();
     list.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:6px;line-height:1.5" },
       t("One licence{key}{owner}: {used} of {max} homes", { key: L.key_end ? " " + t("(key ending {end})", { end: L.key_end }) : "",
         owner: L.owner ? " " + t("for {owner}", { owner: L.owner }) : "", used: r.homes.length, max: r.homes_max }) +
       (r.frozen ? " \u00B7 " + t("paused for new homes") : "")));
     r.homes.forEach((h, i) => { h._place = i + 1; });
     for (const h of r.homes) {
-      const name = h.label || (h.this ? t("This home") : t("A home"));
+      const c4 = h.client === "c4local";
+      const name = h.label || (c4 ? C4LOCAL_HOME : h.this ? t("This home") : t("A home"));
       const line = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px solid #16271d;font-size:12px" });
       line.appendChild(el("span", { style: "color:#e2e8f0;font-weight:600;min-width:120px" }, name + (h.this ? " " + t("(this one)") : "")));
       line.appendChild(el("span", { style: "color:#94a3b8" },
         t("Home {place}", { place: h._place }) + " \u00B7 " + (h.last_seen ? t("last check {when}", { when: h.last_seen }) : t("not checked in yet")) +
         (h.version ? " \u00B7 " + h.version : "") +
-        (r.homes.length > (L.homes_free || 2) ? " \u00B7 " + (h.reporting ? t("usage report on") : t("usage report off")) : "")));
+        (c4 ? " \u00B7 " + C4LOCAL_HOME
+          : padspanHomes > (L.homes_free || 2) ? " \u00B7 " + (h.reporting ? t("usage report on") : t("usage report off")) : "")));
       if (h.this) {
         line.appendChild(el("button", { class: "btn inline", type: "button", style: "font-size:11px", onclick: () => {
           const v = prompt(t("A name for this home (your other homes show it):"), h.label || "");

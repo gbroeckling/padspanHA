@@ -168,6 +168,78 @@ async def test_on_live_aboard_comes_on_once_where_it_was_never_a_choice(free_bas
     assert data["atlas_3d_enabled"] is False
 
 
+async def test_on_live_aboard_never_comes_on_over_a_choice(free_basics, monkeypatch) -> None:
+    """The once turns Live Aboard on only where off was never a choice (review, 2026-11-25): never on an install whose
+    3D file was written (it had Live Aboard on), never after a settings_set of the switch, on or off, and never after
+    a settings restore, from an older backup or any other."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from custom_components.padspan_ha import settings_store as ss
+    from custom_components.padspan_ha import ws_common
+    written = SimpleNamespace(yes=True, asked=[])
+
+    async def file_written(hass, key):
+        written.asked.append(key)
+        return written.yes
+    monkeypatch.setattr(ws_common, "_store_file_written", file_written)
+
+    async def load(stored):
+        saved: dict = {}
+        store = ss.SettingsStore.__new__(ss.SettingsStore)
+        store.hass = MagicMock()
+        store.store = SimpleNamespace(async_load=AsyncMock(return_value=stored),
+                                      async_save=AsyncMock(side_effect=lambda d: saved.update(d)))
+        return store, await store.async_load(), saved
+    # No key, the 3D file there: it had Live Aboard on and turned it off. Kept off; the once is spent.
+    store, data, saved = await load({"atlas_3d_enabled": False, "atlas_default_v1_applied": True})
+    assert written.asked == ["padspan_ha.house3d"]
+    assert data["atlas_3d_enabled"] is False and saved["atlas_3d_default_v1_applied"] is True
+    # The once spent: a later read never looks for the file again.
+    written.asked.clear()
+    await store.async_free_basics_3d_once()
+    assert written.asked == []
+    # No key, no file: on, as before.
+    written.yes = False
+    _, data, _ = await load({"atlas_3d_enabled": False, "atlas_default_v1_applied": True})
+    assert data["atlas_3d_enabled"] is True
+
+
+def test_a_restore_of_an_older_backup_never_brings_live_aboard_on(monkeypatch) -> None:
+    """A settings restore stamps the once (ws_backup): restoring is choosing settings, so a backup that had Live Aboard
+    off keeps it off at the free basics' moment and after it."""
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha import settings_store as ss
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    from tests.test_conversion import _FakeStore, _run
+    from tests.test_telemetry import _hass as _thass
+    _FakeStore.saved = {}
+    monkeypatch.setattr(_hs, "Store", _FakeStore)
+    bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.274", "note": "",
+                       "map_images": {}, "stores": {SETTINGS_STORE_KEY: {"quiet_mode": True, "atlas_3d_enabled": False}}}]}
+
+    async def _load_backups(_hass_):
+        return bk
+    monkeypatch.setattr(ws_backup, "_load_backups", _load_backups)
+    h = _thass()
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), {"id": 1, "backup_id": "bk1", "store_keys": [SETTINGS_STORE_KEY]}))
+    after = h.data[DOMAIN][DATA_SETTINGS].data
+    assert after["quiet_mode"] is True, "the restore did not run"
+    assert after["atlas_3d_default_v1_applied"] is True and _FakeStore.saved[SETTINGS_STORE_KEY]["atlas_3d_default_v1_applied"]
+    monkeypatch.setattr(licence, "_clock", lambda: float(FREE_BASICS_FROM_TS) + 86400)
+    assert ss.free_basics_3d_once(after) is False and after["atlas_3d_enabled"] is False
+
+
+@pytest.mark.parametrize("value", [False, True])
+def test_switching_live_aboard_on_or_off_spends_the_once(value) -> None:
+    """A settings_set of atlas_3d_enabled is a choice: it writes the once's marker with it (ws_settings), so the free
+    basics' once never turns Live Aboard on over it (settings_store.free_basics_3d_once)."""
+    from tests.test_settings_refusals import send
+    got = send({"atlas_3d_enabled": value})
+    assert not got["error"] and got["data"]["atlas_3d_enabled"] is value
+    assert got["data"]["atlas_3d_default_v1_applied"] is True
+
+
 async def test_on_the_3d_editor_and_its_extras_stay_pro(free_basics) -> None:
     """Furnish, the AI features and the people figures are not part of this:
     their server gates still ask for pro, whatever the switch says."""

@@ -6,7 +6,9 @@
 // views/settings.js): the Settings card for each state the backend can report, every press (nothing
 // is sent before a confirm, Home Assistant restarts only from its own button after its confirm),
 // the Overview's card, the card in its Settings section, and the licence card's Specialty part.
-// The clock is set here, never read.
+// The clock is set here, never read. Before the product is published (c4local.published: its on-sale flag in
+// editions.js at <now>, and the backend's settings.addons_on_sale) nothing shows to anyone and nothing is asked;
+// the cards' own checks run on a copy put on sale (tests/test_c4local.py on_sale_copy).
 //
 // usage: c4local.mjs <views-dir> [<now ISO>]
 // prints one JSON line: { checks, failures, out }
@@ -46,18 +48,21 @@ const out = {};
 
 const S = await import(pathToFileURL(join(VIEWS, "settings.js")).href);
 const C = await import(pathToFileURL(join(VIEWS, "c4local.js")).href);
+const ED = await import(pathToFileURL(join(VIEWS, "editions.js")).href);
+const PUB = ED.addonOnSale("c4local", NOW);   // the panel's half of the switch; the backend's is addons_on_sale below
+out.published = PUB;
 const tick = () => new Promise(r => globalThis._realSetTimeout(r, 0));
 const find = (root, key) => root && root._all ? root._all().find(n => n.getAttribute && n.getAttribute("data-c4local") === key) : null;
 const press = (n) => n.dispatchEvent(new Event("click"));
 
 // A Home Assistant the card talks to: every WS call and service call is recorded; answers are set per test.
 function host({ admin = true, settings = {}, answers = {}, components = ["control4"] } = {}) {
-  const calls = [], services = [];
+  const calls = [], services = [], sets = [];
   const ctx = {
     hass: { user: { is_admin: admin }, states: {}, config: { components },
       callService: async (d, s, data) => { services.push([d, s, data]); } },
     state: { view: "settings", complexity: "advanced", _settingsTab: "presence", model: { floors: [], areas: [] },
-      settings: { telemetry_enabled: false, ...settings }, dataMode: "live", _dataModeKnown: true },
+      settings: { telemetry_enabled: false, addons_on_sale: PUB ? ["c4local"] : [], ...settings }, dataMode: "live", _dataModeKnown: true },
     helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop },
       { get: (t, k) => (k in t ? t[k] : noop) }),
     actions: new Proxy({
@@ -67,11 +72,12 @@ function host({ admin = true, settings = {}, answers = {}, components = ["contro
         if (a instanceof Error || (a && a.code && !a.ok)) throw a;
         return typeof a === "function" ? a(data) : a;
       },
+      settingsSet: async (payload) => { sets.push(payload); },
       renderRooms() {}, renderNav() {},
     }, { get: (t, k) => (k in t ? t[k] : () => {}) }),
     toast() {},
   };
-  return { ctx, calls, services };
+  return { ctx, calls, services, sets };
 }
 let confirmSays = true;
 const asked = [];
@@ -87,8 +93,29 @@ const INSTALLED = { ...BASE, failed: false, entries: [{ title: "Control4 HC-800"
   undo: { what: "remove" } };
 const text = (n) => (n ? n.textContent : null);
 
+// ── Before it is published: nothing, to anyone, Pro included, and nothing asked ──
+if (!PUB) {
+  for (const [who, settings] of [["Pro", PRO], ["its key", C4KEY], ["free", { tier: "free" }]]) {
+    C._reset(null);
+    const h = host({ settings, answers: { "padspan_ha/c4local_status": BASE } });
+    check(`unpublished, ${who}: no Settings card`, C.settingsCard(h.ctx, el) === null);
+    check(`unpublished, ${who}: no Overview card`, C.overviewCard(h.ctx) === null);
+    await tick();
+    check(`unpublished, ${who}: nothing asked`, h.calls.length === 0 && C.settingsCard(h.ctx, el) === null, h.calls);
+  }
+  C._reset(BASE);
+  check("unpublished, even with a status read: no card", C.settingsCard(host({ settings: PRO }).ctx, el) === null
+    && C.overviewCard(host({ settings: PRO }).ctx) === null);
+  const root = S.render(host({ settings: PRO }).ctx);
+  check("unpublished: Settings → Tracking has no card", !find(root, "card"));
+}
+
 // ── The Settings card ────────────────────────────────────────────────────────
-{
+if (PUB) {
+  C._reset(BASE);
+  check("published in the panel's table alone (the backend's word not yet): no card",
+    C.settingsCard(host({ settings: { ...PRO, addons_on_sale: [] } }).ctx, el) === null
+    && C.overviewCard(host({ settings: { ...PRO, addons_on_sale: [] } }).ctx) === null);
   C._reset(BASE);
   check("not an administrator: no card", C.settingsCard(host({ admin: false, settings: PRO }).ctx, el) === null);
   C._reset({ ...BASE, entries: [], failed: false, os2: [] });
@@ -96,11 +123,13 @@ const text = (n) => (n ? n.textContent : null);
   const bought = C.settingsCard(host({ settings: C4KEY }).ctx, el);
   check("bought without Control4 yet: the card, to install it", !!find(bought, "install"), text(bought));
   C._reset({ ...BASE, allowed: false });
-  check("not allowed and not on sale: nothing", C.settingsCard(host({ settings: { tier: "free" } }).ctx, el) === null);
+  // Published is on sale: without Pro or its key, the offer (its price, its link), never Install.
+  const offered = C.settingsCard(host({ settings: { tier: "free" } }).ctx, el);
+  check("not allowed, published: the offer, no Install", !!find(offered, "offer") && !!find(offered, "buy") && !find(offered, "install"), text(offered));
   C._reset({ ...BASE, entries: [], failed: false, os2: [], discovered: true });
   check("a discovered controller counts as Control4 here", !!C.settingsCard(host({ settings: PRO }).ctx, el));
 }
-{
+if (PUB) {
   C._reset(BASE);
   const h = host({ settings: PRO, answers: { "padspan_ha/c4local_install": { ok: true, version: "1.0.0", restart_needed: true,
     status: { ...INSTALLED, running: null, restart_needed: true } } } });
@@ -139,7 +168,7 @@ const text = (n) => (n ? n.textContent : null);
   check("Restart: Home Assistant's own restart, once", JSON.stringify(h.services) === JSON.stringify([["homeassistant", "restart", {}]]),
     JSON.stringify(h.services));
 }
-{
+if (PUB) {
   // Installed, no entry yet: how to add it. Check for an update; an update; Undo's two confirms; a refusal in words.
   C._reset({ ...INSTALLED, entries: [] });
   const h = host({ settings: C4KEY, answers: {
@@ -173,10 +202,21 @@ const text = (n) => (n ? n.textContent : null);
   card = C.settingsCard(host({ settings: PRO }).ctx, el);
   check("another integration in the folder: said, and Install backs it up", /holds another integration \(Control4 \(someone's fork\)\)/.test(text(find(card, "other"))));
   confirmSays = true;
+  // The house's own local Control4 (the owner's: core control4 with a local token): it has it. Said, never offered.
+  const LOCAL = { ...BASE, local_other: true, disk: { name: "Control4", version: "2026.7.4.1", ours: false },
+    running: { name: "Control4", version: "2026.7.4.1", ours: false } };
+  for (const [who, settings] of [["Pro", PRO], ["free", { tier: "free" }]]) {
+    C._reset(LOCAL);
+    card = C.settingsCard(host({ settings }).ctx, el);
+    check(`a local Control4 of its own, ${who}: said, no Install and no offer`,
+      text(find(card, "local")) === "✓ A local Control4 integration is installed (not OS 2 Local for Control4)."
+      && !find(card, "install") && !find(card, "offer") && !find(card, "buy") && !/runs OS 2/.test(text(card)), text(card));
+    check(`a local Control4 of its own, ${who}: no Overview card`, C.overviewCard(host({ settings }).ctx) === null);
+  }
 }
 
 // ── The Overview's card ──────────────────────────────────────────────────────
-{
+if (PUB) {
   C._reset(null);
   const none = host({ settings: PRO, components: ["light"], answers: { "padspan_ha/c4local_status": BASE } });
   check("Overview: no Control4 in Home Assistant, nothing asked", C.overviewCard(none.ctx) === null && none.calls.length === 0);
@@ -193,20 +233,30 @@ const text = (n) => (n ? n.textContent : null);
   C._reset(INSTALLED);
   check("Overview: installed, no card", C.overviewCard(host({ settings: PRO }).ctx) === null);
   C._reset({ ...BASE, allowed: false });
-  check("Overview: not allowed and not on sale, no card", C.overviewCard(host({ settings: { tier: "free" } }).ctx) === null);
+  const ov = C.overviewCard(host({ settings: { tier: "free" } }).ctx);
+  check("Overview: not allowed, published: the offer", !!find(ov, "buy") && !find(ov, "open"), text(ov));
   C._reset({ ...BASE, failed: false, os2: [], entries: [{ title: "C4", state: "loaded" }] });
   check("Overview: Control4 working, no card", C.overviewCard(host({ settings: PRO }).ctx) === null);
   C._reset(BASE);
   const h2 = host({ settings: PRO });
   const c2 = C.overviewCard(h2.ctx);
   press(find(c2, "no"));
-  check("Overview: No thanks keeps it away", C.overviewCard(h2.ctx) === null && localStorage.getItem("padspan_c4local_offer") === "no");
-  localStorage.removeItem("padspan_c4local_offer");
+  await tick();
+  check("Overview: No thanks is the install's: saved, and away for this page", C.overviewCard(h2.ctx) === null
+    && JSON.stringify(h2.sets) === JSON.stringify([{ c4local_offer_done: true }]), JSON.stringify(h2.sets));
+  check("Overview: No thanks never touches the browser's storage", localStorage.getItem("padspan_c4local_offer") === null);
+  C._reset(BASE);
+  check("Overview: its flag keeps it away on every page and browser",
+    C.overviewCard(host({ settings: { ...PRO, c4local_offer_done: true } }).ctx) === null && !!C.overviewCard(host({ settings: PRO }).ctx));
+  C._reset(BASE);
+  const wall = host({ settings: PRO });
+  wall.ctx.state.kioskMode = true;
+  check("Overview: never on a wall", C.overviewCard(wall.ctx) === null);
   check("Overview: not an administrator, no card", C.overviewCard(host({ admin: false, settings: PRO }).ctx) === null);
 }
 
 // ── In its Settings section ──────────────────────────────────────────────────
-{
+if (PUB) {
   C._reset(BASE);
   const root = S.render(host({ settings: PRO }).ctx);
   const sec = root._all().find(n => n.getAttribute && n.getAttribute("data-presence-section") === "integrations");

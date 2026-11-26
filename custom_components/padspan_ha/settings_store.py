@@ -97,6 +97,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "lifetime_card_done": False,    # the Overview "Pro for life ends Dec 15" card was shown; never again (panel.js _launchPriceCard)
     "addon_sale_card_done": False,  # the Overview "Half off every add-on until January 1" card was shown; never again (panel.js _addonSaleCard)
     "house3d_free_card_done": False,  # the Overview "The 3D house is now free" card was shown; never again (panel.js _freeHouseCard)
+    "c4local_offer_done": False,      # No thanks on the Overview's OS 2 Local for Control4 card: this install's (views/c4local.js)
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the
@@ -420,6 +421,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "license_home_label": "",
     "license_home_status": "",   # the server's last word on this home, when it refused it
     "license_homes_used": 0,     # how many homes the key is on, as the server last said
+    # How many of them are PadSpan's (not a home only OS 2 Local for Control4 uses): the reports rule's count, as the
+    # server last said (homes_padspan, licence server step 11); None while a server never said (use homes_used).
+    "license_homes_padspan": None,
     "license_homes_warning": {},  # past two homes with a report off somewhere: licence_homes.homes_warning
     # This install's own id for the licence server, made once, only where Home
     # Assistant's instance id can't be read (licence_homes.machine_id).
@@ -479,19 +483,28 @@ def live_first_kept(live: dict[str, Any] | None, other: dict[str, Any] | None,
     return {"onboarding": ob}
 
 
-def free_basics_3d_once(data: dict[str, Any]) -> bool:
+def free_basics_3d_due(data: dict[str, Any]) -> bool:
+    """Whether free_basics_3d_once has its once still to run: the free basics are on and it never ran here."""
+    from . import licence as _licence  # noqa: PLC0415
+    return _licence.free_basics() and not data.get("atlas_3d_default_v1_applied")
+
+
+def free_basics_3d_once(data: dict[str, Any], house3d_written: bool = False) -> bool:
     """Live Aboard on by default, once, while the 3D house's basics are on the
     bottom rung (licence.free_basics, from December 1; before it, this does
     nothing and the file is what it always was). A new install starts with it
-    on. An install with no licence key never had the 3D house to choose, so its
-    stored "off" was never a choice and turns on; one with a key keeps what it
-    has. A screen still opens on the flat map until someone picks 3D there, and
-    a screen too slow for it stays flat (lights_map.js). Whether it changed
-    anything (atlas_3d_default_v1_applied, its once)."""
-    from . import licence as _licence  # noqa: PLC0415
-    if not _licence.free_basics() or data.get("atlas_3d_default_v1_applied"):
+    on. It turns on only where "off" was never a choice: no licence key (a key
+    had the 3D house to choose), no choice ever stored (a settings_set of
+    atlas_3d_enabled, or a settings restore, spends this once:
+    ws_settings, ws_backup), and the 3D house's file never written
+    (`house3d_written`: an install that had Live Aboard on and turned it off
+    has one). Anything else keeps what it has. A screen still opens on the flat
+    map until someone picks 3D there, and a screen too slow for it stays flat
+    (lights_map.js). Whether it changed anything (atlas_3d_default_v1_applied,
+    its once)."""
+    if not free_basics_3d_due(data):
         return False
-    if not str(data.get("forensics_license_key") or "").strip():
+    if not str(data.get("forensics_license_key") or "").strip() and not house3d_written:
         data["atlas_3d_enabled"] = True
     data["atlas_3d_default_v1_applied"] = True
     return True
@@ -511,7 +524,8 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
                            "launch_card_done": bool(a.get("launch_card_done") or b.get("launch_card_done")),
                            "lifetime_card_done": bool(a.get("lifetime_card_done") or b.get("lifetime_card_done")),
                            "addon_sale_card_done": bool(a.get("addon_sale_card_done") or b.get("addon_sale_card_done")),
-                           "house3d_free_card_done": bool(a.get("house3d_free_card_done") or b.get("house3d_free_card_done"))}
+                           "house3d_free_card_done": bool(a.get("house3d_free_card_done") or b.get("house3d_free_card_done")),
+                           "c4local_offer_done": bool(a.get("c4local_offer_done") or b.get("c4local_offer_done"))}
     # The usage report's add-on facts (addon_report.py) are this install's, like its first sighting: kept.
     _ars = next((v for v in (a.get("addon_report_seen"), b.get("addon_report_seen")) if isinstance(v, dict) and v), None)
     if _ars is not None:
@@ -672,7 +686,7 @@ class SettingsStore:
             self.data["atlas_default_v1_applied"] = True
             _normalized = True
         # Live Aboard on by default, once, from the free basics (free_basics_3d_once).
-        if free_basics_3d_once(self.data):
+        if free_basics_3d_due(self.data) and free_basics_3d_once(self.data, await self._house3d_written()):
             _normalized = True
         # Faster room changes, once (see room_speed_v1_applied above).
         if not self.data.get("room_speed_v1_applied"):
@@ -706,10 +720,22 @@ class SettingsStore:
             _quiet_error("settings_store:first_run")
             return False
 
+    async def _house3d_written(self) -> bool:
+        """Whether the 3D house's file (padspan_ha.house3d) was ever written here: only Live Aboard on writes it, so
+        an install that has one had it on (house3d_store.async_file_exists; an unanswerable check counts as yes).
+        Without a Home Assistant to ask there is no file."""
+        hass = getattr(self, "hass", None)
+        if hass is None:
+            return False
+        from .const import HOUSE3D_STORE_KEY  # noqa: PLC0415
+        from .ws_common import _store_file_written  # noqa: PLC0415
+        return await _store_file_written(hass, HOUSE3D_STORE_KEY)
+
     async def async_free_basics_3d_once(self) -> None:
         """free_basics_3d_once on a running install (ws_settings_get, every settings read): an install running across
-        the moment turns Live Aboard on with the panel's next read, no restart. Saved only when it changed."""
-        if free_basics_3d_once(self.data):
+        the moment turns Live Aboard on with the panel's next read, no restart. Saved only when it changed; the 3D
+        file is looked for only while the once is still due."""
+        if free_basics_3d_due(self.data) and free_basics_3d_once(self.data, await self._house3d_written()):
             await self.store.async_save(self.data)
 
     async def async_room_walk_default_once(self, points: Any) -> None:

@@ -433,7 +433,7 @@ def test_ai_plan_reading_photos_and_scan_furniture_are_pro_or_maps(gates) -> Non
     # Furniture from scans was every house's (0.38.274): free while maps is not on sale (the gate of a free feature).
     assert 'sp = scan_pieces(hass) if hass_addon_gate(hass, "maps") else None' in pkg["ws_house3d.py"]
     assert '"maps": hass_addon_allowed(hass, "maps"),' in pkg["ai_wizard.py"]
-    assert ('const scanLoad = scr && host.house3d && addonGate({ tier: host.tier, addons_licensed: host.addons }, "maps")'
+    assert ('const scanLoad = scr && host.house3d && addonGate({ tier: host.tier, addons_licensed: host.addons, addons_on_sale: host.addonsOnSale }, "maps")'
             in _src("views/lights_map.js"))
     # The rooms helper (Let Claude draw your rooms): offered to Pro or maps, the trial otherwise.
     assert gates["helper"] == {"pro": "start", "maps": "start", "free": "no_pro", "trial": "trial"}, gates["helper"]
@@ -579,3 +579,49 @@ def test_furniture_from_scans_stays_free_until_maps_is_on_sale(disk, tmp_path, m
     _run(W3.ws_house3d_get(h, conn, {"id": 1, "type": "padspan_ha/house3d_get"}))
     assert ("scan_pieces" in conn.send_result.call_args[0][1]) is gets
 
+
+
+def test_every_addon_gate_call_hands_it_what_is_on_sale() -> None:
+    """editions.js addonGate reads settings.addons_on_sale: a call that builds its own settings without it reads every
+    add-on as not on sale, so its gate is always open (review, 2026-11-25: lights_map.js's Furniture from scans).
+    Every call either passes the backend's settings (ctx.state.settings) or an object that carries addons_on_sale."""
+    calls = []
+    for f in sorted(_WWW.rglob("*.js")):
+        src = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"\b_?addonGate\((?!settings, name\))", src):
+            if src[:m.start()].rstrip().endswith("export function"):
+                continue
+            arg = src[m.end():src.index(")", m.end()) + 1]
+            calls.append((f.name, arg))
+            if f.name == "editions.js" and arg.startswith("settings, "):
+                continue                                  # vacuumAllowed passing its caller's on (hostVacuum carries it)
+            assert arg.startswith("ctx.state.settings") or (arg.startswith("{") and "addons_on_sale:" in arg), (f.name, arg)
+    assert ("lights_map.js", '{ tier: host.tier, addons_licensed: host.addons, addons_on_sale: host.addonsOnSale }, "maps")') in calls
+
+
+def test_c4locals_one_published_switch_is_its_on_sale_flag_in_both_halves() -> None:
+    """OS 2 Local for Control4 is shown and offered to nobody, Pro included, until the product is published (the owner,
+    2026-11-25). Its one switch is its on-sale flag, flipped in both halves together at publish: licence.NOT_ON_SALE
+    (or a moment in ADDON_ON_SALE_FROM), which the settings' addons_on_sale carries to the panel and by which Install
+    and the update check refuse (c4local_install.published); and editions.js's entry (on_sale / on_sale_from), the
+    price and the site's box. views/c4local.js needs both before either card shows or anything is asked."""
+    from datetime import datetime
+    from custom_components.padspan_ha import c4local_install
+    ed = _src("views/editions.js")
+    m = re.search(r'\{ name: "c4local", [^}]*?on_sale: (true|false), on_sale_from: "([^"]*)",', ed)
+    assert m, "c4local's entry"
+    on_sale, moment = m.group(1) == "true", m.group(2)
+    if moment:
+        ts = int(datetime.fromisoformat(moment.replace("Z", "+00:00")).timestamp())
+        assert "c4local" not in licence.NOT_ON_SALE and licence.ADDON_ON_SALE_FROM.get("c4local") == ts
+    elif on_sale:
+        assert "c4local" not in licence.NOT_ON_SALE and "c4local" not in licence.ADDON_ON_SALE_FROM
+    else:
+        assert "c4local" in licence.NOT_ON_SALE, "editions.js says not published: so must the backend"
+    assert c4local_install.published() is licence.addon_on_sale("c4local")
+    js = _src("views/c4local.js")
+    assert "return ED.addonOnSale(NAME, now) && Array.isArray(s.addons_on_sale) && s.addons_on_sale.includes(NAME);" in js
+    assert "if (!_admin(ctx) || !published(settings, now)) return null;\n  load(ctx);" in js
+    assert "if (!_admin(ctx) || (ctx.state && ctx.state.kioskMode) || !published(settings, now)) return null;" in js
+    assert js.index("!published(settings, now)) return null;\n  if (_declined") < js.index("load(ctx);\n  const st = _status;\n  if (!st || !trouble")
+    assert "localStorage" not in js, "No thanks is the install's (settings.c4local_offer_done), not a browser's"

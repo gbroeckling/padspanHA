@@ -236,6 +236,86 @@ def test_from_the_moment_the_link_still_turns_off(monkeypatch, msg) -> None:
     assert getattr(conn, "error", None) is None and getattr(conn, "result", None) is not None
 
 
+def test_from_the_moment_the_runs_still_come_to_stop_and_undo(monkeypatch) -> None:
+    """vacuum_status (never refused) hands the runs: the one going, to Stop, and each one whose points are still in
+    calibration, to Undo. A run the store says was going is from before a restart: it comes back interrupted, saved,
+    and undoable (the release note's "you can still stop or undo a run")."""
+    from tests.test_vacuum_import import _vstore
+    _at(monkeypatch, _T)
+    h = _hass({})
+    vs = _vstore(h)
+    vs.data["runs"] = [
+        {"id": "rr_old", "started": "2026-11-29T10:00:00+00:00", "state": "finished", "points": ["p1", "p2"], "undone": False,
+         "added": 2, "skipped": 0, "spot": 4, "spots": 4},
+        {"id": "rr_cut", "started": "2026-11-30T10:00:00+00:00", "ended": None, "state": "running", "points": ["p3"],
+         "undone": False, "added": 1, "skipped": 0, "spot": 1, "spots": 4},
+    ]
+    h.data[DOMAIN].pop(vr.DATA_RUN, None)
+    conn = _Conn()
+    _run(wv.ws_vacuum_status(h, conn, {"id": 1}))
+    assert getattr(conn, "error", None) is None
+    got = conn.result
+    assert got["run"] is None and [r["id"] for r in got["runs"]] == ["rr_cut", "rr_old"]
+    cut = got["runs"][0]
+    assert cut["state"] == "interrupted" and cut["ended"] and cut["points_kept"] == 1 and "points" not in cut
+    assert vs.data["runs"][1]["state"] == "interrupted" and vs.store.async_save.called, "the restart's run is saved as over"
+
+
+def test_from_the_moment_the_mapping_tab_still_offers_off_reject_stop_and_undo() -> None:
+    """The locked block (views/vacuum_import.js, maps.js without the add-on): what brings it back in the row, and once
+    opened, the link off, Reject (no Accept), Stop and each run's Undo; nothing that reads the robot or adds a point."""
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    views = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views"
+    run = ("import { install } from " + json.dumps((_ROOT / "tests" / "js" / "dom_shim.mjs").as_uri()) + "; install(globalThis);"
+           "const V = await import(" + json.dumps((views / "vacuum_import.js").as_uri()) + ");"
+           "const el = (tag, attrs = {}, kids = []) => { const n = document.createElement(tag);"
+           " for (const [k, v] of Object.entries(attrs || {})) { if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2), v);"
+           " else if (v != null) n.setAttribute(k, String(v)); }"
+           " for (const c of [].concat(kids)) if (c != null) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); return n; };"
+           "globalThis.confirm = () => true;"
+           "const calls = [];"
+           "const status = { link: { enabled: true, ref: 'http://robot' }, walker: { enabled: true, tag: 'AA' }, pending: 1, live: null,"
+           " run: { spot: 2, spots: 5, added: 1 },"
+           " runs: [{ id: 'rr_cut', state: 'interrupted', started: '2026-11-30T10:00:00+00:00', points_kept: 1, undone: false, room: '' },"
+           "        { id: 'rr_gone', state: 'finished', started: '2026-11-29T10:00:00+00:00', points_kept: 2, undone: true }] };"
+           "const ctx = { helpers: { el, errorText: (e) => String(e) }, toast: () => {}, state: {},"
+           " actions: { renderRooms() {}, wsCall: async (type, args) => { calls.push([type, args]);"
+           "  if (type === 'padspan_ha/vacuum_status') return status;"
+           "  if (type === 'padspan_ha/vacuum_cal_pending_list') return { pending: [{ id: 'pt1', x_m: 1, y_m: 2, floor_id: 'main', scanner_readings: [] }] };"
+           "  return { ok: true, removed: 1 }; } } };"
+           "const closed = V.vacuumImportBlock(ctx, 'main', { needs: 'PadSpan Pro or the Robot vacuum add-on.' });"
+           "const pick = (root, k) => root._all().find(n => n.getAttribute && n.getAttribute('data-vacuum') === k);"
+           "const row = pick(closed, 'addon').textContent;"
+           "const asked = calls.length;"
+           "closed.querySelector('button').click();"
+           "for (let i = 0; i < 20; i++) await Promise.resolve();"
+           "const open = V.vacuumImportBlock(ctx, 'main', { needs: 'PadSpan Pro or the Robot vacuum add-on.' });"
+           "const btn = (k) => pick(open, k);"
+           "const words = open._all().filter(n => n.localName === 'button').map(n => n.textContent);"
+           "const before = calls.length;"
+           "btn('live-off').click(); btn('reject').click(); btn('stop').click(); btn('undo').click();"
+           "for (let i = 0; i < 20; i++) await Promise.resolve();"
+           "console.log(JSON.stringify({ row, asked, words, sent: calls.slice(before).map(c => c[0].replace('padspan_ha/', '') + ' ' + JSON.stringify(c[1])),"
+           " undos: open._all().filter(n => n.getAttribute && n.getAttribute('data-vacuum') === 'undo').length,"
+           " text: open.textContent }));")
+    r = subprocess.run([node, "--input-type=module", "-e", run], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr[-2000:]
+    got = json.loads(r.stdout.strip().splitlines()[-1])
+    assert got["row"] == "PadSpan Pro or the Robot vacuum add-on. You can still turn its link off, reject its waiting points, and stop or undo a run."
+    assert got["asked"] == 0, "nothing read before it is opened"
+    assert "Accept" not in got["words"] and "Read" not in got["words"] and "Map file (.json)" not in got["words"], got["words"]
+    assert {"Stop showing the robot on the maps", "Reject", "Reject all", "Stop", "Undo", "Unlink robot"} <= set(got["words"])
+    assert got["undos"] == 1, "an undone run is not offered again"
+    assert "(ended when PadSpan restarted)" in got["text"]
+    sent = [x for x in got["sent"] if not x.startswith(("vacuum_status", "vacuum_cal_pending_list"))]
+    assert sent == ['vacuum_link_set {"enabled":false,"walker_enabled":false}', 'vacuum_cal_pending_reject {"point_id":"pt1"}',
+                    "vacuum_run_stop {}", 'vacuum_run_undo {"run_id":"rr_cut"}'], got["sent"]
+
+
 def test_from_the_moment_nothing_runs_in_the_background_without_it(monkeypatch) -> None:
     """The 10 s tick: no spot (the robot is not drawn, flat or 3D: the snapshot has no vacuum), no walker, no Wi-Fi
     while it cleans; the link and its map stay. robot_wifi_snapshot (UniFi Utopia's read) gives none either."""
@@ -375,3 +455,16 @@ async def test_a_stable_0_38_274_install_before_and_from_the_moment(monkeypatch,
     assert got["atlas_3d_enabled"] is (not key)
     assert vi.licensed(h) is bool(key)
     assert got["tier"] == ("pro" if key else "free")
+
+
+def test_the_install_base_stops_counting_the_3d_house_below_pro_from_the_moment() -> None:
+    """server/stats.php's "3D house switched on without Pro" (below_pro:atlas_3d_enabled): every keyless install has it
+    on from December 1 (free_basics_3d_once), so a report from that Pacific day on is not counted; overview_atlas is."""
+    src = (_ROOT / "server" / "stats.php").read_text(encoding="utf-8")
+    day = re.search(r"\$FREE_BASICS_FROM_DAY = '(\d{4}-\d\d-\d\d)';", src).group(1)
+    from zoneinfo import ZoneInfo
+    assert datetime.fromtimestamp(_T, ZoneInfo("America/Vancouver")).date().isoformat() == day == "2026-12-01"
+    assert ("$below = $latest_day[$id] >= $FREE_BASICS_FROM_DAY ? array('overview_atlas') : array('overview_atlas', 'atlas_3d_enabled');"
+            in src)
+    assert "foreach ($below as $k) { if (isset($ft[$k]) && $ft[$k] === true) { incr($overview, \"below_pro:$k\"); } }" in src
+    assert src.index("$FREE_BASICS_FROM_DAY = ") < src.index("$below = ")

@@ -191,7 +191,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         "license_plan": str(data.get("plan") or "")[:20],
         "forensics_enabled": True,
         "license_home_token": "", "license_homes_used": 0, "license_home_status": "",   # a new key: a fresh home on it
-        "license_homes_warning": {},
+        "license_homes_warning": {}, "license_homes_padspan": None,
         # The report stays on while this free year runs (new invites only).
         "report_locked_key": _key_hash(str(data.get("key") or "")) if _rule else "",
         # An add-on key on this install is kept aside, and comes back when this year ends

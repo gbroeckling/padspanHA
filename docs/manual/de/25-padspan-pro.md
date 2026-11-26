@@ -128,50 +128,6 @@ angelegtes Power-Team als ein Licht (an, aus, dimmen, seine Stromquelle und jede
   Pro: Die Lizenzkarte sagt „Dieses Add-on braucht ein neueres PadSpan — aktualisiere PadSpan.“
   Aktualisiere, und es funktioniert.
 
-## OS 2 Local for Control4
-
-Ein eigenes Spezial-Add-on für Zuhause mit einem Control4-Controller unter OS 2. Die Cloud-Dienste für Control4 OS 2 endeten am 1. November 2026, und die eingebaute Control4-Integration von
-Home Assistant meldet sich über diese Cloud an. Mit OS-2-Controllern funktioniert sie deshalb nicht
-mehr. **OS 2 Local for Control4** ist eine eigene Home-Assistant-Integration, die an die Stelle der
-eingebauten tritt: Sie meldet sich mit dem Systempasswort des Controllers direkt beim Controller an, ohne Cloud-Konto, und macht jeden Raum zu einem Mediaplayer mit Lautstärke,
-Stummschalten und Aus. Es ist eine Zahlung, die lebenslang gilt, und **PadSpan Pro enthält es**.
-Seine eigene Seite:
-[github.com/gbroeckling/os2-local-for-control4](https://github.com/gbroeckling/os2-local-for-control4).
-
-### Aus PadSpan installieren
-
-1. Öffne **Einstellungen → Ortung → Home Assistant und Integrationen → OS 2 Local for Control4**. Die
-   Karte ist für Administratoren da, sobald Home Assistant Control4 hat (einen Eintrag oder einen
-   gefundenen Controller) oder der Schlüssel das Add-on enthält. Die Übersicht bietet es auch an,
-   wenn sich ein Control4-Eintrag nicht einrichten ließ oder der Controller mit OS 2 läuft.
-2. Drücke **OS 2 Local for Control4 installieren** und bestätige. PadSpan lädt die neueste Version von
-   der GitHub-Seite des Produkts (genau diese eine Datei, sonst nichts), prüft, dass es OS 2 Local for Control4 ist, verschiebt einen schon vorhandenen Ordner `custom_components/control4` nach
-   `padspan_ha/control4_backups/` in deinem Konfigurationsordner und legt den neuen an seine Stelle.
-3. Drücke **Home Assistant neu starten** und bestätige. PadSpan startet Home Assistant nie von sich
-   aus neu.
-4. Öffne **Einstellungen → Geräte & Dienste → Control4 → Konfigurieren**, gib das Systempasswort
-   des Controllers und deinen Schlüssel ein (einen Schlüssel für OS 2 Local for Control4 oder deinen
-   PadSpan Pro-Schlüssel) und drücke **Absenden**. Wenn du Control4 zum ersten Mal hinzufügst:
-   **Integration hinzufügen → OS 2 Local for Control4**, mit der IP-Adresse des Controllers, seinem
-   Systempasswort und dem Schlüssel.
-
-**Nach einem Update suchen** auf derselben Karte fragt GitHub nach der neuesten Version; **Auf …
-aktualisieren** installiert sie, die Version davor kommt in die Sicherungen.
-
-### Rückgängig
-
-**Rückgängig** auf der Karte legt den Ordner zurück, der vorher da war (nach einem Update die
-Version davor), oder entfernt OS 2 Local for Control4, wenn vorher keiner da war, damit die eingebaute
-Control4-Integration von Home Assistant zurückkommt. Starte Home Assistant danach neu. Rückgängig
-geht auch ohne Schlüssel und rührt nie einen Ordner `custom_components/control4` an, der nicht
-OS 2 Local for Control4 ist. Dein Control4-Eintrag und seine Entitäten bleiben; mit einem
-OS-2-Controller kann sich die eingebaute Integration nicht verbinden.
-
-Du kannst es stattdessen auch mit HACS installieren: Füge die GitHub-Seite des Produkts als
-benutzerdefiniertes Repository vom Typ Integration hinzu.
-
-Control4 ist eine Marke ihres Inhabers; keine Verbindung zu Control4, Snap One oder Resideo.
-
 ## Pro kostenlos bekommen, indem du es testest
 
 **Become a tester** (auf der Lizenzkarte oder unter **Einstellungen → Ortung → Hilf, PadSpan besser

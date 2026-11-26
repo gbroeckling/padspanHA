@@ -11927,8 +11927,11 @@ function _lightsTab(ctx, maps, active) {
     // CLASSES.fixedGlyph): those have "no size/rotation/colour of its own to
     // edit" by design, and the control offered one anyway with no effect —
     // ws_settings.py silently dropped the save for any non-light.* key until
-    // fixed the same day (Phase 2a registry audit, 2026-09-19).
-    if (paid && !hasFixedGlyph(l)) {
+    // fixed the same day (Phase 2a registry audit, 2026-09-19). The light design
+    // tools' gate (`design`: Bright, Pro or the Advanced smart lighting add-on),
+    // not `paid`: the fixture shapes are the add-on's, and this is the one place
+    // light_shapes is saved (review, 2026-11-25).
+    if (design && !hasFixedGlyph(l)) {
       const current = shapeOverrides[l.entity_id] || "auto";
       const derived = LIGHT_SHAPES.find(([k]) => k === deriveLightShape(l));
       const shapeLbl = el("label", { class: "lv-field" }, "Shape");
@@ -12555,13 +12558,13 @@ function _roomsTab(ctx, maps) {
     // admin (every vacuum_* command is admin-only). A robot already linked
     // and showing live keeps its controls, so it can still be turned off.
     // The Robot vacuum add-on's once that is on sale (editions.js vacuumAllowed):
-    // without it, what brings it back instead.
+    // without it, what brings it back, and what never needs it (vacuum_import.js
+    // locked): the link off, the waiting points rejected, a run stopped or undone.
     const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true || !!ctx.state.live?.snapshot?.vacuum;
     if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) {
       const _vacOk = _vacuumAllowed(ctx.state.settings);
       if (!_vacOk) _addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "vacuum_import", "vacuum");
-      card.appendChild(_vacOk ? VACUUM.vacuumImportBlock(ctx, floorId)
-        : el("div", { class: "muted", "data-vacuum": "addon", style: "font-size:12px;margin:6px 0" }, _vacuumNeeds()));
+      card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId, _vacOk ? null : { needs: _vacuumNeeds() }));
     }
 
     const importedRaw = mapState._roomsImportedRaw;

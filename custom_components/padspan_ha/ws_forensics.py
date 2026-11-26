@@ -227,7 +227,9 @@ async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {
         "homes": [{"id": _n(h.get("id")), "label": str(h.get("label") or ""), "version": h.get("version") or "",
                    "first_seen": h.get("first_seen") or "", "last_seen": h.get("last_seen") or "", "this": bool(h.get("this")),
-                   "reporting": bool(h.get("reporting"))}
+                   "reporting": bool(h.get("reporting")),
+                   # A home only OS 2 Local for Control4 uses (licence server step 11): "c4local"; "" for PadSpan's.
+                   "client": "c4local" if h.get("client") == "c4local" else ""}
                   for h in homes],
         "homes_max": _n(data.get("homes_max"), 5), "frozen": bool(data.get("frozen")),
         # The licence they share: its owner's email masked by the server, its plan, the key's last four.
@@ -260,7 +262,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
     from .telemetry import bump as _bump  # noqa: PLC0415
     _bump(hass, "addon_key:entered")
     try:
-        from .licence_homes import call, home_params, homes_warning  # noqa: PLC0415
+        from .licence_homes import call, home_params, homes_padspan, homes_warning  # noqa: PLC0415
         # A different key starts this home afresh among that key's homes, and
         # so does a home removed from its key: it asks for a free place again.
         _hp = home_params(st.data)
@@ -318,7 +320,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             license_homes_warning=homes_warning(data),
             # A different key: a fresh home on it.
             **({"license_home_token": str(data.get("token") or "") if len(str(data.get("token") or "")) == 32 else "",
-                "license_homes_used": int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0}
+                "license_homes_used": int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0,
+                "license_homes_padspan": homes_padspan(data)}
                if new_key else {}),
         )
         _now_addon = _is_addon_key(st.data)
@@ -419,6 +422,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             forensics_enabled=True,
             license_home_token="", license_homes_used=0, license_home_status="",
             license_homes_warning={},
+            license_homes_padspan=None,
         )
         _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {

@@ -743,6 +743,23 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
       assert(!c._saved.length, "saved when not shown");
     }
   });
+  // (awaited: the save's answer comes after the click)
+  await (async (label) => { try { await (async () => {
+    const { c, card } = house(HFREE);
+    const toasts = [];
+    c._toast = (m, bad) => toasts.push([m, !!bad]);
+    c._callWS = (msg) => { c._saved.push(msg); return Promise.resolve({ settings: { ...HFREE, atlas_3d_enabled: true } }); };
+    const out = card();
+    const on = q(out, '[data-free-house-card="on"]');
+    assert(on && on.textContent === "Turn it on", "no Turn it on");
+    on.click();
+    for (let i = 0; i < 5; i++) await Promise.resolve();   // the save's answer (setTimeout is the harness's)
+    assert(c._saved.some(m => m.type === "padspan_ha/settings_set" && m.atlas_3d_enabled === true), JSON.stringify(c._saved));
+    assert(c.state.settings.atlas_3d_enabled === true && toasts.length === 1 && !toasts[0][1], JSON.stringify(toasts));
+    assert(!q(card(), '[data-free-house-card="on"]'), "still offered once on");
+    assert(!q(house({ ...HFREE, atlas_3d_enabled: true }).card(), '[data-free-house-card="on"]'), "offered while on");
+  })(); ok.push(label); } catch (e) { fail.push(`${label}: ${e && e.message ? e.message : e}`); } })(
+    "free house card: Live Aboard off here (a key kept it off): Turn it on saves the switch and says so");
   t("free house card: waits for another page load after another Overview card showed on this one", () => {
     const { c, card } = house(HFREE);
     c._overviewCardShown = true;

@@ -566,6 +566,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # The same for the one-time "Walk a room on".
                             if (store_obj.data or {}).get("room_walk_default_v1_applied"):
                                 data["room_walk_default_v1_applied"] = True
+                            # Restoring is choosing settings, Live Aboard's switch among them: the free
+                            # basics' once never turns it on over a restored "off", from an older backup
+                            # or any other (settings_store.free_basics_3d_once).
+                            data["atlas_3d_default_v1_applied"] = True
                             # A backup from before the AI map-building switch:
                             # on where the stair finder was (settings_store).
                             from .settings_store import ai_plans_stamp
@@ -603,7 +607,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                                            # a restored token would look like a copy of it
                                            "license_home_token", "license_home_label",
                                            "license_home_status", "license_homes_used",
-                                           "license_homes_warning"):
+                                           "license_homes_warning", "license_homes_padspan"):
                                     if _k in _live:
                                         data[_k] = _live[_k]
                                     else:

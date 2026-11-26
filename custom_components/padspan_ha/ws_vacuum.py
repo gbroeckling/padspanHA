@@ -243,7 +243,20 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_vacuum_status(hass: HomeAssistant, connection, msg) -> None:
-    connection.send_result(msg["id"], _status(await _store(hass)))
+    """The import block's read, never refused (the robot vacuum's features' gate is not on it): the link, the walker,
+    the pending count and the runs, so a house without the add-on can still turn the link off, reject the points and
+    stop or undo a run (views/vacuum_import.js, its locked part)."""
+    vs = await _store(hass)
+    connection.send_result(msg["id"], {**_status(vs), **await _runs(hass, vs)})
+
+
+async def _runs(hass: HomeAssistant, vs: vi.VacuumStore) -> dict:
+    """The run going (to Stop) and every run the card lists (to Undo), as the card has them. The engine marks a run
+    the store says was going, left so by a restart, interrupted (vacuum_run.RunEngine), and that is saved here."""
+    eng = vr.engine(hass, vs)
+    await eng.async_settle()
+    return {"run": vr.run_for_client(eng.current) if eng.current and eng.running else None,
+            "runs": [vr.run_for_client(r) for r in vr.runs_for_card(vs.data.get("runs") or [])]}
 
 
 @websocket_api.websocket_command({
@@ -365,8 +378,7 @@ def _use_change(hass: HomeAssistant, vs: vi.VacuumStore) -> dict | None:
 
 
 async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) -> dict:
-    eng = vr.engine(hass, vs)
-    await eng.async_settle()
+    runs = await _runs(hass, vs)
     lk = vs.data.get("link") if isinstance(vs.data.get("link"), dict) else None
     base = vr.robot_base(vs)
     tag = str((vs.data.get("walker") or {}).get("tag") or "")
@@ -381,11 +393,11 @@ async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) ->
                  "on": vs.link_on(), "vacuum_entity": (lk or {}).get("vacuum_entity") or ""},
         "tag": {"address": tag, **vr.tag_heard(hass, tag)},
         "state": None,
-        "run": vr.run_for_client(eng.current) if eng.current and eng.running else None,
+        "run": runs["run"],
         # A choice changed since the earlier runs were made: what applying it to them would do.
         "use_change": _use_change(hass, vs),
         # The last run and every run whose points can still be undone, newest first.
-        "runs": [vr.run_for_client(r) for r in vr.runs_for_card(vs.data.get("runs") or [])],
+        "runs": runs["runs"],
         "live": vi.live_position(hass),
     }
 

@@ -13,6 +13,11 @@
 //            maps (off until ticked)
 //   walker   a BLE tag riding on the robot: spots it stood still on wait in
 //            a review pile; nothing goes into calibration until accepted here
+//   locked   without the Robot vacuum add-on (from December 1, editions.js
+//            vacuumAllowed): what brings it back, and what never needs it
+//            (ws_vacuum.py refuses none of these): the link and the walker
+//            turned off, the waiting points rejected, the robot unlinked, and
+//            a run stopped or undone (the runs come with vacuum_status).
 //
 // Its state lives on ctx.state._vacuumImport so the Rooms card can redraw
 // around it without losing a preview.
@@ -36,21 +41,101 @@ function cameras(ctx){
   return ids.sort((a, b) => (b.includes("map") - a.includes("map")) || a.localeCompare(b));
 }
 
-/** The row and, once opened, its panel. floorId: the Rooms card's floor. */
-export function vacuumImportBlock(ctx, floorId){
+/** The waiting points, each with Reject (and Accept, when `accept`), and Reject all. */
+function pendingList(ctx, box, pend, accept){
+  const { el } = ctx.helpers;
+  if (!pend.length) return;
+  const list = el("div", { style: "display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto;font-size:11px" });
+  for (const pt of pend) {
+    list.appendChild(el("div", { style: "display:flex;gap:6px;align-items:center" }, [
+      el("span", {}, `${pt.x_m.toFixed(2)}, ${pt.y_m.toFixed(2)} m · ${pt.floor_id} · ${(pt.scanner_readings || []).length} scanners · ${String(pt.collected_at || "").slice(0, 16).replace("T", " ")}`),
+      accept ? el("button", { class: "btn inline", onclick: async () => {
+        try { await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_accept", { point_id: pt.id }); ctx.toast("Added to calibration"); }
+        catch (err) { ctx.toast("Not added: " + ctx.helpers.errorText(err), true); }
+        refresh(ctx);
+      } }, "Accept") : null,
+      el("button", { class: "btn inline", "data-vacuum": "reject", onclick: async () => {
+        await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_reject", { point_id: pt.id }); refresh(ctx);
+      } }, "Reject"),
+    ]));
+  }
+  box.appendChild(el("div", { style: "font-size:12px" }, `${pend.length} candidate point${pend.length === 1 ? "" : "s"} waiting for review`));
+  box.appendChild(list);
+  box.appendChild(el("button", { class: "btn inline", "data-vacuum": "reject-all", style: "align-self:flex-start", onclick: async () => {
+    if (!confirm(`Reject all ${pend.length} candidate points? Calibration is not touched.`)) return;
+    await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_reject", { all: true }); refresh(ctx);
+  } }, "Reject all"));
+}
+
+/** Without the add-on: switch off, reject, unlink, stop and undo; nothing that reads the robot or adds a point. */
+function lockedPart(ctx, box, s, st){
+  const { el } = ctx.helpers;
+  const set = async (args) => {
+    try { await ctx.actions.wsCall("padspan_ha/vacuum_link_set", args); }
+    catch (err) { ctx.toast(ctx.helpers.errorText(err), true); }
+    refresh(ctx);
+  };
+  const lk = s.link, wk = s.walker || {};
+  if (lk && lk.enabled) box.appendChild(el("button", { class: "btn inline", "data-vacuum": "live-off", style: "align-self:flex-start",
+    onclick: () => set({ enabled: false, walker_enabled: false }) }, "Stop showing the robot on the maps"));
+  else if (wk.enabled) box.appendChild(el("button", { class: "btn inline", "data-vacuum": "walker-off", style: "align-self:flex-start",
+    onclick: () => set({ walker_enabled: false }) }, "Stop collecting calibration candidates"));
+  pendingList(ctx, box, st.pending || [], false);
+  const call = async (type, args, ok) => {
+    try { const r = await ctx.actions.wsCall(type, args || {}); const m = ok(r); if (m) ctx.toast(m); }
+    catch (err) { ctx.toast(ctx.helpers.errorText(err), true); }
+    refresh(ctx);
+  };
+  if (s.run) box.appendChild(el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px" }, [
+    el("span", {}, `A room location run is going: spot ${s.run.spot} of ${s.run.spots}, ${s.run.added} added`),
+    el("button", { class: "btn inline", "data-vacuum": "stop", onclick: () => call("padspan_ha/vacuum_run_stop", {},
+      () => "Stopping: the robot goes back to its dock") }, "Stop")]));
+  // Every run whose points are still in calibration, newest first, each undoable (the robovac card's own list).
+  for (const r of (s.runs || []).filter(x => x.state !== "running" && !x.undone && x.points_kept > 0)) {
+    const when = String(r.started || "").slice(0, 16).replace("T", " ");
+    const n = r.points_kept;
+    box.appendChild(el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px" }, [
+      el("span", {}, `Run ${when} UTC, ${r.room || (r.rooms || []).join(", ") || "all rooms"}: ${n} point${n === 1 ? "" : "s"}` +
+        (r.state === "interrupted" ? " (ended when PadSpan restarted)" : "")),
+      el("button", { class: "btn inline", "data-vacuum": "undo", onclick: () => {
+        if (!confirm(`Remove the ${n} point${n === 1 ? "" : "s"} this run added? Every other calibration point stays as it is.`)) return;
+        call("padspan_ha/vacuum_run_undo", { run_id: r.id }, (res) => {
+          const k = (res && res.removed) || 0;
+          return `Removed ${k} point${k === 1 ? "" : "s"}`;
+        });
+      } }, "Undo")]));
+  }
+  if (lk) box.appendChild(el("button", { class: "btn inline", style: "align-self:flex-start", onclick: () => {
+    if (confirm("Unlink the robot? The imported map and rooms stay; the pending points stay too.")) set({ unlink: true, enabled: false, walker_enabled: false });
+  } }, "Unlink robot"));
+}
+
+/** The row and, once opened, its panel. floorId: the Rooms card's floor. locked: without the Robot vacuum add-on,
+ *  { needs } (what brings it back, said in the row): only what switches off, rejects and undoes. */
+export function vacuumImportBlock(ctx, floorId, locked = null){
   const { el } = ctx.helpers;
   const st = S(ctx);
   const wrap = el("div", { class: "vacuum-import", style: "margin-bottom:4px" });
   const row = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" });
   row.appendChild(el("button", { class: "btn inline" + (st.open ? " primary" : ""),
     onclick: () => { st.open = !st.open; if (st.open && !st.status) refresh(ctx); else ctx.actions.renderRooms(); } },
-    "🤖 Import from a robot vacuum"));
-  row.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-    "Valetudo, Dreame or Xiaomi map → a new floor plan with its rooms. Rooms you already have are kept."));
+    locked ? "🤖 Robot vacuum" : "🤖 Import from a robot vacuum"));
+  row.appendChild(locked
+    ? el("span", { class: "muted", "data-vacuum": "addon", style: "font-size:11px" },
+      `${locked.needs || ""} You can still turn its link off, reject its waiting points, and stop or undo a run.`.trim())
+    : el("span", { class: "muted", style: "font-size:11px" },
+      "Valetudo, Dreame or Xiaomi map → a new floor plan with its rooms. Rooms you already have are kept."));
   wrap.appendChild(row);
   if (!st.open) return wrap;
 
   const box = el("div", { style: "border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px;margin-top:6px;display:flex;flex-direction:column;gap:6px" });
+  if (locked) {
+    const s = st.status;
+    if (s && s.error) box.appendChild(el("span", { class: "muted", style: "font-size:11px" }, s.error));
+    else if (s) lockedPart(ctx, box, s, st);
+    wrap.appendChild(box);
+    return wrap;
+  }
   const run = async (args) => {
     st.busy = true; ctx.actions.renderRooms();
     try {
@@ -141,29 +226,7 @@ export function vacuumImportBlock(ctx, floorId){
       [el("label", {}, [walk, " Collect calibration candidates from a tag riding on the robot"]), tag]));
     box.appendChild(el("span", { class: "muted", style: "font-size:11px" },
       "Where the robot stands still, the tag's readings wait here. Nothing goes into calibration until you accept it."));
-    const pend = st.pending || [];
-    if (pend.length) {
-      const list = el("div", { style: "display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto;font-size:11px" });
-      for (const pt of pend) {
-        list.appendChild(el("div", { style: "display:flex;gap:6px;align-items:center" }, [
-          el("span", {}, `${pt.x_m.toFixed(2)}, ${pt.y_m.toFixed(2)} m · ${pt.floor_id} · ${(pt.scanner_readings || []).length} scanners · ${String(pt.collected_at || "").slice(0, 16).replace("T", " ")}`),
-          el("button", { class: "btn inline", onclick: async () => {
-            try { await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_accept", { point_id: pt.id }); ctx.toast("Added to calibration"); }
-            catch (err) { ctx.toast("Not added: " + ctx.helpers.errorText(err), true); }
-            refresh(ctx);
-          } }, "Accept"),
-          el("button", { class: "btn inline", onclick: async () => {
-            await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_reject", { point_id: pt.id }); refresh(ctx);
-          } }, "Reject"),
-        ]));
-      }
-      box.appendChild(el("div", { style: "font-size:12px" }, `${pend.length} candidate point${pend.length === 1 ? "" : "s"} waiting for review`));
-      box.appendChild(list);
-      box.appendChild(el("button", { class: "btn inline", style: "align-self:flex-start", onclick: async () => {
-        if (!confirm(`Reject all ${pend.length} candidate points? Calibration is not touched.`)) return;
-        await ctx.actions.wsCall("padspan_ha/vacuum_cal_pending_reject", { all: true }); refresh(ctx);
-      } }, "Reject all"));
-    }
+    pendingList(ctx, box, st.pending || [], true);
     box.appendChild(el("button", { class: "btn inline", style: "align-self:flex-start", onclick: () => {
       if (confirm("Unlink the robot? The imported map and rooms stay; the pending points stay too.")) set({ unlink: true, enabled: false, walker_enabled: false });
     } }, "Unlink robot"));

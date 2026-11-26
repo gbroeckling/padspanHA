@@ -297,6 +297,8 @@ function fold_fields(&$into, $section) {
         fold_value($into[$k], $v);
     }
 }
+// The free basics' first Pacific day (const.FREE_BASICS_FROM_TS, views/editions.js FREE_BASICS_FROM).
+$FREE_BASICS_FROM_DAY = '2026-12-01';
 foreach ($latest as $id => $r) {
     $e = as_map(isset($r['env']) ? $r['env'] : null);
     $h = as_map(isset($r['health']) ? $r['health'] : null);
@@ -374,7 +376,10 @@ foreach ($latest as $id => $r) {
     $ft = as_map(isset($r['features']) ? $r['features'] : null);
     $tier = isset($r['tier']) ? $r['tier'] : '';
     if ($tier !== 'pro') {
-        foreach (array('overview_atlas', 'atlas_3d_enabled') as $k) { if (isset($ft[$k]) && $ft[$k] === true) { incr($overview, "below_pro:$k"); } }
+        // The 3D house is everyone's from the free basics' Pacific day (const.FREE_BASICS_FROM_TS, 2026-12-01 00:00
+        // Pacific): a report from then on is not "switched on without Pro", and every keyless one would count.
+        $below = $latest_day[$id] >= $FREE_BASICS_FROM_DAY ? array('overview_atlas') : array('overview_atlas', 'atlas_3d_enabled');
+        foreach ($below as $k) { if (isset($ft[$k]) && $ft[$k] === true) { incr($overview, "below_pro:$k"); } }
     }
 
     // Health flags — installs where the flag is BAD. Each is only counted

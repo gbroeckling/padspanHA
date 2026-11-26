@@ -3438,7 +3438,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # a house with one or two sends exactly what it always did.
     _sd = (lambda s: s.data if s else {})(hass.data.get(DOMAIN, {}).get(DATA_SETTINGS))
     _grp = licence_group(str(_sd.get("forensics_license_key") or ""))
-    if _grp and int(_sd.get("license_homes_used") or 0) > 2:
+    from .licence_homes import rule_homes as _rule_homes  # noqa: PLC0415
+    if _grp and _rule_homes(_sd) > 2:     # PadSpan's homes (homes_padspan), else every home (an older server)
         payload["licence_group"] = _grp
     # The quiet-error counts ride only when there is room: on a day too full
     # they are the first to go, before any preset or usage counter.

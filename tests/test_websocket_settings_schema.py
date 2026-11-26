@@ -73,6 +73,7 @@ _BACKEND_ONLY = {
     "license_home_label",              # padspan_ha/licence_homes op=label (ws_forensics.py)
     "license_home_status",             # update_check.py — the licence server's last refusal of this home
     "license_homes_used",              # licence_homes.keep_token — how many homes the key is on
+    "license_homes_padspan",           # licence_homes.keep_token — how many of them are PadSpan's (homes_padspan)
     "license_homes_warning",           # licence_homes.keep_warning — past two homes with a report off somewhere
     "license_install_id",              # licence_homes.machine_id — made once, never set by hand
     "server_checked_at",               # update_check._run_if_due — stamped when the checks run

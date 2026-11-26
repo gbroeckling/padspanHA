@@ -452,7 +452,7 @@ def test_marker_in_the_3d_house_only_with_a_linked_vacuum():
 def test_import_block_sits_beside_the_sh3d_import_and_is_closed_by_default():
     maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     sh3d = maps.index('"📐 Import floorplan (.sh3d)"')
-    hook = maps.index("VACUUM.vacuumImportBlock(ctx, floorId)")
+    hook = maps.index("VACUUM.vacuumImportBlock(ctx, floorId")
     assert 0 < hook - sh3d < 3000
     assert ".catch(err => { console.warn(\"PadSpan: vacuum_import failed to load\"" in maps
     js = (_WWW / "views" / "vacuum_import.js").read_text(encoding="utf-8")
@@ -543,7 +543,7 @@ def test_the_import_row_is_off_by_default_and_admin_only():
             " || !!ctx.state.live?.snapshot?.vacuum;\n"
             "    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) {\n"
             "      const _vacOk = _vacuumAllowed(ctx.state.settings);\n") in maps
-    assert "      card.appendChild(_vacOk ? VACUUM.vacuumImportBlock(ctx, floorId)" in maps
+    assert "      card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId, _vacOk ? null : { needs: _vacuumNeeds() }));" in maps
     assert maps.count("VACUUM.vacuumImportBlock(") == 1
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     assert 'key: "vacuum_import_enabled"' in settings

@@ -107,6 +107,8 @@ def test_placement_stays_apart_from_the_design_tools(gates) -> None:
     # The builder: Advanced smart lighting alone opens a light's inspector from the list, with its Shape; its size,
     # angle and spot stay placement's (no entry without it).
     assert 'const design = paid || _addonAllowed(ctx.state.settings, "lighting");' in maps
+    # The Shape selector (the one place light_shapes is saved) is the design tools': the add-on alone shows it.
+    assert "if (design && !hasFixedGlyph(l)) {" in maps and "if (paid && !hasFixedGlyph(l))" not in maps
     assert "const sel = (place || design) && !preview ? mapState._selLight : null;" in maps
     assert "const entry = !place ? null : (mapState._lightsDraftM || {})[sel.eid]" in maps
     assert maps.count("if (!place && !design) { toggle(l.entity_id); return; }") == 2

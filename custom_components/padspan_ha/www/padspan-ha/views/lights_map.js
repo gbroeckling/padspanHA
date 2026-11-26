@@ -4572,8 +4572,9 @@ export function buildLightsMapCard(hostIn){
   // read through the host's own loader whether or not Live Aboard is on, but ONLY once this screen has the line ticked
   // (off unless ticked: with nothing on, nothing is fetched, as ever).
   // Furniture from scans is Advanced map creation's (PadSpan Pro or the maps add-on; house3d_get hands its pieces only then),
-  // and every house's, as it was, while that add-on is not on sale (editions.js addonGate).
-  const scanLoad = scr && host.house3d && addonGate({ tier: host.tier, addons_licensed: host.addons }, "maps")
+  // and every house's, as it was, while that add-on is not on sale (editions.js addonGate, which reads the host's
+  // addonsOnSale: without it every add-on reads as not on sale).
+  const scanLoad = scr && host.house3d && addonGate({ tier: host.tier, addons_licensed: host.addons, addons_on_sale: host.addonsOnSale }, "maps")
     && typeof host.house3d.load === "function" ? host.house3d.load : null;
   const scanOn = () => !!scanLoad && flatShow("scan_furniture") === true;
   if (abLive || abFile) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }

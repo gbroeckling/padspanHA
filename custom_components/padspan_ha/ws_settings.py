@@ -624,7 +624,7 @@ def _companion_url(value: Any) -> str | None:
 # does for the whole home.
 _EVERYONE_KEYS = frozenset({
     "whatsnew_seen_version", "telemetry_asked", "trial_nudge_done", "tester_nudge_done", "launch_card_done", "lifetime_card_done",
-    "addon_sale_card_done", "house3d_free_card_done",
+    "addon_sale_card_done", "house3d_free_card_done", "c4local_offer_done",
     "onboarding_completed", "setup_progress", "health_reminder_last_ts", "locate_self_key", "followed_addrs",
     "hidden_map_ids", "lights_hidden", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
     "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
@@ -668,6 +668,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("lifetime_card_done"): bool,             # the Overview "Pro for life ends Dec 15" card was shown; never again
         vol.Optional("addon_sale_card_done"): bool,           # the Overview "Half off every add-on" card was shown; never again
         vol.Optional("house3d_free_card_done"): bool,         # the Overview "The 3D house is now free" card was shown; never again
+        vol.Optional("c4local_offer_done"): bool,             # No thanks on the Overview's OS 2 Local for Control4 card
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -1020,6 +1021,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["addon_sale_card_done"] = bool(msg.get("addon_sale_card_done"))
         if "house3d_free_card_done" in msg:
             payload["house3d_free_card_done"] = bool(msg.get("house3d_free_card_done"))
+        if "c4local_offer_done" in msg:
+            payload["c4local_offer_done"] = bool(msg.get("c4local_offer_done"))
         if "whatsnew_seen_version" in msg:
             # A version string and nothing else. It is written by the panel from
             # its own build constant, so anything that is not shaped like one is
@@ -1595,6 +1598,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "apple_auto_classify", "low_memory_mode", "optimize_for_scale", "lights_follow_enabled"):
             if key in msg:
                 payload[key] = bool(msg[key])
+        if "atlas_3d_enabled" in payload:
+            # Live Aboard switched, on or off: a choice, so the free basics' once never runs over it
+            # (settings_store.free_basics_3d_once).
+            payload["atlas_3d_default_v1_applied"] = True
         if "license_tier_override" in msg:
             # A supported way to LOOK at a lower tier from a Pro install — the
             # free experience is the one path a Pro developer can never notice

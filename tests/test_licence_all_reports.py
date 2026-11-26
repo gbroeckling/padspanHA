@@ -132,7 +132,7 @@ def test_activation_says_why_a_new_home_cant_join_and_keeps_the_warning():
     assert "license_homes_warning=homes_warning(data)," in fo
     assert 'license_home_token="", license_homes_used=0, license_home_status="",\n            license_homes_warning={},' in fo, "a trial key: nothing to warn"
     assert '"license_homes_warning": {},' in _src("pro_invite.py"), "an invite key: nothing to warn"
-    assert '"license_home_status", "license_homes_used",\n                                           "license_homes_warning"):' in _src("ws_backup.py"), \
+    assert '"license_home_status", "license_homes_used",\n                                           "license_homes_warning", "license_homes_padspan"):' in _src("ws_backup.py"), \
         "a restored backup keeps this home's own warning"
 
 
@@ -183,3 +183,38 @@ def test_settings_says_it_and_asks_first():
         and run.endswith(" unless it's back on.") and "within 14 days" not in run, "a grace already running: its own date"
     assert c["list_down_to_two"] == {"before": True, "after": False}, "removed down to two homes: the warning goes at once"
     assert c["list_still_three"] == {"before": True, "after": True}
+    # A home only OS 2 Local for Control4 uses (licence server step 11): its label (the add-on's words when it has
+    # none), never "usage report off", and outside the rule's count (homes_padspan; homes_used from an older server).
+    rows = c["list_c4_home"]["rows"]
+    assert len(rows) == 4 and rows[3].startswith("OS 2 Local for Control4") and "usage report" not in rows[3], rows
+    assert rows[3].count("OS 2 Local for Control4") == 2 and "· OS 2 Local for Control4" in rows[3]
+    assert "usage report off" in rows[2] and "usage report on" in rows[1], "PadSpan's three: the rule applies"
+    named = c["list_c4_named"]["rows"]
+    assert named[2].startswith("Theatre") and "· OS 2 Local for Control4" in named[2]
+    assert not any("usage report" in r for r in named), "two PadSpan homes: no report status shown"
+    assert c["list_c4_down_to_two"] == {"before": True, "after": False}, "two PadSpan homes and a Control4 one: no warning"
+    assert c["card_padspan"]["warning"].startswith("⚠ This key is on 3 PadSpan homes. Every home on a key with more than 2")
+    assert c["card_padspan_old_server"]["warning"].startswith("⚠ This key is on 3 homes."), "an older server: homes_used"
+    assert c["off_padspan_two"] == {"asked": [], "sets": [{"telemetry_enabled": False}]}, "two PadSpan homes: no question"
+    assert c["off_padspan_three"]["asked"] == [
+        "This key is used on 3 PadSpan homes. With more than 2, every PadSpan home must keep the report on. If you turn it "
+        "off here, the homes beyond your first two stop using Pro within 14 days unless it's back on."]
+
+
+def test_padspans_own_homes_are_kept_from_validate_and_counted_by_the_rule():
+    """homes_padspan (licence server step 11) is stored where homes_used is (licence_homes.keep_token, activation), and
+    the reports rule (telemetry's licence group, the panel's texts) counts it, or homes_used from an older server."""
+    st = _St({"license_homes_used": 0, "license_homes_padspan": None})
+    asyncio.run(LH.keep_token(st, {"homes_used": 4, "homes_padspan": 3}))
+    assert st.data["license_homes_used"] == 4 and st.data["license_homes_padspan"] == 3
+    for bad in ({"homes_padspan": True}, {"homes_padspan": "3"}, {"homes_padspan": -1}, {"homes_padspan": 100}, {}):
+        asyncio.run(LH.keep_token(st, bad))
+        assert st.data["license_homes_padspan"] == 3, bad
+    assert LH.rule_homes({"license_homes_used": 4, "license_homes_padspan": 2}) == 2
+    assert LH.rule_homes({"license_homes_used": 4, "license_homes_padspan": None}) == 4
+    assert LH.rule_homes({"license_homes_used": 4, "license_homes_padspan": ""}) == 4, "a reset's blank: homes_used"
+    assert LH.homes_padspan({"homes_padspan": 0}) == 0 and LH.homes_padspan(None) is None
+    fo = _src("ws_forensics.py")
+    assert '"license_homes_padspan": homes_padspan(data)}' in fo, "a new key: what the activation said"
+    assert 'license_homes_warning={},\n            license_homes_padspan=None,' in fo, "a trial key: a fresh home"
+    assert '"client": "c4local" if h.get("client") == "c4local" else ""}' in fo

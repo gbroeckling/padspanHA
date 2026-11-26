@@ -74,14 +74,18 @@ async function toggle(settings, answer) {
 }
 
 // Open the homes list with the server answering `homes`; is the warning still there after?
-async function listed(settings, homes) {
-  const ans = { homes: homes.map((label, i) => ({ id: i + 1, label, this: i === 0, reporting: true })), homes_max: 5, licence: { homes_free: 2 } };
+// A home is its label, or { label, client, reporting } (a Control4-only home: client "c4local", licence server step 11).
+async function listed(settings, homes, lines = false) {
+  const ans = { homes: homes.map((h, i) => ({ id: i + 1, this: i === 0, reporting: true, ...(typeof h === "string" ? { label: h } : h) })),
+    homes_max: 5, licence: { homes_free: 2 } };
   const root = S.render(makeCtx(settings, "features", [], async () => ans));
   const find = () => root._all().find(n => (n.className || "") === "homes-reports-warning");
   const before = !!find();
   root._all().find(n => n.localName === "button" && /Show this key's homes/.test(n.textContent || "")).click();
   for (let i = 0; i < 10; i++) await Promise.resolve();
-  return { before, after: !!find() };
+  const rows = root._all().filter(n => n.localName === "div" && /border-top:1px solid #16271d/.test((n.getAttribute && n.getAttribute("style")) || ""))
+    .map(n => n.textContent);
+  return lines ? { before, after: !!find(), rows } : { before, after: !!find() };
 }
 
 const cases = {};
@@ -100,4 +104,14 @@ await run("off_three_running", () => toggle({ ...KEY, license_homes_used: 3, lic
 await run("list_down_to_two", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B"]));
 await run("list_still_three", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B", "C"]));
 await run("on_three",() => toggle({ ...KEY, telemetry_enabled: false, license_homes_used: 3 }, true));
+// A home only OS 2 Local for Control4 uses (homes_padspan, client "c4local"): outside the reports rule.
+const C4 = { label: "", client: "c4local", reporting: false };
+await run("list_c4_home", () => listed({ ...KEY, license_homes_used: 4, license_homes_padspan: 3, license_homes_warning: WARN },
+  ["A", "B", { label: "Cabin", reporting: false }, C4], true));
+await run("list_c4_named", () => listed({ ...KEY, license_homes_used: 3 }, ["A", "B", { ...C4, label: "Theatre" }], true));
+await run("list_c4_down_to_two", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B", C4]));
+await run("card_padspan", () => card({ ...KEY, license_homes_used: 4, license_homes_padspan: 3, license_homes_warning: WARN }));
+await run("card_padspan_old_server", () => card({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }));
+await run("off_padspan_two", () => toggle({ ...KEY, license_homes_used: 3, license_homes_padspan: 2 }, true));
+await run("off_padspan_three", () => toggle({ ...KEY, license_homes_used: 4, license_homes_padspan: 3 }, false));
 process.stdout.write(JSON.stringify({ cases, failures }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

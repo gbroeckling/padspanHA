@@ -312,13 +312,15 @@ def test_trial_state_kept_takes_an_answer_from_either_side_and_the_earliest_sigh
     assert k({"launch_card_done": True}, {})["launch_card_done"] is True and k({}, {"launch_card_done": True})["launch_card_done"] is True
     assert k({"lifetime_card_done": True}, {})["lifetime_card_done"] is True and k({}, {"lifetime_card_done": True})["lifetime_card_done"] is True
     assert k({"house3d_free_card_done": True}, {})["house3d_free_card_done"] is True and k({}, {"house3d_free_card_done": True})["house3d_free_card_done"] is True
+    # No thanks on the OS 2 Local for Control4 card (views/c4local.js): the install's answer, whichever side gave it.
+    assert k({"c4local_offer_done": True}, {})["c4local_offer_done"] is True and k({}, {"c4local_offer_done": True})["c4local_offer_done"] is True
     assert k({}, {}) == {"trial_nudge_done": False, "tester_nudge_done": False, "launch_card_done": False, "lifetime_card_done": False,
-                         "addon_sale_card_done": False, "house3d_free_card_done": False}, "no sighting on either side: nothing invented"
+                         "addon_sale_card_done": False, "house3d_free_card_done": False, "c4local_offer_done": False}, "no sighting on either side: nothing invented"
     assert k({"first_seen_ts": 2_000.0}, {"first_seen_ts": 1_000.0})["first_seen_ts"] == 1_000.0
     assert k({"first_seen_ts": 0}, {"first_seen_ts": 1_000.0})["first_seen_ts"] == 1_000.0
     for bad in (0, -5, None, "yesterday", True):
         assert k({"first_seen_ts": bad}, None) == {"trial_nudge_done": False, "tester_nudge_done": False, "launch_card_done": False, "lifetime_card_done": False,
-                         "addon_sale_card_done": False, "house3d_free_card_done": False}, bad
+                         "addon_sale_card_done": False, "house3d_free_card_done": False, "c4local_offer_done": False}, bad
 
 
 def test_a_restore_keeps_the_later_whats_new_version() -> None:

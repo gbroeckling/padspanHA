@@ -1712,9 +1712,27 @@ class PadSpanHaApp extends HTMLElement {
     card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("The 3D house is now free")));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
       t("Exact placement of your lights and devices, the plain wall screen and the 3D house (Live Aboard in the Atlas) are free now, with no key. PadSpan Pro adds Furnish, people in 3D and the 3D editor.")));
+    const row = [];
+    // Live Aboard off here (a key, lapsed, an add-on or Bright keeps what it had; a restore or a choice keeps off:
+    // settings_store.free_basics_3d_once): the card turns it on, as Settings → Atlas → Live Aboard's switch does.
+    if (st.atlas_3d_enabled !== true) {
+      const on = el("button", { class: "btn inline primary", "data-free-house-card": "on" }, t("Turn it on"));
+      on.addEventListener("click", () => {
+        on.disabled = true;
+        this._callWS({ type: "padspan_ha/settings_set", atlas_3d_enabled: true })
+          .then(res => {
+            if (res && res.settings) this.state.settings = res.settings;
+            this._toast(t("Live Aboard is on: the Atlas shows the 3D house at its next refresh."));
+            this._scheduleRender();
+          })
+          .catch(e => { on.disabled = false; this._toast(t("Could not save: {why}", { why: this._errorText(e) }), true); });
+      });
+      row.push(on);
+    }
     const ok = el("button", { class: "btn inline", "data-free-house-card": "ok", style: "color:#94a3b8" }, t("Got it"));
     ok.addEventListener("click", () => { v.hidden = true; this._scheduleRender(); });
-    card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [ok]));
+    row.push(ok);
+    card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, row));
     return card;
   }
 

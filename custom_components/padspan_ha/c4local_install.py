@@ -10,6 +10,16 @@ controllers (cloud services for Control4 OS 2 ended on 2026-11-01, and the built
 that cloud). HACS installs it too; this is the other way, from Settings → Tracking → Home Assistant
 and integrations (views/c4local.js).
 
+Nothing about it is shown or offered, to anyone, PadSpan Pro included, until the product is published
+(the owner, 2026-11-25; published()): its one switch is c4local's on-sale flag, licence.NOT_ON_SALE (or a
+moment in licence.ADDON_ON_SALE_FROM), with views/editions.js ADDONS on_sale / on_sale_from its twin
+(tests/test_addon_gates.py holds the two equal). Flip both when github.com/gbroeckling/os2-local-for-control4
+is published. Until then Install and the update check refuse ("not_published"); Undo never does.
+
+A house that runs a local Control4 integration of its own (a custom `control4` with a LOCAL_MODULE module,
+or an entry with the LOCAL_OPTION option: the owner's house runs exactly this) has a local login already:
+local_other, said on Settings' card, never an offer, and Install refuses to go over it ("local_other").
+
 Nothing here runs unless an administrator presses (every command is require_admin; Install and
 the update check also need PadSpan Pro or the c4local add-on, licence.hass_addon_allowed):
   Install   downloads ZIP_URL, that one URL and nothing a caller sends, following GitHub's own
@@ -71,6 +81,18 @@ _FAILED = ("setup_error", "setup_retry", "migration_error")
 _LOCK = "c4local_lock"
 
 NEED_ADDON = "Installing OS 2 Local for Control4 takes PadSpan Pro or the OS 2 Local for Control4 add-on."
+NOT_PUBLISHED = "OS 2 Local for Control4 is not published yet."
+LOCAL_OTHER = ("A local Control4 integration is installed (not OS 2 Local for Control4), so PadSpan does not "
+               "install over it.")
+# A local Control4 integration that is not the product: Home Assistant's own control4 with the controller's local
+# token added (a local_token module), whose entry keeps the controller's system password (director_password).
+LOCAL_MODULE = "local_token"
+LOCAL_OPTION = "director_password"
+
+
+def published() -> bool:
+    """Whether the product is published: c4local on sale (licence.addon_on_sale, read on every call)."""
+    return licence.addon_on_sale(ADDON)
 
 
 class C4LocalError(Exception):
@@ -192,11 +214,14 @@ def _free(folder: Path, name: str) -> Path:
 
 
 def disk_state(config_dir: str) -> dict[str, Any]:
-    """What is on disk: the control4 folder's manifest, and what Undo would do."""
+    """What is on disk: the control4 folder's manifest, what Undo would do, and whether a folder that is not the
+    product carries a local login of its own (LOCAL_MODULE)."""
     target = _target(config_dir)
     disk = _said(_manifest(target)) if target.is_dir() else None
     if target.exists() and disk is None:
         disk = {"name": "", "version": "", "ours": False}
+    local = bool(disk and not disk["ours"]
+                 and ((target / f"{LOCAL_MODULE}.py").is_file() or (target / LOCAL_MODULE).is_dir()))
     newest = _newest_backup(config_dir)
     undo = None
     if disk is None or disk["ours"]:
@@ -205,7 +230,7 @@ def disk_state(config_dir: str) -> dict[str, Any]:
             undo = {"what": "restore", "name": back["name"], "version": back["version"]}
         elif disk is not None:
             undo = {"what": "remove"}
-    return {"disk": disk, "undo": undo}
+    return {"disk": disk, "undo": undo, "local": local}
 
 
 def install_files(config_dir: str, data: bytes, stamp: str) -> dict[str, Any]:
@@ -309,7 +334,13 @@ async def async_status(hass: HomeAssistant) -> dict[str, Any]:
     disk = files["disk"]
     was = (running["name"], running["version"]) if running else None
     now = (disk["name"], disk["version"]) if disk else None
+    # Another custom control4, on disk or loaded, with a local login of its own: the house has one already.
+    other = bool((disk and not disk["ours"]) or (running and not running["ours"]))
+    with_option = any(LOCAL_OPTION in (getattr(e, "options", None) or {}) or LOCAL_OPTION in (getattr(e, "data", None) or {})
+                      for e in entries)
     return {
+        "published": published(),
+        "local_other": other and (files["local"] or with_option),
         "allowed": licence.hass_addon_allowed(hass, ADDON),
         "entries": [{"title": str(e.title or ""), "state": _entry_state(e)} for e in entries],
         "failed": any(_entry_state(e) in _FAILED for e in entries),
@@ -428,6 +459,9 @@ async def ws_c4local_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_c4local_check(hass: HomeAssistant, connection, msg) -> None:
     """Check for an update: the newest release's version (pressed by an administrator)."""
+    if not published():
+        connection.send_error(msg["id"], "not_published", NOT_PUBLISHED)
+        return
     if not licence.hass_addon_allowed(hass, ADDON):
         connection.send_error(msg["id"], "addon_required", NEED_ADDON)
         return
@@ -446,9 +480,16 @@ async def ws_c4local_check(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_c4local_install(hass: HomeAssistant, connection, msg) -> None:
-    """Install or update (pressed by an administrator). Home Assistant must restart afterwards."""
+    """Install or update (pressed by an administrator). Home Assistant must restart afterwards. Never before the
+    product is published, and never over a local Control4 integration of the house's own."""
+    if not published():
+        connection.send_error(msg["id"], "not_published", NOT_PUBLISHED)
+        return
     if not licence.hass_addon_allowed(hass, ADDON):
         connection.send_error(msg["id"], "addon_required", NEED_ADDON)
+        return
+    if (await async_status(hass))["local_other"]:
+        connection.send_error(msg["id"], "local_other", LOCAL_OTHER)
         return
     try:
         out = await async_install(hass)

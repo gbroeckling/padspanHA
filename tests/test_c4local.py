@@ -254,7 +254,7 @@ def test_install_backs_up_what_was_there_and_undo_puts_it_back(tmp_path) -> None
 def test_on_a_house_with_nothing_there_undo_removes_it_and_the_built_in_comes_back(tmp_path) -> None:
     assert C.install_files(str(tmp_path), _zip(), "20261125T120000Z")["backup"] is None
     assert C.disk_state(str(tmp_path)) == {"disk": {"name": "OS 2 Local for Control4", "version": "1.0.0", "ours": True},
-                                           "undo": {"what": "remove"}}
+                                           "undo": {"what": "remove"}, "local": False}
     assert C.undo_files(str(tmp_path), "20261125T130000Z") == {"what": "remove", "version": None}
     assert not (tmp_path / "custom_components" / "control4").exists() and _backups(tmp_path) == []
     with pytest.raises(C.C4LocalError) as err:
@@ -322,7 +322,9 @@ class _Conn:
 
 @pytest.fixture
 def ha(monkeypatch, tmp_path):
-    """A Home Assistant with a Control4 entry that failed and its OS 2 controller; the licence answer settable."""
+    """A Home Assistant with a Control4 entry that failed and its OS 2 controller; the licence answer settable; the
+    product published (c4local on sale: out of licence.NOT_ON_SALE, as it will be flipped)."""
+    monkeypatch.setattr(licence, "NOT_ON_SALE", ())
     allowed = SimpleNamespace(on=True)
     monkeypatch.setattr(licence, "hass_addon_allowed", lambda hass, name: allowed.on and name == "c4local")
     dev = SimpleNamespace(manufacturer="Control4", sw_version="2.10.6", config_entries={"e1"})
@@ -389,6 +391,70 @@ def test_install_and_the_update_check_need_pro_or_the_add_on_and_undo_never_does
     assert licence.addon_allowed(key, True, "c4local") and not licence.addon_allowed({**key, "license_addons": ["audio"]}, True, "c4local")
     assert licence.addon_allowed({"forensics_license_key": "PSPAN-PRO0", "license_tier": "pro"}, True, "c4local")
     assert not licence.addon_on_sale("c4local") and "c4local" in licence.ADDONS
+
+
+def test_before_it_is_published_nothing_installs_or_asks_github_even_on_pro(ha, monkeypatch) -> None:
+    """The owner (2026-11-25): nothing about c4local is offered, to anyone, Pro included, until the product is
+    published (c4local on sale, licence.NOT_ON_SALE). Install and the update check refuse before the licence is even
+    read; Undo still runs; the status says it."""
+    pressed = []
+
+    async def nope(hass):
+        pressed.append("github")
+        raise AssertionError("asked GitHub")
+
+    async def undo(hass):
+        pressed.append("undo")
+        return {"what": "remove", "version": None}
+    monkeypatch.setattr(C, "async_install", nope)
+    monkeypatch.setattr(C, "async_latest", nope)
+    monkeypatch.setattr(C, "async_undo", undo)
+    monkeypatch.setattr(licence, "NOT_ON_SALE", ("c4local",))
+    assert ha.allowed.on is True, "allowed (Pro): still refused"
+    for cmd in (C.ws_c4local_install, C.ws_c4local_check):
+        conn = _Conn()
+        _run(cmd(ha.hass, conn, {"id": 1}))
+        assert conn.errors == [("not_published", C.NOT_PUBLISHED)] and not conn.results, cmd.__name__
+    assert pressed == []
+    conn = _Conn()
+    _run(C.ws_c4local_undo(ha.hass, conn, {"id": 1}))
+    assert pressed == ["undo"] and conn.results[0]["ok"], "taking it out is never locked"
+    assert _run(C.async_status(ha.hass))["published"] is False
+    monkeypatch.setattr(licence, "NOT_ON_SALE", ())
+    assert _run(C.async_status(ha.hass))["published"] is True and C.published()
+    # As it ships: not published.
+    monkeypatch.undo()
+    assert C.published() is False and "c4local" in licence.NOT_ON_SALE
+
+
+@pytest.mark.parametrize("how", ["module", "package", "option", "option_in_data"])
+def test_a_local_control4_of_the_houses_own_counts_as_having_it(ha, how) -> None:
+    """A custom control4 that is not the product with a local login of its own (a local_token module, or an entry
+    with director_password: the owner's house runs exactly this) is local_other: Install refuses to go over it."""
+    folder = _folder(ha.root, {"domain": "control4", "name": "Control4", "version": "2026.7.4.1"})
+    st = _run(C.async_status(ha.hass))
+    assert st["local_other"] is False, "another integration alone is not a local login"
+    if how == "module":
+        (folder / "local_token.py").write_text("# local jwt\n", encoding="utf-8")
+    elif how == "package":
+        (folder / "local_token").mkdir()
+    else:
+        e = ha.hass.config_entries.async_entries("control4")[0]
+        setattr(e, "options" if how == "option" else "data", {"director_password": "x"})
+    st = _run(C.async_status(ha.hass))
+    assert st["local_other"] is True and not st["disk"]["ours"]
+    conn = _Conn()
+    _run(C.ws_c4local_install(ha.hass, conn, {"id": 1}))
+    assert conn.errors == [("local_other", C.LOCAL_OTHER)] and not conn.results
+    assert (folder / "manifest.json").is_file(), "left as it was"
+
+
+def test_the_product_itself_is_never_local_other(ha) -> None:
+    C.install_files(str(ha.root), _zip(), "20261125T120000Z")
+    (ha.root / "custom_components" / "control4" / "local_token.py").write_text("", encoding="utf-8")
+    ha.hass.config_entries.async_entries("control4")[0].options = {"director_password": "x"}
+    st = _run(C.async_status(ha.hass))
+    assert st["disk"]["ours"] and st["local_other"] is False
 
 
 def test_a_refusal_comes_back_with_its_code(ha, web) -> None:
@@ -484,8 +550,10 @@ def _node(views: Path, now: str | None = None) -> dict:
 
 
 def test_the_card_the_overview_and_the_licence_cards_specialty_part() -> None:
+    """As it ships (not published): no card, to anyone, Pro included, nothing asked (tests/js/c4local.mjs)."""
     run = _node(_WWW / "views")
-    assert len(run["checks"]) >= 35
+    assert run["out"]["published"] is False and len(run["checks"]) >= 10
+    assert any(c.startswith("unpublished, Pro:") for c in run["checks"])
     out = run["out"]
     assert out["c4only"] == {"status": "✓ Your PadSpan add-on key is active.", "specialty": "SpecialtyOS 2 Local for Control4 · for life"}
     assert out["both"]["status"] == "✓ PadSpan add-ons: Audio until 2028-11-25", "never mixed with the feature add-ons"
@@ -506,6 +574,18 @@ def on_sale_copy(tmp_path_factory) -> Path:
     assert src.count(old) == 1
     ed.write_text(src.replace(old, 'on_sale: false, on_sale_from: "2026-12-20T08:00:00Z", category: "specialty"'), encoding="utf-8")
     return out / "views"
+
+
+def test_once_published_the_cards_their_presses_a_local_control4_and_no_thanks(on_sale_copy) -> None:
+    """The same harness on the copy put on sale (its date come): Settings' card through Install, Update, Undo and the
+    restart; a house's own local Control4 said and never offered; the Overview's card, its No thanks the install's
+    (settings.c4local_offer_done), never on a wall."""
+    run = _node(on_sale_copy, "2026-12-24T12:00:00Z")
+    assert run["out"]["published"] is True and len(run["checks"]) >= 45, len(run["checks"])
+    for name in ("Overview: No thanks is the install's: saved, and away for this page", "Overview: never on a wall",
+                 "a local Control4 of its own, Pro: said, no Install and no offer",
+                 "published in the panel's table alone (the backend's word not yet): no card"):
+        assert name in run["checks"], name
 
 
 def _offer_at(views: Path, now: str) -> str | None:
@@ -582,3 +662,19 @@ def test_the_report_counts_it_like_the_other_add_ons() -> None:
     ed = (_WWW / "views" / "editions.js").read_text(encoding="utf-8")
     picks = re.search(r"const SALE_CARD_PICKS = \[(.*?)\];", ed).group(1)
     assert "c4local" not in picks
+
+
+def test_no_thanks_is_the_installs_kept_settable_and_through_a_restore() -> None:
+    """The Overview card's No thanks (views/c4local.js): settings.c4local_offer_done, off by default, sent by any
+    administrator's browser, kept through a restore, a factory reset and a Bright import (trial_state_kept)."""
+    from custom_components.padspan_ha import settings_store as ss
+    from custom_components.padspan_ha import websocket as ws
+    from custom_components.padspan_ha import ws_settings
+    assert ss.DEFAULT_SETTINGS["c4local_offer_done"] is False
+    assert "c4local_offer_done" in {str(getattr(k, "schema", k)) for k in ws.ws_settings_set.ws_schema}
+    assert "c4local_offer_done" in ws_settings._EVERYONE_KEYS
+    assert ss.trial_state_kept({"c4local_offer_done": True}, {"c4local_offer_done": False})["c4local_offer_done"] is True
+    assert ss.trial_state_kept({}, {"c4local_offer_done": True})["c4local_offer_done"] is True
+    from tests.test_settings_refusals import send
+    got = send({"c4local_offer_done": True})
+    assert not got["error"] and got["data"]["c4local_offer_done"] is True
