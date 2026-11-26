@@ -275,7 +275,7 @@ class ForensicsStore:
 
 def _recording_enabled(hass: HomeAssistant) -> bool:
     """Record only while Forensics is on, in live mode, and the licence has it:
-    PadSpan Pro, or the Forensics add-on (licence.addon_allowed).
+    PadSpan Pro, or the Presence insights add-on, which holds Forensics (licence.addon_allowed, ADDON_PART_OF).
 
     A lapsed licence keeps what Forensics already recorded (the query has no
     gate, so it stays searchable and exportable until retention prunes it)

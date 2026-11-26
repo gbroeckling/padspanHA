@@ -308,7 +308,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             license_is_trial=str(data.get("plan") or "") == "trial",
             # Its plan: an add-on key ("addons") reads as one even with add-ons this PadSpan doesn't know.
             license_plan=str(data.get("plan") or "")[:20],
-            # An add-on key turns Forensics on only when it holds the Forensics add-on.
+            # An add-on key turns Forensics on only when it holds Presence insights (or Forensics, bought before the merge).
             **({"forensics_enabled": True} if _tier != "free" or "forensics" in _addons else {}),
             # An add-on key whose add-ons are all newer than this PadSpan (the server's needs_update): kept, free, and
             # the licence card says to update PadSpan; any other answer clears what this home was told before.

@@ -177,7 +177,7 @@ Guests get a small Bluetooth tag for their visit, so PadSpan shows which room th
 - **Yesterday at home** sends one morning message about the day before: comings and goings, guests, the rooms empty longest and lights left on in empty rooms (off until you turn it on).
 - **Lights follow people** turns a room's lights on when someone with a named phone, watch or tag walks in, and off once the room has been empty for the time you set (2 minutes by default). It can wait for dark and keep quiet hours, and a light you turn off by hand stays off. Off until you turn it on, in **Settings → Tracking → Home Assistant and integrations**.
 - **Occupancy** counts people in the building, never devices.
-- **Busy Times** and **Locate** are Pro or the Presence insights add-on. **Full house activity** on the Atlas is Pro or the add-on of the same name, and **Forensics** is Pro or the Forensics add-on.
+- **Busy Times** and **Locate** are Pro or the Presence insights add-on. **Full house activity** on the Atlas is Pro or the add-on of the same name, and **Forensics** is Pro or the Presence insights add-on, with Busy Times and Locate.
 
 ### What Home Assistant gets
 

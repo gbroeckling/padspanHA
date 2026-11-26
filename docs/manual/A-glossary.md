@@ -5,8 +5,8 @@
 The words this manual and PadSpan's panel use, in alphabetical order.
 
 **Add-on.** One part of PadSpan Pro, bought on its own for an install without Pro: Audio, Alarm &
-security, Wi-Fi coverage, Climate map, Full house activity, Vacation Mode & presets, Looks pack, Forensics,
-Presence insights or Advanced smart lighting, and from December 1, 2026 Advanced map creation or
+security, Wi-Fi coverage, Climate & air quality, Full house activity, Vacation Mode & presets, Looks pack,
+Presence insights (Locate, Busy Times and Forensics) or Advanced smart lighting, and from December 1, 2026 Advanced map creation or
 Robot vacuum. One payment covers 2 years, on up to three homes; PadSpan Pro includes them all. See
 [chapter 25](25-padspan-pro.md#add-ons).
 

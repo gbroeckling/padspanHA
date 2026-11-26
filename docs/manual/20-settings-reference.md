@@ -151,7 +151,7 @@ folding heading on that tab.
 | Experimental Features: MAC Rotation Bridging | off | on or off | Links a device's old and new address when its address changes. | `mac_rotation_bridging` |
 | Experimental Features: Apple Device Classification | off | on or off | Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only. | `apple_auto_classify` |
 | Experimental Features: RSSI Vector Capture | off | on or off | A Record button in Health for signal recordings to replay. | `rssi_capture_enabled` |
-| Forensics | off | on or off | Pro or the Forensics add-on: records when every Bluetooth device nearby comes and goes, to look back at later. | `forensics_enabled` |
+| Forensics | off | on or off | Pro or the Presence insights add-on: records when every Bluetooth device nearby comes and goes, to look back at later. | `forensics_enabled` |
 | Forensics: Keep sessions for | 14 | `7`, `14`, `30`, `60`, `90` | Days Forensics keeps what it recorded. | `forensics_retention_days` |
 
 ### Settings → AI

@@ -743,7 +743,7 @@ SCREENS = {
     "settings": "Every setting, in tabs.",
     "traceback": "Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights).",
     "health": "Is PadSpan working? Its own checks, receivers' health, and Problems found.",
-    "forensics": "Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times.",
+    "forensics": "Pro or the Presence insights add-on: which Bluetooth devices were near your receivers between two times.",
     "monitor": "What PadSpan hears, in numbers, and Export for support.",
     "devices": "Every device PadSpan tracks or hears, in four lists, and the device registry.",
     "bluetooth": "What each receiver hears, and the IRK Manager for phones and watches.",
@@ -1402,7 +1402,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "mac_rotation_bridging": ("Settings → Features", "Experimental Features", "MAC Rotation Bridging", "Links a device's old and new address when its address changes."),
     "apple_auto_classify": ("Settings → Features", "Experimental Features", "Apple Device Classification", "Says whether an Apple Find My signal is an AirTag, a Find My accessory or an Apple device. Display only."),
     "rssi_capture_enabled": ("Settings → Features", "Experimental Features", "RSSI Vector Capture", "A Record button in Health for signal recordings to replay."),
-    "forensics_enabled": ("Settings → Features", "Forensics", "", "Pro or the Forensics add-on: records when every Bluetooth device nearby comes and goes, to look back at later."),
+    "forensics_enabled": ("Settings → Features", "Forensics", "", "Pro or the Presence insights add-on: records when every Bluetooth device nearby comes and goes, to look back at later."),
     "forensics_retention_days": ("Settings → Features", "Forensics", "Keep sessions for", "Days Forensics keeps what it recorded."),
     # Settings → AI
     "atlas_3d_ai_task_entity": ("Settings → AI", "Your AI", "AI Task", "The Home Assistant AI Task PadSpan asks to read a photo or a plan. Empty: none, and nothing is read."),

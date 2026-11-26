@@ -26,7 +26,7 @@ button explains it in the panel.
 | **Training** | Animated walkthroughs and the Full Manual, inside the panel. | – |
 | **Calibration** | Teach PadSpan what each spot sounds like, and see how accurate it is. | **Results**, **Tune**, **Beacon Tune**, **Beacon and floor**, **Pin & Listen**, **Roam**, **Model**, **Accuracy by spot** |
 | **Traceback** | Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights). | – |
-| **Forensics** | Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times. | – |
+| **Forensics** | Pro or the Presence insights add-on: which Bluetooth devices were near your receivers between two times. | – |
 | **Occupancy** | How many people are in the building, and how the number was reached. | – |
 | **Guests** | Guest tags: who is staying now, the tags you lend, and past stays. | – |
 | **Health** | Is PadSpan working? Its own checks, receivers' health, and Problems found. | – |

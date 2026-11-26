@@ -57,7 +57,7 @@ style, the menu has no headings. A PadSpan Bright install shows only its lightin
 | **Traceback** | Replay where devices went, with Insights (time in each room) and Busy Times (Pro or Presence insights). | Always | More tools | Main list | Diagnose |
 | **Health** | Is PadSpan working? Its own checks, receivers' health, and Problems found. | Always | More tools | Main list | Diagnose |
 | **Wi-Fi coverage** | A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia. | While UniFi Utopia's Wi-Fi survey answers, with Pro or the Wi-Fi coverage add-on | More tools | More tools | Diagnose |
-| **Forensics** | Pro or the Forensics add-on: which Bluetooth devices were near your receivers between two times. | While Forensics is on (Settings → Features → Forensics) | Main list | Main list | Diagnose |
+| **Forensics** | Pro or the Presence insights add-on: which Bluetooth devices were near your receivers between two times. | While Forensics is on (Settings → Features → Forensics) | Main list | Main list | Diagnose |
 | **Monitor** | What PadSpan hears, in numbers, and Export for support. | Always | More tools | More tools (Settings → UI Structure can move it to the main list) | Diagnose |
 | **Devices** | Every device PadSpan tracks or hears, in four lists, and the device registry. | Always | More tools | More tools (Settings → UI Structure can move it to the main list) | Internals |
 | **Bluetooth** | What each receiver hears, and the IRK Manager for phones and watches. | Always | More tools | More tools (Settings → UI Structure can move it to the main list) | Internals |

@@ -11,8 +11,8 @@ Die Wörter, die dieses Handbuch und PadSpans Panel benutzen, alphabetisch geord
 wenn du es nicht änderst, unter Einstellungen → Ortung → Räume und Zeiten → Zuhause/Abwesend-Timeout).
 
 **Add-on.** Ein Teil von PadSpan Pro, einzeln gekauft für eine Installation ohne Pro: Audio, Alarm &
-Sicherheit, WLAN-Abdeckung, Klimakarte, Aktivität im ganzen Haus, Urlaubsmodus & Voreinstellungen, Looks-Paket,
-Forensik, Präsenz-Auswertungen oder Erweiterte smarte Beleuchtung und ab dem 1. Dezember 2026
+Sicherheit, WLAN-Abdeckung, Klima & Luftqualität, Aktivität im ganzen Haus, Urlaubsmodus & Voreinstellungen, Looks-Paket,
+Präsenz-Auswertungen (Finden, Busy Times und Forensik) oder Erweiterte smarte Beleuchtung und ab dem 1. Dezember 2026
 Erweiterte Kartenerstellung oder Saugroboter. Eine Zahlung gilt 2 Jahre, auf bis zu drei Zuhause;
 PadSpan Pro enthält sie alle. Siehe [Kapitel 25](25-padspan-pro.md#add-ons).
 
