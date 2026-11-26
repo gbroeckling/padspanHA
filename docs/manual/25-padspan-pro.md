@@ -121,7 +121,7 @@ a separate Home Assistant integration that takes the built-in one's place: it lo
 controller itself with the controller's system password, no cloud account, and makes
 each room a media player with volume, mute and off. It is one payment, good for life, and
 **PadSpan Pro includes it**. Its own page:
-[github.com/gbroeckling/control4-os2-local](https://github.com/gbroeckling/control4-os2-local).
+[github.com/gbroeckling/os2-local-for-control4](https://github.com/gbroeckling/os2-local-for-control4).
 
 ### Install it from PadSpan
 

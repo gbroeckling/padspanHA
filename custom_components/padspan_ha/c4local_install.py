@@ -56,11 +56,11 @@ PRODUCT_NAME = "OS 2 Local for Control4"
 # Its manifest's name: the product's name since the owner's rename (2026-11-25), or the one its first releases
 # were built with. Either is the product.
 PRODUCT_NAMES = (PRODUCT_NAME, "Control4 OS 2 Local")
-PROJECT_URL = "https://github.com/gbroeckling/control4-os2-local"
+PROJECT_URL = "https://github.com/gbroeckling/os2-local-for-control4"
 ZIP_URL = PROJECT_URL + "/releases/latest/download/control4.zip"
 # Where GitHub sends ZIP_URL: the release's page, then its file store. No other host is followed.
 _HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
-_TAG_RE = re.compile(r"^https://github\.com/gbroeckling/control4-os2-local/releases/download/v?(\d+(?:\.\d+){0,3})/control4\.zip$")
+_TAG_RE = re.compile(r"^https://github\.com/gbroeckling/os2-local-for-control4/releases/download/v?(\d+(?:\.\d+){0,3})/control4\.zip$")
 MAX_ZIP = 5 * 1024 * 1024          # the release is about 40 KiB
 MAX_UNPACKED = 20 * 1024 * 1024
 MAX_FILES = 300

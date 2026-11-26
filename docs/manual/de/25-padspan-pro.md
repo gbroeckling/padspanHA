@@ -136,7 +136,7 @@ mehr. **OS 2 Local for Control4** ist eine eigene Home-Assistant-Integration, di
 eingebauten tritt: Sie meldet sich mit dem Systempasswort des Controllers direkt beim Controller an, ohne Cloud-Konto, und macht jeden Raum zu einem Mediaplayer mit Lautstärke,
 Stummschalten und Aus. Es ist eine Zahlung, die lebenslang gilt, und **PadSpan Pro enthält es**.
 Seine eigene Seite:
-[github.com/gbroeckling/control4-os2-local](https://github.com/gbroeckling/control4-os2-local).
+[github.com/gbroeckling/os2-local-for-control4](https://github.com/gbroeckling/os2-local-for-control4).
 
 ### Aus PadSpan installieren
 

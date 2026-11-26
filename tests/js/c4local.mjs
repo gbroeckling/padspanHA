@@ -81,7 +81,7 @@ const PRO = { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "p
 const C4KEY = { tier: "free", pro_has_key: true, addon_key: true, pro_active: true, license_tier: "free",
   license_addons: ["c4local"], addons_licensed: ["c4local"], forensics_license_expires: "" };
 const BASE = { allowed: true, entries: [{ title: "Control4 HC-800", state: "setup_retry" }], failed: true, os2: ["2.10.6"],
-  discovered: false, disk: null, running: null, restart_needed: false, undo: null, project_url: "https://github.com/gbroeckling/control4-os2-local" };
+  discovered: false, disk: null, running: null, restart_needed: false, undo: null, project_url: "https://github.com/gbroeckling/os2-local-for-control4" };
 const INSTALLED = { ...BASE, failed: false, entries: [{ title: "Control4 HC-800", state: "loaded" }],
   disk: { name: "OS 2 Local for Control4", version: "1.0.0", ours: true }, running: { name: "OS 2 Local for Control4", version: "1.0.0", ours: true },
   undo: { what: "remove" } };

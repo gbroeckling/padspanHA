@@ -62,6 +62,7 @@ def test_the_products_zip_is_taken() -> None:
     # Its first releases' manifest says the name it had before the owner's rename: still the product.
     assert C.check_zip(_zip(manifest={**PRODUCT, "name": "Control4 OS 2 Local"}))["name"] == "Control4 OS 2 Local"
     assert C.is_product({**PRODUCT, "name": "Control4 OS 2 Local"}) and not C.is_product({**PRODUCT, "name": "OS 2 Local"})
+    assert C.PRODUCT_NAMES == ("OS 2 Local for Control4", "Control4 OS 2 Local") and C.is_product(PRODUCT)
 
 
 BAD = {
@@ -103,14 +104,19 @@ def test_a_zip_with_the_integration_in_a_folder_is_not_the_release() -> None:
 # ── The one URL ──────────────────────────────────────────────────────────────
 
 def test_only_the_release_url_and_githubs_own_redirects() -> None:
-    assert C.ZIP_URL == "https://github.com/gbroeckling/control4-os2-local/releases/latest/download/control4.zip"
+    # The product's public repo (the owner, 2026-11-25: os2-local-for-control4, not control4-os2-local).
+    assert C.PROJECT_URL == "https://github.com/gbroeckling/os2-local-for-control4"
+    assert C.ZIP_URL == "https://github.com/gbroeckling/os2-local-for-control4/releases/latest/download/control4.zip"
+    assert C._TAG_RE.match(TAG) and C._TAG_RE.match(TAG).group(1) == "1.0.0"
+    assert not C._TAG_RE.match(TAG.replace("os2-local-for-control4", "control4-os2-local")), "only the product's repo"
+    assert C._HOSTS == ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
     src = (_PKG / "c4local_install.py").read_text(encoding="utf-8")
     # No command takes anything but its type: no URL, path or file comes from a caller.
     for schema in re.findall(r"@websocket_api\.websocket_command\((\{.*?\})\)", src):
         assert schema.count(":") == 1, schema
     assert src.count("session.get(") == 2 and "session.head(" not in src and "session.post(" not in src
     assert "session.get(url, allow_redirects=False" in src and "session.get(ZIP_URL, allow_redirects=False" in src
-    assert C._hop(C.ZIP_URL, "/gbroeckling/control4-os2-local/releases/download/v1.0.0/control4.zip").startswith("https://github.com/")
+    assert C._hop(C.ZIP_URL, "/gbroeckling/os2-local-for-control4/releases/download/v1.0.0/control4.zip").startswith("https://github.com/")
     assert C._hop(C.ZIP_URL, "https://objects.githubusercontent.com/x").startswith("https://objects.")
     for bad in ("http://github.com/x", "https://evil.example/control4.zip", "https://github.com.evil.example/x",
                 "https://objects.githubusercontent.com.evil/x", "ftp://github.com/x"):
@@ -156,7 +162,7 @@ class _Session:
         return self.answers[url]
 
 
-TAG = "https://github.com/gbroeckling/control4-os2-local/releases/download/v1.0.0/control4.zip"
+TAG = "https://github.com/gbroeckling/os2-local-for-control4/releases/download/v1.0.0/control4.zip"
 STORE = "https://objects.githubusercontent.com/github-production-release-asset/1/control4.zip?sig=x"
 
 
