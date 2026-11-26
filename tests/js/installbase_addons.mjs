@@ -45,15 +45,17 @@ const ADDONS = {
   changes: { "addon>pro_year": 1, "free>addon": 2 },
   moved: { emergency_test: { installs: 2, holds: 1, pro: 0, into: "alarm" }, power_teams: { installs: 3, holds: 0, pro: 1, into: "lighting" },
            lidar: { installs: 1, holds: 0, pro: 0, into: "maps" } },
-  on_it: { alarm: 2, audio: 2, lighting: 2, maps: 6, vacuum: 6 },
+  on_it: { alarm: 2, audio: 2, lighting: 2, maps: 6, vacuum: 6, c4local: 1 },
   used: { alarm: 1, lighting: 1, maps: 2 },
   refused: { insights: { installs: 3, without: 2 } },
   market: { alarm: { installs: 2, sum: 3 }, wled: { installs: 1, sum: 4 } },
-  reach: { alarm: { installs: 3, on_it: 1 }, audio: { installs: 1, on_it: 1 }, lighting: { installs: 1, on_it: 1 } },
+  reach: { alarm: { installs: 3, on_it: 1 }, audio: { installs: 1, on_it: 1 }, lighting: { installs: 1, on_it: 1 },
+           c4local: { installs: 1, on_it: 0 } },
   audio: { control4: { installs: 1, sum: 22 } },
   c4: { "2:not_loaded": 1, "3:loaded": 1 }, c4_local: 1, c4_os2_local: 1,
   wifi: { utopia: 1, unifi: 2 }, history: { gt30d: 2, lt7d: 1 }, plans: { picture: 2 }, roomplan: 1, valetudo: 0,
-  not_sold: ["maps", "vacuum"],       // before December 1 (stats.php addon_sold)
+  not_sold: ["maps", "vacuum", "c4local"],       // before December 1 (stats.php addon_sold)
+  not_on_sale: ["c4local"],                      // no moment yet (licence.NOT_ON_SALE): Pro's, never everyone's
 };
 const USAGE = {
   "addon_offer:licence_card:alarm": { count: 10, installs: 4 }, "addon_buy:licence_card:alarm": { count: 2, installs: 2 },
@@ -129,6 +131,8 @@ check("use: Advanced smart lighting is a sold add-on, like the rest", !!lit && l
       && !kvRow("Advanced smart lighting (not sold yet: everyone)"), lit);
 check("use: an add-on before its moment is not sold yet (the feed's not_sold)", !!kvRow("Advanced map creation (not sold yet: everyone)")
       && !!kvRow("Robot vacuum (not sold yet: everyone)"));
+check("use: OS 2 Local for Control4 is not sold yet and never everyone's", !!kvRow("OS 2 Local for Control4 (not sold yet: Pro includes it)")
+      && !kvRow("OS 2 Local for Control4 (not sold yet: everyone)"));
 const moved = kvRow("The emergency lights test → Alarm & security");
 const movedHold = moved ? kv[kv.indexOf(moved) + 1] : null;
 check("moved: the cohort and who holds the add-on now", !!moved && moved[1] === "2" && !!movedHold && movedHold[0] === "  ↳ holding Alarm & security" && movedHold[1] === "1", [moved, movedHold]);

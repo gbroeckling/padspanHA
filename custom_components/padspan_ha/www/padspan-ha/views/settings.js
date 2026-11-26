@@ -3509,16 +3509,20 @@ function addonPriceSaid(name, settings){
 }
 // Specialty (editions.js ADDONS category "specialty"): a part of its own under the add-ons, never in their list and
 // never in their sale. Without Pro: each one the key holds, its words and "for life", or, while it is on sale
-// (addonOnSale), an offer at its full price linking to its box on the site. Pro includes them: nothing shown.
-export function specialtyPart(el, s, now = Date.now()){
+// (addonOnSale), an offer at its full price linking to its box on the site, counted like the add-ons' (`send`, the
+// usage report's: seen once per page load, its link each time). Pro includes them: nothing shown.
+export function specialtyPart(el, s, now = Date.now(), send = null){
   if (currentTier(s) === "pro") return null;
   const rows = [];
   for (const a of ADDONS.filter(x => x.category === "specialty")) {
     if (addonAllowed(s, a.name)) {
       rows.push(el("div", { "data-specialty": a.name, style: "color:#a7f3d0" }, addonWords(a) + " \u00B7 " + t("for life")));
     } else if (addonOnSale(a.name, now)) {
-      rows.push(el("a", { href: a.url, target: "_blank", rel: "noopener", "data-specialty": a.name,
-        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + t("{price}, once, for life", { price: a.price })));
+      const link = el("a", { href: a.url, target: "_blank", rel: "noopener", "data-specialty": a.name,
+        style: "color:#a7f3d0;text-decoration:underline" }, addonWords(a) + " " + t("{price}, once, for life", { price: a.price }));
+      link.addEventListener("click", () => { if (send) send("addon_buy:licence_card:" + a.name); });
+      addonOfferSeen(send, "licence_card", a.name);
+      rows.push(link);
     }
   }
   if (!rows.length) return null;
@@ -3770,7 +3774,7 @@ function _settingsLicence(ctx, el){
     }
     card.appendChild(offer);
   }
-  const specialty = specialtyPart(el, s);
+  const specialty = specialtyPart(el, s, Date.now(), _addonTel(ctx));
   if (specialty) card.appendChild(specialty);
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key, or only an add-on key (kept

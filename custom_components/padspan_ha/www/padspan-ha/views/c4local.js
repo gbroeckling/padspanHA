@@ -99,14 +99,18 @@ function _findings(el, st) {
     "⚠ " + out.join(" "));
 }
 
-function _offer(el, st, now) {
+// The offer, in Settings' card and the Overview's: counted in the usage report like the other add-ons' (only while it
+// is on: the panel's telemetryEvent), seen once per page load and its link each time (telemetry.ADDON_OFFER_PLACES).
+function _offer(el, st, now, ctx) {
   if (!ED.addonOnSale(NAME, now)) return null;
   const a = ED.ADDONS.find(x => x.name === NAME);
+  const send = (n) => { if (ctx && ctx.actions && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); };
+  const buy = el("a", { href: a.url, target: "_blank", rel: "noopener", "data-c4local": "buy", style: "color:#a7f3d0;text-decoration:underline" },
+    t("{addon}: {price}, once, for life. PadSpan Pro includes it.", { addon: a.words, price: a.price }));
+  buy.addEventListener("click", () => send("addon_buy:c4local_card:" + NAME));
+  ED.addonOfferSeen(send, "c4local_card", "c4local");
   return el("div", { "data-c4local": "offer", style: "font-size:12px;line-height:1.6" }, [
-    el("div", { style: "color:#cbd5e1" }, _why()),
-    el("a", { href: a.url, target: "_blank", rel: "noopener", "data-c4local": "buy", style: "color:#a7f3d0;text-decoration:underline" },
-      t("{addon}: {price}, once, for life. PadSpan Pro includes it.", { addon: a.words, price: a.price })),
-  ]);
+    el("div", { style: "color:#cbd5e1" }, _why()), buy]);
 }
 
 async function _press(ctx, what, type, done) {
@@ -198,7 +202,7 @@ export function settingsCard(ctx, el, now = Date.now()) {
   const found = _findings(el, st);
   if (found) card.appendChild(found);
   if (!st.allowed) {
-    const offer = _offer(el, st, now);
+    const offer = _offer(el, st, now, ctx);
     if (!offer) return null;
     card.appendChild(offer);
     return card;
@@ -252,7 +256,7 @@ export function overviewCard(ctx, now = Date.now()) {
   const st = _status;
   if (!st || !trouble(st) || _ours(st)) return null;
   const { el } = ctx.helpers;
-  const offer = st.allowed ? null : _offer(el, st, now);
+  const offer = st.allowed ? null : _offer(el, st, now, ctx);
   if (!st.allowed && !offer) return null;
   const card = el("div", { "data-c4local": "overview", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, _word()));

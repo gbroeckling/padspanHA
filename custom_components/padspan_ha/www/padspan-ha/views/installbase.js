@@ -946,7 +946,7 @@ const W_WALL_KIND = { kiosk: "as a wall screen (kiosk link)", fullscreen_idle: "
 
 // Add-ons (addon_report.py, telemetry.ADDON_EVENTS; the Add-ons section): word("addons", "<list>:<word>").
 // The places whose offer links to the site (telemetry.ADDON_BUY_PLACES): their clicks per offer, even at none.
-const W_ADDON_BUY_PLACES = ["licence_card", "power_teams", "team_card"];
+const W_ADDON_BUY_PLACES = ["licence_card", "power_teams", "team_card", "c4local_card"];
 const W_ADDONS = {
   addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Time travel",
     vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
@@ -959,7 +959,8 @@ const W_ADDONS = {
   place: { licence_card: "the licence card", busy_times: "Busy Times", locate: "Locate", door_openers: "the doors and openers card",
     emergency_test: "the emergency lights test", themes: "Themes", showcase: "Showcase", forensics: "Forensics",
     power_teams: "Settings' power teams", team_card: "a power team's card", light_design: "the Atlas builder's light design tools (WLED strips, shapes …)",
-    vacuum_import: "importing the robot vacuum's map", features: "Settings → Features" },
+    vacuum_import: "importing the robot vacuum's map", features: "Settings → Features",
+    c4local_card: "OS 2 Local for Control4's card (Settings, the Overview)" },
   key: { entered: "a key entered", addon: "an add-on key", pro: "a Pro key", pro_from_addon: "a Pro key where an add-on key was",
     needs_update: "PadSpan too old for the key", invalid: "not a valid key", refused: "refused for another reason" },
   sale: { before: "before the sale", sale_w1: "in the sale's week 1", sale_w2: "in the sale's week 2", sale_w3: "in the sale's week 3",

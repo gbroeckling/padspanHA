@@ -17,7 +17,8 @@ key and word to these lists). What it says, for the owner's add-ons (licence.ADD
     moved     the features that moved from free into an add-on which this house had in use, noted once, the first time
               this code ran here (MOVED_WORDS), so what the move cost and who came back can be told
     used      the add-ons whose feature was used since the last report, among the ones this install may use (USED_WORDS;
-              a Bright key keeps what was Bright's: BRIGHT_KEEPS)
+              a Bright key keeps what was Bright's: BRIGHT_KEEPS); OS 2 Local for Control4 is used where its local
+              override runs (market's c4.local)
     market    what the house has that an add-on is for: counts of alarm panels, garage and gate openers, emergency
               lights, whole-house audio players by system, temperature / humidity / CO2 sensors, WLED devices, power
               teams and colour bulbs, robot vacuums; Control4's controller OS (2 or 3), its config entry's state and
@@ -38,7 +39,8 @@ from typing import Any
 
 from .const import DATA_SETTINGS, DOMAIN
 from .quiet_errors import note as _quiet_error
-from .licence import ADDONS, addon_allowed, addon_on_sale, is_addon_key, key_tier, normalize_addons, normalize_addons_until
+from .licence import (ADDONS, NOT_ON_SALE, addon_allowed, addon_on_sale, is_addon_key, key_tier, normalize_addons,
+                      normalize_addons_until)
 
 LICENCE_WORDS: tuple[str, ...] = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                                   "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
@@ -154,9 +156,10 @@ def _count(usage: dict[str, Any], *names: str) -> bool:
     return any(isinstance(usage.get(n), int) and usage.get(n) > 0 for n in names)
 
 
-def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool) -> list[str]:
+def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool, c4_local: bool = False) -> list[str]:
     """The add-ons whose feature was used since the last report, among the ones this install may use (Pro: all; an
-    add-on key: its own; Bright: what it keeps, BRIGHT_KEEPS; a feature that is still everyone's: anyone)."""
+    add-on key: its own; Bright: what it keeps, BRIGHT_KEEPS; a feature that is still everyone's: anyone).
+    `c4_local`: OS 2 Local for Control4's override runs here (market's c4.local)."""
     got = {w for w in USED_WORDS if _count(usage, f"addon_used:{w}")}
     if _count(usage, *(f"room_controls:{w}" for w in ("up", "down", "mute", "off", "match_saved"))):
         got.add("audio")
@@ -179,11 +182,13 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
         got.add("vacuum")
     if any(isinstance(t, dict) and t.get("adaptive") is True for t in settings.get("power_teams") or []):
         got.add("lighting")
+    if c4_local:
+        got.add("c4local")
     bright = key_active and key_tier(settings) == "bright"
 
     def may(w: str) -> bool:
-        if w not in ADDONS or not addon_on_sale(w):
-            return True                                  # still everyone's
+        if w not in ADDONS or (not addon_on_sale(w) and w not in NOT_ON_SALE):
+            return True                                  # still everyone's (one with no moment yet never is)
         return addon_allowed(settings, key_active, w) or (w in BRIGHT_KEEPS and bright)
     return [w for w in USED_WORDS if w in got and may(w)]
 
@@ -382,10 +387,11 @@ def section(hass: Any, settings: dict[str, Any], usage: dict[str, Any], env: dic
     moved = [w for w in seen.get("moved") or [] if w in MOVED_WORDS] if isinstance(seen.get("moved"), list) else []
     if moved:
         out["moved"] = moved
-    used = used_words(settings, usage, active)
+    mk = market(hass, settings, env)
+    used = used_words(settings, usage, active, c4_local=(mk.get("c4") or {}).get("local") is True)
     if used:
         out["used"] = used
-    out["market"] = market(hass, settings, env)
+    out["market"] = mk
     return out
 
 

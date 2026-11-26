@@ -487,7 +487,8 @@ $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pr
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
                        'emergency_test' => array('alarm'), 'themes' => array('looks'), 'showcase' => array('looks'),
                        'forensics' => array('forensics'), 'power_teams' => array('lighting'), 'team_card' => array('lighting'),
-                       'light_design' => array('lighting'), 'vacuum_import' => array('vacuum'), 'features' => array('vacuum'));
+                       'light_design' => array('lighting'), 'vacuum_import' => array('vacuum'), 'features' => array('vacuum'),
+                       'c4local_card' => array('c4local'));
 $ADDON_MOVED = array('emergency_test' => 'alarm', 'power_teams' => 'lighting', 'circadian' => 'lighting', 'lidar' => 'maps',
                      'robot_vacuum' => 'vacuum');
 $ADDON_MARKET = array('alarm' => array('alarm', 'garage', 'gate', 'emergency'), 'climate' => array('temp', 'humidity', 'co2'),
@@ -594,7 +595,7 @@ foreach ($latest as $id => $r) {
         incr($addons['c4'], $os . ':' . $entry);
         if ($local) { $addons['c4_local']++; }
         // "OS 2 Local for Control4": OS 2 whose own Control4 entry is not running, or that runs the local-token override.
-        if ($os === '2' && ($entry !== 'loaded' || $local)) { $addons['c4_os2_local']++; }
+        if ($os === '2' && ($entry !== 'loaded' || $local)) { $addons['c4_os2_local']++; $addon_reach['c4local'][$id] = 1; }
     }
     if (isset($m['wifi']) && is_string($m['wifi'])) { incr($addons['wifi'], $m['wifi']); $addon_reach['wifi'][$id] = 1; }
     if (isset($m['history']) && is_string($m['history'])) { incr($addons['history'], $m['history']); }

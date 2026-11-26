@@ -530,3 +530,55 @@ def test_on_sale_by_its_date_the_offer_is_the_full_price_even_in_black_friday(on
     assert _offer_at(on_sale_copy, "2026-12-20T07:59:59Z") == {"text": None, "href": None}
     got = _offer_at(on_sale_copy, "2026-12-24T12:00:00Z")   # inside the half-price sale (ADDON_HALF_UNTIL is Jan 2)
     assert got == {"text": "OS 2 Local for Control4 $26 CAD, once, for life", "href": "https://padspan.traks.ca/#c4local"}
+
+
+def test_the_licence_cards_offer_is_counted_once_a_page_and_its_link_each_time(on_sale_copy) -> None:
+    """While it is on sale, the Specialty part counts its offer like the add-ons' (addon_offer:licence_card:c4local, once
+    per page load) and its link each time (addon_buy:licence_card:c4local); with nothing to send, it just shows."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    run = ("import { install } from " + json.dumps((_ROOT / "tests" / "js" / "dom_shim.mjs").as_uri()) + "; install(globalThis);"
+           "Date.now = () => Date.parse('2026-12-24T12:00:00Z');"
+           "const S = await import(" + json.dumps((on_sale_copy / "settings.js").as_uri()) + ");"
+           "const el = (tag, attrs = {}, kids = []) => { const n = document.createElement(tag);"
+           " for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, String(v));"
+           " for (const c of [].concat(kids)) if (c != null) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); return n; };"
+           "const sent = []; const send = (e) => sent.push(e);"
+           "S.specialtyPart(el, { tier: 'free', pro_has_key: false });"
+           "const p = S.specialtyPart(el, { tier: 'free', pro_has_key: false }, Date.now(), send);"
+           "S.specialtyPart(el, { tier: 'free', pro_has_key: false }, Date.now(), send);"
+           "const a = p._all().find(n => n.localName === 'a'); a.dispatchEvent(new Event('click')); a.dispatchEvent(new Event('click'));"
+           "console.log(JSON.stringify(sent));")
+    r = subprocess.run([node, "--input-type=module", "-e", run], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert json.loads(r.stdout.strip().splitlines()[-1]) == ["addon_offer:licence_card:c4local", "addon_buy:licence_card:c4local",
+                                                              "addon_buy:licence_card:c4local"]
+
+
+def test_the_report_counts_it_like_the_other_add_ons() -> None:
+    """The usage report and the dashboards (the owner, 2026-11-25): c4local is held, gained, offered and used like the
+    add-ons, and is not sold until it is on sale (never everyone's meanwhile: Pro includes it)."""
+    from custom_components.padspan_ha import addon_report as A
+    from custom_components.padspan_ha import telemetry as T
+    assert "c4local" in licence.ADDONS and "c4local" in licence.NOT_ON_SALE and not licence.addon_on_sale("c4local")
+    assert T.ADDON_OFFER_PLACES["c4local_card"] == ("c4local",) and "c4local_card" in T.ADDON_BUY_PLACES
+    for e in ("addon_offer:c4local_card:c4local", "addon_buy:c4local_card:c4local", "addon_offer:licence_card:c4local",
+              "addon_buy:licence_card:c4local", "addon_gained:c4local", "addon_used:c4local"):
+        assert e in T.ADDON_EVENTS and T.event_allowed(e), e
+    # Its own card counts the offer and the link (views/c4local.js), as the licence card's Specialty part does.
+    src = (_WWW / "views" / "c4local.js").read_text(encoding="utf-8")
+    assert 'ED.addonOfferSeen(send, "c4local_card", "c4local");' in src and 'send("addon_buy:c4local_card:" + NAME)' in src
+    assert src.count("_offer(el, st, now, ctx);") == 2
+    # Used: its local override running here, counted only where it may be used (Pro, or a key carrying it).
+    key = "PSPAN-AAAA-BBBB-CCCC-DDDD"
+    pro = {"forensics_license_key": key, "license_tier": "pro"}
+    assert A.used_words(pro, {}, True, c4_local=True) == ["c4local"] and A.used_words(pro, {}, True) == []
+    assert A.used_words({}, {}, False, c4_local=True) == [], "not on sale is not everyone's"
+    held = {"forensics_license_key": key, "license_tier": "free", "license_addons": ["c4local"], "license_addons_until": {}}
+    assert A.used_words(held, {}, True, c4_local=True) == ["c4local"]
+    A.check({"licence": "pro_life", "used": ["c4local"], "held": {"c4local": "gt365"}, "market": {}})
+    # Never on the sale card, never half off (views/editions.js).
+    ed = (_WWW / "views" / "editions.js").read_text(encoding="utf-8")
+    picks = re.search(r"const SALE_CARD_PICKS = \[(.*?)\];", ed).group(1)
+    assert "c4local" not in picks

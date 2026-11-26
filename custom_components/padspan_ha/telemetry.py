@@ -710,8 +710,11 @@ ADDON_OFFER_PLACES: dict[str, tuple[str, ...]] = {
     # Robot vacuum: importing the robot's map (Mapping → Layout, and the robot's way to a plan), and its Settings →
     # Features row.
     "vacuum_import": ("vacuum",), "features": ("vacuum",),
+    # OS 2 Local for Control4, the specialty: its own card (Settings, and the Overview's when Control4 fails or runs
+    # OS 2) offers it where it can't be installed, only while it is on sale; its link goes to the site.
+    "c4local_card": ("c4local",),
 }
-ADDON_BUY_PLACES: tuple[str, ...] = ("licence_card", "power_teams", "team_card")
+ADDON_BUY_PLACES: tuple[str, ...] = ("licence_card", "power_teams", "team_card", "c4local_card")
 ADDON_KEY_WORDS: tuple[str, ...] = ("entered", "addon", "pro", "pro_from_addon", "needs_update", "invalid", "refused")
 ADDON_SALE_CARD_WORDS: tuple[str, ...] = ("shown", "clicked", "dismissed")
 ADDON_EVENTS: frozenset[str] = frozenset(

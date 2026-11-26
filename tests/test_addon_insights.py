@@ -489,7 +489,7 @@ def test_advanced_smart_lighting_and_robot_vacuum_are_offered_and_counted_where_
     assert T.ADDON_OFFER_PLACES["power_teams"] == T.ADDON_OFFER_PLACES["team_card"] == ("lighting",)
     assert T.ADDON_OFFER_PLACES["light_design"] == ("lighting",)
     assert T.ADDON_OFFER_PLACES["vacuum_import"] == T.ADDON_OFFER_PLACES["features"] == ("vacuum",)
-    assert T.ADDON_BUY_PLACES == ("licence_card", "power_teams", "team_card")
+    assert T.ADDON_BUY_PLACES == ("licence_card", "power_teams", "team_card", "c4local_card")
     for e in ("addon_offer:power_teams:lighting", "addon_buy:power_teams:lighting", "addon_offer:team_card:lighting",
               "addon_buy:team_card:lighting", "addon_offer:light_design:lighting", "addon_offer:vacuum_import:vacuum",
               "addon_offer:features:vacuum"):

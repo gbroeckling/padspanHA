@@ -148,7 +148,9 @@ def test_the_summary_adds_up_the_addons_section():
     assert "vacuum: robot vacuums 1 (1), Valetudo 1; any of them 1 installs, 1 already on it" in text
     assert "audio: control4 1 (22 players); any of them 1 installs, 1 already on it" in text
     assert "Control4: 2 installs" in text and "the local token override on 1" in text
-    assert "the OS 2 Local for Control4 market (OS 2, its entry not loaded or the local override on): 1" in text
+    assert "the OS 2 Local for Control4 market (OS 2, its entry not loaded or the local override on): 1, not sold yet" in text
+    # OS 2 Local for Control4 has no moment yet: not sold, and never everyone's: on it is Pro (B) or a key carrying it.
+    assert re.search(r"\n    c4local +1 +0  0%  not sold yet: Pro includes it\n", text), text
     assert "wifi: UniFi Utopia 1, UniFi Network 1; 1 already on it" in text
     assert "(days of history the recorder keeps): 14_30d 1, gt30d 1" in text
     # Before December 1 Advanced map creation and Robot vacuum are not sold: everyone's, so every install is on them.
