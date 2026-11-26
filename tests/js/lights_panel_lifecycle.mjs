@@ -799,7 +799,7 @@ const roomCtl = {};
 if (Cls) {
   const LMOD = await import(pathToFileURL(join(WWW, "views", "lights_map.js")).href);
   const tree = (n) => (n ? { tag: n.localName, style: n.style ? n.style.cssText : "", text: n._text || "", a: n.attributes, kids: (n.children || []).map(tree) } : null);
-  const C4 = { "media_player.c4_kitchen": ST("media_player.c4_kitchen", "on", { friendly_name: "Kitchen", volume_level: 0.4, is_volume_muted: false, supported_features: 4 | 8 | 256 | 1024 }) };
+  const C4 = { "media_player.c4_kitchen": ST("media_player.c4_kitchen", "on", { friendly_name: "Kitchen", volume_level: 0.4, is_volume_muted: false, supported_features: 8 | 256 | 1024 }) };   // a Control4 room as HA has it (1288): − and +, no slider
   const settings = { ...BASE, atlas_layout_v2: true, telemetry_enabled: true, pro_has_key: true, room_audio_matches: { kitchen: ["media_player.c4_kitchen"] }, room_audio_ha_speakers: false };
   const open = async ({ admin = true, ticked = false, without = false, tier = "pro", addons = null, more = {}, wall = false } = {}) => {
     if (ticked) localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ room_controls: true })); else localStorage.removeItem("padspan_la3d_show_atlas");

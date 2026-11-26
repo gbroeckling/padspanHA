@@ -64,6 +64,50 @@ def clean_room_audio_matches(raw: Any) -> dict[str, list[str]]:
             out[aid] = keep
     return out
 
+
+def _source_names(raw: Any) -> list[str]:
+    """A list of source names as kept: strings, each once, at most 100 of them, none longer than 100."""
+    out: list[str] = []
+    for s in raw[:100] if isinstance(raw, list) else []:
+        if isinstance(s, str) and s and len(s) <= 100 and s not in out:
+            out.append(s)
+    return out
+
+
+def clean_room_audio_sources(raw: Any) -> dict[str, dict[str, Any]]:
+    """The owner's tidy-up of each player's sources (views/room_controls.js cleanSources): {media_player entity id:
+    {names: {source: label}, hidden: [source], order: [source]}}; a label is trimmed and at most 60 long, one equal to
+    its source is dropped; a player with nothing left is left out. Anything else is dropped."""
+    out: dict[str, dict[str, Any]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for eid, conf in list(raw.items())[:200]:
+        if not isinstance(eid, str) or not _MEDIA_PLAYER_RE.match(eid) or not isinstance(conf, dict):
+            continue
+        names: dict[str, str] = {}
+        if isinstance(conf.get("names"), dict):
+            for src, label in list(conf["names"].items())[:100]:
+                if isinstance(src, str) and src and len(src) <= 100 and isinstance(label, str) and label.strip() \
+                        and label.strip() != src:
+                    names[src] = label.strip()[:60]
+        hidden, order = _source_names(conf.get("hidden")), _source_names(conf.get("order"))
+        if names or hidden or order:
+            out[eid] = {"names": names, "hidden": hidden, "order": order}
+    return out
+
+
+def clean_room_audio_limits(raw: Any) -> dict[str, float]:
+    """Each player's volume limit (views/room_controls.js cleanLimits): {media_player entity id: 0.1..1}, to two
+    places. Anything else is dropped (no limit)."""
+    out: dict[str, float] = {}
+    if not isinstance(raw, dict):
+        return out
+    for eid, v in list(raw.items())[:200]:
+        if isinstance(eid, str) and _MEDIA_PLAYER_RE.match(eid) and isinstance(v, (int, float)) \
+                and not isinstance(v, bool) and 0.1 <= v <= 1:
+            out[eid] = round(float(v), 2)
+    return out
+
 # Shared whitelists — referenced both by the individual lights_automorph_style
 # / lights_showcase_theme setters below AND by the Showcase preset sanitizer
 # (a preset's saved "values" blob must never let a removed/renamed style or
@@ -845,6 +889,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("room_audio_matches"): _MAP,             # admin only; cleaned by clean_room_audio_matches
         vol.Optional("room_audio_ha_speakers"): bool,         # admin only
         vol.Optional("room_audio_matched"): bool,             # admin only; the matching card kept its picks once
+        vol.Optional("room_audio_sources"): _MAP,             # admin only; cleaned by clean_room_audio_sources
+        vol.Optional("room_audio_limits"): _MAP,              # admin only; cleaned by clean_room_audio_limits
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1430,11 +1476,17 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if "lights_follow_people" in msg:
                 payload["lights_follow_people"] = _lf_people(msg["lights_follow_people"])
         # Room controls' matches (views/room_controls.js): an administrator's, as the frontend's Save is.
-        if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg or "room_audio_matched" in msg:
+        if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg or "room_audio_matched" in msg \
+                or "room_audio_sources" in msg or "room_audio_limits" in msg:
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
                 connection.send_error(msg["id"], "unauthorized", "Only an administrator can match players to rooms")
                 return
+            # The owner's tidy-up in the same card: each player's sources and its volume limit.
+            if "room_audio_sources" in msg:
+                payload["room_audio_sources"] = clean_room_audio_sources(msg["room_audio_sources"])
+            if "room_audio_limits" in msg:
+                payload["room_audio_limits"] = clean_room_audio_limits(msg["room_audio_limits"])
             if "room_audio_matches" in msg:
                 payload["room_audio_matches"] = clean_room_audio_matches(msg["room_audio_matches"])
             if "room_audio_ha_speakers" in msg:

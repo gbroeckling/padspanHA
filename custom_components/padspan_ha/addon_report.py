@@ -152,6 +152,12 @@ def held(settings: dict[str, Any], now: float) -> dict[str, str]:
     return {a: days_word(_days_left(until.get(a) or key_end, now)) for a in ADDONS if a in names}
 
 
+# The room card's presses that are the Audio add-on's (telemetry.ROOM_CONTROLS_WORDS): the volume, mute and off, the
+# matching card's save, and the full card's (2026-11-26).
+AUDIO_USED = ("up", "down", "mute", "off", "match_saved", "source", "sound_mode", "play", "pause", "next", "previous",
+              "scan", "slider", "sound", "share", "unshare", "all_off", "sources_saved", "limit_saved")
+
+
 def _count(usage: dict[str, Any], *names: str) -> bool:
     return any(isinstance(usage.get(n), int) and usage.get(n) > 0 for n in names)
 
@@ -161,7 +167,7 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
     add-on key: its own; Bright: what it keeps, BRIGHT_KEEPS; a feature that is still everyone's: anyone).
     `c4_local`: OS 2 Local for Control4's override runs here (market's c4.local)."""
     got = {w for w in USED_WORDS if _count(usage, f"addon_used:{w}")}
-    if _count(usage, *(f"room_controls:{w}" for w in ("up", "down", "mute", "off", "match_saved"))):
+    if _count(usage, *(f"room_controls:{w}" for w in AUDIO_USED)):
         got.add("audio")
     if _count(usage, "alarm_button:arm", "alarm_button:disarm", "emergency_test_on", "emergency_force_off"):
         got.add("alarm")

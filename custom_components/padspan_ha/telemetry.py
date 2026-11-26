@@ -1447,9 +1447,13 @@ ALARM_BUTTON_WORDS: tuple[str, ...] = ("shown", "arm", "disarm", "refused")
 ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALARM_BUTTON_WORDS)
 # Room controls on the flat Atlas (views/room_controls.js, 2026-11-25, off unless a screen ticks it): on once per page
 # load while a screen has them on; the matching card opened and saved; a player's volume up or down, mute and off; a
-# thermostat's setpoint; the shades; a room's Room off. Counts only, never a room, a player, a system or a level.
+# thermostat's setpoint; the shades; a room's Room off. The full card (2026-11-26): a source or a sound mode picked,
+# play, pause (or stop), next, previous, a Control4 room's scan, a slider let go of, a Sound control, a room shared
+# or unshared, All audio off, and the owner's sources and limit saved (once per card). Counts only, never a room, a
+# player, a system, a source or a level.
 ROOM_CONTROLS_WORDS: tuple[str, ...] = ("on", "match_open", "match_saved", "up", "down", "mute", "off", "climate", "cover",
-                                        "room_off")
+                                        "room_off", "source", "sound_mode", "play", "pause", "next", "previous", "scan",
+                                        "slider", "sound", "share", "unshare", "all_off", "sources_saved", "limit_saved")
 ROOM_CONTROLS_EVENTS: frozenset[str] = frozenset(f"room_controls:{w}" for w in ROOM_CONTROLS_WORDS)
 # Lights follow people (lights_follow.py, 2026-11-24, off by default): on_today once a day while it is on with a
 # room set; lit a room's lights turned on as someone came in, sensor_entry when a room's own motion or occupancy

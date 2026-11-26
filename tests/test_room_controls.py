@@ -40,7 +40,10 @@ def run():
 
 
 @pytest.mark.parametrize("case", ["systems", "prefill", "looks", "icon", "icon-clear", "off", "parts", "sheet", "audio", "features", "quick", "climate", "covers",
-                                  "match", "first-time", "cleared", "kept", "non-admin", "german"])
+                                  "match", "first-time", "cleared", "kept", "non-admin",
+                                  # the full card (the owner, 2026-11-26): each part only where the player supports it
+                                  "transport", "scan", "slider", "limit", "onoff", "sources", "modes", "sound", "share", "all-off", "tidy",
+                                  "german"])
 def test_room_controls(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -50,30 +53,47 @@ def _src(rel: str) -> str:
 
 
 def test_the_counts_are_a_closed_list_and_carry_no_name():
-    want = {f"room_controls:{w}" for w in ("on", "match_open", "match_saved", "up", "down", "mute", "off", "climate", "cover", "room_off")}
+    want = {f"room_controls:{w}" for w in ("on", "match_open", "match_saved", "up", "down", "mute", "off", "climate", "cover", "room_off",
+                                          "source", "sound_mode", "play", "pause", "next", "previous", "scan", "slider", "sound",
+                                          "share", "unshare", "all_off", "sources_saved", "limit_saved")}
     assert want == T.ROOM_CONTROLS_EVENTS and all(T.event_allowed(e) for e in want)
     for bad in ("room_controls:media_player.c4_kitchen", "room_controls:Kitchen", "room_controls:control4", "room_controls:35"):
         assert not T.event_allowed(bad), bad
     assert "room_controls" in T.HOUSE3D_SHOW_ITEMS and "room_controls" in T.UI_ERROR_HELPERS
     panel = _src("lights_panel.js")
     assert 'event:"room_controls:" + word' in panel
-    used = set(re.findall(r'(?:count|call\([^)]*?)\("([a-z_]+)"\)', _src("views/room_controls.js")))
-    used |= set(re.findall(r'"(up|down|mute|off|climate|cover)", ', _src("views/room_controls.js")))
-    assert {w.split(":")[1] for w in want} <= used | {"up", "down"}, used
+    rc = _src("views/room_controls.js")
+    # Each word is counted by the module: count("w"), or the word a call or a save carries (an argument "w").
+    used = set(re.findall(r'count\("([a-z_]+)"\)', rc)) | set(re.findall(r'"([a-z_]+)"\s*[,)]', rc))
+    assert {w.split(":")[1] for w in want} <= used | {"up", "down"}, {w.split(":")[1] for w in want} - used
+    # The Audio add-on's own use in the report (addon_report.used_words) counts every one of the card's presses.
+    from custom_components.padspan_ha import addon_report as A
+    assert set(A.AUDIO_USED) == {w.split(":")[1] for w in want} - {"on", "match_open", "climate", "cover", "room_off"}
 
 
 def test_the_settings_are_an_administrators_and_kept_clean():
     """Both the command's schema and its handler know the two keys; the matches keep players only, each in one room."""
     keys = {str(getattr(k, "schema", k)) for k in WS.ws_settings_set.ws_schema}
-    assert {"room_audio_matches", "room_audio_ha_speakers", "room_audio_matched"} <= keys
+    assert {"room_audio_matches", "room_audio_ha_speakers", "room_audio_matched", "room_audio_sources", "room_audio_limits"} <= keys
     assert DEFAULT_SETTINGS["room_audio_matches"] == {} and DEFAULT_SETTINGS["room_audio_ha_speakers"] is False
     assert DEFAULT_SETTINGS["room_audio_matched"] is False
+    assert DEFAULT_SETTINGS["room_audio_sources"] == {} and DEFAULT_SETTINGS["room_audio_limits"] == {}
+    # The owner's tidy-up, cleaned as the card cleans it (room_controls.js cleanSources / cleanLimits).
+    got_s = WS.clean_room_audio_sources({"media_player.denon": {"names": {"TV": " Television ", "CD": "CD", "x": 3}, "hidden": ["Phono", "Phono", 1],
+                                                                "order": ["TV", "Bluetooth"]},
+                                         "media_player.empty": {"names": {}, "hidden": []}, "light.x": {"hidden": ["TV"]}, "media_player.y": "junk"})
+    assert got_s == {"media_player.denon": {"names": {"TV": "Television"}, "hidden": ["Phono"], "order": ["TV", "Bluetooth"]}}
+    got_l = WS.clean_room_audio_limits({"media_player.a": 0.456, "media_player.b": 1, "media_player.c": 0.05, "media_player.d": True,
+                                        "media_player.e": "0.5", "light.f": 0.5})
+    assert got_l == {"media_player.a": 0.46, "media_player.b": 1.0}
     got = WS.clean_room_audio_matches({"great_room": ["media_player.c4", "light.x", "media_player.denon_zone_2", "media_player.c4"],
                                        "den": ["media_player.c4", "media_player.den"], "": ["media_player.z"], "hall": "junk", "x": [1]})
     assert got == {"great_room": ["media_player.c4", "media_player.denon_zone_2"], "den": ["media_player.den"]}
     src = (_ROOT / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
-    block = src[src.index('if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg or "room_audio_matched" in msg:'):][:800]
+    block = src[src.index('if "room_audio_matches" in msg or "room_audio_ha_speakers" in msg or "room_audio_matched" in msg'):][:1200]
+    assert 'or "room_audio_sources" in msg or "room_audio_limits" in msg:' in block
     assert '"Only an administrator can match players to rooms"' in block
+    assert block.index('"Only an administrator') < block.index("clean_room_audio_sources(") < block.index("clean_room_audio_limits(")
 
 
 def test_the_systems_are_one_list_in_one_module():

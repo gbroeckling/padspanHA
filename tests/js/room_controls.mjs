@@ -44,11 +44,13 @@ const tick = () => new Promise(r => (globalThis._realSetTimeout || setTimeout)(r
 const ST = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes: { friendly_name: entity_id.split(".")[1].replace(/_/g, " "), ...attributes } });
 const F = { SET: 4, MUTE: 8, OFF: 256, STEP: 1024 };
 const FULL = F.SET | F.MUTE | F.OFF | F.STEP;
+// A Control4 room as Home Assistant has it (1288): it steps itself, mutes and turns off; it never sets a level.
+const C4 = F.MUTE | F.OFF | F.STEP;
 function house(over = {}) {
   const states = {
-    "media_player.c4_great_room": ST("media_player.c4_great_room", "on", { friendly_name: "Great Room", volume_level: 0.35, is_volume_muted: false, supported_features: FULL }),
+    "media_player.c4_great_room": ST("media_player.c4_great_room", "on", { friendly_name: "Great Room", volume_level: 0.35, is_volume_muted: false, supported_features: C4 }),
     "media_player.denon_zone_2": ST("media_player.denon_zone_2", "on", { friendly_name: "Zone 2", volume_level: 0.5, is_volume_muted: false, supported_features: FULL }),
-    "media_player.c4_office": ST("media_player.c4_office", "off", { friendly_name: "Alex’s office", supported_features: FULL }),
+    "media_player.c4_office": ST("media_player.c4_office", "off", { friendly_name: "Alex’s office", supported_features: C4 }),
     "media_player.kitchen_speaker": ST("media_player.kitchen_speaker", "playing", { friendly_name: "Kitchen speaker", volume_level: 0.2, supported_features: F.SET | F.MUTE }),
     "media_player.kitchen_tv": ST("media_player.kitchen_tv", "off", { friendly_name: "Kitchen TV", supported_features: 0 }),
     "light.great_room_pots": ST("light.great_room_pots", "on", { supported_color_modes: ["brightness"], brightness: 200 }),
@@ -95,12 +97,14 @@ const MODEL = {
 };
 
 // The room controls as lights_panel.js makes them.
-function controls(h, { matches = {}, ha = false, admin = true, openers = null } = {}) {
-  const rec = { counts: [], toasts: [], saved: [], redraws: 0, settings: { room_audio_matches: matches, room_audio_ha_speakers: ha } };
+function controls(h, { matches = {}, ha = false, admin = true, openers = null, sources = undefined, limits = undefined } = {}) {
+  const rec = { counts: [], toasts: [], saved: [], redraws: 0, settings: { room_audio_matches: matches, room_audio_ha_speakers: ha,
+    ...(sources ? { room_audio_sources: sources } : {}), ...(limits ? { room_audio_limits: limits } : {}) } };
   h.hass.user.is_admin = admin;
   rec.rc = RC.createRoomControls({
     hass: () => h.hass, model: () => MODEL, settings: () => rec.settings, admin: () => h.hass.user.is_admin,
-    save: async (patch) => { rec.saved.push(patch); rec.settings = { ...patch }; return true; },
+    // As lights_panel.js keeps them: a key the save did not carry keeps what it was.
+    save: async (patch) => { rec.saved.push(patch); rec.settings = { ...rec.settings, ...patch }; return true; },
     toast: (m, e) => rec.toasts.push([m, !!e]), errorText: (e) => e.message, count: (w) => rec.counts.push(w), redraw: () => { rec.redraws++; },
     ...(openers ? { openers: () => new Set(openers) } : {}),
   });
@@ -343,7 +347,7 @@ await tryCase("audio", async () => {
 // ── features: −/+ greyed with no way to step; no Mute or ⏻ the player can't do; an off player's level is — ──
 await tryCase("features", async () => {
   const h = house({
-    "media_player.c4_great_room": ST("media_player.c4_great_room", "off", { friendly_name: "Great Room", supported_features: F.SET }),
+    "media_player.c4_great_room": ST("media_player.c4_great_room", "off", { friendly_name: "Great Room", supported_features: 0 }),
     "media_player.denon_zone_2": ST("media_player.denon_zone_2", "on", { friendly_name: "Zone 2", supported_features: F.STEP }),
   });
   const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"] } });
@@ -410,10 +414,9 @@ await tryCase("quick", async () => {
     s.update(apiOf(h, r.rc), lights);
     await press(byAria(c4(), "Great Room volume up"));
     check("quick", num(c4()).textContent === "22", num(c4()).textContent);
-    // A VOLUME_SET player Home Assistant steps by 0.1: one press, 10 more.
+    // A VOLUME_SET player has no − or +: its slider (the "slider" case), its number in the row.
     const ks = rowOf(section(sheetNow(), "audio"), "media_player.kitchen_speaker");
-    await press(byAria(ks, "Kitchen speaker volume up"));
-    check("quick", num(ks).textContent === "30", num(ks).textContent);
+    check("quick", !byAria(ks, "Kitchen speaker volume up") && num(ks).textContent === "20", words(ks));
     // Refused: the number goes back to Home Assistant's.
     clk += 3500;
     h.hass.refuse = "Control4 controller did not answer";
@@ -609,6 +612,467 @@ await tryCase("non-admin", async () => {
   await press(byAria(rowOf(a, "media_player.c4_great_room"), "Great Room volume up"));
   check("non-admin", h.calls.length === 1, h.calls);
   s.close(); reset();
+});
+
+// ── the full card (the owner, 2026-11-26: "full audio control in a room ... source and audio mode control, and surround
+// and eq options"): each part only where the player supports it ──
+Object.assign(F, { PAUSE: 1, PREV: 16, NEXT: 32, ON: 128, SRC: 2048, STOP: 4096, PLAY: 16384, MODE: 65536, GROUP: 524288 });
+function addPlayer(h, eid, platform, state, attributes, device_id = null) {
+  h.hass.states[eid] = ST(eid, state, attributes);
+  h.hass.entities[eid] = { entity_id: eid, platform, area_id: null, device_id };
+}
+function addEntity(h, eid, platform, device_id, state, attributes = {}, reg = {}) {
+  h.hass.states[eid] = ST(eid, state, attributes);
+  h.hass.entities[eid] = { entity_id: eid, platform, area_id: null, device_id, ...reg };
+}
+const AUDIO_ONLY = { audio: true, shades: false, climate: false };
+const drawAudio = (r, room = "Great Room") => r.rc.sheet(room, { parts: AUDIO_ONLY }).before.draw();
+const q = (root, attr, val) => all(root).find(n => n.attributes && n.attributes[attr] !== undefined && (val === undefined || n.attributes[attr] === val));
+const dlg = (attr) => document.body.children.find(n => all(n).some(x => x.attributes && x.attributes[attr] !== undefined));
+const texts = (n) => all(n).map(x => x._text).filter(Boolean);
+const sent = (h, from) => h.calls.slice(from).map(c => `${c.domain}.${c.service}`).join();
+const fire = async (n, type) => { n.dispatchEvent({ type, stopPropagation() {}, preventDefault() {} }); await tick(); await tick(); };
+
+await tryCase("transport", async () => {
+  const h = house();
+  const T = F.PLAY | F.PAUSE | F.PREV | F.NEXT | F.SET | F.MUTE | F.OFF;
+  addPlayer(h, "media_player.sonos_great", "sonos", "playing", { friendly_name: "Sonos", volume_level: 0.3, supported_features: T,
+    media_title: "So What", media_artist: "Miles Davis", entity_picture: "/api/media_player_proxy/media_player.sonos_great?token=abc" });
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.sonos_great"] }, ha: true });
+  const son = h.hass.states["media_player.sonos_great"];
+  const now = () => q(drawAudio(r), "data-audio-now", "media_player.sonos_great");
+  const tr = () => q(drawAudio(r), "data-audio-transport", "media_player.sonos_great");
+  // What is playing: the picture as it is (same-origin, relative), the title, the artist.
+  const n0 = now(), img = all(n0).find(n => n.localName === "img");
+  check("transport", img && img.src === "/api/media_player_proxy/media_player.sonos_great?token=abc", img && img.src);
+  check("transport", texts(n0).slice(0, 2).join("|") === "So What|Miles Davis", texts(n0));
+  await fire(img, "error");
+  check("transport", img.style.display === "none", "a picture that fails stays");
+  // Playing with play and pause: one toggle.
+  check("transport", words(tr()).join() === "⏮,⏸,⏭", words(tr()));
+  let n = h.calls.length; await press(byText(tr(), "⏸"));
+  check("transport", sent(h, n) === "media_player.media_play_pause" && h.calls[n].entity_id === "media_player.sonos_great", h.calls.slice(n));
+  n = h.calls.length; await press(byText(tr(), "⏭")); await press(byText(tr(), "⏮"));
+  check("transport", sent(h, n) === "media_player.media_next_track,media_player.media_previous_track", sent(h, n));
+  son.state = "paused";
+  check("transport", words(tr()).join() === "⏮,▶,⏭", words(tr()));
+  n = h.calls.length; await press(byText(tr(), "▶"));
+  check("transport", sent(h, n) === "media_player.media_play_pause", sent(h, n));
+  // Only "on" (or idle) with both: ▶ and ⏸ apart, as a toggle would always send play.
+  son.state = "on";
+  check("transport", words(tr()).join() === "⏮,▶,⏸,⏭", words(tr()));
+  n = h.calls.length; await press(byText(tr(), "▶")); await press(byText(tr(), "⏸"));
+  check("transport", sent(h, n) === "media_player.media_play,media_player.media_pause", sent(h, n));
+  check("transport", !q(now(), "src") && !all(now()).some(x => x.localName === "img"), "a picture while not playing");
+  // Play alone, and stop where there is no pause.
+  son.attributes.supported_features = F.PLAY | F.STOP | F.SET; son.state = "idle";
+  check("transport", words(tr()).join() === "▶,⏹", words(tr()));
+  n = h.calls.length; await press(byText(tr(), "⏹"));
+  check("transport", sent(h, n) === "media_player.media_stop", sent(h, n));
+  son.state = "playing";
+  check("transport", words(tr()).join() === "⏹", words(tr()));
+  // No artist: the app's name under the title.
+  son.attributes.supported_features = T; delete son.attributes.media_artist; delete son.attributes.entity_picture; son.attributes.app_name = "Spotify";
+  check("transport", texts(now()).slice(0, 2).join("|") === "So What|Spotify", texts(now()));
+  // Off: neither (its attributes are gone too).
+  son.state = "off";
+  check("transport", !now() && !tr(), "an off player kept its now playing");
+  // A Control4 room (only ever on or off) with play, pause and stop: ▶, ⏸ and ⏹ apart.
+  h.hass.states["media_player.c4_great_room"].attributes.supported_features = C4 | F.PLAY | F.PAUSE | F.STOP;
+  const c4 = q(drawAudio(r), "data-audio-transport", "media_player.c4_great_room");
+  check("transport", words(c4).join() === "▶,⏸,⏹", words(c4));
+  check("transport", r.counts.filter(w => ["play", "pause", "next", "previous"].includes(w)).join() === "pause,next,previous,play,play,pause,pause", r.counts);
+});
+
+await tryCase("scan", async () => {
+  const h = house();
+  h.hass.states["media_player.c4_great_room"].attributes.supported_features = C4 | F.PREV | F.NEXT;
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"] } });
+  const tr = (eid) => q(drawAudio(r), "data-audio-transport", eid);
+  // No control4.media_scan in this Home Assistant: no ⏪ or ⏩.
+  check("scan", words(tr("media_player.c4_great_room")).join() === "⏮,⏭", words(tr("media_player.c4_great_room")));
+  h.hass.services = { control4: { media_scan: {} }, media_player: {} };
+  check("scan", words(tr("media_player.c4_great_room")).join() === "⏮,⏪,⏩,⏭", words(tr("media_player.c4_great_room")));
+  const n = h.calls.length;
+  await press(byAria(tr("media_player.c4_great_room"), "Great Room rewind"));
+  await press(byAria(tr("media_player.c4_great_room"), "Great Room fast-forward"));
+  check("scan", JSON.stringify(h.calls.slice(n)) === JSON.stringify([
+    { domain: "control4", service: "media_scan", entity_id: "media_player.c4_great_room", direction: "back" },
+    { domain: "control4", service: "media_scan", entity_id: "media_player.c4_great_room", direction: "forward" }]), h.calls.slice(n));
+  check("scan", r.counts.filter(w => w === "scan").length === 2, r.counts);
+  // Never a player of another integration, and never a room that is off.
+  h.hass.states["media_player.denon_zone_2"].attributes.supported_features = FULL | F.NEXT;
+  check("scan", words(tr("media_player.denon_zone_2")).join() === "⏭", words(tr("media_player.denon_zone_2")));
+  h.hass.states["media_player.c4_great_room"].state = "off";
+  check("scan", !tr("media_player.c4_great_room"), "an off room has ⏪ ⏩");
+});
+
+// ── the slider: a plain range input; at most every 250 ms while dragged, the last value on letting go; never drawn
+// again under the finger; capped by the limit ──
+await tryCase("slider", async () => {
+  const realNow = Date.now;
+  let clk = 0;
+  Date.now = () => realNow() + clk;
+  try {
+    const h = house();
+    const r = controls(h, { matches: { great_room: ["media_player.denon_zone_2"] } });
+    reset();
+    const lights = lightsOf(h);
+    const s = LM.openRoomSheet(apiOf(h, r.rc), lights, "Great Room");
+    const sec0 = section(sheetNow(), "audio"), row = rowOf(sec0, "media_player.denon_zone_2");
+    const sl = q(sec0, "data-slider", "media_player.denon_zone_2"), num = all(row).find(n => n.attributes["data-level"] !== undefined);
+    check("slider", sl && sl.localName === "input" && sl.type === "range" && sl.min === "0" && sl.max === "100" && sl.value === "50", sl && [sl.type, sl.max, sl.value]);
+    check("slider", /touch-action:pan-y/.test(sl.style.cssText) && /min-height:36px|height:36px/.test(sl.style.cssText), sl.style.cssText);
+    // A player that sets its level: no − or +, the number in the row.
+    check("slider", words(row).join() === "Mute,⏻" && num.textContent === "50", words(row));
+    const sets = () => h.calls.filter(c => c.service === "volume_set").map(c => c.volume_level);
+    await fire(sl, "pointerdown");
+    sl.value = "60"; await fire(sl, "input");
+    check("slider", num.textContent === "60" && sets().join() === "0.6", [num.textContent, sets()]);
+    clk += 100; sl.value = "65"; await fire(sl, "input");
+    clk += 50; sl.value = "70"; await fire(sl, "input");
+    check("slider", num.textContent === "70" && sets().join() === "0.6", [num.textContent, sets()]);       // held back
+    // Home Assistant says something new meanwhile (another level, a new source): nothing is drawn again, the number
+    // keeps the dragged level.
+    h.hass.states["media_player.denon_zone_2"].attributes.volume_level = 0.3;
+    h.hass.states["media_player.denon_zone_2"].attributes.source = "TV";
+    s.update(apiOf(h, r.rc), lights);
+    check("slider", section(sheetNow(), "audio") === sec0 && num.textContent === "70" && sl.value === "70", "drawn again under the finger");
+    await flush(4, 300);                                                    // the 250 ms one: the latest level
+    check("slider", sets().join() === "0.6,0.7", sets());
+    clk += 300; sl.value = "72"; await fire(sl, "input");
+    check("slider", sets().join() === "0.6,0.7,0.72", sets());
+    sl.value = "75"; await fire(sl, "change"); await fire(sl, "pointerup");
+    check("slider", sets().join() === "0.6,0.7,0.72,0.75" && r.counts.filter(w => w === "slider").length === 1, [sets(), r.counts]);
+    check("slider", r.counts.filter(w => w !== "on" && w !== "slider").length === 0, r.counts);
+    // Let go, still the let-go level for a while (Home Assistant still says 0.3), and the same sheet.
+    s.update(apiOf(h, r.rc), lights);
+    check("slider", section(sheetNow(), "audio") === sec0 && num.textContent === "75", num.textContent);
+    // After the window: drawn again, Home Assistant's level.
+    clk += 3500;
+    s.update(apiOf(h, r.rc), lights);
+    const sec1 = section(sheetNow(), "audio");
+    check("slider", sec1 !== sec0 && all(rowOf(sec1, "media_player.denon_zone_2")).find(n => n.attributes["data-level"] !== undefined).textContent === "30"
+      && q(sec1, "data-slider").value === "30", "not drawn again after the window");
+    s.close(); reset();
+    // A press that changes nothing sends nothing.
+    const n = h.calls.length;
+    const sl2 = q(drawAudio(r), "data-slider");
+    await fire(sl2, "pointerdown"); await fire(sl2, "pointerup");
+    check("slider", h.calls.length === n, h.calls.slice(n));
+    // Off (no level): no slider.
+    h.hass.states["media_player.denon_zone_2"].state = "off"; delete h.hass.states["media_player.denon_zone_2"].attributes.volume_level;
+    check("slider", !q(drawAudio(r), "data-slider"), "an off player has a slider");
+  } finally { Date.now = realNow; }
+});
+
+// ── the limit: the slider stops at it, + is greyed at it, a level set is capped ──
+await tryCase("limit", async () => {
+  const realNow = Date.now;
+  let clk = 0;
+  Date.now = () => realNow() + clk;
+  try {
+    const h = house();
+    h.hass.states["media_player.c4_great_room"].attributes.volume_level = 0.49;
+    const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"] },
+      limits: { "media_player.c4_great_room": 0.5, "media_player.denon_zone_2": 0.4 } });
+    const sec = drawAudio(r);
+    const sl = q(sec, "data-slider", "media_player.denon_zone_2");
+    check("limit", sl.max === "40" && sl.value === "40", [sl.max, sl.value]);                  // 0.5 now: shown at the top
+    sl.value = "90"; await fire(sl, "input"); await fire(sl, "change");                       // a browser stops at max; this one says 90
+    check("limit", h.calls.filter(c => c.service === "volume_set").every(c => c.volume_level <= 0.4) && h.calls.some(c => c.volume_level === 0.4), h.calls);
+    // − and + (Control4): one press to the limit, then + is greyed and asks nothing.
+    const c4 = rowOf(sec, "media_player.c4_great_room"), plus = byAria(c4, "Great Room volume up");
+    const lvl = all(c4).find(n => n.attributes["data-level"] !== undefined);
+    check("limit", !plus.disabled, "greyed below the limit");
+    await press(plus);
+    check("limit", lvl.textContent === "50" && plus.disabled === true, [lvl.textContent, plus.disabled]);
+    const n = h.calls.length;
+    await press(plus);
+    check("limit", h.calls.length === n && lvl.textContent === "50", h.calls.slice(n));
+    // Drawn at the limit: greyed from the start; − still steps.
+    clk += 3500;
+    h.hass.states["media_player.c4_great_room"].attributes.volume_level = 0.5;
+    const c4b = rowOf(drawAudio(r), "media_player.c4_great_room");
+    check("limit", byAria(c4b, "Great Room volume up").disabled === true && byAria(c4b, "Great Room volume down").disabled === false, "not greyed at the limit");
+    check("limit", JSON.stringify(RC.cleanLimits({ "media_player.a": 0.456, "media_player.b": 0.05, "media_player.c": "0.5", "light.d": 0.5, "media_player.e": 1 }))
+      === JSON.stringify({ "media_player.a": 0.46, "media_player.e": 1 }), RC.cleanLimits({ "media_player.a": 0.456 }));
+  } finally { Date.now = realNow; }
+});
+
+await tryCase("onoff", async () => {
+  const h = house();
+  addPlayer(h, "media_player.cast_great", "cast", "off", { friendly_name: "Nest", supported_features: F.SET | F.ON | F.OFF });
+  h.hass.states["media_player.c4_great_room"].state = "off";
+  h.hass.states["media_player.c4_great_room"].attributes.supported_features = C4 | F.ON;
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.cast_great"] }, ha: true });
+  let cast = rowOf(drawAudio(r), "media_player.cast_great");
+  check("onoff", words(cast).join() === "On", words(cast));
+  const n = h.calls.length;
+  await press(byAria(cast, "Turn Nest on"));
+  check("onoff", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "turn_on", entity_id: "media_player.cast_great" }]), h.calls.slice(n));
+  // On: ⏻, no On.
+  h.hass.states["media_player.cast_great"].state = "idle";
+  cast = rowOf(drawAudio(r), "media_player.cast_great");
+  check("onoff", words(cast).join() === "⏻", words(cast));
+  // A Control4 room never offers On (its turn_on can start a TV): its ⏻ greyed while off, as before.
+  const c4 = rowOf(drawAudio(r), "media_player.c4_great_room");
+  check("onoff", !byText(c4, "On") && byText(c4, "⏻").disabled === true, words(c4));
+});
+
+await tryCase("sources", async () => {
+  const h = house();
+  const den = h.hass.states["media_player.denon_zone_2"];
+  den.attributes.supported_features = FULL | F.SRC; den.attributes.source_list = ["TV", "Bluray", "Phono"]; den.attributes.source = "TV";
+  let r = controls(h, { matches: { great_room: ["media_player.denon_zone_2"] } });
+  const line = () => q(drawAudio(r), "data-audio-source", "media_player.denon_zone_2");
+  // Up to four: chips, the current one marked.
+  check("sources", words(line()).join() === "TV,Bluray,Phono" && byText(line(), "TV").attributes["aria-pressed"] === "true"
+    && byText(line(), "Bluray").attributes["aria-pressed"] === "false", words(line()));
+  let n = h.calls.length;
+  await press(byText(line(), "TV"));                                          // the current one: nothing
+  await press(byText(line(), "Bluray"));
+  check("sources", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "select_source", entity_id: "media_player.denon_zone_2", source: "Bluray" }]), h.calls.slice(n));
+  check("sources", byText(line(), "Bluray").attributes["aria-pressed"] === "true", "the pick is not shown at once");
+  check("sources", r.counts.filter(w => w === "source").length === 1, r.counts);
+  // The owner's names, hidden ones and order.
+  r = controls(h, { matches: { great_room: ["media_player.denon_zone_2"] }, sources: { "media_player.denon_zone_2": { names: { TV: "Television" }, hidden: ["Phono"], order: ["Bluray"] } } });
+  check("sources", words(line()).join() === "Bluray,Television" && byText(line(), "Television").attributes["aria-pressed"] === "true", words(line()));
+  // More than four: one button with the current one's name, opening the list; a filter box past eight.
+  den.attributes.source_list = ["TV", "Bluray", "Phono", "CD", "Tuner", "AUX"];
+  reset();
+  const b = btn(line(), x => x.attributes["data-audio-list"] === "source");
+  check("sources", b && b.textContent === "Television ›", b && b.textContent);
+  await press(b);
+  let card = dlg("data-audio-picker");
+  check("sources", card && !q(card, "data-audio-filter") && all(card).filter(x => x.attributes && x.attributes["data-value"]).map(x => x.attributes["data-value"]).join() === "Bluray,TV,CD,Tuner,AUX", card && words(card));
+  n = h.calls.length;
+  await press(btn(card, x => x.attributes["data-value"] === "CD"));
+  check("sources", !dlg("data-audio-picker") && h.calls.slice(n).map(c => c.source).join() === "CD", h.calls.slice(n));
+  den.attributes.source_list = ["TV", "Bluray", "Phono", "CD", "Tuner", "AUX", "Net Radio", "Spotify", "Bluetooth", "USB"];
+  await press(btn(line(), x => x.attributes["data-audio-list"] === "source"));
+  card = dlg("data-audio-picker");
+  const f = q(card, "data-audio-filter");
+  f.value = "blu"; await fire(f, "input");
+  check("sources", f && all(card).filter(x => x.attributes && x.attributes["data-value"]).map(x => x.attributes["data-value"]).join() === "Bluray,Bluetooth", words(card));
+  r.rc.close();
+  check("sources", !dlg("data-audio-picker"), "the picker stayed after close");
+  // A Control4 room off offers its sources: picking one starts the room.
+  h.hass.states["media_player.c4_great_room"].state = "off";
+  Object.assign(h.hass.states["media_player.c4_great_room"].attributes, { supported_features: C4 | F.SRC, source_list: ["Apple TV", "Sonos"] });
+  r = controls(h, { matches: { great_room: ["media_player.c4_great_room"] } });
+  check("sources", words(q(drawAudio(r), "data-audio-source", "media_player.c4_great_room")).join() === "Apple TV,Sonos", "an off Control4 room has no sources");
+  check("sources", JSON.stringify(RC.tidySources(["A", "B", "C"], { names: { C: "See" }, hidden: ["A"], order: ["C", "X"] })) === JSON.stringify([{ raw: "C", label: "See", hidden: false }, { raw: "B", label: "B", hidden: false }]));
+  reset();
+});
+
+const DENON_MODES = ["DIRECT", "PURE DIRECT", "STEREO", "MCH STEREO", "ALL ZONE STEREO", "AUTO", "STANDARD", "MOVIE", "MUSIC", "GAME",
+  "DOLBY DIGITAL", "DTS SURROUND", "AURO3D", "AURO2DSURR", "MATRIX", "VIRTUAL", "ROCK ARENA", "JAZZ CLUB", "SUPER STADIUM", "CLASSIC CONCERT",
+  "WIDE SCREEN", "MONO MOVIE", "VIDEO GAME"];
+await tryCase("modes", async () => {
+  const h = house();
+  const den = h.hass.states["media_player.denon_zone_2"];
+  Object.assign(den.attributes, { supported_features: FULL | F.MODE, sound_mode_list: DENON_MODES, sound_mode: "MOVIE", sound_mode_raw: "Dolby Atmos" });
+  const r = controls(h, { matches: { great_room: ["media_player.denon_zone_2"] } });
+  reset();
+  const line = () => q(drawAudio(r), "data-audio-mode", "media_player.denon_zone_2");
+  check("modes", texts(line()).includes("Now: Dolby Atmos"), texts(line()));
+  await press(btn(line(), x => x.attributes["data-audio-list"] === "mode"));
+  const card = dlg("data-audio-picker");
+  const heads = all(card).filter(x => x.style && /text-transform:uppercase/.test(x.style.cssText)).map(x => x._text);
+  check("modes", heads.join() === "Direct,Stereo,Auto,\"Movie, music, game\",Decoders,DSP".replace(/"/g, "") && !!q(card, "data-audio-filter"), heads);
+  const groups = Object.fromEntries(RC.groupModes(DENON_MODES).map(g => [g.label, g.items.join("|")]));
+  check("modes", groups.Stereo === "STEREO|MCH STEREO|ALL ZONE STEREO" && groups["Movie, music, game"] === "MOVIE|MUSIC|GAME"
+    && groups.Decoders === "DOLBY DIGITAL|DTS SURROUND|AURO3D|AURO2DSURR|MATRIX|VIRTUAL" && groups.DSP === "ROCK ARENA|JAZZ CLUB|SUPER STADIUM|CLASSIC CONCERT|WIDE SCREEN|MONO MOVIE|VIDEO GAME", groups);
+  const n = h.calls.length;
+  await press(btn(card, x => x.attributes["data-value"] === "STEREO"));
+  check("modes", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "select_sound_mode", entity_id: "media_player.denon_zone_2", sound_mode: "STEREO" }]), h.calls.slice(n));
+  check("modes", r.counts.filter(w => w === "sound_mode").length === 1, r.counts);
+  // A short list: chips, no groups.
+  den.attributes.sound_mode_list = ["Music", "Movie", "Night"]; den.attributes.sound_mode = "Music"; delete den.attributes.sound_mode_raw;
+  check("modes", words(line()).join() === "Music,Movie,Night", words(line()));
+  // Off: no mode line.
+  den.state = "off";
+  check("modes", !line(), "an off player offers sound modes");
+  reset();
+});
+
+await tryCase("sound", async () => {
+  const h = house();
+  addPlayer(h, "media_player.sonos_great", "sonos", "playing", { friendly_name: "Arc", volume_level: 0.3, supported_features: F.SET | F.MUTE }, "dev_arc");
+  addEntity(h, "number.arc_bass", "sonos", "dev_arc", "3", { min: -10, max: 10, step: 1 }, { translation_key: "bass" });
+  addEntity(h, "number.arc_treble", "sonos", "dev_arc", "0", { min: -10, max: 10, step: 1 }, { translation_key: "treble" });
+  addEntity(h, "switch.arc_loudness", "sonos", "dev_arc", "on", {}, { translation_key: "loudness" });
+  addEntity(h, "switch.arc_night_sound", "sonos", "dev_arc", "off", {}, { translation_key: "night_mode" });
+  addEntity(h, "switch.arc_speech_enhancement", "sonos", "dev_arc", "off", {}, { translation_key: "dialog_level" });
+  addEntity(h, "switch.arc_crossfade", "sonos", "dev_arc", "off", {}, { translation_key: "cross_fade" });          // not ours
+  addEntity(h, "switch.arc_subwoofer", "sonos", "dev_arc", "on", {}, { translation_key: "sub_enabled", hidden: true }); // hidden
+  addEntity(h, "number.other_bass", "sonos", "dev_other", "1", {}, { translation_key: "bass" });                      // another device
+  addEntity(h, "number.arc_esphome_bass", "esphome", "dev_arc", "1", {}, { translation_key: "bass" });                // another integration
+  const r = controls(h, { matches: { great_room: ["media_player.sonos_great", "media_player.c4_great_room", "media_player.denon_zone_2"] }, ha: true });
+  check("sound", RC.soundControls(h.hass, "media_player.sonos_great").map(c => c.key).join() === "bass,treble,loudness,speech,night", RC.soundControls(h.hass, "media_player.sonos_great"));
+  const sec = drawAudio(r);
+  const sb = btn(sec, x => x.attributes["data-audio-sound-btn"] === "media_player.sonos_great");
+  check("sound", sb && sb.textContent === "Sound ›" && !q(sec, "data-audio-sound"), "Sound is open before it is pressed");
+  await press(sb);
+  const part = q(sec, "data-audio-sound", "media_player.sonos_great");
+  check("sound", part && sec.children.indexOf(part) === sec.children.indexOf(sb.parentNode) + 1 && sb.textContent === "Sound ⌄", "Sound did not open under its button");
+  check("sound", part.children.map(x => x.attributes["data-sound"]).join() === "bass,treble,loudness,speech,night", part.children.map(x => x.attributes["data-sound"]));
+  check("sound", texts(part.children[0]).join("|") === "Bass|−|3|+", texts(part.children[0]));
+  let n = h.calls.length;
+  await press(byAria(part, "Bass up"));
+  await press(byText(part.children[2], "On"));                                // loudness on: off
+  await press(byText(part.children[4], "Off"));                               // night off: on
+  check("sound", JSON.stringify(h.calls.slice(n)) === JSON.stringify([
+    { domain: "number", service: "set_value", entity_id: "number.arc_bass", value: 4 },
+    { domain: "switch", service: "turn_off", entity_id: "switch.arc_loudness" },
+    { domain: "switch", service: "turn_on", entity_id: "switch.arc_night_sound" }]), h.calls.slice(n));
+  check("sound", r.counts.filter(w => w === "sound").length === 3, r.counts);
+  // Kept open when drawn again; shown as pressed until Home Assistant says.
+  const again = q(drawAudio(r), "data-audio-sound", "media_player.sonos_great");
+  check("sound", again && texts(again.children[0]).includes("4"), again && texts(again.children[0]));
+  // MusicCast: its numbers have no translation_key (by the end of their id), its selects do.
+  addPlayer(h, "media_player.mc_great", "yamaha_musiccast", "on", { friendly_name: "RX-A", supported_features: F.SET }, "dev_mc");
+  addEntity(h, "number.rx_a_main_tone_control_bass", "yamaha_musiccast", "dev_mc", "2", { min: -6, max: 6, step: 0.5 });
+  addEntity(h, "select.rx_a_main_equalizer_mode", "yamaha_musiccast", "dev_mc", "auto", { options: ["manual", "auto", "bypass"] }, { translation_key: "zone_equalizer_mode" });
+  addEntity(h, "switch.rx_a_main_pure_direct", "yamaha_musiccast", "dev_mc", "off");                                // not ours
+  const mc = RC.soundControls(h.hass, "media_player.mc_great");
+  check("sound", mc.map(c => `${c.key}:${c.eid}`).join() === "bass:number.rx_a_main_tone_control_bass,eq_mode:select.rx_a_main_equalizer_mode", mc);
+  const r2 = controls(h, { matches: { great_room: ["media_player.mc_great"] }, ha: true });
+  const s2 = drawAudio(r2);
+  await press(btn(s2, x => x.attributes["data-audio-sound-btn"] === "media_player.mc_great"));
+  const p2 = q(s2, "data-audio-sound");
+  check("sound", texts(p2.children[0]).join("|") === "Bass|−|2.0|+", texts(p2.children[0]));
+  const sel = all(p2).find(x => x.localName === "select");
+  check("sound", sel.children.map(x => x.value).join() === "manual,auto,bypass" && sel.value === "auto", sel.value);
+  n = h.calls.length;
+  sel.value = "manual"; await fire(sel, "change");
+  check("sound", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "select", service: "select_option", entity_id: "select.rx_a_main_equalizer_mode", option: "manual" }]), h.calls.slice(n));
+  // A Denon: Dynamic EQ from its attribute, through denonavr.set_dynamic_eq.
+  h.hass.states["media_player.denon_zone_2"].attributes.dynamic_eq = true;
+  const s3 = drawAudio(r);
+  await press(btn(s3, x => x.attributes["data-audio-sound-btn"] === "media_player.denon_zone_2"));
+  const p3 = q(s3, "data-audio-sound", "media_player.denon_zone_2");
+  check("sound", p3.children.map(x => x.attributes["data-sound"]).join() === "dynamic_eq", p3 && p3.children.length);
+  n = h.calls.length;
+  await press(byText(p3, "On"));
+  check("sound", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "denonavr", service: "set_dynamic_eq", entity_id: "media_player.denon_zone_2", dynamic_eq: false }]), h.calls.slice(n));
+  // Control4: nothing, no Sound button.
+  check("sound", RC.soundControls(h.hass, "media_player.c4_great_room").length === 0 && !btn(drawAudio(r), x => x.attributes["data-audio-sound-btn"] === "media_player.c4_great_room"), "Control4 got a Sound");
+  // Closed again in place.
+  const s4 = drawAudio(r), sb4 = btn(s4, x => x.attributes["data-audio-sound-btn"] === "media_player.sonos_great");
+  await press(sb4);
+  check("sound", !q(s4, "data-audio-sound", "media_player.sonos_great") && sb4.textContent === "Sound ›", "Sound did not close");
+});
+
+await tryCase("share", async () => {
+  const h = house();
+  const G = F.SET | F.MUTE | F.GROUP;
+  addPlayer(h, "media_player.sonos_great", "sonos", "playing", { friendly_name: "Arc", volume_level: 0.3, supported_features: G, group_members: ["media_player.sonos_great"] });
+  addPlayer(h, "media_player.sonos_kitchen", "sonos", "idle", { friendly_name: "One", volume_level: 0.6, supported_features: G, group_members: ["media_player.sonos_kitchen"] });
+  addPlayer(h, "media_player.cast_office", "cast", "idle", { friendly_name: "Nest", volume_level: 0.2, supported_features: G });            // another platform
+  addPlayer(h, "media_player.sonos_garage", "sonos", "idle", { friendly_name: "Play:1", volume_level: 0.2, supported_features: F.SET });  // no grouping
+  const r = controls(h, { matches: { great_room: ["media_player.sonos_great"], kitchen: ["media_player.sonos_kitchen"], office: ["media_player.cast_office"],
+    garage: ["media_player.sonos_garage"] }, ha: true, limits: { "media_player.sonos_kitchen": 0.4 } });
+  reset();
+  const sb = btn(drawAudio(r), x => x.attributes["data-audio-share-btn"] === "media_player.sonos_great");
+  check("share", !!sb && !btn(drawAudio(r, "Garage"), x => x.attributes["data-audio-share-btn"] !== undefined), "Share ›");
+  await press(sb);
+  const card = () => dlg("data-audio-share");
+  check("share", all(card()).filter(x => x.localName === "div" && x.attributes["data-eid"]).map(x => x.attributes["data-eid"]).join() === "media_player.sonos_kitchen", texts(card()));
+  let cb = all(card()).find(x => x.localName === "input" && x.type === "checkbox");
+  check("share", cb.checked === false && cb.attributes["aria-label"] === "Play in Kitchen", cb.attributes);
+  let n = h.calls.length;
+  cb.checked = true; await fire(cb, "change");
+  check("share", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "join", entity_id: "media_player.sonos_great", group_members: ["media_player.sonos_kitchen"] }]), h.calls.slice(n));
+  // Ticked: the room's own slider, capped by its limit.
+  const ks = q(card(), "data-slider", "media_player.sonos_kitchen");
+  check("share", ks && ks.max === "40" && ks.value === "40", ks && [ks.max, ks.value]);
+  n = h.calls.length;
+  ks.value = "30"; await fire(ks, "input"); await fire(ks, "change");
+  check("share", h.calls.slice(n).map(c => `${c.service}:${c.entity_id}:${c.volume_level}`).join() === "volume_set:media_player.sonos_kitchen:0.3", h.calls.slice(n));
+  cb = all(card()).find(x => x.localName === "input" && x.type === "checkbox");
+  n = h.calls.length;
+  cb.checked = false; await fire(cb, "change");
+  check("share", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "unjoin", entity_id: "media_player.sonos_kitchen" }]), h.calls.slice(n));
+  r.rc.close();
+  // Grouped in Home Assistant: "with Kitchen" in the row; the card ticked; Leave group unjoins this one.
+  h.hass.states["media_player.sonos_great"].attributes.group_members = ["media_player.sonos_great", "media_player.sonos_kitchen"];
+  const sec = drawAudio(r);
+  check("share", (q(sec, "data-audio-group", "media_player.sonos_great") || {}).textContent === "with Kitchen", texts(sec));
+  await press(btn(sec, x => x.attributes["data-audio-share-btn"] === "media_player.sonos_great"));
+  check("share", all(card()).find(x => x.localName === "input" && x.type === "checkbox").checked === true, "not ticked");
+  n = h.calls.length;
+  await press(btn(card(), x => x.attributes["data-audio-leave"] !== undefined));
+  check("share", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "unjoin", entity_id: "media_player.sonos_great" }]), h.calls.slice(n));
+  check("share", r.counts.filter(w => w === "share" || w === "unshare").join() === "share,unshare,unshare", r.counts);
+  r.rc.close(); reset();
+});
+
+await tryCase("all-off", async () => {
+  const h = house();
+  addPlayer(h, "media_player.sonos_kitchen", "sonos", "playing", { friendly_name: "One", supported_features: F.PLAY | F.PAUSE | F.SET });
+  addPlayer(h, "media_player.dlna_office", "dlna_dmr", "playing", { friendly_name: "Radio", supported_features: F.PLAY | F.STOP | F.STEP });
+  addPlayer(h, "media_player.cast_garage", "cast", "off", { friendly_name: "Nest", supported_features: F.SET | F.OFF });
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"], kitchen: ["media_player.sonos_kitchen"],
+    office: ["media_player.dlna_office"], garage: ["media_player.cast_garage"] }, ha: true });
+  const sec = drawAudio(r);
+  const wrap = q(sec, "data-audio-all-off");
+  check("all-off", wrap && words(wrap).join() === "All audio off" && sec.children[sec.children.length - 1] === wrap, wrap && words(wrap));
+  const n = h.calls.length;
+  await press(byText(wrap, "All audio off"));
+  check("all-off", texts(wrap).includes("Turn off every room's audio?") && words(wrap).join() === "Turn off,Cancel" && h.calls.length === n, texts(wrap));
+  await press(byText(wrap, "Cancel"));
+  check("all-off", words(wrap).join() === "All audio off" && h.calls.length === n, words(wrap));
+  await press(byText(wrap, "All audio off"));
+  await press(byText(wrap, "Turn off"));
+  check("all-off", h.calls.slice(n).map(c => `${c.service}:${c.entity_id}`).join() === "turn_off:media_player.c4_great_room,turn_off:media_player.denon_zone_2,"
+    + "media_pause:media_player.sonos_kitchen,media_stop:media_player.dlna_office", h.calls.slice(n));
+  check("all-off", r.counts.filter(w => w === "all_off").length === 1 && words(wrap).join() === "All audio off", r.counts);
+  // Everything off: no button.
+  for (const e of ["media_player.c4_great_room", "media_player.denon_zone_2", "media_player.sonos_kitchen", "media_player.dlna_office"]) h.hass.states[e].state = "off";
+  check("all-off", !q(drawAudio(r), "data-audio-all-off"), "All audio off with everything off");
+});
+
+// ── the owner's tidy-up in the matching card: the volume limit, and each player's sources (names, hidden, order) ──
+await tryCase("tidy", async () => {
+  const h = house();
+  Object.assign(h.hass.states["media_player.denon_zone_2"].attributes, { supported_features: FULL | F.SRC, source_list: ["TV", "CD", "Phono"], source: "TV" });
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"] } });
+  r.settings.room_audio_matched = true;
+  reset();
+  r.rc.openMatch(); await tick();
+  const card = () => dlg("data-room-match-card");
+  const lim = q(card(), "data-audio-limit", "media_player.denon_zone_2");
+  check("tidy", lim && lim.children.map(x => x.textContent).join() === "No limit,10 %,20 %,30 %,40 %,50 %,60 %,70 %,80 %,90 %,100 %" && lim.value === "", lim && lim.value);
+  lim.value = "0.5"; await fire(lim, "change");
+  check("tidy", JSON.stringify(r.saved[r.saved.length - 1]) === JSON.stringify({ room_audio_limits: { "media_player.denon_zone_2": 0.5 } }), r.saved);
+  lim.value = "0.5"; await fire(lim, "change");                               // the same again: nothing written
+  check("tidy", r.saved.length === 1, r.saved.length);
+  // No source list (the Control4 room): no Sources ›; the Denon's opens its sources.
+  check("tidy", !q(card(), "data-audio-sources", "media_player.c4_great_room"), "Sources › with no sources");
+  await press(btn(card(), x => x.attributes["data-audio-sources"] === "media_player.denon_zone_2"));
+  const sc = () => dlg("data-audio-sources-card");
+  const rowS = (raw) => all(sc()).find(x => x.attributes && x.attributes["data-source"] === raw);
+  check("tidy", all(sc()).filter(x => x.attributes && x.attributes["data-source"]).map(x => x.attributes["data-source"]).join() === "TV,CD,Phono", texts(sc()));
+  const tickOf = (raw) => all(rowS(raw)).find(x => x.localName === "input" && x.type === "checkbox");
+  const nameOf = (raw) => all(rowS(raw)).find(x => x.localName === "input" && x.type === "text");
+  tickOf("Phono").checked = false; await fire(tickOf("Phono"), "change");
+  nameOf("CD").value = "  Compact disc "; await fire(nameOf("CD"), "change");
+  await press(byAria(rowS("TV"), "Later in the list"));
+  const last = r.saved[r.saved.length - 1];
+  check("tidy", JSON.stringify(last) === JSON.stringify({ room_audio_sources: { "media_player.denon_zone_2": { names: { CD: "Compact disc" }, hidden: ["Phono"], order: ["CD", "TV", "Phono"] } } }), last);
+  check("tidy", r.counts.filter(w => w === "sources_saved").length === 1 && r.counts.filter(w => w === "limit_saved").length === 1, r.counts);
+  // The matches were never touched by these saves; the room's card offers the tidied sources.
+  check("tidy", r.saved.every(p => !("room_audio_matches" in p)) && JSON.stringify(r.settings.room_audio_matches.great_room) === JSON.stringify(["media_player.c4_great_room", "media_player.denon_zone_2"]), r.settings);
+  r.rc.close();
+  check("tidy", !card() && !sc(), "a card stayed");
+  check("tidy", words(q(drawAudio(r), "data-audio-source", "media_player.denon_zone_2")).join() === "Compact disc,TV", words(q(drawAudio(r), "data-audio-source")));
+  check("tidy", q(drawAudio(r), "data-slider", "media_player.denon_zone_2").max === "50", "the limit is not held");
+  // Cleaned as the server cleans: labels trimmed, a label that is its source dropped, a player with nothing left out.
+  check("tidy", JSON.stringify(RC.cleanSources({ "media_player.a": { names: { TV: " TV ", CD: "Disc" }, hidden: ["X", "X", 3] }, "media_player.b": {}, "light.c": { hidden: ["Y"] } }))
+    === JSON.stringify({ "media_player.a": { names: { CD: "Disc" }, hidden: ["X"], order: [] } }), "cleanSources");
+  reset();
 });
 
 // ── German ──

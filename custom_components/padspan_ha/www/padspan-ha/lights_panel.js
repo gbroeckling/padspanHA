@@ -51,6 +51,16 @@ const ALARM = await import(`./views/alarm_panel.js${STAMP}`)
 // is not offered and the sheet is as it was.
 const ROOMCTL = await import(`./views/room_controls.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: room_controls failed to load", err); return null; });
+// Room controls' settings as the module reads them, from what the settings command said (s); a key it did not say
+// keeps what was there (was): a save of the owner's sources alone keeps the matches.
+const roomAudioOf = (s, was = {}) => {
+  const has = (k) => s && s[k] !== undefined;
+  return { room_audio_matches: has("room_audio_matches") ? (s.room_audio_matches || {}) : (was.room_audio_matches || {}),
+    room_audio_ha_speakers: has("room_audio_ha_speakers") ? s.room_audio_ha_speakers === true : was.room_audio_ha_speakers === true,
+    room_audio_matched: has("room_audio_matched") ? s.room_audio_matched === true : was.room_audio_matched === true,
+    room_audio_sources: has("room_audio_sources") ? (s.room_audio_sources || {}) : (was.room_audio_sources || {}),
+    room_audio_limits: has("room_audio_limits") ? (s.room_audio_limits || {}) : (was.room_audio_limits || {}) };
+};
 // Escape, Tab and the focus for the emergency card and the page drawn again
 // (views/dialog_keys.js). Optional: without it they work as they did.
 const KEYS = await import(`./views/dialog_keys.js${STAMP}`)
@@ -511,7 +521,7 @@ class PadSpanLightsApp extends HTMLElement {
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Room controls' matches (views/room_controls.js). A failed fetch keeps the last answer.
-      if (s.room_audio_matches !== undefined) this.state._roomAudio = { room_audio_matches: s.room_audio_matches || {}, room_audio_ha_speakers: s.room_audio_ha_speakers === true, room_audio_matched: s.room_audio_matched === true };
+      if (s.room_audio_matches !== undefined) this.state._roomAudio = roomAudioOf(s, this.state._roomAudio);
       // Layout v2 (2026-09-21) is a house-wide trial toggle, set
       // from the builder only — this panel reflects it, same convention
       // as showcase/automorph above, but renders its OWN DISPLAY variant
@@ -1073,7 +1083,7 @@ class PadSpanLightsApp extends HTMLElement {
       save: async (patch)=>{
         const r = await this._ws({ type:"padspan_ha/settings_set", ...patch });
         const st = (r && r.settings) || patch;
-        this.state._roomAudio = { room_audio_matches: st.room_audio_matches || {}, room_audio_ha_speakers: st.room_audio_ha_speakers === true, room_audio_matched: st.room_audio_matched === true };
+        this.state._roomAudio = roomAudioOf(st, this.state._roomAudio);
         return true;
       },
       toast: (m,e)=>this._toast(m,e),

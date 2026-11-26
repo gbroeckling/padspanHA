@@ -1515,6 +1515,8 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "vacation_mode_anchors": ("Mapping → Atlas builder", "Vacation Mode", "Evening lights", "Up to 10 lights held on through the evenings they were really on."),
     "room_audio_matches": ("Atlas → a room's sheet", "Audio", "Match rooms", "Which media players are in which room, in each room's order (the first is the one the map's speaker follows). An administrator's."),
     "room_audio_ha_speakers": ("Atlas → a room's sheet", "Audio", "Include Home Assistant speakers (Music Assistant, ESPHome, Cast, TVs)", "Offers every media player with a volume, not only the whole-house systems'. Off unless ticked."),
+    "room_audio_sources": ("Atlas → a room's sheet", "Audio", "Sources", "Each player's sources renamed, hidden and put in order, as the room's card offers them. Home Assistant keeps its own names. An administrator's."),
+    "room_audio_limits": ("Atlas → a room's sheet", "Audio", "Volume limit", "The highest level each player can be set to from PadSpan, off or 10 to 100 %: the slider stops there and + is greyed. An administrator's."),
     "light_shapes": ("Mapping → Atlas builder", "Atlas builder", "", "Each light's marker shape."),
     "light_type_overrides": ("Mapping → Atlas builder", "Atlas builder", "", "Pro or the Advanced smart lighting add-on: a light forced to be drawn as WLED, a partition or plain."),
     "lights_hidden": ("Mapping → Atlas builder", "Atlas builder", "", "Lights hidden from the Atlas."),
