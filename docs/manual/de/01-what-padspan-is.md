@@ -22,8 +22,10 @@ die kostenpflichtigen Teile.
 ## Was du kostenlos bekommst
 
 PadSpan HA ist kostenlos und Open Source (GPL v3). Die kostenlose Version braucht keinen Schlüssel
-und läuft nicht ab. Manche Funktionen brauchen PadSpan Pro oder ein Add-on, und PadSpan sagt dir an
-Ort und Stelle, welches. Pro enthält jedes Add-on. Ohne Schlüssel bekommst du alles hier unten.
+und läuft nicht ab. Manche Funktionen brauchen PadSpan Pro oder ein Add-on. Viele davon sagen das
+dort, wo du auf sie triffst, und die Lizenzkarte unter **Einstellungen → Funktionen → PadSpan-Lizenz**
+listet jedes Add-on mit einem Link zu dem, was es hinzufügt. Pro enthält jedes Add-on. Ohne
+Schlüssel bekommst du alles hier unten.
 
 ### Dein Haus auf einem Bildschirm
 
@@ -41,7 +43,7 @@ Dafür brauchst du nur Home Assistant, keinen Bluetooth-Empfänger.
   ([Kapitel 13](13-alerts.md)).
 - **Eine Alarmanlage, die losgeht** (eine Alarmzentrale in Home Assistant, etwa Alarmo), erscheint
   am Notfallknopf des Atlas und als Zeile im roten Banner.
-- **Alert pulse** (aus, bis du es einschaltest): Eine Tür, ein Fenster, ein Tor oder eine Abdeckung,
+- **Alarmpuls** (aus, bis du ihn einschaltest): Eine Tür, ein Fenster, ein Tor oder eine Abdeckung,
   die länger als 6 Stunden offen ist, oder ein Fenster oder eine Abdeckung, die bei Regen oder Schnee
   offen ist, bekommt einen gelben Ring um ihren Raum.
 - **Regen und Schnee** rund ums Haus im Atlas, als stilles Bild, aus deiner Wetter-Entität oder einem
@@ -83,7 +85,7 @@ in jedem Raum, den du unterscheiden willst, gibt dir Räume.
 - **Live-Tracker**, eine Live-Karte über den ganzen Bildschirm, und **Belegung**, eine Schätzung, wie
   viele Leute im Gebäude sind.
 - **Traceback**: 7 Tage, wohin deine Geräte gegangen sind, auf deinen Etagen abgespielt, mit
-  **Insights** (Zeit in jedem Raum) und **New Objects** ([Kapitel 12](12-the-screens.md#traceback)).
+  **Auswertungen** (Zeit in jedem Raum) und **Neue Objekte** ([Kapitel 12](12-the-screens.md#traceback)).
 - **Wiedergabe teilen**: ein Clip von 10 bis 30 Sekunden, in dem Leute durchs Haus gehen, mit
   verborgenen Namen, in deinem Browser gemacht. Nichts wird hochgeladen.
 - **Gestern zu Hause** (aus, bis du es einschaltest): jeden Morgen eine Nachricht über den Vortag,
@@ -138,11 +140,11 @@ einrichten. Es bringt:
 - **Jedes Licht und jedes Gerät genau da, wo es ist**, in seiner echten Form, Größe und seinem
   Winkel, mit Automorph, Showcase, der Advanced-Steuerung für WLED und bewegtem Regen und Schnee
   ([Kapitel 15](15-the-atlas.md)).
-- **Live Aboard**, dein Haus in 3D, wie der Blick in ein Haus bei Die Sims: erleuchtete Fenster in
+- **Live Aboard**, dein Haus in 3D, wie der Blick in ein Haus bei „Die Sims“: erleuchtete Fenster in
   der Nacht, Regen und Schnee, der Studio-Himmel, ein Gang durchs Haus auf Augenhöhe und eine
   Ansicht, die zur Türklingel, zu einer Tür oder zu einem Alarm fliegt. Es ist experimentell
   ([Kapitel 16](16-live-aboard.md)).
-- **Furnish**: Möbel, Treppen, Böden und Wandfarben, Geräte, die mitlaufen, wenn das echte läuft,
+- **Einrichten** (Furnish): Möbel, Treppen, Böden und Wandfarben, Geräte, die mitlaufen, wenn das echte läuft,
   und eine Figur für jede Person ([Kapitel 17](17-furnish.md)).
 - **Den Wandmodus** auf der Atlas-Seite und das neue Layout des Atlas, in dem jeder Bildschirm
   wählt, was er zeigt ([Kapitel 18](18-wall-screens-and-kiosks.md)).
@@ -156,7 +158,7 @@ Nutzungsbericht an).
 | Edition | Schlüssel | Was es ist |
 |---|:---:|---|
 | **PadSpan HA** | keiner | Alles aus der kostenlosen Liste oben. Kein Schlüssel, und es läuft nicht ab. |
-| **PadSpan Pro** | `pro` | Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Furnish, der Wandmodus und das neue Layout, der Atlas als Übersicht, Personen auf der Karte, die KI-Funktionen und jedes Add-on. |
+| **PadSpan Pro** | `pro` | Alles oben, dazu: genaues Platzieren im Atlas (Form, Größe und Winkel jedes Lichts, WLED, Automorph, Showcase), Live Aboard (dein Haus in 3D, experimentell) mit Einrichten, der Wandmodus und das neue Layout, der Atlas als Übersicht, Personen auf der Karte, die KI-Funktionen und jedes Add-on. |
 | **Add-ons** | `free`, mit Add-ons | Je eine Funktion, für eine Installation ohne Pro: Audio, Alarm & Sicherheit, WLAN-Abdeckung, Klimakarte, Aktivität im ganzen Haus (in PadSpan 0.38.300 und 0.38.301 als „Zeitreise“ aufgeführt), Urlaubsmodus & Voreinstellungen, Looks-Paket, Forensik und Präsenz-Auswertungen. Jedes gilt 2 Jahre, auf bis zu drei Zuhause ([Kapitel 25](25-padspan-pro.md#add-ons)). |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | keiner | Ein eigener, leichterer Download aus demselben Code: nur der Atlas, für ein Haus, das seine Lichter auf einer Karte will und keine Anwesenheitserkennung. |
 | **PadSpan Bright Pro** | `bright` | Brights Werkzeuge zum Platzieren (Platzieren, Formen, die Advanced-Steuerung für WLED, Automorph, Showcase) und die Alarmsteuerung, auf einer Bright-Installation. Verkauft bis zum 15. Dezember 2026. |
@@ -166,7 +168,7 @@ Ein PadSpan-Pro-Schlüssel öffnet auch Brights Werkzeuge, wenn du stattdessen B
 Wenn ein Schlüssel abläuft, funktioniert er noch 14 Tage weiter. Danach wird nichts gelöscht, was du
 eingerichtet hast. Die Platzierung der Lichter ist dann schreibgeschützt, Forensik hört auf
 aufzuzeichnen (was es aufgezeichnet hat, bleibt für seine Aufbewahrungszeit), und das 3D-Haus, der
-Wandbildschirm, Finden und Busy Times schalten sich ab. Wenn du verlängerst, kommt alles so zurück,
+Wandbildschirm, Finden und Stoßzeiten schalten sich ab. Wenn du verlängerst, kommt alles so zurück,
 wie du es verlassen hast.
 
 ### Der kostenlose Testzeitraum
@@ -181,7 +183,7 @@ er bleibt an, bis der Testzeitraum endet. Schlüssel und Preise stehen auf
 ### Du willst nur eine Sache?
 
 Ein Add-on bringt einer Installation ohne Pro eine Funktion. Eine Zahlung gilt 2 Jahre auf bis zu
-drei Zuhause, und ein Schlüssel trägt jedes Add-on, das du kaufst. PadSpan Pro enthält sie alle. Was
+drei Zuhause, und auf einem Schlüssel liegen alle Add-ons, die du kaufst. PadSpan Pro enthält sie alle. Was
 jedes bringt, steht in [Kapitel 25](25-padspan-pro.md#add-ons), ausführlicher (auf Englisch) in
 [PadSpan Pro and the add-ons](../../PADSPAN_PRO.md#just-want-one-thing-the-add-ons). Zu kaufen gibt
 es sie auf [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons).

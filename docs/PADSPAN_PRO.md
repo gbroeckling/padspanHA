@@ -1,8 +1,8 @@
 # PadSpan Pro and the add-ons
 
 PadSpan HA is free and open source (GPL v3). The free version needs no key and doesn't run out.
-Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro
-includes every add-on.
+Some features need PadSpan Pro or an add-on. Many of them say so where you meet them, and the
+licence card lists each add-on with a link to what it adds. Pro includes every add-on.
 
 **PadSpan Pro** is one key for all of it, on the same install: every light and device placed
 exactly where it is, the house in 3D (Live Aboard) with Furnish, wall mode, every add-on, and every
@@ -31,8 +31,8 @@ Starting a trial, entering a key and signing up as a tester need a Home Assistan
 
 ## What only PadSpan Pro has
 
-No add-on on sale includes these. Each comes with a Pro key: a year, two years, lifetime, the
-trial, a tester's key or an invite's free year.
+No add-on on sale includes these, except Showcase, which is also in the Looks pack. Each comes with
+a Pro key: a year, two years, lifetime, the trial, a tester's key or an invite's free year.
 
 ### Every light and device exactly where it is
 
@@ -213,8 +213,8 @@ experimental. More in [manual chapter 19](manual/19-ai-features.md).
   0.38.301), [Vacation Mode & presets](#vacation-mode--presets), [Looks pack](#looks-pack),
   [Forensics](#forensics) and [Presence insights](#presence-insights).
   A Pro key never needs one.
-- **Every new feature while the key runs.** PadSpan gets new releases every week. One purchase covers
-  all of it, and buying Pro is what keeps the releases coming.
+- **Every new feature while the key runs.** PadSpan gets new releases every week, and one purchase
+  covers all of them.
 - **Up to five homes on one key** ([One key, five homes](#one-key-five-homes)).
 - **PadSpan Bright:** a Pro key also works in [PadSpan Bright](https://github.com/gbroeckling/padspanBright),
   the lighting half on its own, and opens every lighting tool there.
@@ -381,8 +381,8 @@ same card as its lights.
 
 **What it adds**, in each room's card on the Atlas (tap a room's name):
 
-- **A status line**: the room's temperature and humidity (the middle reading of its sensors), beside
-  who is there.
+- **A status line**: the room's temperature and humidity (the middle reading of its sensors), and
+  who is there when the screen shows people (Pro).
 - **Room off (n)**: turns off the room's lights and players that are on. It never touches a lock, a
   shade, the thermostat or a plug.
 - **Audio**: a row for each player, named by its system ("Control4 · Great Room"), with On, Off or
@@ -406,7 +406,7 @@ Denon, Yamaha or Anthem in Home Assistant (or any player with a volume, with Inc
 speakers ticked); rooms on the map that are Home Assistant areas; the room's covers and thermostats
 in its area.
 **Free without it:** the rest of the room's card: lights and fans with All on and All off, the room's
-scenes and scripts, who is there, and its locks.
+scenes and scripts, and its locks.
 **One limit:** without Pro, Audio is on or off for the whole house. Choosing it screen by screen
 needs Pro's new layout.
 **Price and terms:** $6.45 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
@@ -426,8 +426,9 @@ Arm the alarm from the hallway screen on the way out, or check from bed that the
   keeps the code. A wrong code shows Home Assistant's own refusal.
 - **The emergency lights test**: the red **Test emergency lighting** button. A tap on the centre
   turns every emergency light on, and a tap again ends it, leaving on the lights that were already
-  on. **Force off** turns them all off, after a second tap. The test won't switch lights off under a
-  running Home Assistant automation with "emergency" in its name. It was free until PadSpan 0.38.300.
+  on. **Force off** turns them all off, after a second tap. If a Home Assistant automation with
+  "emergency" in its name has run since the test started (a power-failure one, say), ending the test
+  switches nothing off. It was free until PadSpan 0.38.300.
 - **The door, garage and gate card**: tap a linked door on the Atlas for one card with its state
   ("Closed & Locked", "Closed, Unlocked", "Open"), **Open** and **Close** for a cover, **Trigger** for
   a relay, button or script, and its lock.
@@ -465,7 +466,7 @@ When a device keeps dropping off Wi-Fi, see which access point it clings to and 
 - **What to fix (n)**: UniFi Utopia's findings, most urgent first, each with what to do. A click
   shows it on the plan.
 - **Where the access points are** (administrators): each one placed in Mapping, or shown dashed where
-  the devices that hear it best suggest. **Place in Mapping** puts it there.
+  the devices that hear it best suggest. **Place in Mapping** puts it there (placing needs Pro).
 - **Which Wi-Fi device is which phone** (administrators), when the names differ.
 - **The robot vacuum's readings**, when it runs room location runs.
 
@@ -473,8 +474,8 @@ When a device keeps dropping off Wi-Fi, see which access point it clings to and 
 answers.
 **Needs:** [UniFi Utopia](https://github.com/gbroeckling/unifi-utopia) on the same Home Assistant,
 with a UniFi controller and UniFi access points. Its Wi-Fi survey is still a test build. Readings come
-from phones that sit still for about a minute where PadSpan has them, and from devices placed on the
-plan.
+from phones that sit still for about a minute where PadSpan has them, from PadSpan's receivers and,
+with Pro, from the lights and devices placed on the plan.
 **Free without it:** UniFi Utopia's own features. PadSpan's radio maps show Bluetooth, not Wi-Fi.
 **One limit:** it fills in over days: the devices within the first hour, the phones over days.
 **Price and terms:** $6.45 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
@@ -498,8 +499,8 @@ One look at the wall screen shows which bedroom is cold or which office needs ai
 Atlas (temperature, humidity, CO₂)** (off by default). The chip is on the Atlas page and in Mapping →
 Atlas builder.
 **Needs:** temperature, humidity or CO₂ sensors in the Home Assistant areas that match your rooms.
-**Free without it:** a tap on a sensor on the Atlas still says what it reads. Thermostat control in a
-room's card is part of [Audio](#audio).
+**Free without it:** your sensors still show on the Atlas as markers, and their readings stay in
+Home Assistant. Thermostat control in a room's card is part of [Audio](#audio).
 **One limit:** without Pro, sensors aren't placed, so each room takes one colour from the average of
 its sensors. With Pro, the colour blends between placed sensors.
 **Price and terms:** $8.65 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
@@ -526,8 +527,9 @@ tags, and Home Assistant's recorder for devices. People and tags come from Trace
 devices come from Home Assistant's history, so nothing new is recorded.
 **Free without it:** Traceback's own Playback of people and tags, New Objects, Insights, and
 **Share a replay** (a 10 to 30 second clip you can post).
-**One limit:** without Pro, the add-on plays back the free map, with each light in its room. Placement
-puts them where they hang.
+**One limit:** without Pro, the add-on plays back the free map, with each light in its room, and
+temperature, humidity and air readings play back only for sensors placed on the map. Placement puts
+them where they are.
 **Price and terms:** $7.55 CAD, one payment for 2 years on up to 3 homes, on your one add-on key.
 No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
 
@@ -588,8 +590,8 @@ No subscription, and 14 days' grace after it ends. PadSpan Pro includes it.
 
 ### Forensics
 
-Check which Bluetooth devices were near the house last night after a package went missing, or spot
-an unknown tracker that keeps coming back.
+Check whether an unknown tracker or a pair of earbuds was near the house last night, and for how
+long.
 
 **What it adds:**
 
@@ -599,7 +601,7 @@ an unknown tracker that keeps coming back.
 - **The Forensics tab**: pick a start and an end, or **Last hour**, **Last 24 h** or **Last 7 days**.
   **Recorded — actually present** lists each device with its time in the window, its strongest signal
   and the receivers that heard it. **Possible** adds lower-confidence matches. **Hide my labelled
-  devices** lets strangers stand out. **Export CSV** saves the results.
+  devices** lets the unknown ones stand out. **Export CSV** saves the results.
 - **Retention** of 7, 14 (the default), 30, 60 or 90 days, and **Delete all recorded data**.
 
 **Where:** Settings → Features, and the Forensics tab in the main list while recording is on.

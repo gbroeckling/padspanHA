@@ -20,8 +20,9 @@ parts.
 ## What you get for free
 
 PadSpan HA is free and open source (GPL v3). The free version needs no key and doesn't run out.
-Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes
-every add-on. With no key, you get everything below.
+Some features need PadSpan Pro or an add-on. Many of them say so where you meet them, and the
+licence card in **Settings → Features → PadSpan licence** lists each add-on with a link to what it
+adds. Pro includes every add-on. With no key, you get everything below.
 
 ### Your house on one screen
 

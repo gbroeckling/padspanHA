@@ -70,10 +70,10 @@ footer p{margin:4px 0}
 </div></nav>
 <main>
 <h1>Add-ons: one feature each, no subscription</h1>
-<p class="lead">Each add-on adds one thing to the free PadSpan, such as the music in each room on the map, or arming your alarm from the wall screen. One payment covers 2 years on up to 3 homes, and one key carries every add-on you buy. Add-ons need PadSpan 0.38.300 or later. PadSpan Pro includes every one of them.</p>
+<p class="lead">Each add-on adds one thing to the free PadSpan, such as the music in each room on the map, or arming your alarm from the map. One payment covers 2 years on up to 3 homes, and one key carries every add-on you buy. Add-ons need PadSpan 0.38.300 or later. PadSpan Pro includes every one of them.</p>
 
 <div class="box">
-  <p><b>Want more than one or two?</b> PadSpan Pro includes all nine add-ons, plus what no add-on sells:</p>
+  <p><b>PadSpan Pro includes all nine add-ons</b>, plus what no add-on sells:</p>
   <ul>
     <li>every light and device placed exactly where it is, in its real shape</li>
     <li>Live Aboard, the 3D house you look into like a house in The Sims, and Furnish to put furniture in it</li>
@@ -118,7 +118,7 @@ footer p{margin:4px 0}
   <li><b>Climate</b>: each thermostat in the room, with its temperature, its mode, and the setpoint with <b>−</b> and <b>+</b>.</li>
   <li><b>Room off</b>, first in the card, turns off the room's lights and players that are on in one press.</li>
   <li>The room's temperature and humidity at the top of the card.</li>
-  <li><b>Match rooms</b>: an administrator picks the room each player is in, once. PadSpan guesses first from the player's Home Assistant area or its name. Several players can share a room; in my house a Denon and Control4 share one.</li>
+  <li><b>Match rooms</b>: an administrator picks the room each player is in, once. PadSpan guesses first from the player's Home Assistant area or its name. Several players can share a room, a Control4 zone and a Denon zone, say.</li>
   <li><b>Include Home Assistant speakers</b>, on the matching card, adds Music Assistant, ESPHome, Cast and TV players. It's off unless you tick it.</li>
 </ul>
 <p><b>Where.</b> The Atlas page. Turn it on for the whole house in <b>Settings → Atlas → Audio</b>. With PadSpan Pro's new layout, each screen ticks Audio in its ⋯ list instead.</p>
@@ -145,14 +145,14 @@ footer p{margin:4px 0}
 <p><b>On a wall screen and a phone.</b> The alarm works on a wall screen as it does anywhere, and nothing on its card leads off the page. On a phone it's the same button and card, on the Atlas page in the Home Assistant app.</p>
 <p><b>Worth it if you have</b> an alarm panel in Home Assistant (Alarmo, or your alarm system's integration), garage doors or gates, locks on outside doors, or emergency lighting.</p>
 <p><b>Needs.</b> A Home Assistant alarm panel for arming. Door and window sensors linked to their doors in Mapping, for the door card. A cover, switch, button or script for each opener, and a lock in Home Assistant for each lock.</p>
-<p><b>Free without it.</b> An alarm going off still shows: its shield lights the emergency button, with nothing to press, and a row appears in the red banner on every PadSpan screen. Leak, smoke, gas and CO alarms turn their rooms red and send a notification. Locks lock and unlock on the map and in a room's card. Alert pulse (off until you turn it on) rings a room amber when a door or window has been open more than 6 hours, or a window is open in the rain. The emergency lights test was free until PadSpan 0.38.300 and is part of this add-on now; a test already running can always be ended.</p>
+<p><b>Free without it.</b> An alarm going off still shows. Its shield lights the emergency button, with nothing to press, and a row appears in the red banner on every PadSpan screen. Leak, smoke, gas and CO alarms turn their rooms red and send a notification. Locks lock and unlock on the map and in a room's card. Alert pulse (off until you turn it on) rings a room amber when a door or window has been open more than 6 hours, or a window is open in the rain. The emergency lights test was free until PadSpan 0.38.300 and is part of this add-on now; a test already running can always be ended.</p>
 <p><b>Limit.</b> Arming and disarming use the Home Assistant login of whoever is at the screen, so anyone who can use the alarm in Home Assistant can arm it from a shared wall screen.</p>
 <p class="links"><a href="https://padspan.traks.ca/#addons">Price and buy</a> · <a href="/manual/alerts/#your-house-alarm-on-the-emergency-button">The alarm in the manual</a></p>
 </section>
 
 <section class="addon" id="vacation">
 <h3>Vacation Mode &amp; presets</h3>
-<p class="promise">On your way out for a week, one pick on the Atlas and the lights keep the house's usual evenings until you're back.</p>
+<p class="promise">On your way out for a week, turn on Vacation Mode on the Atlas, and the lights keep the house's usual evenings until you're back.</p>
 <p><b>What you get</b></p>
 <ul>
   <li><b>🌴 Vacation Mode</b>, first in the <b>Whole house</b> list on the Atlas. It learns each light's routine for each weekday from Home Assistant's history, then keeps switching the lights to match, with some randomness, until you turn it off.</li>
@@ -200,7 +200,7 @@ footer p{margin:4px 0}
   <li><b>2.4 GHz and 5 GHz as separate maps</b>, since most smart devices use 2.4 GHz and most phones use 5 GHz. Show all access points, or one at a time to see its reach.</li>
   <li><b>A room table</b> with each room's median signal, a word for it from excellent to very weak, and how long it was measured.</li>
   <li><b>What to fix</b>: UniFi Utopia's findings, most urgent first, each with what to do. Click one to see it on the plan. They include devices that drop off, devices on a far access point while a nearer one hears them better, and rooms where phones sit on weak Wi-Fi.</li>
-  <li><b>Where the access points are</b>, placed in Mapping or estimated from the devices that hear each one best, and <b>which Wi-Fi device is which phone</b> when their names differ. Both are for administrators.</li>
+  <li><b>Where the access points are</b>, placed in Mapping or estimated from the devices that hear each one best, and <b>which Wi-Fi device is which phone</b> when their names differ. Both are for administrators, and placing an access point in Mapping needs Pro.</li>
   <li>With a robot vacuum doing PadSpan's room location runs, its readings at floor level as a layer of their own.</li>
 </ul>
 <p><b>Where.</b> A tab in PadSpan's panel, under More tools unless you move it. It appears only while UniFi Utopia's survey answers.</p>
@@ -250,7 +250,7 @@ footer p{margin:4px 0}
 <p><b>Worth it if you have</b> Bluetooth receivers and a floor plan, and lights, doors and sensors you'd like to look back on.</p>
 <p><b>Needs.</b> A floor plan, since Traceback replays on one. Bluetooth receivers for phones and tags; Traceback keeps them for 7 days. Home Assistant's recorder for devices. PadSpan records nothing extra for them, so devices go back as far as the recorder keeps, and anything left out of the recorder won't play back.</p>
 <p><b>Free without it.</b> Traceback's own Playback of phones and tags on the floor stack, New Objects, Insights, and Share a replay, which makes a 10 to 30 second clip. These need a Bluetooth receiver too.</p>
-<p><b>Limit.</b> The add-on draws the map your install has. Without Pro, lights sit together in their rooms rather than where they hang.</p>
+<p><b>Limit.</b> The add-on draws the map your install has. Without Pro, lights sit together in their rooms rather than where they hang, and temperature, humidity and air readings play back only for sensors placed on the map.</p>
 <p class="links"><a href="https://padspan.traks.ca/#addons">Price and buy</a> · <a href="/manual/the-screens/#traceback">Traceback in the manual</a></p>
 </section>
 
@@ -295,7 +295,7 @@ footer p{margin:4px 0}
   <li><b>2 years for one payment.</b> There's no subscription.</li>
   <li><b>Up to 3 homes</b>, meaning three Home Assistants. A reinstalled Home Assistant takes the place of a home that hasn't checked in for 14 days, and a home silent for 45 days frees its place by itself.</li>
   <li><b>One key for all of them.</b> Each add-on on it has its own end date. Buy another with the same email and it joins that key.</li>
-  <li><b>Entering the key.</b> In PadSpan's panel, open <b>Settings → Features → PadSpan licence</b> and press <b>Enter licence key</b>. It takes a Home Assistant administrator, and Settings shows its tabs in Advanced mode. The card then lists each add-on with its date.</li>
+  <li><b>Entering the key.</b> In PadSpan's panel, open <b>Settings → Features → PadSpan licence</b> and press <b>Enter licence key</b>. It takes a Home Assistant administrator, with PadSpan in Advanced mode, since Basic mode's Settings shows only Appearance. The card then lists each add-on with its date.</li>
   <li><b>PadSpan 0.38.300 or later.</b> An add-on key works only there.</li>
   <li><b>Offline.</b> The end dates are kept on your Home Assistant, so add-ons keep working when the internet or the licence server is down.</li>
   <li><b>14 days' grace.</b> When an add-on's 2 years end, it keeps working for 14 more days, and the licence card says so. After that it's locked until you renew, and nothing you set up is lost.</li>
@@ -305,17 +305,17 @@ footer p{margin:4px 0}
 
 <h2>Questions</h2>
 <h3>Do I need an add-on to use PadSpan?</h3>
-<p>No. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on.</p>
+<p>No. The free version needs no key and doesn't run out. An add-on adds one feature to it, and Pro includes every add-on.</p>
 <h3>Add-ons or Pro?</h3>
-<p>One or two add-ons cost a fraction of Pro. All nine together still cost less than two years of Pro, and the difference pays for what only Pro has: every light and device placed where it is, Live Aboard and Furnish, wall mode, the Atlas as your Overview, and people and tags on the map. Pro also covers up to 5 homes (with more than 2, each keeps its usage report on), and every new PadSpan feature is included while its key runs. The prices for both are side by side on the <a href="https://padspan.traks.ca/#editions">home page</a>, and you can try all of Pro free for 90 days.</p>
+<p>All nine add-ons together cost less than two years of Pro. Pro also has what no add-on sells: every light and device placed where it is, Live Aboard and Furnish, wall mode, the Atlas as your Overview, and people and tags on the map. Pro also covers up to 5 homes (with more than 2, each keeps its usage report on), and every new PadSpan feature is included while its key runs. The prices for both are side by side on the <a href="https://padspan.traks.ca/#editions">home page</a>, and you can try all of Pro free for 90 days.</p>
 <h3>Does an add-on give me wall mode or the 3D house?</h3>
 <p>No, both are part of Pro. Wall mode fits the whole house to the screen, keeps the screen awake and can dim it at night. On an install with add-ons, the Atlas page still runs on a wall tablet with the classic layout, and each add-on's parts on the Atlas work there.</p>
 <h3>Which PadSpan version do I need?</h3>
-<p>0.38.300 or later. It's a beta for now, and the next stable release includes the add-ons.</p>
+<p>0.38.300 or later, which is a beta release for now.</p>
 <h3>Is anything I set up lost when an add-on ends?</h3>
 <p>No. Your settings stay stored for when a key comes back, and Forensics keeps what it recorded until its time is up.</p>
 <h3>Who in the house can use them?</h3>
-<p>Anyone whose Home Assistant login can use the device: Audio and the alarm run with each person's own login, on wall screens too. Matching players to rooms, turning Vacation Mode on or off and entering the key take an administrator.</p>
+<p>Anyone whose Home Assistant login can use the device. Audio and the alarm run with each person's own login, on wall screens too. Matching players to rooms, turning Vacation Mode on or off and entering the key take an administrator.</p>
 
 <div class="cta">
   <a class="btn primary" href="/pro/">See what PadSpan Pro includes</a>

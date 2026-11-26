@@ -71,10 +71,10 @@ footer p{margin:4px 0}
 </div></nav>
 <main>
 <h1>Add-ons: je eine Funktion, kein Abo</h1>
-<p class="lead">Jedes Add-on fügt dem kostenlosen PadSpan eine Sache hinzu, etwa die Musik jedes Raums auf der Karte oder das Scharfschalten der Alarmanlage am Wanddisplay. Eine Zahlung gilt 2 Jahre auf bis zu 3 Zuhause, und ein Schlüssel trägt alle Add-ons, die du kaufst. Add-ons brauchen PadSpan 0.38.300 oder neuer. PadSpan Pro enthält jedes davon.</p>
+<p class="lead">Jedes Add-on fügt dem kostenlosen PadSpan eine Sache hinzu, etwa die Musik jedes Raums auf der Karte oder das Scharfschalten der Alarmanlage über die Karte. Eine Zahlung gilt 2 Jahre auf bis zu 3 Zuhause, und auf einem Schlüssel liegen alle Add-ons, die du kaufst. Add-ons brauchen PadSpan 0.38.300 oder neuer. PadSpan Pro enthält jedes davon.</p>
 
 <div class="box">
-  <p><b>Mehr als ein oder zwei?</b> PadSpan Pro enthält alle neun Add-ons und dazu, was es als Add-on nicht gibt:</p>
+  <p><b>PadSpan Pro enthält alle neun Add-ons</b> und dazu, was es als Add-on nicht gibt:</p>
   <ul>
     <li>jedes Licht und Gerät genau dort, wo es ist, in seiner echten Form</li>
     <li>Live Aboard, das Haus in 3D, in das du hineinschaust wie in ein Haus bei „Die Sims“, und Einrichten, um es zu möblieren</li>
@@ -114,12 +114,12 @@ footer p{margin:4px 0}
 <p><b>Was du bekommst</b></p>
 <ul>
   <li><b>Ein Lautsprecher neben dem Namen eines Raums</b> auf dem Atlas, solange einer seiner Player läuft, durchgestrichen, wenn er stumm ist. Tippst du darauf oder auf den Namen des Raums, öffnet sich die Karte des Raums.</li>
-  <li><b>Jeder Player in der Karte des Raums</b>, mit <b>Stumm</b>, <b>−</b>, seiner Lautstärke von 0 bis 100, <b>+</b> und <b>⏻</b> zum Ausschalten. Es erscheinen nur die Tasten, die der Player kann. Ein Player, der seine Lautstärke selbst in Stufen regelt, wie die von Control4, zeigt die Lautstärke, die er meldet.</li>
+  <li><b>Jeder Player in der Karte des Raums</b>, mit <b>Stumm</b>, <b>−</b>, seiner Lautstärke von 0 bis 100, <b>+</b> und <b>⏻</b> zum Ausschalten. Es erscheinen nur die Tasten, die der Player unterstützt. Ein Player, der seine Lautstärke selbst in Stufen regelt, wie die von Control4, zeigt die Lautstärke, die er meldet.</li>
   <li><b>Beschattung</b>: alle Jalousien und Rollos im Raum, wie weit sie offen sind, und <b>Öffnen</b>, <b>Stopp</b> und <b>Schließen</b> für alle zugleich. Garagentore, Tore und Türen bleiben außen vor.</li>
   <li><b>Klima</b>: jedes Thermostat im Raum mit seiner Temperatur, seinem Modus und dem Sollwert mit <b>−</b> und <b>+</b>.</li>
   <li><b>Raum aus</b>, als Erstes in der Karte, schaltet die Lichter und Player des Raums, die an sind, mit einem Tippen aus.</li>
   <li>Temperatur und Luftfeuchtigkeit des Raums oben in der Karte.</li>
-  <li><b>Räume zuordnen</b>: Ein Administrator wählt einmal, in welchem Raum jeder Player steht. PadSpan rät zuerst nach dem Home-Assistant-Bereich des Players oder nach seinem Namen. Mehrere Player können sich einen Raum teilen; bei mir zu Hause teilen sich ein Denon und Control4 einen.</li>
+  <li><b>Räume zuordnen</b>: Ein Administrator wählt einmal, in welchem Raum jeder Player steht. PadSpan rät zuerst nach dem Home-Assistant-Bereich des Players oder nach seinem Namen. Mehrere Player können sich einen Raum teilen, etwa eine Control4-Zone und eine Denon-Zone.</li>
   <li><b>Lautsprecher aus Home Assistant einbeziehen</b> auf der Zuordnungskarte nimmt Player von Music Assistant, ESPHome, Cast und Fernsehern dazu. Das ist aus, bis du es ankreuzt.</li>
 </ul>
 <p><b>Wo.</b> Auf der Atlas-Seite. Für das ganze Haus schaltest du es unter <b>Einstellungen → Atlas → Audio</b> ein. Mit der neuen Anordnung von PadSpan Pro hakt jeder Bildschirm Audio stattdessen in seiner ⋯-Liste an.</p>
@@ -138,7 +138,7 @@ footer p{margin:4px 0}
 <ul>
   <li><b>Deine Alarmanlage im Notfallknopf</b>, oben rechts im Atlas. Seine Mitte zeigt den Schild der Anlage in der Farbe ihres Zustands. Ein Tippen öffnet ihre Karte: den Zustand, was sie ausgelöst hat, wenn die Anlage es sagt (Alarmo tut das), und <b>Scharf schalten</b> für zu Hause, abwesend, Nacht, Urlaub oder benutzerdefiniert, je nachdem, was deine Anlage kann, oder <b>Unscharf schalten</b>. Jede Schaltung fragt zuerst nach, mit einem Feld für den Code der Anlage, wenn sie einen hat. Bei mehreren Anlagen zeigt der Schild zuerst eine ausgelöste, dann eine ausstehende, eine scharfe und eine unscharfe.</li>
   <li><b>Der Test der Notbeleuchtung.</b> <b>Notbeleuchtung testen</b> schaltet alle Notlichter zugleich ein. Lichter, die vorher schon an waren, bleiben nach dem Test an, <b>Alle aus</b> schaltet alle aus, und jedes Licht hat in der Karte seinen eigenen Schalter. PadSpan findet die Lichter über Home-Assistant-Gruppen, deren Name oder ID „emergency“ enthält, oder über WLED-Lichter mit diesem Wort im Namen.</li>
-  <li><b>Die Karte für Tür, Garage und Tor.</b> Tippst du im Atlas auf eine verknüpfte Tür, ein Fenster oder ein Tor, siehst du, ob es zu und verriegelt, zu und entriegelt oder offen ist, mit <b>Öffnen</b> und <b>Schließen</b> für den Öffner (<b>Auslösen</b> bei einem Relais, das wie der Taster an der Wand arbeitet) und <b>Verriegeln</b> und <b>Entriegeln</b> für das Schloss.</li>
+  <li><b>Die Karte für Tür, Garage und Tor.</b> Tippst du im Atlas auf eine verknüpfte Tür, ein Fenster oder ein Tor, siehst du <i>Zu &amp; verriegelt</i>, <i>Zu, entriegelt</i> oder ob es offen ist, mit <b>Öffnen</b> und <b>Schließen</b> für den Öffner (<b>Auslösen</b> bei einem Relais, das wie der Taster an der Wand arbeitet) und <b>Verriegeln</b> und <b>Entriegeln</b> für das Schloss.</li>
   <li><b>Geräte → Türöffner</b>: Markiere eine Abdeckung, einen Schalter, eine Taste oder ein Skript als Öffner und verknüpfe ihn und ein Schloss dann unter <b>Karten → Atlas-Editor</b> mit der Tür.</li>
   <li><b>Öffner und Schlösser aus einfachen Relais</b>: ein Impuls-Öffner für Garagentor oder Tor, ein Öffner mit zwei Richtungen für ein motorisiertes Fenster, eine Jalousie oder eine Markise, und ein elektrischer Türsummer als Schloss. PadSpan baut dir die Abdeckung oder das Schloss in Home Assistant.</li>
 </ul>
@@ -146,14 +146,14 @@ footer p{margin:4px 0}
 <p><b>Am Wanddisplay und auf dem Handy.</b> Die Alarmanlage funktioniert am Wanddisplay wie überall, und nichts auf ihrer Karte führt von der Seite weg. Auf dem Handy sind es derselbe Knopf und dieselbe Karte, auf der Atlas-Seite in der Home-Assistant-App.</p>
 <p><b>Lohnt sich, wenn du</b> eine Alarmanlage in Home Assistant (Alarmo oder die Integration deiner Anlage), Garagentore oder Tore, Schlösser an Außentüren oder eine Notbeleuchtung hast.</p>
 <p><b>Braucht.</b> Eine Alarmanlage in Home Assistant zum Scharfschalten. Für die Türkarte Tür- und Fenstersensoren, die unter Karten mit ihren Türen verknüpft sind. Eine Abdeckung, einen Schalter, eine Taste oder ein Skript für jeden Öffner und ein Schloss in Home Assistant für jedes Schloss.</p>
-<p><b>Ohne das Add-on kostenlos.</b> Eine ausgelöste Alarmanlage siehst du trotzdem: Ihr Schild leuchtet im Notfallknopf, ohne etwas zum Drücken, und eine Zeile erscheint im roten Banner auf jedem PadSpan-Bildschirm. Wasser-, Rauch-, Gas- und CO-Alarme färben ihre Räume rot und schicken eine Benachrichtigung. Schlösser verriegelst und entriegelst du auf der Karte und in der Karte eines Raums. Der Alarmpuls (aus, bis du ihn einschaltest) lässt einen Raum bernsteinfarben leuchten, wenn eine Tür oder ein Fenster länger als 6 Stunden offen ist oder ein Fenster im Regen offen steht. Der Test der Notbeleuchtung war bis PadSpan 0.38.300 kostenlos und gehört jetzt zu diesem Add-on; ein laufender Test lässt sich immer beenden.</p>
+<p><b>Ohne das Add-on kostenlos.</b> Eine ausgelöste Alarmanlage siehst du trotzdem. Ihr Schild leuchtet im Notfallknopf, ohne etwas zum Drücken, und eine Zeile erscheint im roten Banner auf jedem PadSpan-Bildschirm. Wasser-, Rauch-, Gas- und CO-Alarme färben ihre Räume rot und schicken eine Benachrichtigung. Schlösser verriegelst und entriegelst du auf der Karte und in der Karte eines Raums. Der Alarmpuls (aus, bis du ihn einschaltest) lässt einen Raum bernsteinfarben leuchten, wenn eine Tür oder ein Fenster länger als 6 Stunden offen ist oder ein Fenster im Regen offen steht. Der Test der Notbeleuchtung war bis PadSpan 0.38.300 kostenlos und gehört jetzt zu diesem Add-on; ein laufender Test lässt sich immer beenden.</p>
 <p><b>Einschränkung.</b> Scharf- und Unscharfschalten laufen mit dem Home-Assistant-Login dessen, der am Bildschirm steht. Wer die Anlage in Home Assistant bedienen darf, kann sie also auch an einem gemeinsamen Wanddisplay scharf schalten.</p>
 <p class="links"><a href="https://padspan.traks.ca/de/#addons">Preis und Kauf</a> · <a href="/manual/alerts/de/#deine-alarmanlage-am-notfallknopf">Die Alarmanlage im Handbuch</a></p>
 </section>
 
 <section class="addon" id="vacation">
 <h3>Urlaubsmodus &amp; Voreinstellungen</h3>
-<p class="promise">Auf dem Weg in eine Woche Urlaub wählst du einmal im Atlas, und die Lichter spielen die üblichen Abende des Hauses, bis du zurück bist.</p>
+<p class="promise">Auf dem Weg in eine Woche Urlaub schaltest du im Atlas den Urlaubsmodus ein, und die Lichter spielen die üblichen Abende des Hauses nach, bis du zurück bist.</p>
 <p><b>Was du bekommst</b></p>
 <ul>
   <li><b>🌴 Vacation Mode</b>, wie der Urlaubsmodus im Panel heißt, als Erstes in der Liste <b>Ganzes Haus</b> im Atlas. Er lernt aus dem Verlauf von Home Assistant, wann jedes Licht an welchem Wochentag brennt, und schaltet die Lichter dann passend dazu, mit etwas Zufall, bis du ihn ausschaltest.</li>
@@ -179,7 +179,7 @@ footer p{margin:4px 0}
 <p class="promise">Ein Blick an die Wand zeigt, welches Schlafzimmer kalt ist und in welchem Büro die Luft verbraucht ist.</p>
 <p><b>Was du bekommst</b></p>
 <ul>
-  <li><b>Ein ♨ Heatmap-Chip</b> in der Ebenenleiste des Atlas. Jedes Tippen wechselt zu Temperatur, Feuchtigkeit und CO₂ und dann wieder auf aus, mit nur dem, wofür dein Haus Sensoren hat.</li>
+  <li><b>Ein ♨ Heatmap-Chip</b> in der Ebenenleiste des Atlas. Jedes Tippen schaltet weiter, von Temperatur über Feuchtigkeit und CO₂ zurück auf aus. Angeboten wird nur, wofür dein Haus Sensoren hat.</li>
   <li><b>Räume in den Farben ihrer eigenen Sensoren.</b> Die Temperatur ist blau unter 19 °C, grün von 20,5 bis 23,5 °C, bernsteinfarben bei 25 und rot bei 28. Die Luftfeuchtigkeit ist grün von 40 bis 60 %, orange, wenn es trocken ist, und blau, wenn es feucht ist. CO₂ ist grün bei 400 ppm, gelb bei 1.000 und rot ab 1.500.</li>
   <li><b>Nichts geht durch eine Wand.</b> Ein Sensor draußen auf der Terrasse färbt nie das Wohnzimmer, Außenräume bleiben ungefärbt, und ein Raum ohne eigenen Sensor ebenso. Werte, die älter als eine Stunde sind, bleiben außen vor, und Sensoren in Fahrenheit werden umgerechnet.</li>
 </ul>
@@ -188,7 +188,7 @@ footer p{margin:4px 0}
 <p><b>Lohnt sich, wenn du</b> in den meisten Räumen einen Sensor für Temperatur, Luftfeuchtigkeit oder CO₂ hast.</p>
 <p><b>Braucht.</b> Diese Sensoren in den Home-Assistant-Bereichen, die zu den Räumen deiner Karte passen.</p>
 <p><b>Ohne das Add-on kostenlos.</b> Deine Sensoren erscheinen weiter als Markierungen im Atlas und in Home Assistant. Ein Thermostat aus der Karte eines Raums zu stellen, gehört zu Audio, nicht zu diesem Add-on.</p>
-<p><b>Einschränkung.</b> Ohne Pro sind Sensoren nicht auf der Karte platziert, also bekommt jeder Raum eine Farbe aus dem Mittel seiner eigenen Sensoren. Mit Pro gehen platzierte Sensoren im Raum ineinander über.</p>
+<p><b>Einschränkung.</b> Ohne Pro sind Sensoren nicht auf der Karte platziert, also bekommt jeder Raum eine Farbe aus dem Mittel seiner eigenen Sensoren. Mit Pro verlaufen die Farben zwischen platzierten Sensoren.</p>
 <p class="links"><a href="https://padspan.traks.ca/de/#addons">Preis und Kauf</a> · <a href="/manual/the-atlas/de/#heatmap-pro-oder-das-add-on-klimakarte">Die Heatmap im Handbuch</a></p>
 </section>
 
@@ -201,7 +201,7 @@ footer p{margin:4px 0}
   <li><b>2,4 GHz und 5 GHz als eigene Karten</b>, weil die meisten smarten Geräte 2,4 GHz nutzen und die meisten Handys 5 GHz. Zeig alle Access Points oder einen einzelnen, um seine Reichweite zu sehen.</li>
   <li><b>Eine Raumtabelle</b> mit dem Median-Signal jedes Raums, einem Wort dafür von „excellent“ bis „very weak“ und der Zeit, über die gemessen wurde.</li>
   <li><b>What to fix</b>: die Befunde von UniFi Utopia, das Dringendste zuerst, jeweils mit dem, was zu tun ist. Ein Klick zeigt den Befund auf dem Plan. Dazu gehören Geräte, die ausfallen, Geräte an einem fernen Access Point, während ein näherer sie besser hört, und Räume, in denen Handys an schwachem WLAN hängen.</li>
-  <li><b>Wo die Access Points sind</b>, unter Karten platziert oder aus den Geräten geschätzt, die jeden am besten hören, und <b>welches WLAN-Gerät welches Handy ist</b>, wenn die Namen sich unterscheiden. Beides ist für Administratoren.</li>
+  <li><b>Wo die Access Points sind</b>, unter Karten platziert oder aus den Geräten geschätzt, die jeden am besten hören, und <b>welches WLAN-Gerät welches Handy ist</b>, wenn die Namen sich unterscheiden. Beides ist für Administratoren, und einen Access Point unter Karten zu platzieren, braucht Pro.</li>
   <li>Mit einem Saugroboter, der PadSpans Raum-Ortungsfahrten macht, seine Messwerte in Bodenhöhe als eigene Ebene.</li>
 </ul>
 <p><b>Wo.</b> Ein Reiter im PadSpan-Panel, unter Weitere Werkzeuge, solange du ihn nicht verschiebst. Er erscheint nur, solange die Messung von UniFi Utopia antwortet.</p>
@@ -251,13 +251,13 @@ footer p{margin:4px 0}
 <p><b>Lohnt sich, wenn du</b> Bluetooth-Empfänger und einen Grundriss hast und auf Lichter, Türen und Sensoren zurückblicken möchtest.</p>
 <p><b>Braucht.</b> Einen Grundriss, weil Traceback darauf abspielt. Bluetooth-Empfänger für Handys und Tags; Traceback behält sie 7 Tage. Den Recorder von Home Assistant für die Geräte. PadSpan zeichnet für sie nichts zusätzlich auf, also reichen die Geräte so weit zurück, wie der Recorder speichert, und was vom Recorder ausgeschlossen ist, läuft nicht mit.</p>
 <p><b>Ohne das Add-on kostenlos.</b> Die Wiedergabe von Handys und Tags im Stockwerkstapel in Traceback, Neue Objekte, Auswertungen, und Wiedergabe teilen, das einen Clip von 10 bis 30 Sekunden macht. Auch diese brauchen einen Bluetooth-Empfänger.</p>
-<p><b>Einschränkung.</b> Das Add-on zeichnet die Karte, die deine Installation hat. Ohne Pro stehen die Lichter gesammelt in ihren Räumen statt dort, wo sie hängen.</p>
+<p><b>Einschränkung.</b> Das Add-on zeichnet die Karte, die deine Installation hat. Ohne Pro stehen die Lichter gesammelt in ihren Räumen statt dort, wo sie hängen, und Werte für Temperatur, Luftfeuchtigkeit und Luft laufen nur für Sensoren mit, die auf der Karte platziert sind.</p>
 <p class="links"><a href="https://padspan.traks.ca/de/#addons">Preis und Kauf</a> · <a href="/manual/the-screens/de/#traceback">Traceback im Handbuch</a></p>
 </section>
 
 <section class="addon" id="insights">
 <h3>Präsenz-Auswertungen</h3>
-<p class="promise">Sind die Schlüssel wieder weg, führt dich Finden Raum für Raum zu ihrem Tag. Stoßzeiten zeigt, welche Räume das Haus wirklich nutzt, und wann.</p>
+<p class="promise">Sind die Schlüssel wieder weg, führt dich Finden Raum für Raum zu ihrem Tag. Stoßzeiten zeigt, welche Räume im Haus wirklich genutzt werden, und wann.</p>
 <p><b>Was du bekommst</b></p>
 <ul>
   <li><b>📍 Finden</b> unter <b>Folgen</b>. Wähl unter <b>Du trägst:</b> dein eigenes Handy oder deinen Tag, öffne den Tag, den du suchst, und Finden listet die Räume auf, durch die du gehst, den nächsten hervorgehoben, auch ein Stockwerk hoch oder runter. Im selben Raum zeigt es live die Entfernung in Metern und ob du näher kommst oder dich entfernst.</li>
@@ -296,7 +296,7 @@ footer p{margin:4px 0}
   <li><b>2 Jahre für eine Zahlung.</b> Es gibt kein Abo.</li>
   <li><b>Bis zu 3 Zuhause</b>, also drei Home Assistants. Ein neu installiertes Home Assistant nimmt den Platz eines Zuhauses ein, das sich 14 Tage nicht gemeldet hat, und ein Zuhause, das 45 Tage still ist, gibt seinen Platz von selbst frei.</li>
   <li><b>Ein Schlüssel für alle.</b> Jedes Add-on darauf hat sein eigenes Enddatum. Kaufst du ein weiteres mit derselben E-Mail, kommt es zu diesem Schlüssel dazu.</li>
-  <li><b>Den Schlüssel eintragen.</b> Öffne im PadSpan-Panel <b>Einstellungen → Funktionen → PadSpan-Lizenz</b> und tipp auf <b>Lizenzschlüssel eingeben</b>. Das braucht einen Home-Assistant-Administrator, und die Einstellungen zeigen ihre Reiter im Modus Erweitert. Die Karte listet danach jedes Add-on mit seinem Datum.</li>
+  <li><b>Den Schlüssel eintragen.</b> Öffne im PadSpan-Panel <b>Einstellungen → Funktionen → PadSpan-Lizenz</b> und tipp auf <b>Lizenzschlüssel eingeben</b>. Das braucht einen Home-Assistant-Administrator und PadSpan im Modus Erweitert, denn im Modus Einfach zeigen die Einstellungen nur die Darstellung. Die Karte listet danach jedes Add-on mit seinem Datum.</li>
   <li><b>PadSpan 0.38.300 oder neuer.</b> Nur dort funktioniert ein Add-on-Schlüssel.</li>
   <li><b>Offline.</b> Die Enddaten liegen in deinem Home Assistant, also laufen Add-ons weiter, wenn das Internet oder der Lizenzserver nicht erreichbar ist.</li>
   <li><b>14 Tage Kulanz.</b> Wenn die 2 Jahre eines Add-ons enden, läuft es noch 14 Tage weiter, und die Lizenzkarte sagt es dir. Danach ist es gesperrt, bis du verlängerst, und nichts, was du eingerichtet hast, geht verloren.</li>
@@ -306,13 +306,13 @@ footer p{margin:4px 0}
 
 <h2>Fragen</h2>
 <h3>Brauche ich ein Add-on, um PadSpan zu nutzen?</h3>
-<p>Nein. Die kostenlose Version braucht keinen Schlüssel und läuft nicht ab. Manche Funktionen brauchen PadSpan Pro oder ein Add-on, und PadSpan sagt dort, wo du ihnen begegnest, welches. Pro enthält jedes Add-on.</p>
+<p>Nein. Die kostenlose Version braucht keinen Schlüssel und läuft nicht ab. Ein Add-on fügt ihr eine Funktion hinzu, und Pro enthält jedes Add-on.</p>
 <h3>Add-ons oder Pro?</h3>
-<p>Ein oder zwei Add-ons kosten einen Bruchteil von Pro. Alle neun zusammen kosten immer noch weniger als zwei Jahre Pro, und der Unterschied bezahlt, was nur Pro hat: jedes Licht und Gerät dort platziert, wo es ist, Live Aboard und Einrichten, den Wandmodus, den Atlas als deine Übersicht und Personen und Tags auf der Karte. Pro deckt außerdem bis zu 5 Zuhause ab (bei mehr als 2 lässt jedes seinen Nutzungsbericht an), und jede neue PadSpan-Funktion ist dabei, solange der Schlüssel läuft. Die Preise für beides stehen nebeneinander auf der <a href="https://padspan.traks.ca/de/#editions">Startseite</a>, und du kannst ganz Pro 90 Tage kostenlos testen.</p>
+<p>Alle neun Add-ons zusammen kosten weniger als zwei Jahre Pro. Pro hat außerdem, was es als Add-on nicht gibt: jedes Licht und Gerät dort platziert, wo es ist, Live Aboard und Einrichten, den Wandmodus, den Atlas als deine Übersicht und Personen und Tags auf der Karte. Pro deckt außerdem bis zu 5 Zuhause ab (bei mehr als 2 lässt jedes seinen Nutzungsbericht an), und jede neue PadSpan-Funktion ist dabei, solange der Schlüssel läuft. Die Preise für beides stehen nebeneinander auf der <a href="https://padspan.traks.ca/de/#editions">Startseite</a>, und du kannst ganz Pro 90 Tage kostenlos testen.</p>
 <h3>Bekomme ich mit einem Add-on den Wandmodus oder das 3D-Haus?</h3>
 <p>Nein, beides gehört zu Pro. Der Wandmodus passt das ganze Haus auf den Bildschirm ein, hält ihn wach und kann ihn nachts dimmen. Mit Add-ons läuft die Atlas-Seite trotzdem auf einem Wandtablet, in der klassischen Anordnung, und die Teile jedes Add-ons im Atlas funktionieren dort.</p>
 <h3>Welche PadSpan-Version brauche ich?</h3>
-<p>0.38.300 oder neuer. Das ist im Moment eine Beta, und die nächste stabile Version enthält die Add-ons.</p>
+<p>0.38.300 oder neuer, im Moment eine Beta-Version.</p>
 <h3>Geht etwas verloren, wenn ein Add-on endet?</h3>
 <p>Nein. Deine Einstellungen bleiben gespeichert, bis ein Schlüssel zurückkommt, und Forensik behält das Aufgezeichnete, bis seine Zeit abgelaufen ist.</p>
 <h3>Wer im Haus kann sie benutzen?</h3>

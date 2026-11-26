@@ -2,7 +2,7 @@
 
 Live Aboard is the Atlas in 3D: your floors, rooms, walls, doors, windows, lights and sensors as a
 little house you can turn, zoom and tap, the way you'd look into a house in The Sims. You run the
-house from it as you do from the flat map: tap a light to switch it, tap a room's name for
+house from it as you do from the flat map. Tap a light to switch it, and tap a room's name for
 everything in it. It's built from the map you already drew, so there's nothing new to set up before
 you see it.
 
