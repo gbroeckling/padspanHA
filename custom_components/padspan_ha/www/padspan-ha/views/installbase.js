@@ -322,7 +322,8 @@ function renderUnlocked(ctx, root) {
       const both = (k) => (u(k) ? `${fmt(u(k))} · ${fmt(u(k, "installs"))}` : "–");
       const pick = (re) => Object.fromEntries(Object.entries(aUse).filter(([k]) => re.test(k)));
       const order = Object.keys(W_ADDONS.addon), places = Object.keys(W_ADDONS.place), days = Object.keys(W_ADDONS.days);
-      const notSold = (a) => a === "lighting";      // Advanced smart lighting: everyone's until it is sold
+      // Not sold yet (the feed's not_sold: an add-on before its moment, licence.ADDON_ON_SALE_FROM): everyone's.
+      const notSold = (a) => a === "lighting" || (Array.isArray(ao.not_sold) && ao.not_sold.includes(a));
       const onPro = Object.entries(lic).reduce((t, [k, v]) => t + (/^pro_/.test(k) ? Number(v) || 0 : 0), 0);
       const gained = total(Object.fromEntries(Object.entries(pick(/^addon_gained:/)).map(([k, v]) => [k, v.count])));
       // Offers and buy clicks per add-on and place: whatever the window's events name.
@@ -945,7 +946,7 @@ const W_WALL_KIND = { kiosk: "as a wall screen (kiosk link)", fullscreen_idle: "
 const W_ADDONS = {
   addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate map", timetravel: "Time travel",
     vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
-    maps: "Advanced map creation", lighting: "Advanced smart lighting" },
+    maps: "Advanced map creation", lighting: "Advanced smart lighting", vacuum: "Robot vacuum" },
   licence: { free: "Free", trial: "Pro trial", pro_year: "Pro, a year", pro_pass: "Pro, a two-year pass", pro_life: "Pro for life",
     pro_tester: "Pro, a tester's or a free year", bright: "Bright (Atlas only)", addon: "An add-on key", lapsed_trial: "Trial ended",
     lapsed_pro: "Pro ended", lapsed_bright: "Bright ended", lapsed_addon: "Add-on key ended" },
@@ -959,7 +960,7 @@ const W_ADDONS = {
     sale_w4: "in the sale's week 4", sale_w5: "in the sale's week 5", sale_w6: "in the sale's week 6", after: "after the sale" },
   card: { shown: "shown", clicked: "its link opened", dismissed: "No thanks" },
   moved: { emergency_test: "The emergency lights test", power_teams: "Power teams", circadian: "Lights following the day",
-    lidar: "A LiDAR room scan" },
+    lidar: "A LiDAR room scan", robot_vacuum: "The robot vacuum's features" },
   market: { alarm: "alarm panels", garage: "garage openers", gate: "gate openers", emergency: "emergency lights",
     temp: "temperature sensors", humidity: "humidity sensors", co2: "CO₂ sensors", wled: "WLED devices", teams: "power teams",
     colour_bulbs: "colour bulbs", vacuum: "robot vacuums" },

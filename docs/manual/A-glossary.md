@@ -6,8 +6,9 @@ The words this manual and PadSpan's panel use, in alphabetical order.
 
 **Add-on.** One part of PadSpan Pro, bought on its own for an install without Pro: Audio, Alarm &
 security, Wi-Fi coverage, Climate map, Time travel, Vacation Mode & presets, Looks pack, Forensics,
-Presence insights or Advanced smart lighting. One payment covers 2 years, on up to three homes; PadSpan Pro includes them all.
-See [chapter 25](25-padspan-pro.md#add-ons).
+Presence insights or Advanced smart lighting, and from December 1, 2026 Advanced map creation or
+Robot vacuum. One payment covers 2 years, on up to three homes; PadSpan Pro includes them all. See
+[chapter 25](25-padspan-pro.md#add-ons).
 
 **Administrator.** A Home Assistant user with administrator rights. Backups, restores, a Factory
 Reset, phones' keys, floor plan uploads and anything that sends data out of the house need one; with
@@ -126,8 +127,8 @@ Assistant entities, events and alerts.
 **Licence key.** What unlocks PadSpan Pro (or Bright Pro), entered in Settings → Features → PadSpan
 licence. One key covers up to five homes.
 
-**Live Aboard.** The Atlas in 3D (Pro, experimental, off unless switched on), with **Furnish** for
-furniture, devices and people.
+**Live Aboard.** The Atlas in 3D, free from December 1, 2026 (Pro and experimental before), with
+**Furnish** (Pro) for furniture, devices and people.
 
 **Live and Sample.** Live is your own house; Sample is a finished sample house to look around in
 (**Preview a finished house**, and **Back to my house** returns).
@@ -156,10 +157,11 @@ Advanced smart lighting add-on.
 **Private BLE Device.** Home Assistant's integration that follows a phone by its IRK. PadSpan reads
 its keys; a key you add there reaches PadSpan within five minutes.
 
-**Pro, and the tiers.** PadSpan HA is free with no key. A key's **tier** says what it unlocks: `pro`
-(PadSpan Pro: everything in PadSpan HA, such as Atlas placement, Live Aboard, wall mode, Vacation Mode,
-Forensics, Busy Times and Locate) or `bright` (Bright Pro: the Atlas's whole toolset). Free < Bright
-< Pro, each with all of the one before. There is a one-time 90-day free **trial**, in Settings →
+**Pro, and the tiers.** PadSpan HA is free with no key (from December 1, 2026, with exact placement on
+the Atlas, the plain wall screen and the 3D house). A key's **tier** says what it unlocks: `pro`
+(PadSpan Pro: everything in PadSpan HA, such as fixture shapes, Furnish, the wall screen's extras,
+Vacation Mode, Forensics, Busy Times and Locate) or `bright` (Bright Pro: the Atlas's whole
+toolset). Free < Bright < Pro, each with all of the one before. There is a one-time 90-day free **trial**, in Settings →
 Features → PadSpan licence.
 
 **Put it on the map.** The button (at the end of Setup, and on a room in Rooms) that takes rooms and

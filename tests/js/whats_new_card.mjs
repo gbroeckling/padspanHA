@@ -78,6 +78,7 @@ const sidebarSrc = extract("_renderSidebarTrial", "method");
 const askSrc = extract("_telemetryAskCard", "method");
 const launchSrc = extract("_launchPriceCard", "method");
 const saleSrc = extract("_addonSaleCard", "method");
+const freeHouseSrc = extract("_freeHouseCard", "method");
 // panel.js's own t() and tn() (tests/js/panel_t.mjs): part of the scope panel.js hands them.
 const { t: panelTr, tn: panelTn } = panelT(readFileSync(PANEL, "utf-8"));
 const TRIAL_REAL = await import(pathToFileURL(join(dirname(PANEL), "views", "trial_offer.js")).href);
@@ -86,7 +87,7 @@ function buildAll(EDITIONS, TRIAL = null) {
   // eslint-disable-next-line no-new-func
   return new Function("APP_VERSION", "EDITIONS", "TRIAL", "_trialPromise", "t", "tn", `
     ${elSrc}
-    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc}, ${launchSrc}, ${saleSrc} };
+    return { _el: el, ${cardSrc}, ${milestoneSrc}, ${sidebarSrc}, ${askSrc}, ${launchSrc}, ${saleSrc}, ${freeHouseSrc} };
   `)(APP_VERSION, EDITIONS, TRIAL, Promise.resolve(), panelTr, panelTn);
 }
 function build(EDITIONS, TRIAL = null) { return buildAll(EDITIONS, TRIAL)._whatsNewCard; }
@@ -689,6 +690,63 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
   st("sale card: a page that fills the screen names the site instead of opening a tab it can't close", () => {
     const out = sale(SFREE, { trial: { ...T, newTabOk: () => false } }).card();
     assert(out && !q(out, "a") && q(out, '[data-sale-card="see-text"]').textContent === "At padspan.traks.ca", out && out.textContent);
+  });
+}
+
+// 14. "The 3D house is now free" (panel.js _freeHouseCard, editions.js
+//     freeHouseCardDue): from the backend's word (settings.free_basics), to an
+//     administrator without Pro, once, never on a wall or in sample mode.
+{
+  const ED = await import(pathToFileURL(join(dirname(PANEL), "views", "editions.js")).href);
+  const HFREE = { ...FREE, free_basics: true, house3d_free_card_done: false };
+  const house = (settings, { admin = true, editions = ED, state = {} } = {}) => {
+    const c = ctx(settings, { admin });
+    c._scheduleRender = () => {};
+    Object.assign(c.state, state);
+    const obj = buildAll(editions, T);
+    c._el = obj._el;
+    return { c, card: () => obj._freeHouseCard.call(c) };
+  };
+  t("free house card: an administrator sees it once from the moment: what is free, what Pro adds, Got it", () => {
+    const { c, card } = house(HFREE);
+    const out = card();
+    assert(out, "not shown");
+    const words = out.textContent;
+    assert(words.includes("The 3D house is now free"), words);
+    assert(words.includes("Exact placement of your lights and devices, the plain wall screen and the 3D house (Live Aboard in the Atlas) are free now, with no key. PadSpan Pro adds Furnish, people in 3D and the 3D editor."), words);
+    assert(!/\$\d|20\d\d/.test(words), "a price or a date in it: " + words);
+    assert(q(out, '[data-free-house-card="ok"]').textContent === "Got it", "Got it");
+    assert(c._overviewCardShown === true, "it does not hold the one-card slot");
+    card();
+    const saves = c._saved.filter(m => m.house3d_free_card_done === true);
+    assert(saves.length === 1 && saves[0].type === "padspan_ha/settings_set" && !c._saved.some(m => "lifetime_card_done" in m), "saved " + saves.length + " times");
+    assert(!c._events.length, "counted something: " + JSON.stringify(c._events));
+  });
+  t("free house card: Got it is final for this page, and the flag keeps it away on the next", () => {
+    const { c, card } = house(HFREE);
+    q(card(), '[data-free-house-card="ok"]').click();
+    assert(card() === null, "still shown after Got it");
+    assert(c._saved.filter(m => m.house3d_free_card_done === true).length === 1, "not saved, or saved twice");
+    assert(house({ ...HFREE, house3d_free_card_done: true }).card() === null, "shown again on the next page load");
+  });
+  t("free house card: never before the moment, to a non-admin, on a wall, in sample mode, to Pro, without its flag, or without editions.js", () => {
+    const cases = [
+      [{}, { ...HFREE, free_basics: undefined }], [{ admin: false }, HFREE], [{ state: { kioskMode: true } }, HFREE],
+      [{ state: { dataMode: "sample" } }, HFREE], [{ state: { _dataModeKnown: false } }, HFREE],
+      [{}, { ...HFREE, tier: "pro", pro_has_key: true, pro_active: true }],
+      [{}, (() => { const s = { ...HFREE }; delete s.house3d_free_card_done; return s; })()], [{}, null],
+      [{ editions: null }, HFREE], [{ editions: { ...ED, freeHouseCardDue: undefined } }, HFREE],
+    ];
+    for (const [o, s] of cases) {
+      const { c, card } = house(s, o);
+      assert(card() === null, "shown: " + JSON.stringify(o) + " " + JSON.stringify(s));
+      assert(!c._saved.length, "saved when not shown");
+    }
+  });
+  t("free house card: waits for another page load after another Overview card showed on this one", () => {
+    const { c, card } = house(HFREE);
+    c._overviewCardShown = true;
+    assert(card() === null && !c._saved.length, "shown or saved right after another card");
   });
 }
 

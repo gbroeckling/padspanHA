@@ -3,20 +3,27 @@
 [Contents](README.md)
 
 PadSpan HA is free, and the presence tracking stays free: rooms, floor plans, calibration, the
-history, the Home Assistant sensors and the alerts. **PadSpan Pro** is an optional key that unlocks
-the paid parts on the same install, with nothing to reinstall:
+history, the Home Assistant sensors and the alerts. So are, from December 1, 2026, exact placement
+of lights and devices on the Atlas, the plain full-screen wall screen and the 3D house's basics
+(Live Aboard). **PadSpan Pro** is an optional key that unlocks the paid parts on the same install,
+with nothing to reinstall:
 
-- exact placement on the Atlas: shapes, sizes, angles, WLED's Advanced controls, Automorph and
+- on the Atlas: shapes, sizes and angles, Fit room, WLED's Advanced controls, Automorph and
   Showcase ([chapter 15](15-the-atlas.md));
 - power teams: making and changing them, following the day, Sleep and the wake-up
   ([chapter 15](15-the-atlas.md#power-teams));
-- Live Aboard, the 3D house, with Furnish ([chapter 16](16-live-aboard.md),
-  [chapter 17](17-furnish.md));
-- wall mode ([chapter 18](18-wall-screens-and-kiosks.md));
+- in Live Aboard, the 3D house: Furnish, people figures, the 3D editor, the director and the
+  library ([chapter 16](16-live-aboard.md), [chapter 17](17-furnish.md));
+- on a wall screen: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake
+  ([chapter 18](18-wall-screens-and-kiosks.md));
 - Whole house presets and Vacation Mode;
 - Forensics, Busy Times and Locate ([chapter 12](12-the-screens.md));
 - the AI features ([chapter 19](19-ai-features.md));
+- from December 1, 2026, the robot vacuum's features
+  ([chapter 9](09-setup-the-map.md#room-location-runs-with-the-robot));
 - anything gated later.
+
+Until December 1, 2026, exact placement, wall mode and the whole 3D house are Pro's too.
 
 A PadSpan Pro key also unlocks PadSpan Bright's tools. Prices and where to buy a key:
 [padspan.traks.ca](https://padspan.traks.ca). Without Pro, an add-on unlocks one feature
@@ -82,7 +89,15 @@ on up to three homes. **PadSpan Pro includes them all.** Prices, and where to bu
 | Looks pack | The Graphite, Ocean, Dusk and Day themes; on the Atlas, Showcase with its themes, the West Coast Forest and the presets bar |
 | Forensics | Forensics recording |
 | Presence insights | Busy Times and Locate |
-| Advanced smart lighting | Power teams: making, changing and removing them, following the day, Sleep, the bedtime, the night light and the wake-up; on the Atlas, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, fixture shapes and the type override (with Showcase in its Classic theme as their stage). Placing a light where it really is stays Pro's |
+| Advanced smart lighting | Power teams: making, changing and removing them, following the day, Sleep, the bedtime, the night light and the wake-up; on the Atlas, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple, Hide untouched, fixture shapes and the type override (with Showcase in its Classic theme as their stage). Placing a light where it really is stays Pro's until December 1, 2026, when it becomes free |
+| Advanced map creation (from December 1, 2026) | AI plan reading ([chapter 19](19-ai-features.md)), a LiDAR scan's doors, windows, furniture and stairs in the 3D house, and floor plans from a LiDAR scan |
+| Robot vacuum (from December 1, 2026) | Your robot vacuum's map as a floor plan (**🤖 Import from a robot vacuum**, and Setup's **Use your robot vacuum's map**), the robot on the Atlas and in 3D with its card, room location runs, **Find mistakes**, and Wi-Fi while it cleans ([chapter 9](09-setup-the-map.md#room-location-runs-with-the-robot)) |
+
+Advanced map creation and Robot vacuum are on sale from December 1, 2026. A floor plan from a LiDAR
+scan and the robot vacuum's features are free until then; from then they need PadSpan Pro or their
+add-on (a Bright Pro key keeps the robot vacuum's). Whoever holds one of the two pays 30% less for
+the other: buy it from the licence card, which links to the payment at that price, and pay with the
+email the key was sent to. The better of that and any sale applies, never both.
 
 Free on every install, with or without them: an alarm going off (in the emergency button, with
 nothing to press, and in the red banner), locking and unlocking on the map and in a room's card,

@@ -9,8 +9,10 @@ lighting; the filter chip for light fixtures is still called **Lights**.
 
 ## Free and Pro
 
-- **Free**: floors, rooms and one marker per light. Tap a marker, or its row, to switch it.
-- **PadSpan Pro**: real placement, shapes and sizes, sensors, Automorph, Showcase, WLED's Advanced
+- **Free**: floors, rooms, and each light and device placed where it really is, as a plain marker.
+  Tap a marker, or its row, to switch it. Until December 1, 2026, placement is Pro's, and the free
+  map shows one marker per light in its room.
+- **PadSpan Pro**: shapes, sizes and angles, Fit room, Automorph, Showcase, WLED's Advanced
   controls, Whole house presets, Vacation Mode, and openers built from relays.
 
 **Settings → Features → PadSpan licence** has a one-time 90-day free trial
@@ -22,10 +24,11 @@ Mode and the heatmap need PadSpan Pro or their add-on.
 Without Pro, an add-on unlocks one part of the Atlas ([chapter 25](25-padspan-pro.md#add-ons)):
 **Audio**; **Alarm & security** (Arm and Disarm in the emergency button, the emergency lights test,
 and a door's card with its opener and lock); **Climate map** (the heatmap); **Vacation Mode &
-presets**; the **Looks pack** (Showcase with its themes, the West Coast Forest and the presets
-bar, on the free map: placement stays Pro's); and **Advanced smart lighting** (power teams that
-follow the day, sleep and wake you, WLED's Advanced controls, Automorph, Fit room, Light spread,
-Scene, Ripple, Hide untouched, fixture shapes and the type override; placement stays Pro's).
+presets**; the **Looks pack** (Showcase with its themes, the West Coast Forest and the presets bar,
+on the free map: shapes stay Pro's); **Advanced smart lighting** (power teams that follow the day,
+sleep and wake you, WLED's Advanced controls, Automorph, Fit room, Light spread, Scene, Ripple,
+Hide untouched, fixture shapes and the type override; placement stays Pro's until December 1,
+2026); and, from December 1, 2026, **Robot vacuum** (the robot on the map and in 3D, with its card).
 
 ## Getting there
 
@@ -37,13 +40,14 @@ Scene, Ripple, Hide untouched, fixture shapes and the type override; placement s
 
 The map needs your floor plans and rooms first: [chapter 9](09-setup-the-map.md).
 
-## Placing devices (Pro)
+## Placing devices
 
 1. In **Mapping → Atlas builder**, find the device in the row list. **Queue all unplaced** lines up
    several at once.
 2. Drag its pulsing pin onto the floor, or choose **+ Place** and tap the map where it belongs.
-3. Set its shape, size and angle in the inspector: a light can be a pendant, sconce, strip or
-   chandelier, in real centimetres.
+3. With PadSpan Pro, set its shape, size and angle in the inspector: a light can be a pendant,
+   sconce, strip or chandelier, in real centimetres. Without Pro it is drawn as a plain marker, and
+   a shape it already has is kept for when a key comes back.
 
 Lights, fans, locks, and motion, temperature, humidity, air-quality and leak sensors are all placed
 the same way.

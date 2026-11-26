@@ -357,12 +357,13 @@ zuerst. Je weiter unten in der Liste, desto grober der Grundriss.
    und PadSpan zeichnet den Grundriss maßstabsgetreu, ohne dass du etwas messen musst. Wo jeder Raum
    ist, sagst du trotzdem selbst. **Schritt für Schritt führen** zeigt dieselben Schritte einen
    Bildschirm nach dem anderen, fürs Handy gemacht, und gibt dir eine Adresse, die du dem schicken
-   kannst, der den Scan macht.
+   kannst, der den Scan macht. Ab dem 1. Dezember 2026 braucht ein Grundriss aus einem Scan PadSpan
+   Pro oder das Add-on Erweiterte Kartenerstellung.
 4. **Die Karte deines Saugroboters nutzen.** Ein Valetudo-, Dreame- oder Xiaomi-Roboter, den Home
    Assistant sieht. Schalte **Einstellungen → Funktionen → Experimentelle Funktionen →
    Saugroboter-Import** ein, nimm dann **Karten → Aufteilung → 🤖 Import from a robot vacuum** und
    **Add as a new map**. Daraus wird ein Grundriss mit seinen Räumen; Räume, die du schon hast, bleiben
-   erhalten.
+   erhalten. Ab dem 1. Dezember 2026 braucht das PadSpan Pro oder das Add-on Saugroboter.
 5. **Selbst zeichnen und fotografieren.** Auf weißem Papier, zuerst die Außenwände, dann die Wände
    zwischen den Räumen, mit einer Lücke für jede Tür. Schreib die Länge einer langen Wand quer und
    einer längs dazu. Fotografier es von direkt oben. **Ich habe meine Skizze: hochladen** hakt im
@@ -380,7 +381,8 @@ Zwei weitere Wege, im Modus Erweitert, unter **Karten → Aufteilung**:
 - **Sweet Home 3D.** **📐 Grundriss importieren (.sh3d)** liest die Räume aus einer
   Sweet-Home-3D-Datei, als Vorschlag für diese Etage, den du prüfst und bearbeitest, bevor du ihn
   übernimmst. Mit **RoomPlan Import** an, unter Einstellungen → Funktionen, liest derselbe Knopf
-  einen Raumscan.
+  einen Raumscan (ab dem 1. Dezember 2026 mit PadSpan Pro oder dem Add-on Erweiterte
+  Kartenerstellung).
 
 [Welcher Grundriss für Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) und
 [Dein Saugroboter hat deinen Grundriss schon gezeichnet](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/)
@@ -393,6 +395,14 @@ zu lernen. Das ist freiwillig, und nichts passiert, bis du eine Fahrt startest. 
 Bluetooth-Beacon mit fester Adresse (iBeacon oder Eddystone) oben auf den Roboter, weg vom
 Laserturm. Kein AirTag und kein Tile: deren Adressen ändern sich ständig. PadSpan hört nie den
 Roboter selbst, nur den Beacon auf ihm.
+
+Ab dem 1. Dezember 2026 brauchen die Funktionen des Roboters (seine Karte als Grundriss, der Roboter
+im Atlas und im 3D-Haus mit seiner Karte, die Raumortungsfahrten, **Fehler finden** und das WLAN
+beim Saugen) PadSpan Pro oder das Add-on Saugroboter ([Kapitel 25](25-padspan-pro.md#add-ons)); ein
+Bright-Pro-Schlüssel behält sie. Ohne eins davon wird der Roboter nicht gezeichnet, und der Import
+und **Fahrt starten** sagen, was sie brauchen. Nichts Gespeichertes wird gelöscht: Die Verbindung,
+die Karte und frühere Fahrten bleiben, **Stopp** und **Diese Fahrt rückgängig machen** gehen immer,
+und mit einem Schlüssel kommt alles zurück.
 
 Der Roboter erscheint im Atlas und im 3D-Haus, solange seine Live-Position an ist und der
 Saugroboter-Import eingeschaltet ist, ob dort Personen und Tags gezeigt werden oder nicht. Halte

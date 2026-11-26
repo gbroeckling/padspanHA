@@ -341,11 +341,13 @@ newer Pro, iPad Pro 2020 or newer). Any room-scanning app that uses Apple's Room
 scan as a USDZ file (some also offer RoomPlan JSON). Scan the whole floor in one go, doors open and
 lights on. Choose its floor, pick the file, and PadSpan draws the plan to scale, with nothing to
 measure. You still say where each room is. <b>Guide me step by step</b> shows the same steps one
-screen at a time, made for the phone, and gives you an address to send to whoever does the scan.</p></li>
+screen at a time, made for the phone, and gives you an address to send to whoever does the scan.
+From December 1, 2026, a plan from a scan needs PadSpan Pro or the Advanced map creation add-on.</p></li>
 <li><p><b>Use your robot vacuum's map.</b> A Valetudo, Dreame or Xiaomi robot that Home Assistant can see.
 Turn on <b>Settings → Features → Experimental Features → Robot Vacuum Import</b>, then use
 <b>Mapping → Layout → 🤖 Import from a robot vacuum</b>, and <b>Add as a new map</b>. It becomes a floor plan with
-its rooms; rooms you already have are kept.</p></li>
+its rooms; rooms you already have are kept. From December 1, 2026, it needs PadSpan Pro or the
+Robot vacuum add-on.</p></li>
 <li><p><b>Draw it yourself and photograph it.</b> On plain paper, the outside walls first, then the walls
 between rooms, with a gap for each door. Write the length of one long wall across and one down.
 Photograph it from straight above. <b>I have my sketch: upload it</b> ticks "my own sketch" on the
@@ -361,7 +363,8 @@ Add room</b>, drag it to shape, and <b>Save corrections</b>. Calibration still n
 scale.</li>
 <li><b>Sweet Home 3D.</b> <b>📐 Import floorplan (.sh3d)</b> reads the rooms from a Sweet Home 3D file, as a
 candidate for this floor to check and edit before you commit it. With <b>RoomPlan Import</b> on in
-Settings → Features, the same button reads a room scan.</li>
+Settings → Features, the same button reads a room scan (from December 1, 2026, with PadSpan Pro or
+the Advanced map creation add-on).</li>
 </ul>
 <p><a href="/guides/floor-plans/">Which floor plan for Home Assistant?</a> and
 <a href="/guides/robot-vacuum-floor-plan/">Your robot vacuum's map as your floor plan</a>
@@ -371,6 +374,12 @@ go further.</p>
 It is optional, and nothing happens until you start a run. Stick a fixed-address Bluetooth beacon
 (iBeacon or Eddystone) on top of the robot, away from its laser turret. Not an AirTag or a Tile:
 their addresses keep changing. PadSpan never hears the robot itself, only the beacon on it.</p>
+<p>From December 1, 2026, the robot's features (its map as a floor plan, the robot on the Atlas and in
+the 3D house with its card, room location runs, <b>Find mistakes</b>, and Wi-Fi while it cleans) need
+PadSpan Pro or the Robot vacuum add-on (<a href="/manual/padspan-pro/#add-ons">chapter 25</a>); a Bright Pro key
+keeps them. Without one, the robot is not drawn, and the import and <b>Start a run</b> say what they
+need. Nothing stored is deleted: the link, the map and earlier runs stay, <b>Stop</b> and <b>Undo this
+run</b> always work, and it all comes back with a key.</p>
 <p>The robot shows on the Atlas and in the 3D house while its live position is on and Robot Vacuum
 Import is turned on, whether people and tags are shown there or not. Press and hold it to open its
 card. The card talks to the robot's own Valetudo,

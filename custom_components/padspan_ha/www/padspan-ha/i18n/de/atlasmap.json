@@ -244,5 +244,6 @@
 "one": "Diese Woche in 1 Stunde ausgelöst.",
 "other": "Diese Woche in {n} Stunden ausgelöst."
 },
-"Code": "Code"
+"Code": "Code",
+"Place {n} around the room": "{n} im Raum verteilen"
 }

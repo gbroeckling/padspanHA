@@ -165,6 +165,6 @@ def test_people_and_tags_rows_stand_outside_the_live_aboard_rows() -> None:
         row = sec[sec.index(f'tick("{key}"'):]
         row = row[:row.index(");")]
         assert row.endswith(", both"), key
-    assert "box.appendChild(more);\n  box.appendChild(both);" in sec
+    assert "box.appendChild(more);\n  if (pro) box.appendChild(both);" in sec
     # Tied to the box's own tier gate (Pro): the box is built only at Pro.
-    assert 'if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));' in s
+    assert 'if (tierAtLeast(currentTier(settings), house3dTier(settings))) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));' in s

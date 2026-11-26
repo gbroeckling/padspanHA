@@ -143,7 +143,9 @@ def test_after_the_switch_the_page_sells_the_pass_and_the_year_only(site: str) -
     forms = re.findall(r"<form[^>]*paypal\.com/cgi-bin/webscr.*?</form>", after, re.S)
     skus = sorted(re.search(r'name="item_number" value="([^"]+)"', f).group(1) for f in forms)
     addons = [s for s in skus if s.startswith("padspan-addon-")]
-    assert len(addons) == 10 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
+    # Every add-on (licence.ADDONS: Advanced map creation and Robot vacuum are on sale by then, from December 1).
+    from custom_components.padspan_ha.licence import ADDONS
+    assert len(addons) == len(ADDONS) == 12 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
     assert 'name="amount" value="85.00"' in next(f for f in forms if "padspan-pro-2year" in f)
     sales = after[after.index('id="lights"'):after.index('id="donate"')]
     assert "Bright Pro" not in sales and "for life" not in sales and "$12" not in sales, \

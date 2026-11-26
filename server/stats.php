@@ -473,15 +473,21 @@ foreach ($tabs as $t => $n) { $tabs_out[$t] = array('count' => $n, 'installs' =>
 // addon_buy:, addon_key:, addon_gained:, addon_gained_in:, addon_sale_card:)
 // is in `usage` with every other event; `refused` sets the offers where a
 // feature refused an add-on against each install's latest report.
-$ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps', 'lighting');
+$ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps', 'lighting',
+                     'vacuum');
+// Not sold before these moments (licence.ADDON_ON_SALE_FROM): everyone's until then. The moment is read against now
+// (PADSPAN_STATS_NOW, a Unix time, when the includer defines one: the tests).
+$ADDON_ON_SALE_FROM = array('maps' => '2026-12-01T08:00:00Z', 'vacuum' => '2026-12-01T08:00:00Z');
+$ADDON_NOW = defined('PADSPAN_STATS_NOW') ? (int)PADSPAN_STATS_NOW : time();
 $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pro_tester', 'bright', 'addon',
                         'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),
                        'emergency_test' => array('alarm'), 'themes' => array('looks'), 'showcase' => array('looks'),
                        'forensics' => array('forensics'));
-$ADDON_MOVED = array('emergency_test' => 'alarm', 'power_teams' => 'lighting', 'circadian' => 'lighting', 'lidar' => 'maps');
+$ADDON_MOVED = array('emergency_test' => 'alarm', 'power_teams' => 'lighting', 'circadian' => 'lighting', 'lidar' => 'maps',
+                     'robot_vacuum' => 'vacuum');
 $ADDON_MARKET = array('alarm' => array('alarm', 'garage', 'gate', 'emergency'), 'climate' => array('temp', 'humidity', 'co2'),
-                      'lighting' => array('wled', 'teams', 'colour_bulbs'), 'maps' => array('vacuum'));
+                      'lighting' => array('wled', 'teams', 'colour_bulbs'), 'vacuum' => array('vacuum'));
 function addon_part($r) {
     $a = is_array($r) && isset($r['addons']) && is_array($r['addons']) ? $r['addons'] : array();
     return isset($a['licence']) && is_string($a['licence']) ? $a : null;
@@ -497,12 +503,18 @@ function addon_holds($a, $name) {
     return isset($held[$name]) && $held[$name] !== 'ended' && strpos($a['licence'], 'lapsed_') !== 0;
 }
 function addon_pro($a) { return strpos($a['licence'], 'pro_') === 0; }
+// On sale now: its moment, if it has one, has come.
+function addon_sold($name) {
+    global $ADDON_ON_SALE_FROM, $ADDON_NOW;
+    return !isset($ADDON_ON_SALE_FROM[$name]) || $ADDON_NOW >= strtotime($ADDON_ON_SALE_FROM[$name]);
+}
 // Holds it or is on Pro; Advanced smart lighting is not sold yet, so everyone's.
-function addon_on_it($a, $name) { return $name === 'lighting' || addon_holds($a, $name) || addon_pro($a); }
+function addon_on_it($a, $name) { return $name === 'lighting' || !addon_sold($name) || addon_holds($a, $name) || addon_pro($a); }
 $addons = array('installs' => 0, 'licence' => array(), 'held' => array(), 'kept' => 0, 'was' => array(), 'changes' => array(),
                 'moved' => array(), 'on_it' => array(), 'used' => array(), 'refused' => array(), 'market' => array(),
                 'reach' => array(), 'audio' => array(), 'c4' => array(), 'c4_local' => 0, 'c4_os2_local' => 0,
-                'wifi' => array(), 'history' => array(), 'plans' => array(), 'roomplan' => 0, 'valetudo' => 0);
+                'wifi' => array(), 'history' => array(), 'plans' => array(), 'roomplan' => 0, 'valetudo' => 0,
+                'not_sold' => array_values(array_filter($ADDON_NAMES, function ($n) { return !addon_sold($n); })));
 $addon_used_by = array();     // add-on => id => 1: a row in the window said it was used
 $addon_seq = array();         // id => day => that row's addons
 foreach ($rows as $k => $r) {
@@ -578,8 +590,8 @@ foreach ($latest as $id => $r) {
     if (isset($m['wifi']) && is_string($m['wifi'])) { incr($addons['wifi'], $m['wifi']); $addon_reach['wifi'][$id] = 1; }
     if (isset($m['history']) && is_string($m['history'])) { incr($addons['history'], $m['history']); }
     foreach (addon_words($m, 'plans') as $w) { incr($addons['plans'], $w); $addon_reach['maps'][$id] = 1; }
-    foreach (array('roomplan', 'valetudo') as $k) {
-        if (isset($m[$k]) && $m[$k] === true) { $addons[$k]++; $addon_reach['maps'][$id] = 1; }
+    foreach (array('roomplan' => 'maps', 'valetudo' => 'vacuum') as $k => $into) {
+        if (isset($m[$k]) && $m[$k] === true) { $addons[$k]++; $addon_reach[$into][$id] = 1; }
     }
 }
 foreach ($addon_reach as $name => $who) {

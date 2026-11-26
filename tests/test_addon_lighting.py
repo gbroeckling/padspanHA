@@ -107,9 +107,9 @@ def test_placement_stays_apart_from_the_design_tools(gates) -> None:
     # The builder: Advanced smart lighting alone opens a light's inspector from the list, with its Shape; its size,
     # angle and spot stay placement's (no entry without it).
     assert 'const design = paid || _addonAllowed(ctx.state.settings, "lighting");' in maps
-    assert "const sel = design && !preview ? mapState._selLight : null;" in maps
-    assert "const entry = !paid ? null : (mapState._lightsDraftM || {})[sel.eid]" in maps
-    assert maps.count("if (!design) { toggle(l.entity_id); return; }") == 2
+    assert "const sel = (place || design) && !preview ? mapState._selLight : null;" in maps
+    assert "const entry = !place ? null : (mapState._lightsDraftM || {})[sel.eid]" in maps
+    assert maps.count("if (!place && !design) { toggle(l.entity_id); return; }") == 2
     # The type override: Pro or the add-on, in the builder, the sidebar and the drawing; never Bright alone.
     assert gates["typeOverride"] == {**{k: None for k in gates["typeOverride"]}, "pro": "plain", "lighting": "plain"}
     lp = (_PKG / "www" / "padspan-ha" / "lights_panel.js").read_text(encoding="utf-8")
@@ -117,7 +117,7 @@ def test_placement_stays_apart_from_the_design_tools(gates) -> None:
     # Placement's own gate is untouched: Bright or Pro (maps.js _isPro, the backend's fabric light position).
     assert 'return t === "bright" || t === "pro";' in maps
     fabric = (_PKG / "ws_fabric.py").read_text(encoding="utf-8")
-    assert fabric.count('if not _tier_at_least(hass, "bright"):') >= 3
+    assert fabric.count('if not _tier_at_least(hass, placement_tier()):') >= 3     # licence.placement_tier: free from December 1
 
 
 # ── power teams without the add-on ──────────────────────────────────────────

@@ -624,7 +624,7 @@ def _companion_url(value: Any) -> str | None:
 # does for the whole home.
 _EVERYONE_KEYS = frozenset({
     "whatsnew_seen_version", "telemetry_asked", "trial_nudge_done", "tester_nudge_done", "launch_card_done", "lifetime_card_done",
-    "addon_sale_card_done",
+    "addon_sale_card_done", "house3d_free_card_done",
     "onboarding_completed", "setup_progress", "health_reminder_last_ts", "locate_self_key", "followed_addrs",
     "hidden_map_ids", "lights_hidden", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
     "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
@@ -639,6 +639,13 @@ _EVERYONE_KEYS = frozenset({
 @websocket_api.async_response
 async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
     from .presence_coordinator import PresenceCoordinator  # noqa: PLC0415
+    # From the free basics' moment, Live Aboard comes on once with the next read (settings_store.free_basics_3d_once).
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if st is not None and isinstance(getattr(st, "data", None), dict) and hasattr(st, "async_free_basics_3d_once"):
+        try:
+            await st.async_free_basics_3d_once()
+        except Exception:  # noqa: BLE001 - a failed save never blocks the settings read
+            _quiet_error("ws_settings:free_basics_3d_once")
     connection.send_result(msg["id"], {
         "settings": _get_settings(hass, connection),
         "cpu_pinning_supported": PresenceCoordinator.cpu_pinning_supported(),
@@ -660,6 +667,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("launch_card_done"): bool,               # the Overview launch-price card was shown; never again
         vol.Optional("lifetime_card_done"): bool,             # the Overview "Pro for life ends Dec 15" card was shown; never again
         vol.Optional("addon_sale_card_done"): bool,           # the Overview "Half off every add-on" card was shown; never again
+        vol.Optional("house3d_free_card_done"): bool,         # the Overview "The 3D house is now free" card was shown; never again
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
@@ -1010,6 +1018,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["lifetime_card_done"] = bool(msg.get("lifetime_card_done"))
         if "addon_sale_card_done" in msg:
             payload["addon_sale_card_done"] = bool(msg.get("addon_sale_card_done"))
+        if "house3d_free_card_done" in msg:
+            payload["house3d_free_card_done"] = bool(msg.get("house3d_free_card_done"))
         if "whatsnew_seen_version" in msg:
             # A version string and nothing else. It is written by the panel from
             # its own build constant, so anything that is not shaped like one is

@@ -60,7 +60,9 @@ def test_one_launch_date_everywhere() -> None:
     """The card goes by the dates the licence card, the trial card and the site
     already use (PRO_LIFETIME_LAUNCH_UNTIL, PRO_PASS_FROM), never a third one."""
     ed = _js(_WWW / "views" / "editions.js")
-    assert ed.count("2026-12-01") == 1 and 'PRO_LIFETIME_LAUNCH_UNTIL = "2026-12-01T08:00:00Z"' in ed
+    # December 1 is also the free basics' moment (FREE_BASICS_FROM, tests/test_free_basics_dec1.py), never a third.
+    assert ed.count("2026-12-01") == 2 and 'PRO_LIFETIME_LAUNCH_UNTIL = "2026-12-01T08:00:00Z"' in ed
+    assert 'FREE_BASICS_FROM = "2026-12-01T08:00:00Z"' in ed
     assert ed.count("2026-12-16") == 1 and 'PRO_PASS_FROM = "2026-12-16T08:00:00Z"' in ed
     due = ed[ed.index("export function lifetimeCardDue"):]
     due = due[:due.index("\n}\n")]

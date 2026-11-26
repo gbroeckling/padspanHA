@@ -402,6 +402,20 @@ def _fresh_quiet_error_counts():
     yield
 
 
+# The day the licence's moments are read at (licence._clock): before December 1,
+# 2026 (const.FREE_BASICS_FROM_TS), so a test reads the same rungs and the same
+# add-ons on sale whatever day the suite runs. A test of the moment itself sets
+# the clock (tests/test_free_basics_dec1.py) or passes `now`.
+LICENCE_TODAY_TS = 1796040000.0  # 2026-11-30T12:00:00Z
+
+
+@pytest.fixture(autouse=True)
+def _licence_clock_before_dec1(monkeypatch):
+    from custom_components.padspan_ha import licence
+    monkeypatch.setattr(licence, "_clock", lambda: LICENCE_TODAY_TS)
+    yield
+
+
 class MockStore:
     """Minimal stand-in for homeassistant.helpers.storage.Store."""
 

@@ -17,6 +17,10 @@ from pathlib import Path
 
 import tests.conftest  # noqa: F401  (the Home Assistant stand-ins, as under pytest)
 from tests import golden_tools as gt
+from custom_components.padspan_ha import licence as _licence
+
+# The licence's clock as under pytest (tests/conftest.py _licence_clock_before_dec1): the same day whenever this runs.
+_licence._clock = lambda: tests.conftest.LICENCE_TODAY_TS
 
 
 def _poll(dump: Path | None) -> None:

@@ -41,7 +41,7 @@ from .licence import ADDONS, addon_allowed, addon_on_sale, is_addon_key, key_tie
 LICENCE_WORDS: tuple[str, ...] = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                                   "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 DAYS_WORDS: tuple[str, ...] = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
-MOVED_WORDS: tuple[str, ...] = ("emergency_test", "power_teams", "circadian", "lidar")
+MOVED_WORDS: tuple[str, ...] = ("emergency_test", "power_teams", "circadian", "lidar", "robot_vacuum")
 # The add-ons, and Advanced smart lighting (circadian and power teams), which is everyone's until it is sold.
 USED_WORDS: tuple[str, ...] = tuple(dict.fromkeys(ADDONS + ("lighting",)))   # once, now that lighting is an add-on too
 # Whole-house audio by the integration that runs the player (an integration's name starts with one of these:
@@ -167,6 +167,8 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
         got.add("forensics")
     if _count(usage, "plan_ai_session:started", "rough_plan:scan"):
         got.add("maps")
+    if _count(usage, "vacuum_imported", "robot_run:started"):
+        got.add("vacuum")
     if any(isinstance(t, dict) and t.get("adaptive") is True for t in settings.get("power_teams") or []):
         got.add("lighting")
     bright = key_active and key_tier(settings) == "bright"
@@ -180,7 +182,8 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
 
 def moved_now(hass: Any, settings: dict[str, Any]) -> list[str]:
     """The features that moved from free into an add-on which this house has in use now: emergency lights the test
-    finds, a power team, one following the day, a LiDAR scan (a scan plan, or the RoomPlan import switched on)."""
+    finds, a power team, one following the day, a LiDAR scan (a scan plan, or the RoomPlan import switched on), the
+    robot vacuum's features (Import from a robot vacuum switched on)."""
     out: set[str] = set()
     try:
         from .emergency_test import resolve_members  # noqa: PLC0415
@@ -198,6 +201,8 @@ def moved_now(hass: Any, settings: dict[str, Any]) -> list[str]:
     if settings.get("roomplan_import_enabled") is True or any(
             isinstance(m, dict) and m.get("kind") == "scan" for m in (maps if isinstance(maps, list) else [])):
         out.add("lidar")
+    if settings.get("vacuum_import_enabled") is True:
+        out.add("robot_vacuum")
     return [w for w in MOVED_WORDS if w in out]
 
 

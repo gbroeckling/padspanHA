@@ -85,8 +85,9 @@ def test_the_robot_is_drawn_whenever_its_link_is_on():
     """The owner, 2026-11-24: the hold must always be possible. With Robot Vacuum Import on, the flat Atlas and
     the 3D house read the snapshot for the robot alone; people and tags keep their own switches."""
     lm = _src("lights_map.js")
-    assert "|| abSet.vacuum_import_enabled === true));" in lm
-    assert "robot: h3.settings.vacuum_import_enabled === true && h3.people ? abReader(h3.people) : null," in lm
+    # Where this install has the Robot vacuum add-on (hostVacuum: everyone's until it is on sale; test_free_basics_dec1).
+    assert '|| (abSet.vacuum_import_enabled === true && hostVacuum(host))));' in lm
+    assert 'robot: h3.settings.vacuum_import_enabled === true && hostVacuum(host) && h3.people ? abReader(h3.people) : null,' in lm
     # People and tags keep exactly their old gate (Pro), the robot's own read or not (review, 2026-11-24).
     assert "people: abPro && abSet.atlas_3d_people === true, tags: abPro && abSet.atlas_3d_tags === true," in lm
     assert 'const abPro = tierAtLeast(host.tier, "pro");' in lm

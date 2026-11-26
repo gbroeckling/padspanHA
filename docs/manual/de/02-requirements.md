@@ -109,7 +109,7 @@ die für Tags.
 |---|---|
 | **Das Panel** | Jeder aktuelle Browser: Chrome, Edge, Safari oder Firefox, auf einem Computer, Tablet oder Handy, oder die Home-Assistant-App. |
 | **Der Atlas** | Genauso. Ein Wandtablet, auf dem die Dashboards von Home Assistant flüssig laufen, schafft auch den Atlas. |
-| **Live Aboard** (das 3D-Haus, Pro) | Ein Browser mit **WebGL 2**. Ohne das, oder auf einem Grafikchip, der dafür zu langsam ist, zeigt PadSpan stattdessen den flachen Atlas und sagt das. |
+| **Live Aboard** (das 3D-Haus) | Ein Browser mit **WebGL 2**. Ohne das, oder auf einem Grafikchip, der dafür zu langsam ist, zeigt PadSpan stattdessen den flachen Atlas und sagt das. |
 
 ## Ein Grundriss (optional)
 

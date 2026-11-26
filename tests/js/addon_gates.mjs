@@ -12,7 +12,7 @@
 //   settings.js                    Settings → Atlas's Heatmap and Audio rows, the Theme card's locked looks
 //   devices.js                     Door Openers and the relay wizard's kinds
 //   busy_times.js, locate.js       the gate card or the screen
-//   maps (not on sale yet)         addonOnSale, addonGate, the licence card's offer, the rooms helper's intro
+//   maps and vacuum (on sale from December 1)  addonOnSale, addonGate, the licence card's offer, the rooms helper's intro
 //
 // Run:  node tests/js/addon_gates.mjs <repo-root>
 import { pathToFileURL } from "node:url";
@@ -139,16 +139,31 @@ run("insights", () => {
   }
 });
 
-// ── Advanced map creation (maps): not on sale yet ────────────────────────
+// ── Advanced map creation (maps) and Robot vacuum: on sale from December 1 ──
 run("maps", () => {
-  out.onSale = Object.fromEntries(ED.ADDONS.map(a => [a.name, ED.addonOnSale(a.name)]));
-  out.mapsGate = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => [k, ED.addonGate(s, "maps")]));
-  // The licence card offers the add-ons an install lacks, never one that isn't on sale.
-  out.offered = {};
-  for (const k of ["free", "audio"]) {
-    const root = SET.render(ctxFor(INSTALLS[k], { _settingsTab: "features" }));
-    out.offered[k] = all(root).filter(n => n.getAttribute && n.getAttribute("data-addon")).map(n => n.getAttribute("data-addon"));
-  }
+  // Just before the moment (editions.js FREE_BASICS_FROM) and at it.
+  const moments = { before: Date.parse(ED.FREE_BASICS_FROM) - 1, from: Date.parse(ED.FREE_BASICS_FROM) };
+  // What the backend says is on sale then (settings.addons_on_sale, licence.addons_on_sale).
+  const sale = { before: ED.ADDONS.map(a => a.name).filter(n => n !== "maps" && n !== "vacuum"), from: ED.ADDONS.map(a => a.name) };
+  out.onSale = {}; out.mapsGate = {}; out.vacuumGate = {}; out.offered = {};
+  const realNow = Date.now;
+  try {
+    for (const [when, t] of Object.entries(moments)) {
+      out.onSale[when] = Object.fromEntries(ED.ADDONS.map(a => [a.name, ED.addonOnSale(a.name, t)]));
+      for (const [key, name] of [["mapsGate", "maps"], ["vacuumGate", "vacuum"]]) {
+        out[key][when] = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) => [k, ED.addonGate({ ...s, addons_on_sale: sale[when] }, name)]));
+      }
+      // The licence card offers the add-ons an install lacks, never one that isn't on sale.
+      Date.now = () => t;
+      out.offered[when] = {};
+      for (const k of ["free", "audio"]) {
+        const root = SET.render(ctxFor(INSTALLS[k], { _settingsTab: "features" }));
+        out.offered[when][k] = all(root).filter(n => n.getAttribute && n.getAttribute("data-addon")).map(n => n.getAttribute("data-addon"));
+      }
+    }
+  } finally { Date.now = realNow; }
+  // Settings not in yet (no addons_on_sale): "not on sale", everyone's.
+  out.vacuumGate.unsaid = ED.addonGate({ tier: "free" }, "vacuum");
   // The rooms helper's intro, by the backend's answer (ai_wizard.py: tier, maps, trial_offerable), Claude ready.
   const build = { unlock: { ok: true, display: "Claude" } };
   out.helper = {};
@@ -195,6 +210,59 @@ run("lighting", () => {
   const t2 = SET.render(ctxFor(unknown, { _settingsTab: "features" })).textContent || "";
   out.unknownAddons = { said: t2.includes("This add-on needs a newer PadSpan — update PadSpan."), pro: t2.includes("PadSpan Pro licensed"),
                         buyPro: t2.includes("Buy PadSpan Pro"), trial: TO.trialOfferable(unknown) };
+});
+
+// ── Robot vacuum: the gate, the cross discount, the licence card's own link (tests/test_free_basics_dec1.py) ──
+run("vacuum", () => {
+  const T = Date.parse(ED.FREE_BASICS_FROM), END = Date.parse(ED.ADDON_HALF_UNTIL);
+  const every = ED.ADDONS.map(a => a.name);
+  const v = out.vacuum = {};
+  // The gate: the backend's word on what is on sale (settings.addons_on_sale), then Pro, the add-on or a Bright key.
+  v.allowed = Object.fromEntries(Object.entries(INSTALLS).map(([k, s]) =>
+    [k, { unsaid: ED.vacuumAllowed(s), before: ED.vacuumAllowed({ ...s, addons_on_sale: every.filter(n => n !== "maps" && n !== "vacuum") }),
+          from: ED.vacuumAllowed({ ...s, addons_on_sale: every }) }]));
+  // What each costs an install, just before and at each moment.
+  const holders = { none: { tier: "free" }, maps: INSTALLS.maps, vacuum: INSTALLS.vacuum, pro: INSTALLS.pro,
+                    lapsed: { tier: "free", pro_has_key: true, addon_key: true, license_addons: ["maps"], addons_licensed: [] } };
+  const at = { before: T - 1, from: T, sale_last: END - 1, after_sale: END };
+  v.price = {};
+  for (const [h, s] of Object.entries(holders)) {
+    v.price[h] = {};
+    for (const name of ["maps", "vacuum", "audio"]) {
+      v.price[h][name] = Object.fromEntries(Object.entries(at).map(([w, t]) => [w, ED.addonPriceFor(s, name, t)]));
+    }
+  }
+  v.cross = { maps: ED.crossPrice("$8.65 CAD"), vacuum: ED.crossPrice("$6.45 CAD") };
+  v.url = { cross: ED.addonBuyUrl(INSTALLS.maps, "vacuum", END), sale: ED.addonBuyUrl(INSTALLS.maps, "vacuum", T),
+            none: ED.addonBuyUrl({ tier: "free" }, "vacuum", END), mapsCross: ED.addonBuyUrl(INSTALLS.vacuum, "maps", END) };
+  // The licence card, after the sale, for an install holding Advanced map creation.
+  const realNow = Date.now;
+  try {
+    Date.now = () => END + 3600e3;
+    const root = SET.render(ctxFor({ ...INSTALLS.maps, addons_on_sale: every }, { _settingsTab: "features" }));
+    v.card = all(root).filter(n => n.getAttribute && n.getAttribute("data-addon"))
+      .map(n => ({ name: n.getAttribute("data-addon"), href: n.getAttribute("href"), text: n.textContent }));
+    const note = all(root).find(n => n.getAttribute && n.getAttribute("data-addon-cross") === "note");
+    v.note = note ? note.textContent : null;
+    const plain = SET.render(ctxFor({ tier: "free", addons_on_sale: every }, { _settingsTab: "features" }));
+    v.plainNote = !!all(plain).find(n => n.getAttribute && n.getAttribute("data-addon-cross") === "note");
+    // Settings → Features: the Robot Vacuum Import row says what it needs once it is gated.
+    const needs = (s) => { const r = SET.render(ctxFor(s, { _settingsTab: "features" }));
+      const n = all(r).find(x => x.getAttribute && x.getAttribute("data-feature-needs") === "vacuum_import_enabled"); return n ? n.textContent : null; };
+    v.needs = { free_from: needs({ tier: "free", addons_on_sale: every }), free_before: needs({ tier: "free", addons_on_sale: [] }),
+                vacuum_from: needs({ ...INSTALLS.vacuum, addons_on_sale: every }) };
+  } finally { Date.now = realNow; }
+  // The Atlas's robot reads (lights_map.js hostVacuum): the same gate from a host.
+  v.host = { free_from: LM.hostVacuum({ tier: "free", addons: [], addonsOnSale: every }),
+             free_before: LM.hostVacuum({ tier: "free", addons: [], addonsOnSale: [] }),
+             vacuum_from: LM.hostVacuum({ tier: "free", addons: ["vacuum"], addonsOnSale: every }),
+             bright_from: LM.hostVacuum({ tier: "bright", addons: [], addonsOnSale: every }) };
+  // The one-time "3D house is now free" card's rule (editions.js freeHouseCardDue).
+  const due = ED.freeHouseCardDue;
+  v.card3d = { before: due({ tier: "free", house3d_free_card_done: false }), from: due({ tier: "free", free_basics: true, house3d_free_card_done: false }),
+               seen: due({ tier: "free", free_basics: true, house3d_free_card_done: true }),
+               unknown: due({ tier: "free", free_basics: true }), pro: due({ tier: "pro", free_basics: true, house3d_free_card_done: false }),
+               addonKey: due({ ...INSTALLS.audio, free_basics: true, house3d_free_card_done: false }), none: due(null) };
 });
 
 await flush();

@@ -10,8 +10,8 @@ const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).
 // window (dialog_keys.js). Optional: missing, they close as they did.
 const KEYS = await import(`./dialog_keys.js${new URL(import.meta.url).search}`).catch(() => null);
 const { BUY_URL: _LIC_BUY_URL, proPrice: _licPrice, brightProOpen: _brightProOpen, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
-        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate,
-        addonOfferSeen: _addonOfferSeen } =
+        surfacesForEdition: _surfacesForEdition, addonAllowed: _addonAllowed, addonPrice: _addonPrice, addonGate: _addonGate, vacuumAllowed: _vacuumAllowed,
+        placementTier: _placementTier, freeBasics: _freeBasics, addonOfferSeen: _addonOfferSeen } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -1280,6 +1280,8 @@ function _upload(ctx, helpBtn, isBasic){
       floors: _houseFloors(ctx), floorId: () => ctx.state._mapsUploadFloorId || "", toBase64: async (f) => _arrayBufferToBase64(await f.arrayBuffer()),
       onMade: (m) => _roughMade(ctx, m), onSketch: () => { ctx.state._mapsUploadSketch = true; ctx.actions.renderRooms(); },
       vacuumOn: ctx.state.settings?.vacuum_import_enabled === true,
+      // The Robot vacuum add-on (editions.js vacuumAllowed): without it, what its way says it needs.
+      vacuumNeeds: _vacuumAllowed(ctx.state.settings) ? "" : _vacuumNeeds(),
     }));
   }
   const sketch = el("input",{type:"checkbox", "data-upload":"sketch"});
@@ -8662,6 +8664,18 @@ function _isPro(ctx) {
   const t = String(ctx.state.settings?.tier || "").toLowerCase();
   return t === "bright" || t === "pro";
 }
+// What the robot vacuum's features need, said once (the Robot vacuum add-on, once it is on sale).
+function _vacuumNeeds() {
+  return t("Your robot vacuum's map, the robot on the map, room location runs and the mistake finder need PadSpan Pro or the Robot vacuum add-on ({price}). Enter a key in Settings → Features → PadSpan licence.",
+    { price: _addonPrice("vacuum") });
+}
+// Placement on its own rung (editions.js placementTier): the lighting tier's,
+// as _isPro, unless it has moved down the ladder. Then the builder's drag,
+// select, place and save are everyone's, and what a device looks like
+// (shape, size, rotation, colour) and the other build tools stay _isPro's.
+function _canPlace(ctx) {
+  return _tierAtLeast(ctx.state.settings?.tier, _placementTier(ctx.state.settings));
+}
 // Alarm & security (the owner, 2026-11-25): a door's card on the map, and
 // linking an opener or a lock to it. Bright or Pro as before (_isPro), or the
 // add-on (editions.js addonAllowed). Every other tool here stays _isPro's.
@@ -10126,16 +10140,21 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
 // opens once per browser (localStorage padspan_ha_lights_tour_seen), the
 // same mechanism the sidebar's own one-time coach mark already uses for a
 // different surface (padspan_ha_lights_coach_seen, lights_panel.js).
-function _lightsTourSteps(paid){
+function _lightsTourSteps(paid, place = paid){
   // Which key it names: Bright Pro is no longer sold from the end of
   // December 15, 2026 (editions.js brightProOpen), so from then Pro alone.
   const brightPro = _brightProOpen();
   const key = brightPro ? "a PadSpan Bright Pro or PadSpan Pro key" : "a PadSpan Pro key";
+  // Placement on the free rung (_canPlace) with the looks still paid: what a key adds is the looks alone.
+  const looksKey = brightPro ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro";
+  const placeFree = place && !paid;
   const steps = [
     { title: "Welcome to the Atlas builder",
-      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs " + key + ".",
+      body: placeFree
+        ? t("Every light starts out clustered at the centre of its room. Here you put each one where it really hangs. Its shape, size, colour and effects need {key}.", { key: looksKey })
+        : "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs " + key + ".",
       find: null },
-    paid
+    place
       ? { title: "Place a light",
           body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
           find: (wrap) => wrap.querySelector(".lv-stage") }
@@ -10155,6 +10174,10 @@ function _lightsTourSteps(paid){
     steps.push({ title: "See how it'll really look",
       body: "Turn on Showcase to see the room the way it'll really look — real fixture colours, light pools on the floor, shadows. It's a picture, not a mode: everything stays exactly where you put it and stays fully editable.",
       find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
+  } else if (placeFree) {
+    steps.push({ title: "What a key adds",
+      body: t("Placing each light where it really hangs is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need {key}. A key goes in Settings → Features → PadSpan licence once you have one.", { key: looksKey }),
+      find: null });
   } else {
     steps.push({ title: "What a key adds",
       body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need " + (brightPro ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro") + ". " + _LIC_PATH + " is where a key goes once you have one.",
@@ -10208,11 +10231,11 @@ function _lightsTourPulse(target){
 // words. Dismissal is remembered in localStorage, per-browser, so the tour
 // doesn't reappear on every visit once seen — see ctx.state._lightsTour's
 // own null check above for how a null tour object means "not running".
-function _lightsTourCard(ctx, wrap, paid){
+function _lightsTourCard(ctx, wrap, paid, place = paid){
   const { el } = ctx.helpers;
   const tour = ctx.state._lightsTour;
   if (!tour) return null;
-  const steps = _lightsTourSteps(paid);
+  const steps = _lightsTourSteps(paid, place);
   if (tour.step < 1) tour.step = 1;
   if (tour.step > steps.length) tour.step = steps.length;
   const s = steps[tour.step - 1];
@@ -10350,10 +10373,14 @@ function _lightsTab(ctx, maps, active) {
   // the light, as it does in the sidebar. Nothing stored is touched: enter a
   // key and every placement is back.
   const paid = _isPro(ctx);
+  // Placement's own rung (_canPlace): with it and without the lighting tier,
+  // the drag, select, place and save are offered and the looks are not.
+  const place = _canPlace(ctx);
   // The light design tools without placement (the Advanced smart lighting add-on): a light chosen in the list opens
-  // the inspector with its Shape; its size, angle and spot are its placement's (paid).
+  // the inspector with its Shape; its size, angle and spot are its placement's.
   const design = paid || _addonAllowed(ctx.state.settings, "lighting");
-  if (!paid) { mapState._lightsDraftM = {}; mapState._lightsTransform = false; if (!design) mapState._selLight = null; }
+  if (!place) { mapState._lightsDraftM = {}; mapState._lightsTransform = false; if (!design) mapState._selLight = null; }
+  else if (!paid) mapState._lightsTransform = false;
   // Alarm & security: the door card and linking openers and locks (_alarmOk).
   const alarm = _alarmOk(ctx);
   // The type override is PRO specifically — not the bright-or-pro gate
@@ -10373,7 +10400,7 @@ function _lightsTab(ctx, maps, active) {
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away
   // without leaving the builder. A VIEW mode of this tab, never persisted.
-  const preview = paid && !!mapState._lightsPreview;
+  const preview = place && !!mapState._lightsPreview;
   // 2026-09-21: "add in a close option for the atlas help at the
   // top, takes up crazy amounts of space" — the sidebar already has this
   // (its coach mark, padspan_ha_lights_coach_seen), the builder's own
@@ -10388,10 +10415,10 @@ function _lightsTab(ctx, maps, active) {
       // map that both operates and moves devices is a mode error waiting to
       // happen, so the badge (and the drafting grid on the stage) say which
       // one you are in at every moment.
-      ...(paid ? [el("span", { class: "lv-editing", style: preview ? "color:#8ee5b4;border-color:rgba(82,183,136,.55);background:rgba(82,183,136,.1)" : "" },
+      ...(place ? [el("span", { class: "lv-editing", style: preview ? "color:#8ee5b4;border-color:rgba(82,183,136,.55);background:rgba(82,183,136,.1)" : "" },
         preview ? "Preview · as the sidebar" : "Editing")] : []),
       ...(hintClosed ? [] : [
-        el("span", { class: "lv-hint" }, paid
+        el("span", { class: "lv-hint" }, place
           ? (preview
             ? "Exactly what the Atlas sidebar does with this map: tap switches, code or hold opens controls, room names open the room."
             : "Builds the Atlas sidebar's map — what you arrange here is exactly what the sidebar shows. Tap a hex to switch it, same as everywhere else; hold it still to select it for editing, and drag it to where it really is. Shift-click or click a room name to select several. Can't find one on the map? Pick it in the list below — a ring flashes its spot, and the pink marker in the corner drags it into place.")
@@ -10458,6 +10485,26 @@ function _lightsTab(ctx, maps, active) {
   if (!paid) {
     // The Looks pack named below (the usage report's add-on funnel, once per page load).
     if (!_addonAllowed(ctx.state.settings, "looks")) _addonOfferSeen((n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); }, "showcase", "looks");
+  }
+  if (place && !paid) {
+    // Placement is everyone's here; what a key still adds is the looks and the other build tools. The light design
+    // tools are Advanced smart lighting's too, Showcase the Looks pack's (lights_map.js lightsHostForTier).
+    const _lit = _addonAllowed(ctx.state.settings, "lighting");
+    wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
+      el("span", { class: "muted" },
+        t("Placing each light where it really hangs is free. Its size and angle need {key}.",
+          { key: _brightProOpen() ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro" }) + " "
+        + (_lit ? "" : t("Fixture shapes, WLED strips, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ({price}).",
+          { price: _addonPrice("lighting") }) + " ")
+        + (_lit || _addonAllowed(ctx.state.settings, "looks") ? ""
+          : t("Showcase needs PadSpan Pro or the Looks pack add-on ({price}).", { price: _addonPrice("looks") }) + " ")
+        + t("A key goes in Settings → Features → PadSpan licence once you have one.") + " "),
+      el("a", { href: _LIC_BUY_URL, target: "_blank", rel: "noopener", style: "color:#fbbf24;font-weight:700" },
+        "Get PadSpan Pro — " + _licPrice()),
+      trialOfferFromCtx(ctx, "maps", { buy: false }),
+    ]));
+  }
+  if (!place) {
     wrap.appendChild(el("div", { class: "card lv-tablecard", style: "padding:10px 12px;border:1px solid rgba(251,191,36,.45);box-shadow:0 0 18px rgba(251,191,36,.07);font-size:12px;margin-bottom:12px" }, [
       el("span", { style: "font-weight:700;color:#fbbf24" }, "Free lighting map. "),
       el("span", { class: "muted" },
@@ -10654,7 +10701,7 @@ function _lightsTab(ctx, maps, active) {
   // Grouped for scanning, not for function: mode toggles, then history, then
   // view, each split by the same lv-sep divider the placement bar already
   // uses — nothing here changes what any control does or when it shows.
-  if (paid && !preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
+  if (place && !preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
     xfBtn,
     el("button", {
       class: "lv-tgl tone-blue" + (mapState._multiSelect ? " on" : ""),
@@ -10683,7 +10730,7 @@ function _lightsTab(ctx, maps, active) {
         ? "Drag a light to move it. Drag its handles to resize; the round handle above rotates. Arrow keys nudge 1 cm (Shift: 10 cm)."
         : "Drag any light to move it. Turn on Transform for resize and rotate handles. Arrow keys nudge the selection 1 cm (Shift: 10 cm)."),
   ]));
-  if (paid && preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
+  if (place && preview) wrap.appendChild(el("div", { class: "card lv-tablecard", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
     el("button", { class: "lv-tgl tone-violet on", onclick: () => { mapState._lightsPreview = false; ctx.actions.renderRooms(); } }, "✎ Back to editing"),
     el("span", { class: "lv-hint" }, "Nothing you do here changes the map — this is the sidebar's behaviour on the builder's camera."),
   ]));
@@ -10692,7 +10739,7 @@ function _lightsTab(ctx, maps, active) {
   // Bulk placement without dragging a pile apart. Queue lights from their
   // index rows (or all of them), then tap the map once per light. Or spread
   // a room's unplaced lights evenly inside its polygon in one go.
-  if (paid && !preview && nUnplaced) {
+  if (place && !preview && nUnplaced) {
     const roomsWithUnplaced = [...new Set(placeableLights.filter(l => l.area_name && !placements[l.entity_id]).map(l => l.area_name))].sort();
     const roomSel = document.createElement("select");
     roomSel.className = "lv-select";
@@ -10872,7 +10919,7 @@ function _lightsTab(ctx, maps, active) {
   // `host.onDropPlace` inside it, which does not exist yet mid-construction)
   // because _wireLightsBuild — wired below via onHexesBuilt — needs this
   // SAME function to actually drive the pin's drag.
-  const onDropPlace = (paid && !preview && mapState._selLight) ? (vbX, vbY, dropFloorZ) => {
+  const onDropPlace = (place && !preview && mapState._selLight) ? (vbX, vbY, dropFloorZ) => {
     const sel = mapState._selLight;
     const l = lightsByEid[sel.eid];
     if (!l) return;
@@ -10966,6 +11013,9 @@ function _lightsTab(ctx, maps, active) {
     tier,
     // The add-ons this install may use (lights_map.js hostAddon): Pro has them all.
     addons: ctx.state.settings?.addons_licensed || [],
+    addonsOnSale: ctx.state.settings?.addons_on_sale || [],
+    // Placement and the 3D house's rungs (editions.js), read by lightsHostForTier.
+    freeBasics: _freeBasics(ctx.state.settings),
     byRoom,
     hiddenEids,
     lightsByEid,
@@ -11030,9 +11080,9 @@ function _lightsTab(ctx, maps, active) {
     onHeatmap: !_heatPro(ctx) ? null
       : (kind) => { mapState._lightsHeatmap = kind || null; ctx.actions.renderRooms(); },
     // The multi-selection and the placement queue light up their index rows.
-    selectedEids: paid ? new Set([...selSet, ...(mapState._selLight ? [mapState._selLight.eid] : [])]) : null,
-    placeQueue: paid && !preview ? new Set(queue) : null,
-    onPlaceRow: paid && !preview ? (eid) => {
+    selectedEids: place ? new Set([...selSet, ...(mapState._selLight ? [mapState._selLight.eid] : [])]) : null,
+    placeQueue: place && !preview ? new Set(queue) : null,
+    onPlaceRow: place && !preview ? (eid) => {
       const i = queue.indexOf(eid);
       if (i >= 0) queue.splice(i, 1); else queue.push(eid);
       ctx.actions.renderRooms();
@@ -11206,7 +11256,7 @@ function _lightsTab(ctx, maps, active) {
     // The locate ring (builder only — the sidebar has no index-driven
     // selection to lose track of, and Preview shows the sidebar's own
     // surface, not the builder's tools). Consumed after this one render.
-    locateEid: (paid && !preview) ? (mapState._locateEid || null) : null,
+    locateEid: (place && !preview) ? (mapState._locateEid || null) : null,
     // The drop-marker pin: a second way to place the CURRENTLY SELECTED
     // light, parked in the map's corner. Only offered when there is a
     // selection to place — dragging it onto the map otherwise has nothing
@@ -11233,7 +11283,7 @@ function _lightsTab(ctx, maps, active) {
     // control card, room names open the room sheet.
     onHexesBuilt: preview
       ? (isoDiv) => requestAnimationFrame(() => wireUseSurface(isoDiv, previewApi))
-      : paid
+      : place
       ? (isoDiv) => _wireLightsBuild(ctx, isoDiv, { mapState, view, lightsByEid, model: modelForRender, onDropPlace, toggle })
       : (isoDiv) => requestAnimationFrame(() => {
           isoDiv.querySelectorAll(".lhex").forEach(g => {
@@ -11383,8 +11433,9 @@ function _lightsTab(ctx, maps, active) {
       // takes it once on its way in and opens Edit there.
       openTool: { take: () => { const t = ctx.state.maps && ctx.state.maps._laOpenTool; if (ctx.state.maps) ctx.state.maps._laOpenTool = null; return t || null; } },
       // The 3D editor's Save, on the same gate as placing a light here
-      // (paid, not Preview): without it the 3D view offers no Edit.
-      edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)
+      // (paid, not Preview): without it the 3D view offers no Edit. Pro's,
+      // as house3d_edit is, where the 3D house shows below Pro (house3dTier).
+      edit: paid && !preview && _tierAtLeast(tier, "pro") ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)
         .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); return r; }) : null,
       // Its heights, on the placement records (_laHeightsPut).
       heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null,
@@ -11667,7 +11718,7 @@ function _lightsTab(ctx, maps, active) {
       // activity history instead of the read-only refusal — a free-tier row
       // click went straight to toggle() and never got that treatment.
       if (l.isMotion) { openActivityCalendar(ctx.hass, l.entity_id); return; }
-      if (!design) { toggle(l.entity_id); return; }
+      if (!place && !design) { toggle(l.entity_id); return; }
       selectLightForPlacement(l);
     },
     // The code column's own click (buildLightsTable's onSelectForPlacement):
@@ -11677,7 +11728,7 @@ function _lightsTab(ctx, maps, active) {
     // to the activity calendar, so before this existed there was no way at
     // all to re-select one for map placement (2026-09-07).
     onSelectForPlacement: (l) => {
-      if (!design) { toggle(l.entity_id); return; }
+      if (!place && !design) { toggle(l.entity_id); return; }
       selectLightForPlacement(l);
     },
     onToggleHidden: async (eid) => {
@@ -11772,7 +11823,7 @@ function _lightsTab(ctx, maps, active) {
       plansBox, mapCardEl]);
   }
   // The drafting grid on the stage says "editing" without a word.
-  if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
+  if (place && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
   // Layout v2 (2026-09-21, "get it done"): on a wide enough monitor
   // the map, the inspector and the device table sit in COLUMNS instead of
   // stacking — the actual "stack more in a row so less scrolling is
@@ -11810,7 +11861,7 @@ function _lightsTab(ctx, maps, active) {
                                       file: _heightsFile(ctx, mapState), shapes: shapeOverrides }) : null;
 
   // ── Selected-light inspector — the build tools for one light ────────────
-  const sel = design && !preview ? mapState._selLight : null;
+  const sel = (place || design) && !preview ? mapState._selLight : null;
   if (sel && lightsByEid[sel.eid]) {
     const l = lightsByEid[sel.eid];
     // The light's placement, from the fabric: the unsaved draft first, then
@@ -11819,7 +11870,7 @@ function _lightsTab(ctx, maps, active) {
     // block behind it (colour, width, length, rotation, Auto position) never
     // rendered for ANY light and only the Shape chooser survived.
     // Without placement (Advanced smart lighting alone) no entry: the Shape chooser only.
-    const entry = !paid ? null : (mapState._lightsDraftM || {})[sel.eid]
+    const entry = !place ? null : (mapState._lightsDraftM || {})[sel.eid]
       || ((ctx.state.model || {}).light_positions_m || {})[sel.eid]
       || null;
     // lv-atlascol-inspector: layout v2's ultrawide 3rd column (map | table |
@@ -11833,7 +11884,7 @@ function _lightsTab(ctx, maps, active) {
     // Provenance: an accepted room-centre guess is APPROXIMATE until moved.
     if (entry && entry.source === "auto") insp.appendChild(el("span", { class: "lv-chip", style: "color:#fde68a;border:1px solid rgba(251,191,36,.45);background:rgba(251,191,36,.1)", title: "Placed at its room's centre by Accept room centres — drag it to where it really is" }, "APPROXIMATE"));
     // Several selected: this light's look can be copied to all of them.
-    if (selSet.size > 1 && entry) insp.appendChild(el("button", {
+    if (paid && selSet.size > 1 && entry) insp.appendChild(el("button", {
       class: "lv-act", title: "Copy this light's colour, size, rotation and margin to every selected light",
       onclick: () => {
         const others = [...selSet].filter(e => e !== sel.eid);
@@ -11872,7 +11923,7 @@ function _lightsTab(ctx, maps, active) {
     // edit" by design, and the control offered one anyway with no effect —
     // ws_settings.py silently dropped the save for any non-light.* key until
     // fixed the same day (Phase 2a registry audit, 2026-09-19).
-    if (!hasFixedGlyph(l)) {
+    if (paid && !hasFixedGlyph(l)) {
       const current = shapeOverrides[l.entity_id] || "auto";
       const derived = LIGHT_SHAPES.find(([k]) => k === deriveLightShape(l));
       const shapeLbl = el("label", { class: "lv-field" }, "Shape");
@@ -11913,7 +11964,7 @@ function _lightsTab(ctx, maps, active) {
         ctx.actions.renderRooms();
       });
       colorLbl.appendChild(colorInput);
-      insp.appendChild(colorLbl);
+      if (paid) insp.appendChild(colorLbl);
 
       // ── Physical size + rotation ─────────────────────────────────────────
       // Real-world centimetres and degrees, stored in the fabric alongside the
@@ -11947,7 +11998,9 @@ function _lightsTab(ctx, maps, active) {
         if (suffix) lbl.appendChild(el("span", { style: "font-size:11px;color:rgba(226,240,232,.4)" }, suffix));
         return lbl;
       };
-      if (l.shape === "perimeter") {
+      if (!paid) {
+        // Its size, rotation and margin are the lighting tier's (_isPro): with placement alone, none.
+      } else if (l.shape === "perimeter") {
         // A perimeter light has no width/length/rotation of its own — its
         // extent IS the room it sits in. Margin is its only shape control:
         // how far the traced line sits inside the room's own walls.
@@ -11993,7 +12046,7 @@ function _lightsTab(ctx, maps, active) {
           ctx.actions.renderRooms();
         },
       }, "↺ Auto position"));
-    } else if (!paid) {
+    } else if (!place) {
       insp.appendChild(el("span", { class: "lv-hint" },
         "Clustered in its room. Placing it where it really is, with its size and angle, "
         + (_brightProOpen() ? "needs PadSpan Bright Pro or PadSpan Pro." : "needs PadSpan Pro.")));
@@ -12033,7 +12086,7 @@ function _lightsTab(ctx, maps, active) {
   mapState._focusRow = null;   // the scroll-into-view is a one-shot
   mapState._locateEid = null;  // the locate ring is a one-shot too
 
-  const tourCard = _lightsTourCard(ctx, wrap, paid);
+  const tourCard = _lightsTourCard(ctx, wrap, paid, place);
   if (tourCard) wrap.appendChild(tourCard);
 
   return wrap;
@@ -12496,8 +12549,13 @@ function _roomsTab(ctx, maps) {
     // The robot-vacuum import only while its setting is on, and only for an
     // admin (every vacuum_* command is admin-only). A robot already linked
     // and showing live keeps its controls, so it can still be turned off.
+    // The Robot vacuum add-on's once that is on sale (editions.js vacuumAllowed):
+    // without it, what brings it back instead.
     const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true || !!ctx.state.live?.snapshot?.vacuum;
-    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId));
+    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) {
+      card.appendChild(_vacuumAllowed(ctx.state.settings) ? VACUUM.vacuumImportBlock(ctx, floorId)
+        : el("div", { class: "muted", "data-vacuum": "addon", style: "font-size:12px;margin:6px 0" }, _vacuumNeeds()));
+    }
 
     const importedRaw = mapState._roomsImportedRaw;
     if (importedRaw && importedRaw.levels.length > 1) {

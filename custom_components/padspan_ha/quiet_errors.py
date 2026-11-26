@@ -763,6 +763,7 @@ ws_plan_ai:scale_check
 ws_plan_ai:undo_scale_word
 ws_radios:area_set_areas
 ws_radios:area_set_match
+ws_settings:free_basics_3d_once
 ws_settings:set_espresense
 ws_settings:set_excluded_scanners
 ws_settings:set_follow_auto_label

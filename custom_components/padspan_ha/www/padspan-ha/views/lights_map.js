@@ -20,7 +20,7 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, addonAllowed, addonGate, addonPrice, ADDONS_URL } =
+const { tierAtLeast, addonAllowed, addonGate, addonPrice, ADDONS_URL, vacuumAllowed, placementTier, house3dTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
 // alone), the English with its {placeholders} filled.
@@ -135,6 +135,10 @@ export const designUnlocked = (who) => {
   const w = who && typeof who === "object" ? who : { tier: who };
   return lightingUnlocked(w.tier) || hostAddon(w, "lighting");
 };
+// The robot vacuum's features (editions.js vacuumAllowed): everyone's until the backend says the Robot vacuum add-on
+// is on sale (host.addonsOnSale, settings.addons_on_sale), then Pro, the add-on or a Bright key.
+export const hostVacuum = (host) => vacuumAllowed({ tier: host && host.tier, addons_licensed: host && host.addons,
+  addons_on_sale: host && host.addonsOnSale });
 
 /**
  * The host as the tier sees it. Bright or Pro: the host untouched. Below:
@@ -153,13 +157,19 @@ export const designUnlocked = (who) => {
 export function lightsHostForTier(host){
   if (lightingUnlocked(host.tier)) return host;
   const looks = hostAddon(host, "looks"), design = hostAddon(host, "lighting");
+  // Placement alone moved down the ladder (editions.js placementTier,
+  // host.freeBasics): each device where it was placed, drawn as the default
+  // marker (its stored looks withheld, as below), and the placement queue
+  // and the unplaced chips as a paid map has them.
+  const place = tierAtLeast(host.tier, placementTier(host.freeBasics));
   return {
     ...host,
-    model: host.model ? { ...host.model, light_positions_m: {} } : host.model,
+    model: host.model ? { ...host.model, light_positions_m: place ? placesOnly(host.model.light_positions_m) : {} } : host.model,
     // Placement is paid, so the placement queue is too. And at free EVERY
     // light is unplaced by construction — collapsing the piles would turn
     // the free map into a row of "N unplaced" chips with no lights on it.
-    onPlaceRow: null, placeQueue: null, collapseUnplaced: false,
+    onPlaceRow: place ? host.onPlaceRow : null, placeQueue: place ? host.placeQueue : null,
+    collapseUnplaced: place ? host.collapseUnplaced : false,
     ...(looks || design ? {} : { showcase: false, onShowcase: null }),
     ...(looks ? {} : { showcaseTheme: "classic", onShowcaseTheme: null, showcasePresets: [],
                        onSavePreset: null, onApplyPreset: null, onDeletePreset: null }),
@@ -176,6 +186,20 @@ export function lightsHostForTier(host){
       rippleArmed: false, onRipple: null, onRippleFire: null,
     }),
   };
+}
+/** Placement records with where each device is and nothing of its looks (a
+ *  copy; the stored records are never touched): what a map with placement
+ *  but not the lighting tier draws from. */
+export function placesOnly(positions){
+  const out = {};
+  for (const [eid, p] of Object.entries(positions || {})) {
+    if (!p || typeof p !== "object") continue;
+    const q = { x_m: p.x_m, y_m: p.y_m, floor_id: p.floor_id };
+    if (p.z_m !== undefined) q.z_m = p.z_m;
+    if (p.source !== undefined) q.source = p.source;
+    out[eid] = q;
+  }
+  return out;
 }
 
 // ── Spatial scenes ───────────────────────────────────────────────────────────
@@ -934,6 +958,45 @@ export function spreadInRoom(pts, n, insetM = 0.5){
   // A sliver of a room: stack them at the centroid rather than refuse.
   const cx = xs.reduce((a, b) => a + b, 0) / xs.length, cy = ys.reduce((a, b) => a + b, 0) / ys.length;
   return Array.from({ length: n }, () => [Math.round(cx * 1000) / 1000, Math.round(cy * 1000) / 1000]);
+}
+
+// ── Place a room's devices ───────────────────────────────────────────────────
+// One tap places a room's unplaced devices instead of leaving them in a pile
+// at its centre: what lights the room (lights, strips, fans) on an even grid
+// inside it (spreadInRoom), and what hangs on a wall (sensors, locks, access
+// points) spaced evenly round its walls, just inside them. Doors and windows
+// are never points (they are linked to a wall in Rooms). Pure, like
+// spreadInRoom; the host saves each point as a placement.
+/** n points evenly round a room's walls, insetM inside them, in metres. */
+export function alongWalls(pts, n, insetM = 0.3){
+  if (!Array.isArray(pts) || pts.length < 3 || !(n > 0)) return [];
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const span = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const inner = offsetPolygonInward(pts, Math.min(insetM, span * 0.3));
+  const ring = Array.isArray(inner) && inner.length >= 3 ? inner : pts;
+  const seg = ring.map((p, i) => { const q = ring[(i + 1) % ring.length]; return Math.hypot(q[0] - p[0], q[1] - p[1]); });
+  const total = seg.reduce((a, b) => a + b, 0);
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  if (!(total > 0)) return spreadInRoom(pts, n, 0);
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    let d = (k + 0.5) * total / n, i = 0;
+    while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++; }
+    const p = ring[i], q = ring[(i + 1) % ring.length], f = seg[i] > 0 ? Math.min(1, d / seg[i]) : 0;
+    out.push([r3(p[0] + (q[0] - p[0]) * f), r3(p[1] + (q[1] - p[1]) * f)]);
+  }
+  return out;
+}
+/** {entity_id: [x_m, y_m]} for the devices given (the room's unplaced ones), inside the room polygon pts. */
+export function placeRoomDevices(pts, devices){
+  const devs = (devices || []).filter(l => l && l.entity_id && !l.isDoor);
+  const lit = (l) => castsLight(l) || !!l.isFan;
+  const mid = devs.filter(lit), wall = devs.filter(l => !lit(l));
+  const a = spreadInRoom(pts, mid.length, 0.5), b = alongWalls(pts, wall.length, 0.3);
+  const out = {};
+  mid.forEach((l, i) => { if (a[i]) out[l.entity_id] = a[i]; });
+  wall.forEach((l, i) => { if (b[i]) out[l.entity_id] = b[i]; });
+  return out;
 }
 
 // ── Hold / tap / drag gesture ────────────────────────────────────────────────
@@ -1715,6 +1778,11 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
   if (lightSw.off.length) actions.push({ label: t("All lights on"), primary: true, run: () => api.setMany(lightSw.off, true) });
   if (fanSw.on.length) actions.push({ label: t("Fans off"), run: () => api.setMany(fanSw.on, false) });
   if (fanSw.off.length) actions.push({ label: t("Fans on"), run: () => api.setMany(fanSw.off, true) });
+  // The room's unplaced devices spread round it in one tap (placeRoomDevices).
+  // The host hands placeRoom and unplacedIn only where this user may place
+  // devices; otherwise there is no such button.
+  const nPlace = typeof api.placeRoom === "function" && typeof api.unplacedIn === "function" ? api.unplacedIn(room) : 0;
+  if (nPlace > 0) actions.push({ label: t("Place {n} around the room", { n: nPlace }), run: () => api.placeRoom(room) });
   // The room's own scenes and scripts, one tap each (never on the unplaced chip's sheet).
   if (!only && api.hass && typeof api.hass.callService === "function") {
     for (const sc of roomScenes(api.hass, room)) {
@@ -3897,7 +3965,7 @@ function _cardAlerts(host){
 }
 // The 3D house's part of the host while it is on (see h3 below), else null.
 const _cardH3 = (host) => (host.house3d && host.house3d.settings && host.house3d.settings.atlas_3d_enabled === true
-  && tierAtLeast(host.tier, "pro") ? host.house3d : null);
+  && tierAtLeast(host.tier, house3dTier(host.house3d.settings)) ? host.house3d : null);
 // An el() that also notes what it made (tag, attributes, text): what a part
 // shows, as a key to compare from one tick to the next.
 const _noting = (el, notes) => (tag, attrs, kids) => {
@@ -4245,6 +4313,8 @@ export function buildLightsMapCard(hostIn){
   };
   // The same, said plainly ("" when it can).
   const la3dWhyNot = () => { const why = la3dWhy(); return why ? (_LA_WHY[why] || _LA_WHY.error)() : ""; };
+  // The 3D house's basics on the free rung (editions.js house3dTier): no longer called experimental.
+  const la3dBasics = () => !!h3 && house3dTier(h3.settings) === "free";
   // Mapping → Furnish (P2) is the 3D view, whatever this screen last picked.
   const la3dWant = () => !!h3 && (h3.furnish === true || _la3dPicked(h3.slot));
   const la3dOn = () => la3dWant() && !la3dWhyNot();
@@ -4342,6 +4412,7 @@ export function buildLightsMapCard(hostIn){
             }),
             go: (i) => la3dFocus(i < 0 ? 0 : isoPos.findIndex(q => q === sortedLevels[i])) } : null,
           mapOnly: h3.mapOnly === true,
+          experimental: !la3dBasics(),
           prefs: _laPrefs,
           // P5: furniture that is a device follows a renamed entity (the
           // registry the Atlas already reads), and the emergency lights are
@@ -4353,7 +4424,7 @@ export function buildLightsMapCard(hostIn){
           // Show tags & scanners: the same snapshot, the same reader (read once for both).
           tags: h3.settings.atlas_3d_tags === true && h3.people ? abReader(h3.people) : null,
           // A linked robot vacuum: the same reader, for the robot alone (the tracked layer's vacuumOf).
-          robot: h3.settings.vacuum_import_enabled === true && h3.people ? abReader(h3.people) : null,
+          robot: h3.settings.vacuum_import_enabled === true && hostVacuum(host) && h3.people ? abReader(h3.people) : null,
           // Trails (people_trails.js): Traceback's last half hour, read only
           // while people or tags show and that screen turned Trails on.
           trails: (h3.settings.atlas_3d_people === true || h3.settings.atlas_3d_tags === true) && h3.trails ? h3.trails : null,
@@ -4483,12 +4554,13 @@ export function buildLightsMapCard(hostIn){
   // its furniture, doors and windows. None of it on: nothing is fetched.
   let abSet = host.house3d && host.house3d.settings ? host.house3d.settings : {};
   const abSlot = scr ? host.screen.slot : null;
-  // A linked robot vacuum (Robot Vacuum Import on, 2026-11-24): the same read, for the robot alone, at any tier; people
-  // and tags stay behind their own switches (atlas_aboard.js draws them only when on).
+  // A linked robot vacuum (Robot Vacuum Import on, 2026-11-24): the same read, for the robot alone, where this
+  // install has the Robot vacuum add-on (hostVacuum: everyone's until it is on sale; the backend sends no robot
+  // without it either); people and tags stay behind their own switches (atlas_aboard.js draws them only when on).
   const abPro = tierAtLeast(host.tier, "pro");
   const abLive = !!(scr && host.house3d && host.house3d.people
     && ((abPro && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true))
-        || abSet.vacuum_import_enabled === true));
+        || (abSet.vacuum_import_enabled === true && hostVacuum(host))));
   const abFile = !!(scr && h3 && typeof h3.load === "function");
   const abReader = (pp) => (scr && SCREEN ? SCREEN.sharedReader(abSlot, pp) : pp);
   const abFurnKey = `padspan_lv_furniture_${abSlot}`;
@@ -5289,7 +5361,7 @@ export function buildLightsMapCard(hostIn){
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
       mapB.setAttribute("title", t("The flat map"));
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
-      d3B.setAttribute("title", why || t("Live Aboard (experimental): your house in 3D, to turn, pan and zoom"));
+      d3B.setAttribute("title", why || (la3dBasics() ? t("Live Aboard: your house in 3D, to turn, pan and zoom") : t("Live Aboard (experimental): your house in 3D, to turn, pan and zoom")));
       if (why) { d3B.setAttribute("aria-disabled", "true"); d3B.setAttribute("aria-describedby", whyId); d3B.style.opacity = "0.45"; }
       else { d3B.removeAttribute("aria-disabled"); d3B.removeAttribute("aria-describedby"); }
       whyEl.textContent = why;
@@ -5717,7 +5789,7 @@ export function buildLightsMapCard(hostIn){
         const on = la3dOn(), why = la3dWhyNot();
         b3.classList.toggle("on", on); b3.style.opacity = why ? "0.45" : "";
         if (why) b3.setAttribute("aria-disabled", "true"); else b3.removeAttribute("aria-disabled");
-        b3.setAttribute("title", why || (on ? t("Back to the flat map") : t("Live Aboard (experimental)")));
+        b3.setAttribute("title", why || (on ? t("Back to the flat map") : la3dBasics() ? t("Live Aboard") : t("Live Aboard (experimental)")));
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };
     }

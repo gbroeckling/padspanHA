@@ -89,5 +89,5 @@ def test_host_object_carries_the_computed_beacons_list():
     # The literal property shorthand `beacons,` inside the host object
     # literal — not a re-derivation, the SAME list computed once above.
     host_idx = block.index("const host = {")
-    host_snippet = block[host_idx: host_idx + 400]
+    host_snippet = block[host_idx: host_idx + 600]
     assert "beacons," in host_snippet, host_snippet

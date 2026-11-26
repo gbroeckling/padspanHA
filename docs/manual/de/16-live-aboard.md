@@ -5,28 +5,33 @@
 Live Aboard ist der Atlas in 3D: deine Etagen, Räume, Wände, Türen, Fenster, Lichter und Sensoren als
 kleines Haus, das du drehen, zoomen und antippen kannst, so wie man bei The Sims in ein Haus schaut.
 Es wird aus der Karte gebaut, die du schon gezeichnet hast, deshalb gibt es nichts Neues
-einzurichten, bevor du es siehst. Es gehört zu PadSpan Pro und ist **experimentell**: Wenn in deinem
-Haus etwas falsch aussieht, sag es bitte ([Kapitel 27](27-getting-help.md)).
+einzurichten, bevor du es siehst. Ab dem 1. Dezember 2026 ist es kostenlos, ohne Schlüssel; PadSpan
+Pro bringt Furnish, Personenfiguren, den 3D-Editor und die Kamerafahrten zu Ereignissen (und die
+Bibliothek) dazu. Bis dahin gehört es zu PadSpan Pro und ist als **experimentell** gekennzeichnet.
+Wenn in deinem Haus etwas falsch aussieht, sag es bitte ([Kapitel 27](27-getting-help.md)).
 
 ## Einschalten
 
 1. Öffne **Einstellungen → Atlas** und such **Atlas — Mapped Light Control**.
-2. Schalte unter **Live Aboard** **Show Live Aboard on the Atlas** ein. Es speichert sofort.
+2. Schalte unter **Live Aboard** **Show Live Aboard on the Atlas** ein. Es speichert sofort. Ab dem
+   1. Dezember 2026 ist es auf einer neuen Installation schon an, und auf einer Installation ohne
+   Schlüssel schaltet es sich einmal von selbst ein; ein Bildschirm öffnet trotzdem mit der flachen
+   Karte, bis dort 3D gewählt wird.
 3. Öffne den Atlas. Im Atlas der Seitenleiste tippst du auf **🏠** in der Leiste links, um zwischen
    der flachen Karte und Live Aboard zu wechseln. In **Karten → Atlas-Editor** nimmst du den
    Schalter **Map | Live Aboard** neben dem Zoom.
 
 Dieselbe Karte hat:
 
-- **Rain and snow**: fällt draußen um das Haus, wenn das Wetter des Atlas es sagt.
+- **Rain and snow** (PadSpan Pro): fällt draußen um das Haus, wenn das Wetter des Atlas es sagt.
 - **Look**: die Farben des Atlas, die eigenen von Live Aboard, oder **Studio** (seine eigenen Farben
   auf einer Bühne unter einem Himmel, der der Sonne folgt, mit weichem Licht und Schatten).
 - **Back to home view**: wie lange der Atlas der Seitenleiste unberührt wartet, bevor er zu seiner
   Startansicht zurückfliegt (Off, 30 s, 1 min, 5 min).
-- **Show people** und **Show tags & scanners**, auf der Karte und in Live Aboard.
+- **Show people** und **Show tags & scanners**, auf der Karte und in Live Aboard (PadSpan Pro).
 
-**Set it up step by step** auf dieser Karte (oder **Set up Live Aboard** oben im Atlas-Editor)
-öffnet einen Assistenten, der das Haus mit dir baut: Etagenhöhen, Räume, Geräte, Höhen, Türen und
+**Set it up step by step** auf dieser Karte (oder **Set up Live Aboard** oben im Atlas-Editor;
+PadSpan Pro) öffnet einen Assistenten, der das Haus mit dir baut: Etagenhöhen, Räume, Geräte, Höhen, Türen und
 Fenster, LED-Streifen, Möbel, die Extras, und es zu deinem Bildschirm machen (**Show the Atlas as
 Overview**). Jeder Schritt sagt, was er gefunden hat und was noch fehlt.
 
@@ -144,8 +149,8 @@ in ihrer Zeile für ein Geländer
 
 ## Bauen: Türen, Fenster, Höhen und Streifen
 
-Gebaut wird in **Karten → Atlas-Editor**, in Live Aboard, mit **Edit**. Nichts wird gespeichert, bis
-du **Save** drückst. **Undo**, **Redo** und **Discard** gehen durch deine Änderungen; **Done**
+Gebaut wird in **Karten → Atlas-Editor**, in Live Aboard, mit **Edit** (PadSpan Pro). Nichts wird
+gespeichert, bis du **Save** drückst. **Undo**, **Redo** und **Discard** gehen durch deine Änderungen; **Done**
 verlässt Edit und fragt zuerst, wenn etwas nicht gespeichert ist. Tasten: **Strg+Z** macht
 rückgängig, **Strg+Y** wiederholt, **Esc** lässt los, **Entf** entfernt die gewählte Tür oder das
 gewählte Fenster.

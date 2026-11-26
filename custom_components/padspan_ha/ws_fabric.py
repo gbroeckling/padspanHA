@@ -36,6 +36,7 @@ from .const import (
     FABRIC_STORE_KEY,
 )
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
+from .licence import placement_tier
 from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
 from .ws_common import (admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least, finite_float,
@@ -154,7 +155,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     maps_update, which the UI stopped writing when lights moved to metres —
     so the licence guarded a path nothing used while the live one was open.
     """
-    if not _tier_at_least(hass, "bright"):
+    if not _tier_at_least(hass, placement_tier()):
         connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -176,16 +177,21 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     if not _height_ok(msg.get("z_m")):
         connection.send_error(msg["id"], "invalid", _HEIGHT_MSG)
         return
+    # Its looks (colour, fixture shape, size, rotation, margin, label) are the
+    # lighting tier's. Below it, where placement alone has moved down the
+    # ladder (licence.placement_tier), a placement moves the device and keeps
+    # whatever looks its record already has: none are set, none are lost.
+    looks = msg if _tier_at_least(hass, "bright") else (mdl.light_positions_m().get(eid) or {})
     await mdl.async_set_light_position_m(
         eid, float(msg["x_m"]), float(msg["y_m"]),
         (msg.get("floor_id") or "").strip() or DEFAULT_FLOOR_ID,
-        color=(msg.get("color") or "").strip(),
-        shape=(msg.get("shape") or "").strip(),
-        rotation=float(msg.get("rotation") or 0.0),
-        width_cm=msg.get("width_cm"),
-        height_cm=msg.get("height_cm"),
-        margin_cm=msg.get("margin_cm"),
-        label=(msg.get("label") or "").strip(),
+        color=(looks.get("color") or "").strip(),
+        shape=(looks.get("shape") or "").strip(),
+        rotation=float(looks.get("rotation") or 0.0),
+        width_cm=looks.get("width_cm"),
+        height_cm=looks.get("height_cm"),
+        margin_cm=looks.get("margin_cm"),
+        label=(looks.get("label") or "").strip(),
         z_m=msg["z_m"] if "z_m" in msg else KEEP_HEIGHT,
     )
     _bump(hass, "light_placed")
@@ -210,7 +216,7 @@ async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> No
     default for its kind). The same gate as placing a light, and the same
     fabric write path, so the history sees it like a placement. All or
     nothing: a device with no placement record refuses the lot."""
-    if not _tier_at_least(hass, "bright"):
+    if not _tier_at_least(hass, placement_tier()):
         connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)
         return
     heights = _heights_of(msg, "entity_id")
@@ -243,7 +249,7 @@ async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> No
 @admin_if_enhanced_security
 async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
     """Un-place a light (it returns to automatic room clustering). Bright-tier editing."""
-    if not _tier_at_least(hass, "bright"):
+    if not _tier_at_least(hass, placement_tier()):
         connection.send_error(msg["id"], "pro_required", _PRO_REQUIRED_MSG if time.time() < PRO_PASS_FROM_TS else _PRO_REQUIRED_MSG_FROM_PASS)
         return
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)

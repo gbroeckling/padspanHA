@@ -26,7 +26,10 @@ const check = (name, ok, detail) => { checks.push(name); if (!ok) failures.push(
 
 const FROM = Date.parse(E.ADDON_HALF_FROM), UNTIL = Date.parse(E.ADDON_HALF_UNTIL);
 const IN = FROM + 3 * 86400e3;
-const ON_SALE = E.ADDONS.filter(a => a.on_sale !== false).map(a => a.name);
+const ALL = E.ADDONS.map(a => a.name);
+// Not on sale before a moment (on_sale_from: Advanced map creation and Robot vacuum, December 1).
+const LATE = E.ADDONS.filter(a => a.on_sale_from).map(a => a.name);
+const DEC1 = Date.parse(E.FREE_BASICS_FROM);
 
 // The settings payload's licence fields, as ws_common._get_settings sends them.
 const base = { addon_sale_card_done: false, pro_has_key: false, pro_active: false, tier: "free", addons_licensed: [],
@@ -42,21 +45,23 @@ const TIERS = {
   bright: { ...base, pro_has_key: true, pro_active: true, tier: "bright", pro_days_left: 100 },
   bright_lapsed: { ...base, pro_has_key: true, pro_active: false, tier: "free", pro_days_left: -40 },
   addon_some: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ["audio", "climate"] },
-  addon_all: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: [...ON_SALE] },
-  addon_all_but_one: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ON_SALE.slice(1) },
+  addon_all: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: [...ALL] },
+  addon_all_but_one: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ALL.slice(1) },
   addon_lapsed: { ...base, pro_has_key: true, pro_active: false, addon_key: true, addons_licensed: [] },
-  // "maps" is not on sale (on_sale: false): holding every add-on but it is holding every one on sale.
-  addon_all_on_sale_not_maps: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ON_SALE.filter(n => n !== "maps") },
+  // Every add-on but the ones not on sale yet: nothing on sale is lacking until they are (December 1).
+  addon_all_but_late: { ...base, pro_has_key: true, pro_active: true, addon_key: true, addons_licensed: ALL.filter(n => !LATE.includes(n)) },
 };
 const WANT = { free: true, trial: true, trial_lapsed: true, pro_year: false, pro_life: false, pro_tester: false, pro_lapsed: true,
   bright: true, bright_lapsed: true, addon_some: true, addon_all: false, addon_all_but_one: true, addon_lapsed: true,
-  addon_all_on_sale_not_maps: false };
+  addon_all_but_late: (now) => now >= DEC1 };
 check("every tier in the matrix has an answer", Object.keys(TIERS).every(k => k in WANT));
-const WHEN = { before: FROM - 1, first_second: FROM, in_sale: IN, last_second: UNTIL - 1, ended: UNTIL, long_after: UNTIL + 90 * 86400e3 };
-const OPEN = { before: false, first_second: true, in_sale: true, last_second: true, ended: false, long_after: false };
+check("the late ones are maps and vacuum, from December 1", JSON.stringify(LATE) === JSON.stringify(["maps", "vacuum"]) && FROM < DEC1 && DEC1 < UNTIL, LATE);
+const WHEN = { before: FROM - 1, first_second: FROM, in_sale: IN, before_dec1: DEC1 - 1, dec1: DEC1, last_second: UNTIL - 1, ended: UNTIL,
+  long_after: UNTIL + 90 * 86400e3 };
+const OPEN = { before: false, first_second: true, in_sale: true, before_dec1: true, dec1: true, last_second: true, ended: false, long_after: false };
 for (const [tier, s] of Object.entries(TIERS)) {
   for (const [when, now] of Object.entries(WHEN)) {
-    const want = WANT[tier] && OPEN[when];
+    const want = (typeof WANT[tier] === "function" ? WANT[tier](now) : WANT[tier]) && OPEN[when];
     check(`due: ${tier} at ${when}`, E.addonSaleCardDue(s, now) === want, `${E.addonSaleCardDue(s, now)} != ${want}`);
     // Once shown, never again; a backend that does not know the flag (older) never shows it; settings not loaded: no flash.
     check(`flag: ${tier} at ${when} once shown`, E.addonSaleCardDue({ ...s, addon_sale_card_done: true }, now) === false);
@@ -74,8 +79,13 @@ const picks = (s) => E.addonSaleCardPicks(s);
 check("picks: a free install", JSON.stringify(picks(TIERS.free)) === JSON.stringify(["audio", "climate", "timetravel"]), picks(TIERS.free));
 check("picks: a trial names what the trial would take away", JSON.stringify(picks(TIERS.trial)) === JSON.stringify(["audio", "climate", "timetravel"]), picks(TIERS.trial));
 check("picks: an add-on holder, never what it has", JSON.stringify(picks(TIERS.addon_some)) === JSON.stringify(["timetravel", "looks", "alarm"]), picks(TIERS.addon_some));
-check("picks: one left, one named", JSON.stringify(picks(TIERS.addon_all_but_one)) === JSON.stringify([ON_SALE[0]]), picks(TIERS.addon_all_but_one));
-check("picks: never one not on sale", !picks(TIERS.free).includes("maps") && E.ADDONS.find(a => a.name === "maps").on_sale === false);
+check("picks: one left, one named", JSON.stringify(picks(TIERS.addon_all_but_one)) === JSON.stringify([ALL[0]]), picks(TIERS.addon_all_but_one));
+for (const [when, now] of Object.entries(WHEN)) {
+  for (const [tier, s] of Object.entries(TIERS)) {
+    const got = E.addonSaleCardPicks(s, now);
+    check(`picks: never one not on sale (${tier} at ${when})`, got.every(n => E.addonOnSale(n, now)), got);
+  }
+}
 check("picks: each has its half price in the sale", picks(TIERS.free).every(n => E.addonPriceParts(n, IN).half && E.addonPrice(n, IN) !== E.ADDONS.find(a => a.name === n).price));
 
 // The funnel: once per page load per place and add-on; a click is the caller's, each time.

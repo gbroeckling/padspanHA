@@ -6,10 +6,10 @@ Atlas is PadSpan's device map — floors and rooms drawn as an isometric plan, w
 
 Atlas works two ways depending on which PadSpan you installed:
 
-- **[PadSpan HA](https://github.com/gbroeckling/padspanHA)** — Atlas sits alongside BLE presence tracking. Free by default; a **PadSpan Pro** key unlocks placement.
-- **[PadSpan Bright](https://github.com/gbroeckling/padspanBright)** — the same Atlas map on its own, no BLE tracking. Free by default; a **PadSpan Bright Pro** key unlocks placement.
+- **[PadSpan HA](https://github.com/gbroeckling/padspanHA)** — Atlas sits alongside BLE presence tracking. Free by default; a **PadSpan Pro** key unlocks the lighting tools.
+- **[PadSpan Bright](https://github.com/gbroeckling/padspanBright)** — the same Atlas map on its own, no BLE tracking. Free by default; a **PadSpan Bright Pro** key unlocks the lighting tools.
 
-Either free tier gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it. A Pro/Bright Pro key on either install unlocks everything below: real placement, shapes, sensors, Automorph and Showcase. See [Editions](../README.md#editions) in the README for the full breakdown, and **Settings → Features → PadSpan licence** for a one-time 90-day free trial if you don't have a key yet (see [PadSpan Pro](PADSPAN_PRO.md)).
+Either free tier gets floors, rooms and, from December 1, 2026, every light and device placed where it really is, drawn as a plain marker — tap the marker (or its sidebar row) to toggle it. Until then a free map shows one marker per light in its room, and placement needs a key. A Pro/Bright Pro key on either install unlocks shapes, sizes and angles, Fit room, Automorph and Showcase. See [Editions](../README.md#editions) in the README for the full breakdown, and **Settings → Features → PadSpan licence** for a one-time 90-day free trial if you don't have a key yet (see [PadSpan Pro](PADSPAN_PRO.md)).
 
 ## Getting there
 
@@ -17,7 +17,7 @@ Open **Mapping → Atlas builder**, or the standalone **Atlas** sidebar panel (o
 
 ## Placing fixtures
 
-With a Pro/Bright Pro key:
+Placing is free from December 1, 2026; step 3's shapes, sizes and angles need a Pro/Bright Pro key:
 
 1. Go to **Mapping → Atlas builder** and find the device in the row list (or the "Queue all unplaced" control if you're placing several at once).
 2. Either drag the pulsing pin straight onto the floor plate, or tap **+ Place** to queue it and then tap the map where it belongs.
@@ -172,7 +172,7 @@ Atlas used to be called "Lights" — both the Mapping tab and the standalone sid
 
 ## Where to go next
 
-- [Live Aboard Guide](LIVE_ABOARD_GUIDE.md) — the Atlas in 3D (Pro): getting around, motion, the heat map, room scenes, and building doors, windows, heights and strips
+- [Live Aboard Guide](LIVE_ABOARD_GUIDE.md) — the Atlas in 3D (free from December 1, 2026): getting around, motion, the heat map, room scenes, and building doors, windows, heights and strips
 - [Getting Started](GETTING_STARTED.md) — if you haven't done the BLE presence onboarding yet
 - [Floor Plan Setup](FLOOR_PLAN_SETUP.md) — uploading maps and drawing rooms, before there's anything to place fixtures onto
 - [Wall Screen Guide](WALL_SCREEN_GUIDE.md) — the Atlas on a tablet or a screen on the wall

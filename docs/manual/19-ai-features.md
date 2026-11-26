@@ -8,8 +8,9 @@ or a floor plan. Room presence, calibration and everything else work without one
 
 ## What it can do
 
-All of these need PadSpan Pro, and each read happens only when someone starts it, never on a
-schedule.
+All of these need PadSpan Pro or, from December 1, 2026, the Advanced map creation add-on
+([chapter 25](25-padspan-pro.md#add-ons)); Furnish and Live Aboard's **Edit** stay PadSpan Pro's.
+Each read happens only when someone starts it, never on a schedule.
 
 | Feature | What is read | Where | Switch in Settings → AI |
 |---|---|---|---|

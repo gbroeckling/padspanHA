@@ -68,6 +68,36 @@ check("the lapsed message says history lasts its retention period", /retention p
 check("lapsed beats tier: a lapsed pro key is not treated as pro",
   proPitch({ tier: "pro", pro_has_key: true, pro_active: false }) !== null);
 
+// ── The free basics (freeBasics; settings.free_basics from December 1) ──────
+// Before the moment every pitch is word for word what it was; from it, none
+// calls placement, the plain wall or the 3D house paid, and each says what a
+// key adds on top of them.
+{
+  const LAPSED = { tier: "free", pro_has_key: true, pro_active: false };
+  const BEFORE = {
+    free: "What a licence adds, in case you have never hit it: light placement, which puts every light exactly where it hangs instead of clustered in the middle of its room; the 3D house (Live Aboard); the wall screen; and Forensics, which answers which Bluetooth devices were near a scanner in any time window. ",
+    bright: "Your key covers the lighting half. PadSpan Pro adds the 3D house (Live Aboard), the wall screen and Forensics — which Bluetooth devices were near a given scanner in any time window, with dwell time and CSV export. ",
+    lapsed: "Your licence has lapsed, so light placement is read-only, Forensics has stopped recording (what it recorded stays searchable for its retention period), and the 3D house, the wall screen, Locate and Busy Times are off. Everything you set up is still here and comes back as you left it when you renew. ",
+    lapsedBright: "Your licence has lapsed, so light placement is read-only and the 3D house and the wall screen are off. Everything you set up is still here and comes back as you left it when you renew. ",
+  };
+  const FROM = {
+    free: "What a licence adds, in case you have never hit it: each light's shape, size and Showcase look (placing it is free); the 3D editor, Furnish and people in the 3D house; the wall screen's night dimming; and Forensics, which answers which Bluetooth devices were near a scanner in any time window. ",
+    bright: "Your key covers the lights' looks. PadSpan Pro adds the 3D editor, Furnish and people in the 3D house, the wall screen's night dimming and burn-in protection, and Forensics — which Bluetooth devices were near a given scanner in any time window, with dwell time and CSV export. ",
+    lapsed: "Your licence has lapsed, so fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall's night dimming, Locate and Busy Times are off, and Forensics has stopped recording (what it recorded stays searchable for its retention period). Everything you set up is still here and comes back as you left it when you renew. ",
+    lapsedBright: "Your licence has lapsed, so fixture shapes, Showcase, the 3D editor, Furnish and the wall's night dimming are off; lights stay where you placed them. Everything you set up is still here and comes back as you left it when you renew. ",
+  };
+  const SETTINGS = { free: { tier: "free" }, bright: { tier: "bright" }, lapsed: LAPSED, lapsedBright: { ...LAPSED, edition: "bright" } };
+  for (const [k, st] of Object.entries(SETTINGS)) {
+    const off = proPitch(st), offFalse = proPitch({ ...st, free_basics: false }), on = proPitch({ ...st, free_basics: true });
+    check(`free basics, ${k}: before the moment the words are unchanged`, off.text === BEFORE[k] && offFalse.text === BEFORE[k], off.text);
+    check(`free basics, ${k}: from the moment the new words`, on.text === FROM[k] && on.kind === off.kind && on.cta === off.cta, on.text);
+    check(`free basics, ${k}: from the moment nothing free is sold`,
+      !/light placement|wall screen[;,]|the 3D house \(Live Aboard\)|read-only/.test(on.text), on.text);
+    check(`free basics, ${k}: from the moment short enough for a card`, on.text.length < 340, on.text.length);
+  }
+  check("free basics: Pro is still told nothing", proPitch({ tier: "pro", free_basics: true }) === null);
+}
+
 // ── Every pitch is one short line with a link ───────────────────────────────
 for (const st of [{ tier: "free" }, { tier: "bright" }, { tier: "free", pro_has_key: true, pro_active: false }]) {
   const r = proPitch(st);

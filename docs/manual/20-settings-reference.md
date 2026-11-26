@@ -349,6 +349,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `room_audio_matched` | off | on or off | Audio's matching card kept its picks once: from then on it makes no guesses, so rooms cleared on purpose stay cleared. |
 | `lifetime_card_done` | off | on or off | The "Pro for life ends Dec 15" card was shown. |
 | `addon_sale_card_done` | off | on or off | The "Half off every add-on until January 1" card was shown. |
+| `house3d_free_card_done` | off | on or off | The "The 3D house is now free" card was shown. |
 | `tester_signup` | empty |  | Your tester sign-up, so you can update or withdraw it. |
 | `pro_invite` | empty |  | An invite to free Pro, and your answer. |
 | `server_offers` | empty |  | Which free-Pro offers the update check last said are on. |

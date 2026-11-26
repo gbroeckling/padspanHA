@@ -4,30 +4,33 @@
 
 Live Aboard is the Atlas in 3D: your floors, rooms, walls, doors, windows, lights and sensors as a
 small house you can turn, zoom and tap, the way you'd look into a house in The Sims. It is built from
-the map you already drew, so there is nothing new to set up before you see it. It comes with
-PadSpan Pro, and it is **experimental**: if something looks wrong in your house, please say so
-([chapter 27](27-getting-help.md)).
+the map you already drew, so there is nothing new to set up before you see it. From December 1,
+2026, it is free, with no key; PadSpan Pro adds Furnish, people figures, the 3D editor and the
+director (and the library). Until then it comes with PadSpan Pro and is marked **experimental**. If
+something looks wrong in your house, please say so ([chapter 27](27-getting-help.md)).
 
 ## Turning it on
 
 1. Open **Settings → Atlas** and find **Atlas — Mapped Light Control**.
-2. Under **Live Aboard**, turn on **Show Live Aboard on the Atlas**. It saves at once.
+2. Under **Live Aboard**, turn on **Show Live Aboard on the Atlas**. It saves at once. From
+   December 1, 2026, a new install starts with it on, and an install with no key has it turned on
+   once by itself; a screen still opens on the flat map until 3D is picked there.
 3. Open the Atlas. In the sidebar Atlas, tap **🏠** on the left rail to switch between the flat map
    and Live Aboard. In **Mapping → Atlas builder**, use the **Map | Live Aboard** switch beside the
    zoom.
 
 The same card has:
 
-- **Rain and snow**: falls outside the house when the Atlas's weather says so.
+- **Rain and snow** (PadSpan Pro): falls outside the house when the Atlas's weather says so.
 - **Look**: the Atlas's colours, Live Aboard's own, or **Studio** (its own colours on a stage under a
   sky that follows the sun, with soft light and shadows).
 - **Back to home view**: how long the sidebar waits untouched before it flies back to its home view
   (Off, 30 s, 1 min, 5 min).
-- **Show people** and **Show tags & scanners**, on the map and in Live Aboard.
+- **Show people** and **Show tags & scanners**, on the map and in Live Aboard (PadSpan Pro).
 
-**Set it up step by step** on that card (or **Set up Live Aboard** at the top of the Atlas builder)
-opens a wizard that builds the house with you: floor heights, rooms, devices, heights, doors and
-windows, LED strips, furniture, the extras, and making it your screen (**Show the Atlas as
+**Set it up step by step** on that card (or **Set up Live Aboard** at the top of the Atlas builder;
+PadSpan Pro) opens a wizard that builds the house with you: floor heights, rooms, devices, heights,
+doors and windows, LED strips, furniture, the extras, and making it your screen (**Show the Atlas as
 Overview**). Each step says what it found and what's left.
 
 If 🏠 is greyed out, the reason shows beside it (a browser without WebGL, say). Tap it to try again.
@@ -133,10 +136,10 @@ for a railing ([chapter 10](10-walls-and-signal-loss.md#open-edges-rooms-with-no
 
 ## Building: doors, windows, heights and strips
 
-Building happens in **Mapping → Atlas builder**, in Live Aboard, with **Edit**. Nothing is stored
-until you press **Save**. **Undo**, **Redo** and **Discard** step through your changes; **Done**
-leaves Edit and asks first if something isn't saved. Keys: **Ctrl+Z** undo, **Ctrl+Y** redo,
-**Escape** lets go, **Delete** removes the picked door or window.
+Building happens in **Mapping → Atlas builder**, in Live Aboard, with **Edit** (PadSpan Pro).
+Nothing is stored until you press **Save**. **Undo**, **Redo** and **Discard** step through your
+changes; **Done** leaves Edit and asks first if something isn't saved. Keys: **Ctrl+Z** undo,
+**Ctrl+Y** redo, **Escape** lets go, **Delete** removes the picked door or window.
 
 **Doors, windows and doorways**
 

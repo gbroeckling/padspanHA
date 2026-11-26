@@ -139,5 +139,6 @@
 "{n} h": "{n} h",
 "{n} min": "{n} min",
 "{n} open now": "{n} ouverts maintenant",
-"{n} s": "{n} s"
+"{n} s": "{n} s",
+"Adds a Map / Live Aboard switch to the Atlas: turn, pan and zoom around your floors, rooms, walls and lights, built from the map you already drew. Each screen opens on the flat map until 3D is picked there, and a screen too slow for 3D keeps the flat map.": "Ajoute à l’Atlas un sélecteur Plan / Live Aboard : faites pivoter, déplacez et zoomez la vue sur vos étages, pièces, murs et lumières, construits à partir du plan que vous avez déjà dessiné. Chaque écran s’ouvre sur le plan à plat jusqu’à ce que la 3D y soit choisie, et un écran trop lent pour la 3D garde le plan à plat."
 }

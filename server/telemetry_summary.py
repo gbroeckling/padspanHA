@@ -28,8 +28,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from collections import Counter, defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 
@@ -809,13 +810,17 @@ def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[st
 # place, the site opened, keys entered, add-ons gained and when against the sale, the sale card). Licence, holdings,
 # market and the moved cohort are each install's latest report; the funnel is summed over every report; use and licence
 # changes read each install's reports over the window. tests/test_addon_dashboards.py holds these lists to the sender's.
-_ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting")
+_ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting",
+           "vacuum")
+# Not sold before these moments (licence.ADDON_ON_SALE_FROM): everyone's until then, so "on it" is every install.
+_ADDON_ON_SALE_FROM = {"maps": "2026-12-01T08:00:00Z", "vacuum": "2026-12-01T08:00:00Z"}
 _ADDON_LICENCES = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                    "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 _ADDON_DAYS = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")
 _ADDON_NOT_SOLD = ()                # every used word is an add-on now (Advanced smart lighting is sold)
 _ADDON_USED = tuple(dict.fromkeys(_ADDONS + _ADDON_NOT_SOLD))
-_ADDON_MOVED = (("emergency_test", "alarm"), ("power_teams", "lighting"), ("circadian", "lighting"), ("lidar", "maps"))
+_ADDON_MOVED = (("emergency_test", "alarm"), ("power_teams", "lighting"), ("circadian", "lighting"), ("lidar", "maps"),
+                ("robot_vacuum", "vacuum"))
 _ADDON_OFFER_PLACES = {"licence_card": _ADDONS, "busy_times": ("insights",), "locate": ("insights",),
                        "door_openers": ("alarm",), "emergency_test": ("alarm",), "themes": ("looks",),
                        "showcase": ("looks",), "forensics": ("forensics",)}
@@ -828,7 +833,7 @@ _ADDON_MARKET = (("alarm", (("alarm", "alarm panels"), ("garage", "garage opener
                             ("emergency", "emergency lights"))),
                  ("climate", (("temp", "temperature sensors"), ("humidity", "humidity sensors"), ("co2", "CO2 sensors"))),
                  ("lighting", (("wled", "WLED devices"), ("teams", "power teams"), ("colour_bulbs", "colour bulbs"))),
-                 ("maps", (("vacuum", "robot vacuums"),)))
+                 ("maps", ()), ("vacuum", (("vacuum", "robot vacuums"),)))
 _ADDON_AUDIO = ("control4", "crestron", "savant", "russound", "nuvo", "monoprice", "xantech", "triad", "denon", "yamaha",
                 "anthem")
 _ADDON_C4_OS = ("2", "3", "other", "unknown")
@@ -860,7 +865,14 @@ def _on_pro(a: dict) -> bool:
     return str(a.get("licence")).startswith("pro_")
 
 
-def addons_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+def _sold(addon: str, now: float) -> bool:
+    """An add-on on sale at `now`: not a used word alone (_ADDON_NOT_SOLD), and its moment (if any) has come."""
+    start = _ADDON_ON_SALE_FROM.get(addon)
+    return addon not in _ADDON_NOT_SOLD and (start is None or now >= datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp())
+
+
+def addons_section(latest: dict[str, dict], reports: list[dict], now: float | None = None) -> list[str]:
+    at = time.time() if now is None else now                # what is on sale is read at this moment
     told = {iid: _addons(r) for iid, r in latest.items()}
     told = {iid: a for iid, a in told.items() if a}
     lic = Counter(str(a["licence"]) for a in told.values())
@@ -949,7 +961,7 @@ def addons_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
     out.append("  Used over the window, of the installs on it now (an add-on key carrying it, or Pro)")
     out.append(f"    {'add-on':<11}{'on it':>7}{'used it':>9}")
     for addon in _ADDON_USED:
-        if addon in _ADDON_NOT_SOLD:
+        if not _sold(addon, at):
             on = set(told)
             note = "  not sold yet: every install that says"
         else:
@@ -961,14 +973,14 @@ def addons_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
     out.append("  Moved from free (installs that had it in use when the move first ran; of them, now on the add-on it moved into)")
     for w, addon in _ADDON_MOVED:
         who = [a for a in told.values() if w in _words(a.get("moved"))]
-        tail = ("not sold yet" if addon in _ADDON_NOT_SOLD else
+        tail = ("not sold yet" if not _sold(addon, at) else
                 f"holding {addon} {sum(1 for a in who if _holds(a, addon))}, on Pro {sum(1 for a in who if _on_pro(a))}")
         out.append(f"    {w + ' -> ' + addon:<28}{len(who):>5}  {tail}")
 
     mk = {iid: _dict(a.get("market")) for iid, a in told.items()}
 
     def on_it(who, addon: str) -> str:
-        if addon in _ADDON_NOT_SOLD:
+        if not _sold(addon, at):
             return "not sold yet"
         return f"{sum(1 for iid in who if _holds(told[iid], addon) or _on_pro(told[iid]))} already on it"
 
@@ -985,11 +997,15 @@ def addons_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
             if any(plans.values()):
                 bits.append("plans by source: " + " ".join(f"{w} {len(who)}" for w, who in plans.items() if who))
                 anyone |= set().union(*plans.values())
-            for k, label in (("roomplan", "RoomPlan import on"), ("valetudo", "Valetudo")):
-                who = {iid for iid, m in mk.items() if m.get(k) is True}
-                if who:
-                    bits.append(f"{label} {len(who)}")
-                    anyone |= who
+            who = {iid for iid, m in mk.items() if m.get("roomplan") is True}
+            if who:
+                bits.append(f"RoomPlan import on {len(who)}")
+                anyone |= who
+        if addon == "vacuum":
+            who = {iid for iid, m in mk.items() if m.get("valetudo") is True}
+            if who:
+                bits.append(f"Valetudo {len(who)}")
+                anyone |= who
         out.append(f"    {addon}: " + (", ".join(bits) + f"; any of them {len(anyone)} installs, {on_it(anyone, addon)}"
                                        if bits else "none"))
     audio, audio_who, audio_any = Counter(), Counter(), set()

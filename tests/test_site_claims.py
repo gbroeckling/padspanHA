@@ -134,41 +134,178 @@ _SKUS = {
     "padspan-pro-2year":            (85.00, ("padspan", "2year"),      ("upgrade", "bright", "lifetime")),
     # PadSpan add-ons (2026-11-25), one SKU each: the server decides any item with
     # 'padspan' AND 'addon' as an add-on before every Pro tier, then matches it
-    # exactly, so an add-on SKU never carries another tier's marker.
+    # exactly, so an add-on SKU never carries another tier's marker. maps and
+    # vacuum are on the page from December 1 (the free-basics switch shows them).
     **{f"padspan-addon-{name}": (price, ("padspan", "addon"), ("upgrade", "bright", "lifetime", "2year"))
        for name, price in (("audio", 6.45), ("alarm", 6.45), ("wifi", 6.45), ("climate", 8.65), ("timetravel", 7.55),
-                           ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56), ("lighting", 8.65))},
+                           ("vacation", 4.25), ("looks", 4.25), ("forensics", 5.56), ("insights", 5.56),
+                           ("maps", 8.65), ("lighting", 8.65), ("vacuum", 6.45))},
 }
+
+_ED = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "editions.js"
+# editions.js ADDONS, one entry each: (name, words, price, on_sale_from or "", desc).
+_ADDON_ROW = re.compile(r'\{ name: "(\w+)", words: "([^"]+)", price: "\$(\d+\.\d\d) CAD",(?: on_sale_from: (\w+),)?\s+'
+                        r'desc: "([^"]+)" \}')
+
+
+def _addon_box(html: str) -> str:
+    box = html[html.index('<div class="ed" id="addons"'):]
+    return box[:box.index('<div class="ed">')]
 
 
 def test_the_add_ons_are_sold_as_the_panel_says(html: str) -> None:
     """editions.js's ADDONS (name, words, price, what it unlocks), its term and
     link, and the site's #addons box with one PayPal form per add-on, say the
-    same thing; Audio is at #audio; and the add-ons are said to be in Pro."""
-    from pathlib import Path
-    ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
-          / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
-    table = re.findall(r'\{ name: "(\w+)", words: "([^"]+)", price: "\$(\d+\.\d\d) CAD", desc: "([^"]+)" \}', ed)
-    # On sale only: an add-on with on_sale: false (Advanced map creation) is in no box (tests/test_addon_gates.py).
+    same thing; Audio, Advanced map creation and Robot vacuum are at their own
+    anchors; an add-on that goes on sale at a moment (on_sale_from) has its box
+    behind the free-basics switch, which is that moment; and the add-ons are
+    said to be in Pro."""
+    ed = _ED.read_text(encoding="utf-8")
+    table = _ADDON_ROW.findall(ed)
     assert [n for n, *_ in table] == ["audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
-                                      "forensics", "insights", "lighting"]
+                                      "forensics", "insights", "maps", "lighting", "vacuum"]
+    # The site has one switch for an add-on going on sale: December 1's (test_the_free_basics_switch_is_the_panels_moment).
+    assert {f for _, _, _, f, _ in table} == {"", "FREE_BASICS_FROM"}
     term = re.search(r'ADDON_TERM = "(\d+) years"', ed).group(1)
     assert re.search(r'ADDONS_URL = "https://padspan\.traks\.ca/#addons"', ed)
-    box = html[html.index('<div class="ed" id="addons"'):]
-    box = box[:box.index('<div class="ed">')]
+    box = _addon_box(html)
     assert html.index('id="editions"') < html.index('id="addons"') < html.index('</section>', html.index('id="editions"'))
     assert f"covers {term} years" in box and "PadSpan Pro includes them all" in box
-    for name, words, price, desc in table:
+    for name, words, price, on_sale_from, desc in table:
         row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S)
         assert row, name
+        behind = f'<div data-from-basics style="display:none"><div id="{name}" data-addon="{name}" '
+        assert (behind in box) == bool(on_sale_from), name
         row = row.group(0)
-        assert (' id="audio"' in row) == (name == "audio")
+        assert "-basics" not in row, name
+        assert (f' id="{name}"' in row) == (name in ("audio", "maps", "vacuum")), name
         assert f'{words.replace("&", "&amp;")} <span' in row and f"${price} CAD</span>" in row, name
         assert desc.replace("&", "&amp;") in row, name
         assert f'name="item_number" value="padspan-addon-{name}"' in row and f'name="amount" value="{price}"' in row, name
         assert float(price) == _SKUS[f"padspan-addon-{name}"][0], name
     # The owner's price for Audio: 30% under NeonPlan's EUR 5.90 at the Bank of Canada's 1.5679 for 2026-11-24.
     assert 6.45 <= 5.90 * 1.5679 * 0.70
+
+
+# December 1, 2026, 00:00 Pacific (the owner, 2026-11-25): the free basics. One script, after every block it touches,
+# removes the data-until-basics blocks and shows the data-from-basics ones, as the December 16 switch does its pair.
+_BASICS_SWITCH = re.compile(
+    r'<script>\(function\(\)\{var from="([^"]+)";if\(Date\.now\(\)<Date\.parse\(from\)\)return;(.*?)</script>', re.S)
+
+
+def _seen(page: str) -> str:
+    """A page's words as a visitor reads them: no scripts, no tags, whitespace collapsed."""
+    import html as htmllib
+    page = re.sub(r"<script\b.*?</script>|<!--.*?-->", "", page, flags=re.S)
+    return re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", "", page)))
+
+
+def _periods(html: str) -> dict:
+    """What a visitor sees before December 1, from it to December 15, and from December 16: each switch's own
+    e.remove() (tests/test_pricing_dec16.py's _without), and the blocks a switch has not shown yet left out too."""
+    from functools import reduce
+
+    from tests.test_pricing_dec16 import _without
+    return {when: reduce(_without, cut, html) for when, cut in (
+        ("before", ("data-from-basics", "data-from-pass")),
+        ("december", ("data-until-basics", "data-from-pass")),
+        ("after", ("data-until-basics", "data-until-pass")))}
+
+
+def test_the_free_basics_switch_is_the_panels_moment(html: str) -> None:
+    """The site switches at editions.js FREE_BASICS_FROM (the backend's const.FREE_BASICS_FROM_TS is the same moment,
+    tests/test_free_basics_dec1.py). Every block for December 1 on starts hidden; every block that goes then is a
+    visible part of the page before it."""
+    switches = _BASICS_SWITCH.findall(html)
+    assert len(switches) == 1, "one free-basics switch, not several"
+    moment, body = switches[0]
+    ed = _ED.read_text(encoding="utf-8")
+    assert moment == re.search(r'export const FREE_BASICS_FROM = "([^"]+)"', ed).group(1) == "2026-12-01T08:00:00Z"
+    assert 'document.querySelectorAll("[data-until-basics]").forEach(function(e){e.remove();});' in body
+    assert 'document.querySelectorAll("[data-from-basics]").forEach(function(e){e.style.display="";});' in body
+    at = html.index(f'<script>(function(){{var from="{moment}";')
+    assert at > max(m.start() for m in re.finditer(r"\sdata-(?:until|from)-basics\b", html)), \
+        "the switch runs before a block it touches is on the page"
+    page = re.sub(r"<script\b.*?</script>|<!--.*?-->", "", html, flags=re.S)
+    later = re.findall(r"<[a-zA-Z][a-zA-Z0-9]*\s[^<>]*\bdata-from-basics\b[^<>]*>", page)
+    assert len(later) >= 20, later
+    for tag in later:
+        assert re.search(r'\bdata-from-basics style="display:none[;"]', tag), tag[:160]
+    gone = re.findall(r"<[a-zA-Z][a-zA-Z0-9]*\s[^<>]*\bdata-until-basics\b[^<>]*>", page)
+    assert len(gone) >= 15 and not any("display:none" in g for g in gone), gone
+
+
+# Words that are true only before December 1 (light placement, the 3D house and the wall screen paid), and the words
+# that replace them, true from it. Each set is on the page in its own blocks only.
+_PAID_BASICS = ("PadSpan Pro, experimental", "(the full 3D house, Live Aboard, is Pro)",
+                "Place each light exactly where it hangs", "Fans, motion & temperature sensors and locks placed the same way",
+                "the whole house in 3D: walls cut away", "Light placement, shapes, WLED, Showcase",
+                "Live Aboard, the house in 3D", "Light placement — that is Bright Pro",
+                "Light placement, fixture shapes and sizes", "it unlocks light placement inside PadSpan HA",
+                "Light and device placement on the Atlas — place each light", "your house in 3D (still experimental)",
+                "Wall mode — the Atlas on a wall screen", "free to run, with real placement, WLED control")
+_FREE_BASICS = ("Free, no key. Furniture, people and the 3D editor with PadSpan Pro",
+                "Place each light and device exactly where it is, in metres",
+                "Wall mode: the Atlas on a wall screen, sized for the room",
+                "Live Aboard: the house in 3D, built from the map you already drew",
+                "the director that turns the view to a doorbell, door or alarm",
+                "On a wall screen: night dimming, burn-in shift, floors in turn and Fully Kiosk motion wake",
+                "Exact light and device placement, the wall screen and the 3D house", "Fixture shapes, WLED, Showcase",
+                "Live Aboard's editor, furniture and people", "Exact light and device placement",
+                "(the 3D house, Live Aboard, too; its editor, furniture and people are Pro)",
+                "Placing each light and device exactly is free.", "The house in 3D itself is free.",
+                "The plain wall screen is free.", "free to run, with real placement too, and fixture shapes",
+                "30% off ($6.05 CAD) if you already own Robot vacuum",
+                "30% off ($4.51 CAD) if you already own Advanced map creation")
+
+
+def test_the_free_basics_read_right_before_december_1_until_december_15_and_after(html: str) -> None:
+    """Before the moment the page says what it said before it; from it, the free basics and the two new add-ons; and
+    the December 16 switch still retires Bright Pro on top of it."""
+    from tests.test_pricing_dec16 import _without
+    pages = _periods(html)
+    seen = {when: _seen(page) for when, page in pages.items()}
+    no_until, no_from = _seen(_without(html, "data-until-basics")), _seen(_without(html, "data-from-basics"))
+    for words in _PAID_BASICS:
+        assert words in seen["before"] and words not in no_until, words
+    for words in _FREE_BASICS:
+        assert words in seen["december"] and words in seen["after"] and words not in no_from, words
+    # Bright Pro is still sold from December 1 to 15 and named so; from December 16 a Pro key does it
+    # (tests/test_pricing_dec16.py: no Bright Pro on the page then).
+    assert "Fixture shapes, WLED and Showcase — that is Bright Pro" in seen["december"]
+    assert 'name="item_number" value="padspan-bright-annual"' in pages["december"]
+    assert "Fixture shapes, WLED and Showcase — that takes a Pro key" in seen["after"]
+    assert "there it unlocks fixture shapes and sizes, WLED and Showcase" in seen["after"]
+    # The two new add-ons: not on the page before December 1, sold from it.
+    for name in ("maps", "vacuum"):
+        assert f'name="item_number" value="padspan-addon-{name}"' not in pages["before"], name
+        for when in ("december", "after"):
+            assert f'name="item_number" value="padspan-addon-{name}"' in pages[when], (name, when)
+
+
+def test_the_cross_discount_is_said_in_both_boxes_and_the_box_charges_the_public_price(html: str) -> None:
+    """editions.js ADDON_CROSS: who holds one of maps and vacuum pays ADDON_CROSS_PERCENT off the other, rounded down
+    to the cent ($8.65 -> $6.05, $6.45 -> $4.51), the better of that and a sale, never both. The site can't know who
+    holds what, so each box says the rule and where to buy at that price (the licence card), and its own form charges
+    the public price (half in the sale) only."""
+    ed = _ED.read_text(encoding="utf-8")
+    cross = dict(re.findall(r'(\w+): "(\w+)"', re.search(r"ADDON_CROSS = Object\.freeze\(\{([^}]*)\}\)", ed).group(1)))
+    assert cross == {"maps": "vacuum", "vacuum": "maps"}
+    pct = int(re.search(r"export const ADDON_CROSS_PERCENT = (\d+);", ed).group(1))
+    assert pct == 30
+    table = {name: (words, price) for name, words, price, _, _ in _ADDON_ROW.findall(ed)}
+    box, got = _addon_box(html), {}
+    for name, other in cross.items():
+        words, price = table[name]
+        got[name] = f"{round(float(price) * 100) * (100 - pct) // 100 / 100:.2f}"
+        row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S).group(0)
+        assert (f"{pct}% off (${got[name]} CAD) if you already own {table[other][0]}: buy it from PadSpan's licence card "
+                "(Settings → Features → PadSpan licence), with the email your key was sent to. "
+                "The better of this and any sale applies, never both.") in row, name
+        form = row[row.index("<form"):]
+        assert re.findall(r'value="(\d+\.\d\d)"', form) == [price], name
+        assert f'data-half-amount="{int(round(float(price) * 100) // 2) / 100:.2f}"' in form, name
+    assert got == {"maps": "6.05", "vacuum": "4.51"}
 
 
 def test_the_lifetime_price_matches_the_panel_and_switches_on_the_same_date(html: str) -> None:
@@ -412,7 +549,8 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
     (editions.js; the owner, 2026-11-25). The site's #addons box switches its shown price and each PayPal form's amount
     at the same two moments by itself (the visitor's clock; the licence server checks the payment's date), and says
     "Half off until January 1" while it runs. The panel's addonPrice is run before, during and after the sale and the
-    page's normal and half amounts must be its answers."""
+    page's normal and half amounts must be its answers. An add-on that goes on sale during it (on_sale_from, December 1)
+    is half off from that moment, which is when its box shows (the free-basics switch)."""
     import json
     import shutil
     import subprocess
@@ -433,20 +571,22 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
         pytest.skip("node is not installed")
     run = ("const E = await import(" + json.dumps((views / "editions.js").as_uri()) + ");"
            "const at = {before: Date.parse('2026-11-27T07:59:59Z'), first: Date.parse('2026-11-27T08:00:00Z'),"
+           " unsold: Date.parse(E.FREE_BASICS_FROM) - 1000, sold: Date.parse(E.FREE_BASICS_FROM),"
            " last: Date.parse('2027-01-02T07:59:59Z'), after: Date.parse('2027-01-02T08:00:00Z')};"
            "const out = {}; for (const [k, t] of Object.entries(at)) out[k] = Object.fromEntries(E.ADDONS.map(a => [a.name, E.addonPrice(a.name, t)]));"
+           "out.from = Object.fromEntries(E.ADDONS.map(a => [a.name, a.on_sale_from || ''])); out.basics = E.FREE_BASICS_FROM;"
            "console.log(JSON.stringify(out));")
     r = subprocess.run([node, "--input-type=module", "-e", run], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert r.returncode == 0, r.stderr
     got = json.loads(r.stdout.strip().splitlines()[-1])
-    assert got["before"] == got["after"] and got["first"] == got["last"]
+    assert start < got["basics"] < until, "maps and vacuum go on sale during the sale"
+    assert got["before"] == got["after"] and got["sold"] == got["last"]
     for name, price in got["before"].items():
-        row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S)
-        if name == "maps":
-            assert row is None and got["first"][name] == price, "not on sale: no box, and never half off"
-            continue
-        row = row.group(0)
-        normal, sale = price[1:-4], got["first"][name][1:-4]
+        row = re.search(r'<div[^>]*data-addon="' + name + r'".*?</form>', box, re.S).group(0)
+        # Half off from the sale's start; one not sold yet is never half off until it is (its box shows then).
+        assert got["from"][name] in ("", got["basics"]), name
+        assert got["first"][name] == got["unsold"][name] == (got["last"][name] if not got["from"][name] else price), name
+        normal, sale = price[1:-4], got["last"][name][1:-4]
         assert float(sale) == int(round(float(normal) * 100) // 2) / 100, (name, normal, sale)
         assert f'name="amount" value="{normal}" data-half-amount="{sale}"' in row, name
         assert f'data-addon-price="normal" style="color:var(--mut);font-weight:600">${normal} CAD</span>' in row, name

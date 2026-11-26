@@ -115,7 +115,8 @@ followed; they come back if heard again.
 changes what is shown, not what is tracked.
 
 Other cards come and go: **Getting started** while setup isn't done, **Improve accuracy** with a
-last tip or two once it is, the Pro trial, what changed after an update, and **Positioning
+last tip or two once it is, the Pro trial, what changed after an update, **The 3D house is now
+free** (from December 1, 2026, once, to an administrator, never on a wall screen), and **Positioning
 Diagnostics** (folded) for support. With PadSpan Pro, **Settings → Atlas → Show the Atlas as
 Overview** puts the Atlas here instead.
 

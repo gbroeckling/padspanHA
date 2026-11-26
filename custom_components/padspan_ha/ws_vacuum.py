@@ -47,6 +47,15 @@ from .ws_common import id_text
 _LOGGER = logging.getLogger(__name__)
 
 
+def _refused(hass: HomeAssistant, connection, msg) -> bool:
+    """Refuse a robot-vacuum feature without the Robot vacuum add-on (vacuum_import.licensed: everyone's until it is
+    on sale), saying what brings it back. Whether it refused."""
+    if vi.licensed(hass):
+        return False
+    connection.send_error(msg["id"], vi.ADDON_CODE, vi.ADDON_MESSAGE)
+    return True
+
+
 async def _store(hass: HomeAssistant) -> vi.VacuumStore:
     dom = hass.data.setdefault(DOMAIN, {})
     vs = dom.get(vi.DATA_VACUUM)
@@ -92,6 +101,8 @@ async def ws_vacuum_import_preview(hass: HomeAssistant, connection, msg) -> None
     One of: json_text (a Valetudo map, pasted or from a file), url (the
     robot's Valetudo address), entity_id (a camera — its PNG's ValetudoMap
     chunk first, then its calibration_points attributes)."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     read: dict = {}
     try:
@@ -156,6 +167,8 @@ async def ws_vacuum_import_preview(hass: HomeAssistant, connection, msg) -> None
 @websocket_api.async_response
 async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
     """Write the previewed candidate: a new map, its placement, new rooms only."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     cand = vs.preview
     dom = hass.data.get(DOMAIN, {})
@@ -245,6 +258,8 @@ async def ws_vacuum_status(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_vacuum_link_set(hass: HomeAssistant, connection, msg) -> None:
     """Turn the live position / the walker on or off. Writes no calibration."""
+    if (msg.get("enabled") or msg.get("walker_enabled")) and not msg.get("unlink") and _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     lk = vs.data.get("link")
     if msg.get("unlink"):
@@ -283,6 +298,8 @@ async def ws_vacuum_cal_pending_list(hass: HomeAssistant, connection, msg) -> No
 @websocket_api.async_response
 async def ws_vacuum_cal_pending_accept(hass: HomeAssistant, connection, msg) -> None:
     """The user accepted one pending point: THE one road into calibration."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
     if not cal:
@@ -400,6 +417,8 @@ async def _robot_status(hass: HomeAssistant, vs: vi.VacuumStore, rooms: bool) ->
 @websocket_api.async_response
 async def ws_vacuum_robot_status(hass: HomeAssistant, connection, msg) -> None:
     """The robovac card: the robot as its Valetudo reports it, what a run needs, the last runs."""
+    if _refused(hass, connection, msg):
+        return
     connection.send_result(msg["id"], await _robot_status(hass, await _store(hass), msg.get("rooms", False)))
 
 
@@ -415,6 +434,8 @@ async def ws_vacuum_robot_status(hass: HomeAssistant, connection, msg) -> None:
 async def ws_vacuum_robot_set(hass: HomeAssistant, connection, msg) -> None:
     """The robot's Valetudo address, and its user and password when Valetudo asks for them;
     and the switch "Collect Wi-Fi while it cleans" (vacuum_moving.py), off until the owner turns it on."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     if "wifi_moving" in msg:
         vs.data.setdefault("robot", {})["wifi_moving"] = bool(msg["wifi_moving"])
@@ -451,6 +472,8 @@ async def ws_vacuum_robot_set(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_vacuum_robot_control(hass: HomeAssistant, connection, msg) -> None:
     """Start, Pause or Dock, through Valetudo's BasicControlCapability (not while a run goes)."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     base = vr.robot_base(vs)
     try:
@@ -476,6 +499,8 @@ async def ws_vacuum_robot_control(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_vacuum_run_start(hass: HomeAssistant, connection, msg) -> None:
     """Start a room location run (every room, or one): calibration is backed up first."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     try:
         run = await vr.engine(hass, vs).async_start((msg.get("room") or "").strip() or None)
@@ -524,6 +549,8 @@ async def ws_vacuum_run_undo(hass: HomeAssistant, connection, msg) -> None:
 async def ws_vacuum_robot_use_set(hass: HomeAssistant, connection, msg) -> None:
     """How the robot's points are used from now on. Earlier runs are not touched:
     the answer says what applying it to them would do (vacuum_robot_use_apply)."""
+    if _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     robot = vs.data.setdefault("robot", {})
     if not robot.get("use"):
@@ -544,6 +571,8 @@ async def ws_vacuum_robot_use_apply(hass: HomeAssistant, connection, msg) -> Non
     """Apply the choice to the earlier runs (their points out and back in by it, one
     step after a backup), or leave them as they are, or undo the last apply (the
     choice before it, applied the same way)."""
+    if not msg.get("leave") and not msg.get("undo") and _refused(hass, connection, msg):
+        return
     vs = await _store(hass)
     robot = vs.data.setdefault("robot", {})
     use = vu.use_of(vs)
@@ -590,6 +619,8 @@ async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
 
     Off the event loop, and kept until the robot points, the receivers' places
     or the rooms change: a big house after many runs is seconds of arithmetic."""
+    if _refused(hass, connection, msg):
+        return
     from .vacuum_findings import cache_key, find_mistakes  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
     cal, mdl, fab = dom.get(DATA_CALIBRATION), dom.get(DATA_MODEL), dom.get(DATA_FABRIC)
@@ -614,6 +645,8 @@ async def ws_vacuum_findings(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_robot_wifi_readings(hass: HomeAssistant, connection, msg) -> None:
     """The robot's Wi-Fi at each room location run spot and while it cleans, for other integrations (version 1)."""
+    if _refused(hass, connection, msg):
+        return
     await _store(hass)
     connection.send_result(msg["id"], vr.robot_wifi_snapshot(hass))
 

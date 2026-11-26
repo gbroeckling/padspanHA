@@ -34,7 +34,8 @@ from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 
 _PKG = Path(licence.__file__).parent
 _VIEWS = _PKG / "www" / "padspan-ha" / "views"
-NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting")
+NAMES = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps",
+         "lighting", "vacuum")
 LATER = (datetime.now(timezone.utc) + timedelta(days=700)).strftime("%Y-%m-%d %H:%M:%S")
 KEY = {"forensics_license_key": "PSPAN-ADDO-NNNN-NNNN-0001", "license_tier": "free", "license_addons": ["audio"],
        "license_addons_until": {"audio": LATER}}
@@ -299,11 +300,14 @@ def test_the_licence_card_lists_the_add_ons_never_pro_and_offers_them_in_one_lis
     def on_sale(item: str) -> str:
         words, price = item.rsplit(" ", 2)[0], item.rsplit(" ", 2)[1]
         return f"{words} {half[price]} CAD — half off until January 1 (normally {price})"
+    # From December 1 (editions.js FREE_BASICS_FROM) Advanced map creation and Robot vacuum are on sale too, in the
+    # table's order (editions.js ADDONS): Advanced map creation before Advanced smart lighting, Robot vacuum last.
+    every_late = every[:9] + ["Advanced map creation $8.65 CAD", every[9], "Robot vacuum $6.45 CAD"]
     for day in ("during", "after", "pass"):
         a = out[f"addons_{day}"]
         assert a["status"].startswith("✓ PadSpan add-ons: Audio until 2028-11-25 · Climate map "), a
         assert "Pro" not in a["status"] and a["buy"].startswith("Buy PadSpan Pro"), a
-        now = every if day == "during" else [on_sale(i) for i in every]
+        now = every if day == "during" else [on_sale(i) for i in every_late]
         assert a["offer"]["lead"] == lead and [i["text"] for i in a["offer"]["items"]] == now[1:], ("all but the one it has", day)
         assert {i["href"] for i in a["offer"]["items"]} == {"https://padspan.traks.ca/#addons"}
         lapsed = out[f"addons_lapsed_{day}"]

@@ -79,6 +79,22 @@ MAX_MASK_PX = 5_000_000                 # grid pixels a map's runs may expand to
 PAD_GRID = 3                            # grid pixels of margin around the house
 TICK_S = 10                             # how often a linked robot is read
 LIVE_STALE_S = 120                      # a spot older than this is not shown
+
+# The Robot vacuum add-on (licence.ADDONS "vacuum"; the owner, 2026-11-25): every robot-vacuum feature, the map
+# import, the robot on the Atlas map and in 3D, room location runs, the mistake finder and Wi-Fi while it cleans.
+# Everyone's until the add-on is on sale (December 1, licence.ADDON_ON_SALE_FROM), then PadSpan Pro, the add-on, or
+# a Bright key, which has had them all along (never demoted). What a refusal says: what brings it back.
+ADDON = "vacuum"
+ADDON_CODE = "addon_required"
+ADDON_MESSAGE = ("The robot vacuum's features need PadSpan Pro or the Robot vacuum add-on. Enter a key in "
+                 "Settings → Features → PadSpan licence, or get one at https://padspan.traks.ca/#addons")
+
+
+def licensed(hass) -> bool:
+    """Whether this install has the robot-vacuum features now (read on every call: the moment needs no restart).
+    views/editions.js addonGate(settings, "vacuum") is the panel's twin."""
+    from .licence import hass_addon_gate, hass_tier_at_least  # noqa: PLC0415 — licence reads ws_common, which reads a lot
+    return hass_addon_gate(hass, ADDON) or hass_tier_at_least(hass, "bright")
 WALK_STILL_M = 0.25                     # moved less than this between reads: standing still
 WALK_APART_M = 1.0                      # a new pending point at least this far from the others
 WALK_MIN_SOURCES = 2                    # scanners that must hear the tag at a spot
@@ -569,7 +585,9 @@ class VacuumStore:
 
     async def async_tick(self) -> None:
         lk = self.data.get("link")
-        if not self.link_on():
+        # Without the Robot vacuum add-on (licensed): no spot, no walker, no Wi-Fi while it cleans. The link and what
+        # it stored stay, and come back with a key.
+        if not self.link_on() or not licensed(self.hass):
             self.live = None
             return
         t_read = time.time()

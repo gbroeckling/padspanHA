@@ -899,6 +899,8 @@ def robot_wifi_snapshot(hass) -> dict[str, Any] | None:
     (each run's, "kind" "stop") and those taken while the robot cleans
     ("kind" "moving", vacuum_moving.py) together, oldest first, each with its
     "weight"."""
+    if not vi.licensed(hass):            # the Robot vacuum add-on's (vacuum_import.licensed): none without it
+        return None
     vs = hass.data.get(DOMAIN, {}).get(vi.DATA_VACUUM)
     data = getattr(vs, "data", None)
     if not isinstance(data, dict):

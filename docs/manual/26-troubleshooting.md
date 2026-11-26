@@ -183,8 +183,8 @@ house.
 - **No WebGL, too slow, or the graphics restarted**: the browser or the device can't run the 3D view.
   Try **Quality** low (Settings → Atlas → Live Aboard), another browser, or another device. A wall
   tablet may manage only the flat Atlas.
-- **No 3D switch at all**: Live Aboard is a Pro feature, and it is off unless **Show Live Aboard on the
-  Atlas** is ticked in Settings → Atlas.
+- **No 3D switch at all**: Live Aboard is off unless **Show Live Aboard on the Atlas** is ticked in
+  Settings → Atlas (until December 1, 2026, it is also a Pro feature).
 - **A device floats in the wrong place**: set its height in Live Aboard's Edit → Heights, or move it on
   the map.
 - **A room's temperature shows "–°"**: its sensor hasn't reported for over an hour.

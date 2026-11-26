@@ -30,6 +30,7 @@ the emergency WS handlers in tests/test_emergency_test.py.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -38,7 +39,7 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.padspan_ha import licence
-from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN, FREE_BASICS_FROM_TS
 from tests import golden_settings as gs
 from tests.test_settings_refusals import send
 from tests.test_house3d_edit import disk  # noqa: F401  (the 3D house's on-disk store fixture)
@@ -195,9 +196,10 @@ def test_the_builder_links_openers_and_locks_and_opens_the_door_card_with_alarm_
                  "onLinkDoorLock: alarm && !preview ? async (l, lockEid) => {",
                  "onBuildFromRelays: alarm && !preview ? () => {", "    barrierHit: alarm,"):
         assert hook in maps, hook
-    # Every other placement and editing tool stays on light placement's own gate.
+    # Every other placement and editing tool stays on light placement's own gate (placing a row, on its own rung
+    # since the free basics: tests/test_free_basics.py).
     for hook in ("onConfigureDoor: paid && !preview ? (l) => {", "onUnlinkDoor: paid && !preview ? async (l) => {",
-                 "onPlaceRow: paid && !preview ? (eid) => {", "onToggleDoorSteel: paid && !preview ? async (l) => {"):
+                 "onPlaceRow: place && !preview ? (eid) => {", "onToggleDoorSteel: paid && !preview ? async (l) => {"):
         assert hook in maps, hook
     # Without the build tools a door's wall section still opens its card (one function for both).
     assert maps.count("_openDoorCard(ctx, ") == 3          # the function and its two callers
@@ -326,29 +328,39 @@ def test_refusals_name_the_add_on_with_its_price_from_editions() -> None:
     help_src = (_WWW / "help_content.js").read_text(encoding="utf-8")
     for tag in ("(PadSpan Pro or the Presence insights add-on)", "(PadSpan Pro or the Alarm & security add-on)",
                 "(PadSpan Pro or the Climate map add-on)", "(PadSpan Pro or the Vacation Mode & presets add-on)",
-                "(PadSpan Pro or the Time travel add-on)", "Audio (PadSpan Pro or the Audio add-on)"):
+                "(PadSpan Pro or the Time travel add-on)", "Audio (PadSpan Pro or the Audio add-on)",
+                # The help can't read the moment (HELP is built once, at import), so the vacuum's says both sides.
+                "Robot Vacuum Import (PadSpan Pro or the Robot vacuum add-on from December 1, 2026; free before then)"):
         assert tag in help_src, tag
 
 
-# ── Advanced map creation (maps): not on sale yet ───────────────────────────
+# ── Advanced map creation (maps) and Robot vacuum: on sale from December 1 ──
 
 
-def test_maps_is_known_and_not_on_sale_in_both_halves(gates) -> None:
-    """editions.js on_sale: false and licence.NOT_ON_SALE say the same; nothing offers it: not the licence card, not
-    the site."""
-    assert "maps" in ADDONS and licence.NOT_ON_SALE == ("maps",) and not licence.addon_on_sale("maps")
-    assert all(licence.addon_on_sale(a) for a in ADDONS if a != "maps")
-    assert gates["onSale"] == {a: a != "maps" for a in ADDONS}
-    assert '{ name: "maps", words: "Advanced map creation", price: "$8.65 CAD", on_sale: false,' in _src("views/editions.js")
-    assert gates["offered"]["free"] == [a for a in ADDONS if a != "maps"]
-    assert gates["offered"]["audio"] == [a for a in ADDONS if a not in ("audio", "maps")]
-    site = (_ROOT / "site" / "index.html").read_text(encoding="utf-8")
-    assert 'data-addon="maps"' not in site and "padspan-addon-maps" not in site
+def test_maps_and_vacuum_go_on_sale_at_the_moment_in_both_halves(gates) -> None:
+    """editions.js on_sale_from and licence.ADDON_ON_SALE_FROM say the same moment; before it nothing offers them (the
+    licence card; the site: tests/test_site_claims.py), from it the licence card does."""
+    late = ("maps", "vacuum")
+    assert all(a in ADDONS for a in late)
+    assert licence.ADDON_ON_SALE_FROM == {"maps": FREE_BASICS_FROM_TS, "vacuum": FREE_BASICS_FROM_TS}
+    for a in ADDONS:
+        assert licence.addon_on_sale(a, FREE_BASICS_FROM_TS - 1) is (a not in late), a
+        assert licence.addon_on_sale(a, FREE_BASICS_FROM_TS) is True, a
+    assert not licence.addon_on_sale("maps") and not licence.addon_on_sale("vacuum")    # the suite's day: before
+    assert gates["onSale"] == {"before": {a: a not in late for a in ADDONS}, "from": {a: True for a in ADDONS}}
+    ed = _src("views/editions.js")
+    for name in late:
+        assert re.search(r'\{ name: "%s", words: "[^"]+", price: "\$[\d.]+ CAD", on_sale_from: FREE_BASICS_FROM,' % name, ed), name
+    assert gates["offered"]["before"]["free"] == [a for a in ADDONS if a not in late]
+    assert gates["offered"]["before"]["audio"] == [a for a in ADDONS if a not in ("audio", *late)]
+    assert gates["offered"]["from"]["free"] == list(ADDONS)
+    assert gates["offered"]["from"]["audio"] == [a for a in ADDONS if a != "audio"]
 
 
 def test_the_free_floor_plan_from_a_scan_stays_free_until_maps_is_on_sale(gates) -> None:
     gate = gates["mapsGate"]
-    assert all(gate.values()), gate            # not on sale: everyone's, as it always was
+    assert all(gate["before"].values()), gate            # not on sale: everyone's, as it always was
+    assert {k for k, v in gate["from"].items() if v} == {"pro", "maps"}, gate
     assert ('const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true && _addonGate(ctx.state.settings, "maps");'
             in _src("views/maps.js"))
 
@@ -356,7 +368,7 @@ def test_the_free_floor_plan_from_a_scan_stays_free_until_maps_is_on_sale(gates)
 def _roomplan_floor(start: dict, on_sale: bool, monkeypatch) -> dict:
     from tests.test_roomplan_import import _B64, _hass, _rp
     if on_sale:
-        monkeypatch.setattr(licence, "NOT_ON_SALE", ())
+        monkeypatch.setattr(licence, "_clock", lambda: float(FREE_BASICS_FROM_TS))
     h = _hass(True)
     h.data[DOMAIN][DATA_SETTINGS].data.update(start)
     return _rp(h, _B64)
@@ -555,7 +567,7 @@ def test_furniture_from_scans_stays_free_until_maps_is_on_sale(disk, tmp_path, m
     from custom_components.padspan_ha import ws_house3d_import as WI
     from tests.test_house3d_edit import _on
     from tests.test_house3d_store import _run
-    monkeypatch.setattr(licence, "NOT_ON_SALE", () if on_sale else ("maps",))
+    monkeypatch.setattr(licence, "_clock", lambda: float(FREE_BASICS_FROM_TS if on_sale else FREE_BASICS_FROM_TS - 1))
     monkeypatch.setattr(WI, "scan_pieces", lambda hass: [{"kind": "sofa"}])
     h, conn = _on(tmp_path, tier="free" if who == "free" else "pro")
     if who == "maps":

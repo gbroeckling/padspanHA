@@ -104,6 +104,19 @@ def test_help_content_has_a_tiers_entry():
         assert word in entry, f"the tiers help entry never mentions {word!r}"
 
 
+def test_the_tiers_help_is_true_on_both_sides_of_the_free_basics():
+    """The help can't read settings.free_basics (HELP is built once, at import), so the editions page says both sides
+    of December 1: what a key adds either way, and that placement, the plain wall and the 3D house are free from then."""
+    s = _read(_HELP)
+    entry = s[s.index("settings_tiers:"):]
+    entry = entry[:entry.index("\n  },")]
+    assert "From December 1, 2026, light placement, the plain wall screen and the 3D house are free; before then they need a key too." in entry
+    assert "before December 1, 2026, also light placement, the 3D house and the wall screen." in entry
+    assert "Before December 1, 2026, light placement also goes read-only and the 3D house and the wall screen switch off; from then they stay, free." in entry
+    # No sentence there says, without its date, that placement, the 3D house or the wall screen is what a key unlocks.
+    assert "unlocks the paid features (light placement" not in entry and "The same light-placement unlock" not in entry
+
+
 def test_the_wizard_help_button_points_at_the_new_entry():
     s = _read(_VIEWS / "settings.js")
     wiz = s[s.index("function _tiersWizard("):s.index("// ── PadSpan licence")]

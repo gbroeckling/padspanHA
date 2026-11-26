@@ -479,5 +479,12 @@
 "one": "Behalve 1 ruw vak uit je Home Assistant-kamers: de hier getekende kamer komt in zijn plaats.",
 "other": "Behalve {n} ruwe vakken uit je Home Assistant-kamers: de hier getekende kamers komen in hun plaats."
 },
-"Use the outline the file gives {room}": "De omtrek gebruiken die het bestand {room} geeft"
+"Use the outline the file gives {room}": "De omtrek gebruiken die het bestand {room} geeft",
+"Every light starts out clustered at the centre of its room. Here you put each one where it really hangs. Its shape, size, colour and effects need {key}.": "Elke lamp staat eerst gegroepeerd in het midden van zijn kamer. Hier zet je elke lamp waar hij echt hangt. Voor vorm, maat, kleur en effecten heb je {key} nodig.",
+"Your robot vacuum's map, the robot on the map, room location runs and the mistake finder need PadSpan Pro or the Robot vacuum add-on ({price}). Enter a key in Settings → Features → PadSpan licence.": "De kaart van je robotstofzuiger, de robot op de kaart, kamerrondes en de foutzoeker vereisen PadSpan Pro of de add-on “Robotstofzuiger” ({price}). Voer een sleutel in bij Instellingen → Functies → PadSpan-licentie.",
+"Placing each light where it really hangs is free. Its size and angle need {key}.": "Elke lamp plaatsen waar hij echt hangt is gratis. Voor de maat en hoek heb je {key} nodig.",
+"Fixture shapes, WLED strips, Automorph, Fit room, Light spread, Scene and Ripple need PadSpan Pro or the Advanced smart lighting add-on ({price}).": "Voor armatuurvormen, WLED-strips, Automorph, Fit room, Light spread, Scene en Ripple heb je PadSpan Pro of de add-on “Geavanceerde slimme verlichting” ({price}) nodig.",
+"Showcase needs PadSpan Pro or the Looks pack add-on ({price}).": "Voor Showcase heb je PadSpan Pro of de add-on “Looks-pakket” ({price}) nodig.",
+"A key goes in Settings → Features → PadSpan licence once you have one.": "Een sleutel voer je in bij Instellingen → Functies → PadSpan-licentie zodra je er een hebt.",
+"Placing each light where it really hangs is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need {key}. A key goes in Settings → Features → PadSpan licence once you have one.": "Elke lamp plaatsen waar hij echt hangt is gratis. Voor armatuurvormen, -maten en -hoeken, WLED-strips, Showcase en Fit room heb je {key} nodig. Een sleutel voer je in bij Instellingen → Functies → PadSpan-licentie zodra je er een hebt."
 }

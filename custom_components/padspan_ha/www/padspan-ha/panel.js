@@ -1643,7 +1643,8 @@ class PadSpanHaApp extends HTMLElement {
     }
     const NAMES = { audio: t("Audio"), alarm: t("Alarm & security"), wifi: t("Wi-Fi coverage"), climate: t("Climate map"),
       timetravel: t("Time travel"), vacation: t("Vacation Mode & presets"), looks: t("Looks pack"), forensics: t("Forensics"),
-      insights: t("Presence insights"), lighting: t("Advanced smart lighting") };
+      insights: t("Presence insights"), maps: t("Advanced map creation"), lighting: t("Advanced smart lighting"),
+      vacuum: t("Robot vacuum") };
     const list = EDITIONS.addonSaleCardPicks(st).map(n => (NAMES[n] || n) + " " + EDITIONS.addonPrice(n)).join(", ");
     const card = el("div", { "data-sale-card": "card",
       style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
@@ -1661,6 +1662,42 @@ class PadSpanHaApp extends HTMLElement {
     const no = el("button", { class: "btn inline", "data-sale-card": "no", style: "color:#94a3b8" }, t("No thanks"));
     no.addEventListener("click", () => { v.hidden = true; this._telemetryEvent("addon_sale_card:dismissed"); this._scheduleRender(); });
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [see, no]));
+    return card;
+  }
+
+  // ── "The 3D house is now free", once per install ─────────────────────────
+  // From the moment the backend says the free basics are on (editions.js
+  // freeHouseCardDue, settings.free_basics), one card says what is free now
+  // and what Pro adds, the way the lifetime card above works: to an
+  // administrator, in live data, never on a wall; once means once
+  // (house3d_free_card_done is saved the moment it first shows); Got it only
+  // takes it away for this page.
+  _freeHouseCard(){
+    const st = this.state.settings;
+    if (!EDITIONS || typeof EDITIONS.freeHouseCardDue !== "function" || !st || this.state.kioskMode) return null;
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
+    if (!(this._hass && this._hass.user && this._hass.user.is_admin)) return null;
+    const v = this._freeHouse || (this._freeHouse = { visible: false, hidden: false, saved: false });
+    if (v.hidden) return null;
+    if (!v.visible) {
+      if (this._overviewCardShown || !EDITIONS.freeHouseCardDue(st)) return null;
+      v.visible = true;
+      this._overviewCardShown = true;   // one card per page load
+    }
+    if (!v.saved) {
+      v.saved = true;
+      this._callWS({ type: "padspan_ha/settings_set", house3d_free_card_done: true })
+        .then(res => { if (res && res.settings) this.state.settings = res.settings; })
+        .catch(() => {});
+    }
+    const card = el("div", { "data-free-house-card": "card",
+      style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
+    card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("The 3D house is now free")));
+    card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
+      t("Exact placement of your lights and devices, the plain wall screen and the 3D house (Live Aboard in the Atlas) are free now, with no key. PadSpan Pro adds Furnish, people in 3D and the 3D editor.")));
+    const ok = el("button", { class: "btn inline", "data-free-house-card": "ok", style: "color:#94a3b8" }, t("Got it"));
+    ok.addEventListener("click", () => { v.hidden = true; this._scheduleRender(); });
+    card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [ok]));
     return card;
   }
 
@@ -1708,7 +1745,7 @@ class PadSpanHaApp extends HTMLElement {
     close.addEventListener("click", hide);
     card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
       el("div", { style: "font-weight:700;font-size:13px;color:#52b788" }, TRIAL.TRIAL_MILESTONE_TITLE), close]));
-    card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55" }, TRIAL.TRIAL_MILESTONE_BODY));
+    card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55" }, TRIAL.trialMilestoneBody(st)));
     card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.55;margin-bottom:8px" }, TRIAL.TRIAL_HONESTY));
     if (m.open) {
       const offer = TRIAL.trialOfferFromCtx(this._ctx(), "milestone", { honesty: false });
@@ -5806,10 +5843,10 @@ class PadSpanHaApp extends HTMLElement {
         if (!_new && !_ask && _setupKnown && _posKnown) {
           try {
             // "Pro for life ends Dec 15" first (it ends with lifetime), then a Pro
-            // invite, the one-time tester card, the add-on sale's, then the
-            // trial's: whichever is first to be due, one at a time.
+            // invite, the one-time tester card, "The 3D house is now free", the
+            // add-on sale's, then the trial's: whichever is first to be due, one at a time.
             const _ms = this._launchPriceCard() || this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
-              || this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);
+              || this._freeHouseCard() || this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned);
             if (_ms) frag.appendChild(_ms);
             // Last in line: the accuracy tips, only when no other card is up.
             else { const _tips = this._accuracyTipsCard(); if (_tips) frag.appendChild(_tips); }

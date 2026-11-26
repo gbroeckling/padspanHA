@@ -61,8 +61,10 @@ Open the Atlas page with `?kiosk=1` and it becomes a wall:
   `?kiosk=1`, brings it back;
 - the controls over the map fade 30 seconds after the last touch, and come back with the next.
 
-Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro:
-**Mapping → Atlas builder → ▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.
+From December 1, 2026, the plain wall mode is free, with no key; until then it is PadSpan Pro's.
+With PadSpan Pro it needs the Atlas's new layout, the one with the rail (**Mapping → Atlas builder →
+▦ New layout**); with the classic layout, `?kiosk=1` only drops the header. Without PadSpan Pro, a
+wall always draws the new layout's map.
 
 **Making the map fill the screen**: **⛶** (bottom right) makes it full screen. Zoom in past the whole
 house and the bars step aside; **☰** or **Escape** brings them back. Double-tap a room to zoom to it.
@@ -85,6 +87,9 @@ house and the bars step aside; **☰** or **Escape** brings them back. Double-ta
 - **On Fully Kiosk tablets** (off until set): inside Fully Kiosk Browser, night dimming turns the
   screen's own brightness down, and with Fully's **Motion Detection** on, someone walking up wakes a
   sleeping screen. It needs **Enable JavaScript Interface** in Fully's Advanced Web Settings.
+
+**Dim at night**, **Protect against burn-in**, **Show each floor** and **On Fully Kiosk tablets** need
+PadSpan Pro.
 
 The card's preview shows a 4K screen to scale, with the text's height in centimetres. Walls pick up a
 change within half a minute.

@@ -30,7 +30,7 @@
  * card takes a small host object: trialOfferFromCtx builds one from a panel
  * ctx. tests/js/trial_offer.mjs drives it.
  */
-const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, tierAtLeast, currentTier, currentEdition } =
+const { BUY_URL, proPrice, PRO_PASS_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, tierAtLeast, currentTier, currentEdition, freeBasics } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const TRIAL_DAYS = 90;
@@ -57,6 +57,14 @@ export const TRIAL_NEWS_BEFORE = "0.38.186";
 export const TRIAL_MILESTONE_TITLE = "PadSpan's working in your house.";
 export const TRIAL_MILESTONE_BODY = "Try all of PadSpan Pro on it: every light where it hangs on this map, " +
   "the 3D house, the wall screen and Forensics. 90 days free, no card.";
+/** The milestone card's words: from the free basics (editions.js freeBasics: placement, the plain wall and the
+ *  3D house free), what Pro adds on top of them; before, TRIAL_MILESTONE_BODY. */
+export function trialMilestoneBody(settings) {
+  return freeBasics(settings)
+    ? "Try all of PadSpan Pro on it: each light's shape, size and Showcase look, the 3D editor, Furnish and " +
+      "people in 3D, and Forensics. 90 days free, no card."
+    : TRIAL_MILESTONE_BODY;
+}
 export const TRIAL_SIDEBAR_LABEL = "✨ Pro · free trial";
 /** Said once the trial has started (editions.js; 2026-10-27): what Pro
  *  costs and until when, so a price can't read as lasting the whole trial.
@@ -161,12 +169,20 @@ export function trialPitch(surface, feature, settings) {
     return "Try all of PadSpan Pro on your own house. When it ends, nothing you set up is deleted, " +
       "and it all comes back as you left it when you buy.";
   }
+  // From the free basics (editions.js freeBasics) placement, the plain wall and the 3D house are free: what Pro adds.
+  const fb = freeBasics(settings);
   if (currentEdition(settings) === "bright") {
-    return "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
-      "floor plan, the 3D house (Live Aboard) and the wall screen.";
+    return fb
+      ? "Try all of PadSpan Pro on your own house: each light's shape, size and Showcase look, the 3D editor " +
+        "and Furnish, and the wall screen's night dimming."
+      : "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
+        "floor plan, the 3D house (Live Aboard) and the wall screen.";
   }
-  return "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
-    "floor plan, the 3D house (Live Aboard), the wall screen and Forensics.";
+  return fb
+    ? "Try all of PadSpan Pro on your own house: each light's shape, size and Showcase look, the 3D editor, " +
+      "Furnish and people in 3D, and Forensics."
+    : "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
+      "floor plan, the 3D house (Live Aboard), the wall screen and Forensics.";
 }
 
 // Per surface, for this page: what was typed, whether a request is out, the

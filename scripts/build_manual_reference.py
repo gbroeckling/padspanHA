@@ -1558,6 +1558,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "room_audio_matched": (None, "kept", "", "Audio's matching card kept its picks once: from then on it makes no guesses, so rooms cleared on purpose stay cleared."),
     "lifetime_card_done": (None, "kept", "", "The \"Pro for life ends Dec 15\" card was shown."),
     "addon_sale_card_done": (None, "kept", "", "The \"Half off every add-on until January 1\" card was shown."),
+    "house3d_free_card_done": (None, "kept", "", "The \"The 3D house is now free\" card was shown."),
     "tester_signup": (None, "kept", "", "Your tester sign-up, so you can update or withdraw it."),
     "pro_invite": (None, "kept", "", "An invite to free Pro, and your answer."),
     "server_offers": (None, "kept", "", "Which free-Pro offers the update check last said are on."),

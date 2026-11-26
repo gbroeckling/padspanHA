@@ -9,6 +9,8 @@
 // would rebuild Settings under the slider).
 
 const WALLS = await import(`./wall_scale.js${new URL(import.meta.url).search}`);
+const { tierAtLeast, wallTier } = await import(`./editions.js${new URL(import.meta.url).search}`);
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
 const ft = (m) => { const inch = Math.round(m / 0.0254); return `${Math.floor(inch / 12)} ft ${inch % 12} in`; };
 const cm = (inch) => `${Math.round(inch * 2.54)} cm`;
@@ -37,6 +39,10 @@ function sideView(inches, meters){
 export function wallCard(ctx, el, settings){
   const s = settings || {};
   const pro = String(s.tier || "").toLowerCase() === "pro";
+  // The plain wall's rung (editions.js wallTier): Pro, on the new layout, unless it has moved down the
+  // ladder; then any tier has the plain wall (on the new layout's map whatever the layout setting), and
+  // night dimming, the burn-in shift and floors in turn stay Pro's.
+  const wallOk = pro || tierAtLeast(s.tier, wallTier(s));
   const card = el("div", { class: "card", style: "padding:16px;margin-top:20px" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px;display:flex;align-items:center;gap:8px" },
     ["📺 Wall screens", ctx.helpers && ctx.helpers.helpBtn ? ctx.helpers.helpBtn("wall_screens") : null]));
@@ -44,9 +50,9 @@ export function wallCard(ctx, el, settings){
     "A screen showing the Atlas page as /padspan-lights?kiosk=1 is a wall: the whole house fits on it, and its controls, room names " +
     "and rain are drawn for the room it hangs in. Tell PadSpan how big the screen is and how far away people usually are, and text is " +
     "sized the way control rooms size it: by how big it looks from there, not by how many pixels the screen has."));
-  if (!pro || !s.atlas_layout_v2) {
+  if (!wallOk || (pro && !s.atlas_layout_v2)) {
     card.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5" },
-      !pro ? "Wall screens come with PadSpan Pro (Settings → Features → PadSpan licence), on the Atlas's new layout."
+      !wallOk ? "Wall screens come with PadSpan Pro (Settings → Features → PadSpan licence), on the Atlas's new layout."
            : "Wall screens need the Atlas's new layout: Mapping → Atlas builder → ▦ New layout."));
     return card;
   }
@@ -163,44 +169,49 @@ export function wallCard(ctx, el, settings){
   preview.appendChild(pic); preview.appendChild(facts);
   card.appendChild(preview);
 
-  // ── night and burn-in ──
-  card.appendChild(slider("Dim at night", 0, 70, 5, () => Math.round(v.dim * 100), (x) => { v.dim = x / 100; },
-    (x) => (x > 0 ? `${Math.round(x)}% darker after sunset` : "Off"), "wall_night_dim", (x) => Math.round(x) / 100));
-  if (!(ctx.hass && ctx.hass.states && ctx.hass.states["sun.sun"])) {
-    card.appendChild(el("div", { style: "font-size:11px;color:#fbbf24;margin:-2px 0 4px 142px" },
-      "Night dimming goes by sun.sun, which this Home Assistant doesn't have (Settings → Devices & services → Sun)."));
-  }
-  const shiftRow = el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0" });
-  const shiftCb = el("input", { type: "checkbox" });
-  shiftCb.checked = v.shift;
-  shiftCb.addEventListener("change", () => { const want = shiftCb.checked; v.shift = want; save({ wall_pixel_shift: want }, () => { shiftCb.checked = !want; v.shift = !want; }); });
-  shiftRow.appendChild(shiftCb);
-  shiftRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" }, "Protect against burn-in: move the picture a couple of pixels every few minutes (OLED screens)"));
-  card.appendChild(shiftRow);
+  // ── night and burn-in, and floors in turn: Pro's ──
+  if (!pro) {
+    card.appendChild(el("div", { "data-wall-pro": "", style: "font-size:12px;color:#94a3b8;margin:10px 0 0;line-height:1.5" },
+      t("Night dimming, burn-in protection and showing each floor in turn come with PadSpan Pro (Settings → Features → PadSpan licence).")));
+  } else {
+    card.appendChild(slider("Dim at night", 0, 70, 5, () => Math.round(v.dim * 100), (x) => { v.dim = x / 100; },
+      (x) => (x > 0 ? `${Math.round(x)}% darker after sunset` : "Off"), "wall_night_dim", (x) => Math.round(x) / 100));
+    if (!(ctx.hass && ctx.hass.states && ctx.hass.states["sun.sun"])) {
+      card.appendChild(el("div", { style: "font-size:11px;color:#fbbf24;margin:-2px 0 4px 142px" },
+        "Night dimming goes by sun.sun, which this Home Assistant doesn't have (Settings → Devices & services → Sun)."));
+    }
+    const shiftRow = el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0" });
+    const shiftCb = el("input", { type: "checkbox" });
+    shiftCb.checked = v.shift;
+    shiftCb.addEventListener("change", () => { const want = shiftCb.checked; v.shift = want; save({ wall_pixel_shift: want }, () => { shiftCb.checked = !want; v.shift = !want; }); });
+    shiftRow.appendChild(shiftCb);
+    shiftRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" }, "Protect against burn-in: move the picture a couple of pixels every few minutes (OLED screens)"));
+    card.appendChild(shiftRow);
 
-  // ── floors in turn, and Fully Kiosk ──
-  const CYCLE = [[0, "Off"], [15, "Every 15 seconds"], [30, "Every 30 seconds"], [60, "Every minute"], [120, "Every 2 minutes"], [300, "Every 5 minutes"]];
-  const cycleSel = el("select", { style: "font-size:13px" });
-  for (const [sec, label] of CYCLE) cycleSel.appendChild(el("option", { value: String(sec) }, label));
-  if (!CYCLE.some(([sec]) => sec === v.cycle)) cycleSel.appendChild(el("option", { value: String(v.cycle) }, `Every ${v.cycle} seconds`));
-  cycleSel.value = String(v.cycle);
-  cycleSel.addEventListener("change", () => {
-    const was = v.cycle; v.cycle = Number(cycleSel.value);
-    save({ wall_floor_cycle_s: v.cycle }, () => { v.cycle = was; cycleSel.value = String(was); });
-  });
-  card.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0 0" }, [
-    el("span", { style: "color:#cbd5e1;font-size:13px;min-width:130px" }, "Show each floor"), cycleSel,
-    el("span", { style: "color:#94a3b8;font-size:12px" }, "All, then one floor at a time, while nobody is touching the wall"),
-  ]));
-  const fullyRow = el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0" });
-  const fullyCb = el("input", { type: "checkbox" });
-  fullyCb.checked = v.fully;
-  fullyCb.addEventListener("change", () => { const want = fullyCb.checked; v.fully = want; save({ wall_fully: want }, () => { fullyCb.checked = !want; v.fully = !want; }); });
-  fullyRow.appendChild(fullyCb);
-  fullyRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" },
-    "On Fully Kiosk tablets: dim at night by turning the screen's own brightness down, and turn the screen on when its motion detection sees someone " +
-    "(needs Fully's JavaScript Interface, and Motion Detection for the second)"));
-  card.appendChild(fullyRow);
+    // ── floors in turn, and Fully Kiosk ──
+    const CYCLE = [[0, "Off"], [15, "Every 15 seconds"], [30, "Every 30 seconds"], [60, "Every minute"], [120, "Every 2 minutes"], [300, "Every 5 minutes"]];
+    const cycleSel = el("select", { style: "font-size:13px" });
+    for (const [sec, label] of CYCLE) cycleSel.appendChild(el("option", { value: String(sec) }, label));
+    if (!CYCLE.some(([sec]) => sec === v.cycle)) cycleSel.appendChild(el("option", { value: String(v.cycle) }, `Every ${v.cycle} seconds`));
+    cycleSel.value = String(v.cycle);
+    cycleSel.addEventListener("change", () => {
+      const was = v.cycle; v.cycle = Number(cycleSel.value);
+      save({ wall_floor_cycle_s: v.cycle }, () => { v.cycle = was; cycleSel.value = String(was); });
+    });
+    card.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0 0" }, [
+      el("span", { style: "color:#cbd5e1;font-size:13px;min-width:130px" }, "Show each floor"), cycleSel,
+      el("span", { style: "color:#94a3b8;font-size:12px" }, "All, then one floor at a time, while nobody is touching the wall"),
+    ]));
+    const fullyRow = el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0" });
+    const fullyCb = el("input", { type: "checkbox" });
+    fullyCb.checked = v.fully;
+    fullyCb.addEventListener("change", () => { const want = fullyCb.checked; v.fully = want; save({ wall_fully: want }, () => { fullyCb.checked = !want; v.fully = !want; }); });
+    fullyRow.appendChild(fullyCb);
+    fullyRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" },
+      "On Fully Kiosk tablets: dim at night by turning the screen's own brightness down, and turn the screen on when its motion detection sees someone " +
+      "(needs Fully's JavaScript Interface, and Motion Detection for the second)"));
+    card.appendChild(fullyRow);
+  }
 
   // ── a link for one screen that differs from the others ──
   const linkBox = el("input", { type: "text", readonly: "", style: "flex:1 1 260px;min-width:200px;font-family:ui-monospace,Consolas,monospace;font-size:12px" });

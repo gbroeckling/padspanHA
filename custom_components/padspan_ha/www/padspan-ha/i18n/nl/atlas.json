@@ -139,5 +139,6 @@
 "{n} h": "{n} u",
 "{n} min": "{n} min",
 "{n} open now": "{n} nu open",
-"{n} s": "{n} s"
+"{n} s": "{n} s",
+"Adds a Map / Live Aboard switch to the Atlas: turn, pan and zoom around your floors, rooms, walls and lights, built from the map you already drew. Each screen opens on the flat map until 3D is picked there, and a screen too slow for 3D keeps the flat map.": "Voegt een schakelaar Kaart / Live Aboard aan de Atlas toe: draai, verschuif en zoom rond je verdiepingen, kamers, muren en lampen, gebouwd uit de kaart die je al tekende. Elk scherm opent op de platte kaart tot daar 3D gekozen wordt, en een scherm dat te traag is voor 3D houdt de platte kaart."
 }
