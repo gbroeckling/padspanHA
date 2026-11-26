@@ -43,8 +43,10 @@ def _read(rel: str) -> str:
 def harness() -> dict:
     if _NODE is None:
         pytest.skip("node is not installed")
+    # timeout: only a guard against a hang (the harness times nothing). About 20 s alone; past 180 s on a
+    # machine busy with the whole suite (-n auto).
     res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "atlas_keep_card.mjs"), str(_WWW)],
-                         capture_output=True, text=True, encoding="utf-8", timeout=180)
+                         capture_output=True, text=True, encoding="utf-8", timeout=600)
     lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     return json.loads(lines[-1])

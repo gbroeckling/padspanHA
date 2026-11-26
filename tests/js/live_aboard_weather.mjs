@@ -351,11 +351,12 @@ await tryCase("mask: as the house is drawn: none under the roof, head height wit
 });
 
 // ── the view ────────────────────────────────────────────────────────────────
-let clockOff = 0, frozen = null;
-const realNow = performance.now.bind(performance);
-// While a display is simulated, time is only what the harness moves on: the
-// real milliseconds a step takes must not count as screen time.
-performance.now = () => (frozen === null ? realNow() : frozen) + clockOff;
+let clockOff = 0;
+// The frames' clock is this harness's own: it moves only when a case moves it (clockOff), never with how
+// fast this machine runs (a machine busy with the whole suite read as a slow screen, the view fell back to the
+// flat Atlas and made no weather; live_aboard_view.mjs).
+const clockAt = performance.now();
+performance.now = () => clockAt + clockOff;
 const shimRaf = globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
 const pendingFrames = () => shim.rafQueue.filter(Boolean).length;
@@ -363,13 +364,10 @@ const settle = async (rounds = 12) => { await shim.flush(rounds); await new Prom
 async function later(ms, rounds = 6){ clockOff += ms; await settle(rounds); }
 /** `s` seconds of a `hz` display: one frame's worth of time, then its frame. */
 async function display(slot, s, hz){
-  frozen = realNow();
-  try {
-    const f0 = slot._state().frames;
-    const n = Math.round(s * hz);
-    for (let i = 0; i < n; i++) { clockOff += 1000 / hz; await shim.flush(1); }
-    return slot._state().frames - f0;
-  } finally { frozen = null; }
+  const f0 = slot._state().frames;
+  const n = Math.round(s * hz);
+  for (let i = 0; i < n; i++) { clockOff += 1000 / hz; await shim.flush(1); }
+  return slot._state().frames - f0;
 }
 const api = { toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls(){}, openActivity(){}, controlsFor: () => null, lightsByEid: {}, hass: null };
 const P = (over = {}) => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: null, quality: "low",

@@ -1062,9 +1062,11 @@ def test_a_big_house_is_searched_coarse_then_fine():
     rx = {f"r{i}": (1.0 + (i % 5) * 4.0, 1.0 + (i // 5) * 3.0, "main") for i in range(25)}
     pts = _robot_points(rx, n_side=20, step=0.75)                        # 400 spots, 25 receivers
     placed = {k: {"x_m": v[0], "y_m": v[1], "floor_id": "main"} for k, v in rx.items()}
-    t0 = _t.monotonic()
+    # This process's CPU time, not the wall clock: a machine busy with the rest of the suite (-n auto) took
+    # over 10 s of wall clock for a few seconds of work.
+    t0 = _t.process_time()
     out = vf.find_mistakes(pts, placed, rooms)
-    assert _t.monotonic() - t0 < 10 and out["findings"] == []
+    assert _t.process_time() - t0 < 10 and out["findings"] == []
 
 
 def test_robot_points_are_never_held_out_test_spots():
