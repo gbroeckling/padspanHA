@@ -104,7 +104,7 @@ export const ADDON_TERM = "2 years";
 export const FREE_BASICS_FROM = "2026-12-01T08:00:00Z";
 export const ADDONS_URL = "https://padspan.traks.ca/#addons";
 export const ADDONS = Object.freeze([
-  { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Volume, mute and off for each room's players on the map, and Room off" },
+  { name: "audio", words: "Audio", price: "$6.45 CAD", desc: "Each room's players on the map: now playing, volume, source and sound mode, tone and surround, music shared to other rooms, and Room off" },
   { name: "alarm", words: "Alarm & security", price: "$6.45 CAD", desc: "Arm and disarm, open and close garage doors and gates in their card, and test the emergency lights. A triggered alarm, locks, shades and Alert pulse stay free" },
   { name: "wifi", words: "Wi-Fi coverage", price: "$6.45 CAD", desc: "The UniFi Wi-Fi coverage map" },
   { name: "climate", words: "Climate & air quality", price: "$8.65 CAD", desc: "The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card" },

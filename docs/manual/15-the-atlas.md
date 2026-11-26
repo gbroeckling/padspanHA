@@ -140,11 +140,35 @@ thermostats are lines of their own in the same list: **Shades** (free,
   shade, a thermostat or a plug, and shows only while something is on. Then the scenes, as before,
   and:
   - **Audio**: a row for each player, named by its system ("Control4 · Great Room", "Denon · Zone
-    2"), with whether it is on, off or muted, **Mute**, **−**, the level, **+** and ⏻ (that player
-    off), these five always on one line. Each **−** or **+** moves the level shown at once, one step
-    a press (1 in 100 on a player that steps itself, such as a Control4 room), and quick presses add
-    up; the level Home Assistant reports is shown as soon as it reports one. What a player can't do
-    is left out or greyed: a player that is off shows its level as —.
+    2"), with whether it is on, off or muted, **Mute**, the volume and ⏻ (that player off), or **On**
+    while it is off (never for a Control4 room, whose "on" can start a TV: pick a source instead).
+    The volume is a slider for a player that takes a level: the number follows your finger, Home
+    Assistant is told at most four times a second and once more when you let go, and nothing
+    redraws under your finger. A player that steps itself (a Control4 room) keeps **−**, the level
+    and **+**: each press moves the level shown at once, 1 in 100, and quick presses add up.
+    Under the row, while something plays: the cover, the title and the artist, with ▶/⏸ (one
+    button while Home Assistant says playing or paused, separate ▶ and ⏸ otherwise, as for a
+    Control4 room), ⏮ ⏭ and ⏹, and ⏪ ⏩ for a Control4 room whose integration has the
+    `control4.media_scan` action. Then:
+    - **Source**: up to four as buttons, more as a list with a filter. The current one is marked.
+      Picking one starts the room if it was off.
+    - **Mode**: the sound mode of a receiver or soundbar. Long lists (Denon's) come in groups:
+      Direct, Stereo, Auto, Movie, music, game, Decoders, DSP. **Now:** shows what the receiver is
+      decoding.
+    - **Sound**: the player's own tone and surround settings, the ones its Home Assistant
+      integration makes on the same device and nothing else: bass, treble, balance, loudness, EQ
+      bands and mode, the subwoofer, surround level and mode, speech enhancement, dialogue, clear
+      voice, night mode, lip sync, the tone mode and the surround decoder, and Denon's Dynamic EQ.
+      Sonos, Russound, Yamaha MusicCast, Music Assistant, Xantech and Nuvo players have them;
+      Control4, Anthem, Monoprice and HEOS players have none, so no **Sound** button.
+    - **Share**: the rooms whose players can group with this one (the same system, and grouping in
+      Home Assistant: Sonos, Music Assistant, HEOS, MusicCast, WiiM, Bluesound...). Tick a room and
+      it plays what this room plays, with its own volume; untick it, or **Leave group**. The row
+      says "with Kitchen, Den" while it's grouped.
+
+    What a player can't do is left out or greyed: a player that is off shows its level as —.
+    **All audio off**, after the players, turns off every room's music (players that can't be
+    turned off are paused or stopped), after asking.
   - the room's lights, as before.
 
   Each press is one call to Home Assistant, with no question first. Anyone who can switch the lights
@@ -160,7 +184,9 @@ thermostats are lines of their own in the same list: **Shades** (free,
   closes it. Once it has kept a pick it never guesses again, so players taken off the map stay off,
   and a match to a player Home Assistant doesn't show right now (hidden, not loaded yet) or to a
   room renamed on the map is kept as it was. Someone who isn't an administrator sees the button
-  greyed.
+  greyed. Each player on the card also has **Sources** (rename a source, hide it, move it up or
+  down; Home Assistant keeps its own names) and **Volume limit** (10 % to 100 %, or none), kept
+  wherever its volume is set: the slider stops there, **+** stops there, and **Share** keeps it.
 - **Which players**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. **Include Home
   Assistant speakers** on the matching card (off unless ticked) adds every other player with a

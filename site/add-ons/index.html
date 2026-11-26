@@ -94,7 +94,7 @@ footer p{margin:4px 0}
 <table>
   <tr><th>Add-on</th><th>What it adds</th></tr>
   <tr><td class="grp" colspan="2">Control the house from the map</td></tr>
-  <tr><td><a href="#audio">Audio</a></td><td>Each room's players in its card on the map, a speaker beside a playing room's name, and Room off.</td></tr>
+  <tr><td><a href="#audio">Audio</a></td><td>Full control of each room's music in its card on the map: now playing, volume, source and sound mode, tone and surround, sharing to other rooms, and Room off.</td></tr>
   <tr><td><a href="#alarm">Alarm &amp; security</a></td><td>Arm and disarm, open and close garage doors and gates, and test the emergency lights.</td></tr>
   <tr><td><a href="#climate">Climate &amp; air quality</a></td><td>The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card.</td></tr>
   <tr><td><a href="#vacation">Vacation Mode &amp; presets</a></td><td>Lights that keep your routine while you're away, and Whole house presets.</td></tr>
@@ -115,21 +115,25 @@ footer p{margin:4px 0}
 
 <section class="addon" id="audio">
 <h3>Audio</h3>
-<p class="promise">Turn the kitchen music down from the hallway screen, and press Room off as you leave a room.</p>
+<p class="promise">From the hallway screen, pick what the kitchen plays, turn it down, skip the track or send it to the deck too. Press Room off as you leave.</p>
 <p><b>What you get</b></p>
 <ul>
   <li><b>A speaker beside a room's name</b> on the Atlas while one of its players is on, struck through when it's muted. Tap it, or the room's name, to open the room's card.</li>
-  <li><b>Each player in the room's card</b>, with <b>Mute</b>, <b>−</b>, its level from 0 to 100, <b>+</b>, and <b>⏻</b> to turn it off. Only the buttons the player supports appear. A player that steps its own volume, as Control4's do, shows the level it reports.</li>
-  <li><b>Room off</b>, first in the card, turns off the room's lights and players that are on in one press.</li>
-  <li><b>Match rooms</b>: an administrator picks the room each player is in, once. PadSpan guesses first from the player's Home Assistant area or its name. Several players can share a room, a Control4 zone and a Denon zone, say.</li>
+  <li><b>Now playing</b> for each player in the room's card: the cover, the title and the artist, with play and pause, previous and next, and stop. A Control4 room also gets rewind and fast-forward where its Home Assistant integration offers them.</li>
+  <li><b>Volume</b>: a slider for a player that takes a level, or <b>−</b> and <b>+</b> for one that steps it, as Control4's do. <b>Mute</b>, <b>On</b> and <b>⏻</b>.</li>
+  <li><b>Source</b>: the input, service or favourite to play, from a row of buttons or, for a long list, a list you can search. <b>Mode</b>: a receiver's or soundbar's sound mode, with Denon's long list in groups (Direct, Stereo, Movie, music, game, Decoders), and what it is playing now.</li>
+  <li><b>Sound</b>: the tone and surround settings the player's own Home Assistant integration offers, and only those: bass, treble, balance, loudness, EQ, the subwoofer, surround level and mode, speech enhancement and dialogue, night mode, lip sync, and Denon's Dynamic EQ. Sonos, Russound, Yamaha MusicCast, Music Assistant, Xantech and Nuvo players have them.</li>
+  <li><b>Share</b>: play this room's music in other rooms too, each with its own volume, and leave the group again. For players that group in Home Assistant (Sonos, Music Assistant, HEOS, MusicCast, WiiM, Bluesound and others), with players from the same system.</li>
+  <li><b>Room off</b>, first in the card, turns off the room's lights and players that are on in one press. <b>All audio off</b> turns off the music in every room, after asking.</li>
+  <li><b>Match rooms</b>: an administrator picks the room each player is in, once. PadSpan guesses first from the player's Home Assistant area or its name. Several players can share a room, a Control4 zone and a Denon zone, say. On the same card: <b>Sources</b>, to rename, hide and order each player's sources (Home Assistant can't), and a <b>Volume limit</b> for any player, kept everywhere its volume is set.</li>
   <li><b>Include Home Assistant speakers</b>, on the matching card, adds Music Assistant, ESPHome, Cast and TV players. It's off unless you tick it.</li>
 </ul>
 <p><b>Where.</b> The Atlas page. On a wall screen, and with PadSpan Pro's new layout, each screen ticks Audio in its ⋯ list. Elsewhere, <b>Settings → Atlas → Audio</b> turns it on for the whole house.</p>
-<p><b>On a wall screen and a phone.</b> The buttons are sized for a finger, and a player's controls stay on one line, wrapping under its name on a phone. Anyone who can switch the lights can use them, wall screens included. Each press is one Home Assistant call, made with that person's own login.</p>
-<p><b>Worth it if you have</b> a whole-house audio system in Home Assistant (Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha or Anthem), or speakers in several rooms.</p>
-<p><b>Needs.</b> The players in Home Assistant, from one of those systems or, with the tick above, any player with a volume. Rooms on the map that are Home Assistant areas with the same name. An administrator for the matching.</p>
+<p><b>On a wall screen and a phone.</b> The buttons are sized for a finger, and a player's controls wrap under its name on a phone. The volume slider shows the level as you drag and never jumps back under your finger. Sound, Share and long source lists open in their own panel. Anyone who can switch the lights can use them, wall screens included. Each press is one Home Assistant call, made with that person's own login.</p>
+<p><b>Worth it if you have</b> a whole-house audio system in Home Assistant (Control4, Crestron, Savant, Russound, Nuvo, Monoprice, Xantech, Triad, Denon, Yamaha or Anthem), speakers in several rooms, or a receiver or soundbar you'd like to set from the map.</p>
+<p><b>Needs.</b> The players in Home Assistant, from one of those systems or, with the tick above, any player with a volume. Rooms on the map that are Home Assistant areas with the same name. An administrator for the matching, the source names and the limits. Each part shows only when the player can do it: a player that can't change its source has no source buttons.</p>
 <p><b>Free without it.</b> The rest of a room's card: its lights and fans with All lights on and All lights off, its scenes and scripts one tap each, its locks, and Shades: every blind and shade in the room, how far open, with Open, Stop and Close for all at once (the Shades line, with the doors and windows in the ⋯ list, or Settings → Atlas → Shades). A room's thermostats are <a href="#climate">Climate &amp; air quality</a>'s.</p>
-<p><b>Limit.</b> <span data-until-basics>Without Pro, Audio is on or off for the whole house. Choosing it screen by screen needs Pro's new layout.</span><span data-from-basics style="display:none">Without Pro, Audio is on or off for the whole house, apart from wall screens, which each tick it for themselves. Choosing it screen by screen anywhere else needs Pro's new layout.</span></p>
+<p><b>Limit.</b> <span data-until-basics>Without Pro, Audio is on or off for the whole house. Choosing it screen by screen needs Pro's new layout.</span><span data-from-basics style="display:none">Without Pro, Audio is on or off for the whole house, apart from wall screens, which each tick it for themselves. Choosing it screen by screen anywhere else needs Pro's new layout.</span> A Control4 OS 2 controller doesn't list a room's sources, so its rooms have no source buttons.</p>
 <p class="links"><a href="https://padspan.traks.ca/#audio">Price and buy</a> · <a href="/manual/the-atlas/#audio">Audio in the manual</a></p>
 </section>
 

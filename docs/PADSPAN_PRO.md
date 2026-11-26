@@ -391,7 +391,7 @@ Buy them at [padspan.traks.ca/#addons](https://padspan.traks.ca/#addons). Prices
 | Add-on | Price | What it adds |
 | --- | --- | --- |
 | **Control the house from the map** | | |
-| [Audio](#audio) | $6.45 | Each room's players in its card on the map, the speaker beside a playing room's name, and Room off |
+| [Audio](#audio) | $6.45 | Full control of each room's music in its card on the map: now playing, volume, source and sound mode, tone and surround, sharing to other rooms, and Room off |
 | [Alarm & security](#alarm--security) | $6.45 | Arm and disarm, open and close garage doors and gates (the door, garage and gate card with its openers and lock), and test the emergency lights (a triggered alarm, locks, shades and Alert pulse stay free) |
 | [Climate & air quality](#climate--air-quality) | $8.65 | The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card |
 | [Vacation Mode & presets](#vacation-mode--presets) | $4.25 | Vacation Mode and Whole house presets |
@@ -418,12 +418,21 @@ same card as its lights.
 - **Room off (n)**: turns off the room's lights and players that are on. It never touches a lock, a
   shade, a thermostat or a plug.
 - **Audio**: a row for each player, named by its system ("Control4 · Great Room"), with On, Off or
-  Muted, **Mute**, **−**, the level, **+** and **⏻**. Buttons show only for what the player can do.
+  Muted, **Mute**, a volume slider (or **−**, the level and **+** for a player that steps, such as
+  Control4), **On** and **⏻**. Under it, while something plays: the cover, title and artist, with
+  play and pause, previous and next and stop (rewind and fast-forward too, for a Control4 room
+  whose integration offers them). Then **Source** and **Mode** (a receiver's sound mode, grouped),
+  **Sound** (the bass, treble, loudness, EQ, subwoofer, surround, speech, night and lip-sync
+  settings the player's integration offers) and **Share** (play the music in other rooms of the
+  same system, each with its own volume). Buttons show only for what the player can do.
+- **All audio off**: the music off in every room, after asking.
 - **On the map**: a small speaker beside a room's name while one of its players is on, struck
   through while it's muted. A tap on it opens the room's card; only the card's buttons change
   anything.
 - **Match rooms** (an administrator, once): pick the room each player is in. PadSpan guesses from the
-  player's Home Assistant area, else its name. Several players can share a room.
+  player's Home Assistant area, else its name. Several players can share a room. On the same card,
+  **Sources** renames, hides and orders each player's sources, and **Volume limit** caps a player's
+  volume everywhere it can be set.
 - **Include Home Assistant speakers** on that card adds every other player with a volume: Music
   Assistant, ESPHome, Cast, TVs.
 
