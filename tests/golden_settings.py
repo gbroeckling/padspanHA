@@ -115,6 +115,8 @@ VALUES: dict[str, list[tuple[str, Any]]] = {
     "emergency_notify": BOOL,
     "atlas_heatmap_enabled": BOOL,
     "atlas_audio_enabled": BOOL,
+    "atlas_shades_enabled": BOOL,
+    "atlas_thermostats_enabled": BOOL,
     "atlas_weather_enabled": BOOL,
     "atlas_weather_rain_entity": one("binary_sensor.rain"),
     "atlas_weather_condition_entity": one("weather.home"),
