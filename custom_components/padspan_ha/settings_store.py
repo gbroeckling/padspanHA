@@ -566,6 +566,19 @@ def room_walk_default_stamp(data: dict, points: Any) -> bool:
     return True
 
 
+def room_parts_stamp(data: dict, loaded: Any) -> bool:
+    """Shades and Thermostats were Audio's parts of a room's card until 2026-11-26; now each has its own switch, off by
+    default. A house that had Audio on keeps them (the owner's rule: don't take from current users): set only while the
+    loaded settings have no such key. Called from async_load and from a restore (ws_backup). Returns whether it set
+    anything."""
+    if not isinstance(loaded, dict) or loaded.get("atlas_audio_enabled") is not True:
+        return False
+    keys = [k for k in ("atlas_shades_enabled", "atlas_thermostats_enabled") if k not in loaded]
+    for k in keys:
+        data[k] = True
+    return bool(keys)
+
+
 def ai_plans_stamp(data: dict, loaded: Any) -> bool:
     """The AI map-building switch (ai_plans_enabled, 2026-11) on an upgrade:
     a home that had turned the stair finder on comes up with the master
@@ -662,15 +675,10 @@ class SettingsStore:
         except Exception:
             _quiet_error("settings_store:load")
             pass
+        room_parts_stamp(self.data, loaded)
         # Vacation Mode spans are recorded from this code on. An install
         # that ran Vacation Mode before has unrecorded ones in the recorder
         # until now (vacation_mode.py learned_pattern, round 6).
-        # Shades and Thermostats were Audio's parts of a room's card until 2026-11-26; now each has its own switch, off
-        # by default. A house that had Audio on keeps them (the owner's rule: don't take from current users).
-        if isinstance(loaded, dict) and loaded.get("atlas_audio_enabled") is True:
-            for key in ("atlas_shades_enabled", "atlas_thermostats_enabled"):
-                if key not in loaded:
-                    self.data[key] = True
         if isinstance(loaded, dict) and "vacation_mode_tracked_since" not in loaded:
             # Recorded spans count too: a 0.38.74-75 reset cleared the other
             # three but kept them (round 7).

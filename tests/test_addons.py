@@ -366,6 +366,11 @@ def test_forensics_is_switched_on_only_by_a_key_that_has_it(monkeypatch) -> None
     data, _, _ = _activate(monkeypatch, {"forensics_enabled": False},
                            {**ANSWER, "addons": ["audio", "forensics"], "addons_until": {"forensics": LATER}})
     assert data["forensics_enabled"] is True, "the Forensics add-on, as Pro does"
+    # Presence insights holds Forensics since 2026-11-26 (licence.ADDON_PART_OF): its key turns Forensics on too,
+    # whether or not the licence server also lists Forensics.
+    data, _, _ = _activate(monkeypatch, {"forensics_enabled": False},
+                           {**ANSWER, "addons": ["insights"], "addons_until": {"insights": LATER}})
+    assert data["forensics_enabled"] is True, "Presence insights, which holds Forensics"
 
 
 def test_the_payload_says_an_add_on_key_beside_pro_has_key_and_never_its_kept_key() -> None:

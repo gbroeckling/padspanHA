@@ -1031,12 +1031,36 @@ class PadSpanLightsApp extends HTMLElement {
   // Thermostats, off unless turned on.
   _roomParts(){
     const lines = this._screenLines();
-    // Shades and Thermostats were Audio's until 2026-11-26: a screen with Audio ticked keeps them, ticked (once: from
-    // then on each is its own line).
-    if (lines && !this._carried) { this._carried = true; carryShowLine("atlas", "room_controls", "room_shades"); carryShowLine("atlas", "room_controls", "room_climate"); }
+    // Shades and Thermostats were Audio's until 2026-11-26, and a wall below Pro's display layout went by the Settings
+    // switches (Audio's among them) until then: what a screen with the ⋯ list showed in a room's card, it keeps, its
+    // new lines ticked once (carryShowLine: never again, so one unticked stays so). Read once the settings are in.
+    if (lines && !this._carried && this.state._audioOn !== undefined) {
+      this._carried = true;
+      const ticked = screenShowLine("atlas", "room_controls") === true;
+      const wasSwitches = !(String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2);
+      const had = (classic) => ticked || (wasSwitches && this.state._audioOn === true && classic === true);
+      if (wasSwitches) carryShowLine("atlas", "room_controls", this._audioAllowed() && this.state._audioOn === true);
+      carryShowLine("atlas", "room_shades", had(this.state._shadesOn));
+      carryShowLine("atlas", "room_climate", this._addon("climate") && had(this.state._thermostatsOn));
+    }
     const on = (key, classic) => !!ROOMCTL && (lines ? screenShowLine("atlas", key)===true : classic === true);
     return { audio: this._roomControlsOn(), shades: on("room_shades", this.state._shadesOn),
              climate: this._addon("climate") && on("room_climate", this.state._thermostatsOn) };
+  }
+  // The covers that open a door or a gate (Alarm & security's), never a room sheet's shades: Devices → Door Openers'
+  // marked ones, a wall's linked opener, and a cover a wall follows when nothing says it is a blind or a shutter (no
+  // device class, and a door's, a gate's or a garage's name). A window's shutter or blind stays a shade.
+  _doorOpeners(){
+    const out = new Set((this.state._doorOpeners || []).filter(e => typeof e === "string"));
+    const doorish = /\b(door|gate|garage)\b/i, states = (this._hass && this._hass.states) || {};
+    for (const b of (this.state.model && this.state.model.rf_barriers_m) || []) {
+      if (b && typeof b.linked_opener_entity_id === "string") out.add(b.linked_opener_entity_id);
+      const e = b && b.linked_entity_id;
+      if (typeof e !== "string" || !e.startsWith("cover.")) continue;
+      const a = (states[e] && states[e].attributes) || {};
+      if (!a.device_class && doorish.test(`${b.name || ""} ${a.friendly_name || ""} ${e}`.replace(/_/g, " "))) out.add(e);
+    }
+    return out;
   }
   // This page's room controls (views/room_controls.js), made once: functions only, read when used.
   _roomCtl(){
@@ -1056,14 +1080,7 @@ class PadSpanLightsApp extends HTMLElement {
       errorText: (e)=>this._errorText(e),
       // The covers that open a door or a gate, never a room sheet's shades: a wall's opener on the map (its own link a
       // cover, or its linked opener) and Devices → Door Openers' marked ones.
-      openers: ()=>{
-        const out = new Set((this.state._doorOpeners || []).filter(e => typeof e === "string"));
-        for (const b of (this.state.model && this.state.model.rf_barriers_m) || []) {
-          if (b && typeof b.linked_opener_entity_id === "string") out.add(b.linked_opener_entity_id);
-          if (b && typeof b.linked_entity_id === "string" && b.linked_entity_id.startsWith("cover.")) out.add(b.linked_entity_id);
-        }
-        return out;
-      },
+      openers: ()=>this._doorOpeners(),
       // The opt-in report's room_controls:<word> (telemetry.py ROOM_CONTROLS_EVENTS), only while it is on.
       count: (word)=>{
         if(!this.state._telemetryOn || !this._hass) return;

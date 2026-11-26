@@ -606,7 +606,7 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
   });
 }
 
-// 13. "Half off every add-on until January 1" (panel.js _addonSaleCard,
+// 13. "Half off every add-on through January 1" (panel.js _addonSaleCard,
 //     editions.js addonSaleCardDue): to an administrator, once, while the sale
 //     runs; counted in the usage report (_telemetryEvent sends only when it is
 //     on). The clock is the harness's, so the cases hold on any day.
@@ -630,8 +630,8 @@ t("sidebar: administrators only, and gone once the milestone was answered", () =
     const out = card();
     assert(out, "not shown");
     const words = out.textContent;
-    assert(words.includes("Half off every add-on until January 1"), words);
-    assert(words.includes("Now Audio $3.22 CAD, Advanced smart lighting $4.32 CAD, Climate map $4.32 CAD. Each is paid once and covers 2 years."), words);
+    assert(words.includes("Half off every add-on through January 1"), words);
+    assert(words.includes("Now Audio $3.22 CAD, Advanced smart lighting $4.32 CAD, Climate & air quality $4.32 CAD. Each is paid once and covers 2 years."), words);
     const see = q(out, '[data-sale-card="see"]');
     assert(see && see.getAttribute("href") === ED.ADDONS_URL && see.getAttribute("target") === "_blank" && see.textContent === "See the add-ons", "the link");
     assert(q(out, '[data-sale-card="no"]').textContent === "No thanks", "No thanks");

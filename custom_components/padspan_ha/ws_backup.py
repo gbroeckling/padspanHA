@@ -572,8 +572,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             data["atlas_3d_default_v1_applied"] = True
                             # A backup from before the AI map-building switch:
                             # on where the stair finder was (settings_store).
-                            from .settings_store import ai_plans_stamp
+                            from .settings_store import ai_plans_stamp, room_parts_stamp
                             ai_plans_stamp(data, data)
+                            # A backup from before Shades and Thermostats had their own switches: on where Audio was.
+                            room_parts_stamp(data, data)
                             # A Pro invite is this install's now, answered or
                             # not: an older backup must not bring one back.
                             from .pro_invite import SETTINGS_KEY as _INVITE_KEY

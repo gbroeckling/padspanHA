@@ -10178,11 +10178,11 @@ function _lightsTourSteps(paid, place = paid){
       find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
   } else if (placeFree) {
     steps.push({ title: "What a key adds",
-      body: t("Placing each light where it really hangs is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need {key}. A key goes in Settings → Features → PadSpan licence once you have one.", { key: looksKey }),
+      body: t("Placing each light where it really hangs is free. Fixture shapes with their sizes and angles, WLED's Advanced controls and Fit room need {key} or the Advanced smart lighting add-on, and Showcase {key} or the Looks pack add-on. A key goes in Settings → Features → PadSpan licence once you have one.", { key: looksKey }),
       find: null });
   } else {
     steps.push({ title: "What a key adds",
-      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need " + (brightPro ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro") + ". " + _LIC_PATH + " is where a key goes once you have one.",
+      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs needs " + (brightPro ? "PadSpan Bright Pro or PadSpan Pro" : "PadSpan Pro") + ". Fixture shapes with their sizes and angles, WLED's Advanced controls and Fit room need it or the Advanced smart lighting add-on, and Showcase it or the Looks pack add-on. " + _LIC_PATH + " is where a key goes once you have one.",
       find: null });
   }
   steps.push({ title: "You're set",
@@ -10383,7 +10383,7 @@ function _lightsTab(ctx, maps, active) {
   const design = paid || _addonAllowed(ctx.state.settings, "lighting");
   // A placed light's size and angle (Transform, and Width, Length, Rotate and Margin in the inspector) come with its
   // shape (the owner, 2026-11-26: "Yes, with the shapes"): the lighting tier's, or Advanced smart lighting's.
-  const sizeOk = design;
+  const sizeOk = place && design;
   if (!place) { mapState._lightsDraftM = {}; mapState._lightsTransform = false; if (!design) mapState._selLight = null; }
   else if (!sizeOk) mapState._lightsTransform = false;
   // Alarm & security: the door card and linking openers and locks (_alarmOk).

@@ -72,6 +72,17 @@ async def test_a_house_that_had_audio_keeps_its_shades_and_thermostats(loaded, s
     assert data["atlas_shades_enabled"] is shades and data["atlas_thermostats_enabled"] is thermostats
 
 
+def test_a_restored_backup_that_had_audio_keeps_them_too() -> None:
+    """ws_backup's restore hot-patches the settings without a load: the same stamp runs there."""
+    from custom_components.padspan_ha.settings_store import room_parts_stamp
+    data = {"atlas_audio_enabled": True}
+    assert room_parts_stamp(data, data) is True
+    assert data["atlas_shades_enabled"] is True and data["atlas_thermostats_enabled"] is True
+    assert room_parts_stamp(data, data) is False                    # once: both are there now
+    src = open("custom_components/padspan_ha/ws_backup.py", encoding="utf-8").read()
+    assert "room_parts_stamp(data, data)" in src
+
+
 @pytest.mark.asyncio
 async def test_a_new_install_has_neither() -> None:
     _, data, _ = await _load(None)

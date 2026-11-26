@@ -317,6 +317,16 @@ def test_room_controls_through_the_panel(result) -> None:
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert '_audioAllowed(){ return this._addon("audio"); }' in panel
     assert "roomControls: this._audioAllowed() ? this._roomCtl() : null," in panel
+    # Shades and Thermostats out of Audio (2026-11-26): carried once onto a screen whose card had them, never again.
+    c = r["carry"]
+    assert c["proTicked"]["show"] == {"room_controls": True, "room_shades": True, "room_climate": True}, c
+    assert c["proTicked"]["parts"] == {"audio": True, "shades": True, "climate": True}, c
+    assert c["proUnticked"] == {"room_controls": True, "room_climate": True}, c
+    assert c["proUntickedThenAudio"] == {"room_controls": True}, c
+    assert c["wall"]["isWall"] is True and c["wall"]["show"] == {"room_controls": True, "room_shades": True}, c
+    assert c["wall"]["parts"] == {"audio": True, "shades": True, "climate": False}, c
+    # Openers are never shades; a window's shutter and a blind on a door (its class says so) stay shades.
+    assert r["openers"] == ["cover.garage_main", "cover.marked", "switch.gate_relay"], r["openers"]
     # The ⋯ line where the screen has the list (Pro's display layout, or a wall: _screenLines), else the switch.
     assert 'return this._screenLines() ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;' in panel
     assert '_screenLines(){ return (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall"); }' in panel

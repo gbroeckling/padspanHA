@@ -801,7 +801,7 @@ if (Cls) {
   const tree = (n) => (n ? { tag: n.localName, style: n.style ? n.style.cssText : "", text: n._text || "", a: n.attributes, kids: (n.children || []).map(tree) } : null);
   const C4 = { "media_player.c4_kitchen": ST("media_player.c4_kitchen", "on", { friendly_name: "Kitchen", volume_level: 0.4, is_volume_muted: false, supported_features: 4 | 8 | 256 | 1024 }) };
   const settings = { ...BASE, atlas_layout_v2: true, telemetry_enabled: true, pro_has_key: true, room_audio_matches: { kitchen: ["media_player.c4_kitchen"] }, room_audio_ha_speakers: false };
-  const open = async ({ admin = true, ticked = false, without = false, tier = "pro", addons = null, more = {} } = {}) => {
+  const open = async ({ admin = true, ticked = false, without = false, tier = "pro", addons = null, more = {}, wall = false } = {}) => {
     if (ticked) localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ room_controls: true })); else localStorage.removeItem("padspan_la3d_show_atlas");
     const hass = makeHass({ settings: { ...settings, tier, ...(addons ? { addons_licensed: addons } : {}), ...more }, admin, extraStates: C4 });
     hass.entities = Object.fromEntries([...ENTITY_REG.map(e => [e.entity_id, e]), ["media_player.c4_kitchen", { entity_id: "media_player.c4_kitchen", platform: "control4", area_id: "kitchen" }]]);
@@ -809,6 +809,8 @@ if (Cls) {
     const real = hass.callWS, sent = [], svc = [];
     hass.callWS = async (m) => { if (m.type === "padspan_ha/telemetry_event") sent.push(m.event); return real(m); };
     hass.callService = async (domain, service, data) => { svc.push(`${domain}.${service}:${data && data.entity_id}`); };
+    // A wall (?kiosk=1): below Pro, a wall from the free basics on (editions.js wallTier).
+    if (wall) globalThis.location = { search: "?kiosk=1" };
     const el = new Cls();
     if (without) el._roomCtl = () => null;        // as if room_controls.js had not loaded
     el.connectedCallback();
@@ -822,7 +824,7 @@ if (Cls) {
       el._useApi(Object.fromEntries(lights.map(l => [l.entity_id, l])), lights).openRoom("Kitchen");
       return document.body.children[document.body.children.length - 1];
     };
-    return { el, hass, sent, svc, svg, sheet, done: () => { el.disconnectedCallback(); document.body.children.length = 0; } };
+    return { el, hass, sent, svc, svg, sheet, done: () => { el.disconnectedCallback(); document.body.children.length = 0; if (wall) delete globalThis.location; } };
   };
   try {
     let p = await open({ without: true });
@@ -883,6 +885,55 @@ if (Cls) {
     roomCtl.proV2Unticked = seen(p);
     p.done();
     localStorage.removeItem("padspan_la3d_show_atlas");
+    // Shades and Thermostats out of Audio (2026-11-26): a screen with the ⋯ list keeps what its room card had, its new
+    // lines ticked once, never again (carryShowLine's mark), and a wall that went by the Settings switches keeps those.
+    const LS = "padspan_la3d_show_atlas", MARKS = ["room_controls", "room_shades", "room_climate"].map(k => "padspan_la3d_carried_atlas_" + k);
+    const fresh = () => MARKS.forEach(k => localStorage.removeItem(k));
+    const shown = () => JSON.parse(localStorage.getItem(LS) || "{}");
+    const carry = {};
+    fresh();
+    p = await open({ ticked: true, more: { atlas_audio_enabled: false } });
+    p.el._roomParts();
+    carry.proTicked = { show: shown(), parts: p.el._roomParts() };
+    p.done();
+    // Unticked since (the list drops a line set back to its default): a reload leaves it so.
+    localStorage.setItem(LS, JSON.stringify({ room_controls: true, room_climate: true }));
+    p = await open({ more: { atlas_audio_enabled: false } });
+    localStorage.setItem(LS, JSON.stringify({ room_controls: true, room_climate: true }));
+    p.el._carried = false; p.el._roomParts();
+    carry.proUnticked = shown();
+    p.done();
+    // Audio not ticked: nothing carried, and ticking Audio later carries nothing either.
+    fresh();
+    p = await open({ more: { atlas_audio_enabled: false } });
+    p.el._roomParts();
+    localStorage.setItem(LS, JSON.stringify({ room_controls: true }));
+    p.el._carried = false; p.el._roomParts();
+    carry.proUntickedThenAudio = shown();
+    p.done();
+    // A wall below Pro with the Audio add-on that went by Settings → Atlas: Audio and Shades come along, ticked; no
+    // Thermostats without Climate & air quality.
+    fresh(); localStorage.removeItem(LS);
+    p = await open({ tier: "free", addons: ["audio"], wall: true,
+                     more: { atlas_audio_enabled: true, atlas_shades_enabled: true, atlas_thermostats_enabled: true, free_basics: true } });
+    p.el._roomParts();
+    carry.wall = { isWall: p.el.hasAttribute("data-wall"), show: shown(), parts: p.el._roomParts() };
+    p.done();
+    fresh(); localStorage.removeItem(LS);
+    roomCtl.carry = carry;
+    // The covers never offered as shades (_doorOpeners): marked, a wall's opener, a door's cover with no class.
+    p = await open({ more: { door_opener_ids: ["cover.marked"] } });
+    p.el.state.model = { ...(p.el.state.model || {}), rf_barriers_m: [
+      { id: "w1", name: "Garage door", linked_entity_id: "cover.garage_main" },
+      { id: "w2", name: "Front gate", linked_entity_id: "cover.drive", linked_opener_entity_id: "switch.gate_relay" },
+      { id: "w3", name: "Kitchen window", linked_entity_id: "cover.kitchen_shutter" },
+      { id: "w4", name: "Back door", linked_entity_id: "cover.back_blind" } ] };
+    p.hass.states["cover.garage_main"] = ST("cover.garage_main", "closed", {});
+    p.hass.states["cover.drive"] = ST("cover.drive", "closed", { device_class: "gate" });
+    p.hass.states["cover.kitchen_shutter"] = ST("cover.kitchen_shutter", "open", {});
+    p.hass.states["cover.back_blind"] = ST("cover.back_blind", "open", { device_class: "blind" });
+    roomCtl.openers = [...p.el._doorOpeners()].sort();
+    p.done();
   } catch (e) { fail("room controls", "lifecycle", e); }
 }
 

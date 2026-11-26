@@ -3679,13 +3679,17 @@ const _laPrefs = {
   set: (k, v) => { try { localStorage.setItem("padspan_la3d_" + k, String(v)); } catch (_) {} },
 };
 let _LA = null;                       // views/live_aboard.js, once loaded
-/** A line that grew out of another keeps that one's tick on a screen that had it: nothing kept for `key` yet and
- *  `from` ticked, `key` is ticked (Shades and Thermostats out of Audio, 2026-11-26: lights_panel.js _roomParts). */
-export const carryShowLine = (slot, from, key) => {
-  if (!slot) return;
+/** A line new to a screen starts as what the screen had before it (Shades and Thermostats out of Audio, 2026-11-26:
+ *  lights_panel.js _roomParts): ticked when `on` and the screen keeps nothing for it yet. Once per screen and line,
+ *  whatever `on` is (its own mark, beside the list: the list keeps only its own lines), so a line unticked later stays
+ *  unticked, and one that wasn't carried is never ticked by itself afterwards. */
+export const carryShowLine = (slot, key, on) => {
+  if (!slot || _laPrefs.get(`carried_${slot}_${key}`)) return;
+  _laPrefs.set(`carried_${slot}_${key}`, "1");
+  if (!on) return;
   try {
     const o = JSON.parse(_laPrefs.get(`show_${slot}`) || "{}");
-    if (o && o[from] === true && typeof o[key] !== "boolean") { o[key] = true; _laPrefs.set(`show_${slot}`, JSON.stringify(o)); }
+    if (o && typeof o === "object" && typeof o[key] !== "boolean") { o[key] = true; _laPrefs.set(`show_${slot}`, JSON.stringify(o)); }
   } catch (_) { /* nothing kept, nothing carried */ }
 };
 /** What a screen's ⋯ list (live_aboard_show.js) says of a line it keeps per screen, or undefined: the flat map's
