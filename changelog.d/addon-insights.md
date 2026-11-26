@@ -1,7 +1,0 @@
-# The add-on sale on Overview; add-ons in the usage report
-
-### New
-- **Half off every add-on until January 1, said once on Overview.** From November 27 until January 1, an administrator of a PadSpan without paid Pro sees one card: three add-ons it doesn't have yet at their half price, a link to the add-ons on padspan.traks.ca, and No thanks. It shows once and never comes back after a reload, never on a wall screen, and goes by itself when the sale ends. In English, German, French and Dutch.
-
-### Changed
-- **The usage report says more about the add-ons.** The report is still off unless you turn it on, and Preview still shows exactly what would be sent. It now also includes, as words and counts only: the licence this PadSpan runs on (free, a trial, Pro, an add-on key, or one of those lapsed), the add-ons a key carries and roughly how long each has left, which add-ons were used since the last report, whether the house was using a feature that moved into an add-on (the emergency lights test, power teams, following the day, a LiDAR scan), and what the house has that an add-on is for, such as alarm panels, garage and gate openers, whole-house audio by system, the Control4 controller's OS, climate sensors and robot vacuums. It also counts where an add-on was offered, whether its link was opened, licence keys entered and how that went, and the sale card shown, opened or put away. Never a key, an email, a name or an entity id. The README lists every field.
