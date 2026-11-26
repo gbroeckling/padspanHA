@@ -324,7 +324,7 @@ def test_a_stale_drop_entry_stops_the_deploy(b, pages) -> None:
 
 def test_changed_or_new_attribute_text_is_reported(b, pages) -> None:
     en, _, _ = pages
-    changed = en.replace('content="PadSpan HA tells you which room', 'content="PadSpan HA now tells you which room', 1)
+    changed = en.replace('content="An eminently intuitive control panel', 'content="Now an eminently intuitive control panel', 1)
     _, rep = b.build(changed)
     assert any("search/share" in g for g in b.gaps(rep))
     assert b.untranslated_attrs(en, b.load_catalog()) == []

@@ -39,8 +39,8 @@
    "de": "Wofür willst du PadSpan?"
   },
   {
-   "en": "Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. <span class=\"pill soon\">Beta</span> marks what's in PadSpan's beta releases now and comes with the next stable. The demo links open a sample house that runs as PadSpan Pro.",
-   "de": "Jeder Teil funktioniert für sich, auf derselben Karte deines Hauses. Das Abzeichen sagt, ob er kostenlos ist, und die Zeile „Braucht“ sagt, was er voraussetzt. <span class=\"pill soon\">Beta</span> steht für das, was jetzt in den Beta-Versionen von PadSpan steckt und mit der nächsten stabilen Version kommt. Die Demo-Links öffnen ein Beispielhaus, das als PadSpan Pro läuft."
+   "en": "Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. <span class=\"pill soon\">Beta</span> marks what's in PadSpan's beta releases for now. The demo links open a sample house that runs as PadSpan Pro.",
+   "de": "Jeder Teil funktioniert für sich, auf derselben Karte deines Hauses. Die Markierung zeigt, ob er kostenlos ist, und die Zeile „Braucht“ sagt, was er voraussetzt. <span class=\"pill soon\">Beta</span> kennzeichnet, was es vorerst nur in den Beta-Versionen von PadSpan gibt. Die Demo-Links öffnen ein Beispielhaus, das als PadSpan Pro läuft."
   },
   {
    "en": "PadSpan on the wall in my house, beside the thermostat and the light switches.",
@@ -51,20 +51,20 @@
    "de": "Das ganze Haus auf einem Bildschirm <span class=\"pill free\">Kostenlos</span>"
   },
   {
-   "en": "<b>You see</b> every floor and room of your house, with the lights, locks, doors, windows, motion sensors and leak, smoke, gas and CO alarms in their rooms. A leak or smoke alarm turns its room red on every screen, and it stays red for up to two days or until someone presses Reset.",
-   "de": "<b>Du siehst</b> jede Etage und jeden Raum deines Hauses, mit den Lichtern, Schlössern, Türen, Fenstern, Bewegungsmeldern und den Wasser-, Rauch-, Gas- und CO-Meldern in ihren Räumen. Ein Wasser- oder Rauchalarm färbt seinen Raum auf jedem Bildschirm rot, und er bleibt rot, bis zu zwei Tage lang oder bis jemand auf „Zurücksetzen“ tippt."
+   "en": "<b>You see</b> every floor and room of your house, with the lights, locks, motion sensors and leak, smoke, gas and CO alarms in their rooms, and each door or window you draw on a wall shown open or shut. A leak or smoke alarm turns its room red on every screen, and it stays red for up to two days or until someone presses Reset.",
+   "de": "<b>Du siehst</b> jede Etage und jeden Raum deines Hauses, mit den Lichtern, Schlössern, Bewegungsmeldern und den Wasser-, Rauch-, Gas- und CO-Meldern in ihren Räumen, dazu jede Tür und jedes Fenster, die du an einer Wand einzeichnest, offen oder zu. Ein Wasser- oder Rauchalarm färbt seinen Raum auf jedem Bildschirm rot, und er bleibt rot, bis zu zwei Tage lang oder bis jemand auf „Zurücksetzen“ tippt."
   },
   {
    "en": "<b>You tap</b> a light to switch it, a room's name for its devices with All on and All off, or a lock to lock or unlock it. Unlocking asks first.",
    "de": "<b>Du tippst</b> auf ein Licht, um es zu schalten, auf den Namen eines Raums für seine Geräte mit „Alle an“ und „Alle aus“, oder auf ein Schloss, um es zu ver- oder entriegeln. Vor dem Entriegeln fragt es nach."
   },
   {
-   "en": "<b>Needs</b> Home Assistant 2024.8 or newer, and no Bluetooth scanner.",
-   "de": "<b>Braucht</b> Home Assistant 2024.8 oder neuer und keinen Bluetooth-Scanner."
+   "en": "<b>Needs</b> Home Assistant 2024.8 or newer and your rooms on a plan. No Bluetooth scanner.",
+   "de": "<b>Braucht</b> Home Assistant 2024.8 oder neuer und deine Räume auf einem Plan. Kein Bluetooth-Scanner nötig."
   },
   {
    "en": "<span class=\"pill pro\">Pro</span> Wall mode fits the whole house to a wall screen and dims it at night, and the Atlas can open as your Overview.",
-   "de": "<span class=\"pill pro\">Pro</span> Der Wandmodus passt das ganze Haus auf ein Wanddisplay ein und dimmt es nachts, und der Atlas kann deine Übersicht sein."
+   "de": "<span class=\"pill pro\">Pro</span> Der Wandmodus passt das ganze Haus auf ein Wanddisplay ein und dimmt es nachts, und der Atlas kann sich als deine Übersicht öffnen."
   },
   {
    "en": "<a href=\"demo/?page=atlas\">The Atlas in the demo</a>",
@@ -88,7 +88,7 @@
   },
   {
    "en": "<b>Needs</b> at least one Bluetooth scanner, such as an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a scanner, or your Home Assistant machine's own Bluetooth. One gives home or away. One in each room you want told apart gives rooms.",
-   "de": "<b>Braucht</b> mindestens einen Bluetooth-Scanner, zum Beispiel einen ESPHome-Bluetooth-Proxy, ein Shelly ab Gen2 als Scanner oder das eigene Bluetooth deines Home-Assistant-Rechners. Einer sagt dir „zu Hause“ oder „weg“. Einer in jedem Raum, den du unterscheiden willst, ergibt Räume."
+   "de": "<b>Braucht</b> mindestens einen Bluetooth-Scanner, zum Beispiel einen ESPHome-Bluetooth-Proxy, ein Shelly ab Gen2 als Scanner oder das eigene Bluetooth deines Home-Assistant-Rechners. Einer sagt dir „zu Hause“ oder „weg“. Einer in jedem Raum, den du unterscheiden willst, liefert die Räume."
   },
   {
    "en": "<span class=\"pill pro\">Pro</span> People and tags on the Atlas and in the 3D house. Busy Times and Locate come with Pro or the Presence insights add-on.",
@@ -107,12 +107,12 @@
    "de": "Dein Grundriss und das Haus in 3D <span class=\"pill free\">Kostenlos</span> <span class=\"pill pro\">3D mit Pro</span>"
   },
   {
-   "en": "<b>You see</b> your floors stacked one above the other, each room drawn to scale in its own colour, with its ceiling height.",
-   "de": "<b>Du siehst</b> deine Etagen übereinander, jeden Raum maßstabsgetreu in seiner eigenen Farbe, mit seiner Deckenhöhe."
+   "en": "<b>You see</b> your floors stacked one above the other, each room drawn to scale in its own colour.",
+   "de": "<b>Du siehst</b> deine Etagen übereinander, jeden Raum maßstabsgetreu in seiner eigenen Farbe."
   },
   {
-   "en": "<b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor.",
-   "de": "<b>Du beginnst</b> mit einem Bild oder PDF eines Plans, einem Foto deiner eigenen Skizze, einem LiDAR-Raumscan vom iPhone oder iPad, einer Datei aus Easy Floorplan, DXF oder Floorplanner, der Karte deines Saugroboters (experimentell) oder einer leeren Etage."
+   "en": "<b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor. PDFs and plan files are in the beta releases for now.",
+   "de": "<b>Du beginnst</b> mit einem Bild oder PDF eines Plans, einem Foto deiner eigenen Skizze, einem LiDAR-Raumscan vom iPhone oder iPad, einer Datei aus Easy Floorplan, DXF oder Floorplanner, der Karte deines Saugroboters (experimentell) oder einer leeren Etage. PDFs und Plandateien gibt es vorerst nur in den Beta-Versionen."
   },
   {
    "en": "<b>You tap</b> Show what it will make, then Make the rough house, and you have a first map with one box per Home Assistant area, without drawing anything. <span class=\"pill soon\">Beta</span>",
@@ -168,11 +168,11 @@
   },
   {
    "en": "What you use most is a tap away, on the map, in the room where it is.",
-   "de": "Was du am meisten brauchst, ist einen Fingertipp entfernt, auf der Karte, in dem Raum, in dem es ist."
+   "de": "Was du am häufigsten brauchst, ist nur einen Fingertipp entfernt, auf der Karte und in seinem Raum."
   },
   {
-   "en": "<b>Switch a light</b><span>Open Atlas in the Home Assistant sidebar and tap the light. Two taps from anywhere in Home Assistant.</span>",
-   "de": "<b>Ein Licht schalten</b><span>Öffne den Atlas in der Seitenleiste von Home Assistant und tipp auf das Licht. Zwei Fingertipps, egal wo du in Home Assistant gerade bist.</span>"
+   "en": "<b>Switch a light</b><span>Open Atlas in the Home Assistant sidebar and tap the light. That's two taps.</span>",
+   "de": "<b>Ein Licht schalten</b><span>Öffne den Atlas in der Seitenleiste von Home Assistant und tipp auf das Licht. Das sind zwei Fingertipps.</span>"
   },
   {
    "en": "<b>Turn a room off</b><span>On the Atlas, tap the room's name, then All off.</span>",
@@ -195,16 +195,16 @@
    "de": "<b>Den Nachmittag abspielen</b><span>Öffne Traceback, wähl die Zeit und drück auf Abspielen. „Wiedergabe teilen“ macht daraus einen Clip von 10 bis 30 Sekunden, mit Initialen oder „Person 1“ statt der Namen. <span class=\"pill soon\">Beta</span></span>"
   },
   {
-   "en": "My house",
-   "de": "Mein Haus"
+   "en": "Through the day",
+   "de": "Im Lauf des Tages"
   },
   {
-   "en": "A day in my house",
-   "de": "Ein Tag in meinem Haus"
+   "en": "A day with PadSpan",
+   "de": "Ein Tag mit PadSpan"
   },
   {
-   "en": "I built PadSpan for my own house: three floors, 5,000 sq ft and a 4K screen on the wall. These are the moments in a day it's made for, and whether each one is free. Morning, Leaving and Guests need a Bluetooth scanner; the others don't.",
-   "de": "Ich habe PadSpan für mein eigenes Haus gebaut: drei Etagen, 5.000 Quadratfuß (rund 465 m²) und ein 4K-Bildschirm an der Wand. Das sind die Momente eines Tages, für die es gemacht ist, und ob jeder davon kostenlos ist. „Morgens“, „Beim Gehen“ und „Gäste“ brauchen einen Bluetooth-Scanner, die anderen nicht."
+   "en": "Here's what PadSpan does through a day, and whether each part is free. Morning, Leaving and Guests need a Bluetooth scanner; the others don't. I built PadSpan for my own house: three floors, 5,000 sq ft and a 4K screen on the wall.",
+   "de": "Hier siehst du, was PadSpan im Lauf eines Tages tut und ob der jeweilige Teil kostenlos ist. „Morgens“, „Beim Gehen“ und „Gäste“ brauchen einen Bluetooth-Scanner, die anderen nicht. Ich habe PadSpan für mein eigenes Haus gebaut: drei Etagen, 5.000 Quadratfuß (rund 465 m²) und ein 4K-Bildschirm an der Wand."
   },
   {
    "en": "Morning <span class=\"pill free\">Free</span> <span class=\"pill soon\">Beta</span>",
@@ -219,16 +219,16 @@
    "de": "Beim Gehen <span class=\"pill free\">Kostenlos</span> <span class=\"pill soon\">Beta</span>"
   },
   {
-   "en": "Lights follow people switches a room off once nobody has been in it for 2 minutes. A light you switch off by hand stays off while you're still in the room.",
-   "de": "„Licht folgt Personen“ schaltet einen Raum aus, wenn 2 Minuten lang niemand darin war. Ein Licht, das du von Hand ausschaltest, bleibt aus, solange du noch im Raum bist."
+   "en": "Lights follow people switches a room off once nobody has been in it for 2 minutes, or the time you set. A light you switch off by hand stays off while you're still in the room.",
+   "de": "„Licht folgt Personen“ schaltet einen Raum aus, wenn 2 Minuten lang niemand darin war oder so lange, wie du einstellst. Ein Licht, das du von Hand ausschaltest, bleibt aus, solange du noch im Raum bist."
   },
   {
    "en": "At the door <span class=\"pill pro\">Pro</span>",
    "de": "An der Tür <span class=\"pill pro\">Pro</span>"
   },
   {
-   "en": "When the doorbell rings, the 3D house on the wall flies to the doorbell and shows the camera's snapshot, then goes back after 20 seconds.",
-   "de": "Wenn es klingelt, fliegt das 3D-Haus an der Wand zur Türklingel und zeigt das Standbild der Kamera, und nach 20 Sekunden fliegt es zurück."
+   "en": "Once an administrator picks the doorbell in Settings, the 3D house flies to it when it rings, shows a camera's snapshot if one is picked, and goes back after 20 seconds.",
+   "de": "Sobald ein Administrator die Türklingel in den Einstellungen auswählt, fliegt das 3D-Haus beim Klingeln dorthin, zeigt das Standbild einer Kamera, wenn eine ausgewählt ist, und fliegt nach 20 Sekunden zurück."
   },
   {
    "en": "Guests <span class=\"pill free\">Free</span>",
@@ -243,20 +243,20 @@
    "de": "Wenn etwas nicht stimmt <span class=\"pill free\">Kostenlos</span>"
   },
   {
-   "en": "A leak, smoke, gas or CO alarm turns its room red on every screen and stays red until someone presses Reset. A sensor that went off for half a second still counts.",
-   "de": "Ein Wasser-, Rauch-, Gas- oder CO-Alarm färbt seinen Raum auf jedem Bildschirm rot, und er bleibt rot, bis jemand auf „Zurücksetzen“ tippt. Auch ein Melder, der nur eine halbe Sekunde ausgelöst hat, zählt."
+   "en": "A leak, smoke, gas or CO alarm turns its room red on every screen and stays red for up to two days or until someone presses Reset. A sensor that went off for half a second still counts.",
+   "de": "Ein Wasser-, Rauch-, Gas- oder CO-Alarm färbt seinen Raum auf jedem Bildschirm rot und bleibt bis zu zwei Tage lang rot oder bis jemand auf „Zurücksetzen“ tippt. Auch ein Melder, der nur eine halbe Sekunde ausgelöst hat, zählt."
   },
   {
    "en": "Bedtime <span class=\"pill free\">Free</span>",
    "de": "Schlafenszeit <span class=\"pill free\">Kostenlos</span>"
   },
   {
-   "en": "One look at the wall shows which lights are still on and which doors and windows are open. Tap a room's name, then All off.",
-   "de": "Ein Blick an die Wand zeigt, welche Lichter noch an und welche Türen und Fenster offen sind. Tipp auf den Namen eines Raums und dann auf „Alle aus“."
+   "en": "One look at the Atlas shows which lights are still on and which doors and windows are open. Tap a room's name, then All off.",
+   "de": "Ein Blick auf den Atlas zeigt, welche Lichter noch an und welche Türen und Fenster offen sind. Tipp auf den Namen eines Raums und dann auf „Alle aus“."
   },
   {
    "en": "Away <span class=\"pill pro\">Pro or add-on</span>",
-   "de": "Unterwegs <span class=\"pill pro\">Pro oder Add-on</span>"
+   "de": "Verreist <span class=\"pill pro\">Pro oder Add-on</span>"
   },
   {
    "en": "Vacation Mode learns each light's routine by weekday from your Home Assistant history and keeps switching the lights that way until you turn it off.",
@@ -291,8 +291,8 @@
    "de": "Tipp auf ein Licht, um es zu schalten, oder auf den Namen eines Raums für „Alle an“ und „Alle aus“"
   },
   {
-   "en": "Locks, doors and windows, motion, leak and smoke sensors in their rooms",
-   "de": "Schlösser, Türen und Fenster, Bewegungs-, Wasser- und Rauchmelder in ihren Räumen"
+   "en": "Locks, motion, leak and smoke sensors in their rooms, and doors and windows on their walls, open or shut",
+   "de": "Schlösser, Bewegungs-, Wasser- und Rauchmelder in ihren Räumen, dazu Türen und Fenster an ihren Wänden, offen oder zu"
   },
   {
    "en": "A wall dimmer and its smart bulbs as one light (a power team) that follows the day, with a wake-up, a bedtime and a night light",
@@ -351,8 +351,8 @@
    "de": "Platzieren gibt es mit einem <a href=\"#pro\">PadSpan Pro</a>-Schlüssel, für 49 CAD im Jahr (ca. 33 €) oder 85 CAD (ca. 56 €) für zwei Jahre, in beiden Downloads. Was du gezeichnet hast, bleibt unberührt, wenn ein Schlüssel abläuft. Gib einen Schlüssel ein, und jede Platzierung ist wieder da, wie sie war, und auch mit abgelaufenem Schlüssel kannst du alles, was du gebaut hast, ansehen und exportieren."
   },
   {
-   "en": "Simple or complex",
-   "de": "Einfach oder komplex"
+   "en": "Getting started",
+   "de": "Der Einstieg"
   },
   {
    "en": "Where to start, and how far it goes",
@@ -403,8 +403,8 @@
    "de": "Wähl das Aussehen des Panels. Night, Light (invertiert) und High contrast für alle; Day, Graphite, Ocean und Dusk mit Pro oder dem Add-on Looks-Paket."
   },
   {
-   "en": "Your automations get a room for each named device, events when someone arrives, leaves or changes room, and three blueprints for lights. Assist answers \"Which room is Alex in?\" once you add its sentences.",
-   "de": "Deine Automationen bekommen einen Raum für jedes benannte Gerät, Ereignisse, wenn jemand ankommt, geht oder den Raum wechselt, und drei Blueprints für Licht. Assist beantwortet „Which room is Alex in?“, sobald du seine Sätze hinzufügst (bisher auf Englisch)."
+   "en": "Your automations get a room for each named device, events when someone arrives, leaves or changes room, and three blueprints for lights. Assist answers \"Which room is Alex in?\" once you add PadSpan's sentences.",
+   "de": "Deine Automationen bekommen einen Raum für jedes benannte Gerät, Ereignisse, wenn jemand ankommt, geht oder den Raum wechselt, und drei Blueprints für Licht. Assist beantwortet „Which room is Alex in?“, sobald du die Sätze von PadSpan hinzufügst. Frage und Antwort sind auf Englisch."
   },
   {
    "en": "PadSpan Pro for exact placement, the 3D house and wall mode, or one add-on for a single feature.",
@@ -444,7 +444,7 @@
   },
   {
    "en": "At least one Bluetooth scanner, such as an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a scanner (<a href=\"/guides/shelly-bluetooth-proxy/\">one setting</a>), your Home Assistant machine's own Bluetooth or a USB adapter, or ESPresense nodes. One gives home or away. One in each room you want told apart gives rooms. <a href=\"/guides/bluetooth-proxies/\">How many do I need?</a>",
-   "de": "Mindestens einen Bluetooth-Scanner, zum Beispiel einen ESPHome-Bluetooth-Proxy, ein Shelly ab Gen2 als Scanner (<a href=\"/guides/shelly-bluetooth-proxy/de/\">eine Einstellung</a>), das eigene Bluetooth deines Home-Assistant-Rechners oder einen USB-Adapter, oder ESPresense-Knoten. Einer sagt dir „zu Hause“ oder „weg“. Einer in jedem Raum, den du unterscheiden willst, ergibt Räume. <a href=\"/guides/bluetooth-proxies/de/\">Wie viele brauche ich?</a>"
+   "de": "Mindestens einen Bluetooth-Scanner, zum Beispiel einen ESPHome-Bluetooth-Proxy, ein Shelly ab Gen2 als Scanner (<a href=\"/guides/shelly-bluetooth-proxy/de/\">eine Einstellung</a>), das eigene Bluetooth deines Home-Assistant-Rechners oder einen USB-Adapter, oder ESPresense-Knoten. Einer sagt dir „zu Hause“ oder „weg“. Einer in jedem Raum, den du unterscheiden willst, liefert die Räume. <a href=\"/guides/bluetooth-proxies/de/\">Wie viele brauche ich?</a>"
   },
   {
    "en": "Lights follow people, Yesterday at home, Share a replay and guest tags",
@@ -452,7 +452,7 @@
   },
   {
    "en": "The same Bluetooth scanners, because each of them works from who is in which room",
-   "de": "Dieselben Bluetooth-Scanner, denn alle arbeiten damit, wer in welchem Raum ist"
+   "de": "Dieselben Bluetooth-Scanner, denn alle vier stützen sich darauf, wer in welchem Raum ist"
   },
   {
    "en": "People placed between scanners",
@@ -476,7 +476,7 @@
   },
   {
    "en": "Its IRK, from Private BLE Device or a spare ESP32 running irk-capture (<a href=\"/guides/phone-room-presence/\">how</a>)",
-   "de": "Seinen IRK, über Private BLE Device oder einen freien ESP32 mit irk-capture (<a href=\"/guides/phone-room-presence/de/\">so geht’s</a>)"
+   "de": "Den IRK des Geräts, über Private BLE Device oder einen freien ESP32 mit irk-capture (<a href=\"/guides/phone-room-presence/de/\">so geht’s</a>)"
   },
   {
    "en": "A key tag or beacon",
@@ -484,7 +484,7 @@
   },
   {
    "en": "One with a fixed ID or address, named once (<a href=\"/guides/bluetooth-tags/\">which tags work</a>)",
-   "de": "Einer mit fester ID oder Adresse, einmal benannt (<a href=\"/guides/bluetooth-tags/de/\">welche Tracker gehen</a>)"
+   "de": "Einer mit fester ID oder Adresse, einmal benannt (<a href=\"/guides/bluetooth-tags/de/\">welche Tracker funktionieren</a>)"
   },
   {
    "en": "AirTags and Samsung SmartTags",
@@ -540,7 +540,7 @@
   },
   {
    "en": "The tracking runs on your own Home Assistant. Floor plan pictures stay in its config folder and are shown only to people who are logged in. Share a replay makes its clip in your browser and uploads nothing.",
-   "de": "Die Ortung läuft in deinem eigenen Home Assistant. Bilder von Grundrissen bleiben in seinem Konfigurationsordner und sind nur für angemeldete Personen sichtbar. „Wiedergabe teilen“ macht seinen Clip in deinem Browser und lädt nichts hoch."
+   "de": "Die Ortung läuft in deinem eigenen Home Assistant. Bilder von Grundrissen bleiben in seinem Konfigurationsordner und sind nur für angemeldete Personen sichtbar. „Wiedergabe teilen“ erstellt den Clip in deinem Browser und lädt nichts hoch."
   },
   {
    "en": "What leaves your house: the daily <b>update check</b> (your version number, and your IP address as with any web request; Settings → Tracking → Privacy, updates and feedback → Update Check turns it off) and a daily licence check if you have a key. Device makers come from the device's own broadcast and lists built into PadSpan, so nothing is sent for those. Only if you say so: the <b>opt-in usage report</b> is counts, versions and flags, plus a random install ID and the country and language set in Home Assistant — never names, addresses or contact details — and a Preview shows the exact data first. Starting the free 90-day PadSpan Pro trial or claiming a Pro invite sends the email address the key is issued to. <b>Become a tester</b> is separate from the usage report: you choose what to send and see it before it goes, it goes to the developer only, it is kept until you withdraw (<b>Stop being a tester</b> deletes it), and it is never shared or sold.",
@@ -607,8 +607,8 @@
    "de": "Mit <b>Gehen</b> läufst du auf Augenhöhe durch das 3D-Haus. Eine Tür mit Sensor öffnet sich, wenn die echte Tür aufgeht, und über die Treppe kommst du rauf und runter. <span class=\"pill soon\">Beta</span>"
   },
   {
-   "en": "<b>The view goes to what happens.</b> On a wall screen the 3D house flies to a doorbell that rings, a door that opens or an alarm, with a camera's snapshot if you pick one, then goes back after 20 seconds.",
-   "de": "<b>Der Blick geht dorthin, wo etwas passiert.</b> Auf einem Wanddisplay fliegt das 3D-Haus zu einer Türklingel, die läutet, einer Tür, die aufgeht, oder einem Alarm, mit dem Standbild einer Kamera, wenn du eine auswählst, und nach 20 Sekunden zurück."
+   "en": "<b>The view flies to what happens.</b> On the sidebar and wall screens, the 3D house flies to a doorbell that rings, a door that opens or an alarm that goes off, with a camera's snapshot if you pick one, then goes back after 20 seconds. An administrator picks what to watch in Settings.",
+   "de": "<b>Der Blick fliegt dorthin, wo etwas passiert.</b> In der Seitenleiste und auf Wanddisplays fliegt das 3D-Haus zu einer Türklingel, die läutet, einer Tür, die aufgeht, oder einem Alarm, der auslöst, mit dem Standbild einer Kamera, wenn du eine auswählst, und nach 20 Sekunden zurück. Was es beobachtet, wählt ein Administrator in den Einstellungen aus."
   },
   {
    "en": "<b>Furnish</b> fills a room in one tap, or piece by piece from 33 kinds of furniture. Link a piece to a device and a lamp glows with its light, a TV lights up while it plays, and a fan's blades turn.",
@@ -619,8 +619,8 @@
    "de": "<b>Genaues Platzieren</b> jedes Lichts, Ventilators, Schlosses und Sensors, in echter Form, Größe und echtem Winkel, mit WLED-Steuerung, Automorph und Showcase. Siehe <a href=\"#lights\">Licht</a>."
   },
   {
-   "en": "<b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and keeps the screen awake.",
-   "de": "<b>Der Wandmodus</b> passt das ganze Haus auf ein Wanddisplay ein, wählt die Schriftgröße passend zum Raum, dimmt nachts und hält den Bildschirm wach."
+   "en": "<b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and, on HTTPS, keeps the screen awake.",
+   "de": "<b>Der Wandmodus</b> passt das ganze Haus auf ein Wanddisplay ein, wählt die Schriftgröße passend zum Raum, dimmt nachts und hält über HTTPS den Bildschirm wach."
   },
   {
    "en": "<b>The new Atlas layout</b>, with a ⋯ list that sets what each screen shows.",
@@ -659,8 +659,8 @@
    "de": "<b>90 Tage kostenlos.</b> Teste ganz Pro 90 Tage lang, ohne Kreditkarte. Ein Admin startet den Test im Panel, es gibt einen Test pro Haushalt, und der Nutzungsbericht bleibt an, bis der Test endet."
   },
   {
-   "en": "<b>Nothing is lost.</b> When a key ends, nothing you made is deleted. The key keeps working 14 days past its end date, and everything comes back when you renew.",
-   "de": "<b>Nichts geht verloren.</b> Wenn ein Schlüssel abläuft, wird nichts gelöscht, was du gemacht hast. Der Schlüssel funktioniert noch 14 Tage über sein Ende hinaus, und mit einer Verlängerung ist alles wieder da."
+   "en": "<b>Nothing is lost.</b> A key keeps working for 14 days after its end date. Then the paid features switch off, but nothing you made is deleted, and it stays readable and exportable.",
+   "de": "<b>Nichts geht verloren.</b> Ein Schlüssel funktioniert noch 14 Tage über sein Enddatum hinaus. Danach schalten sich die bezahlten Funktionen ab, aber nichts, was du gemacht hast, wird gelöscht, und du kannst alles weiter ansehen und exportieren."
   },
   {
    "en": "<b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.",
@@ -756,7 +756,7 @@
   },
   {
    "en": "Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.",
-   "de": "Stell deinen Schlüssel für den Rest seiner Laufzeit auf das volle PadSpan Pro um: Du behältst denselben Schlüssel und dasselbe Ablaufdatum, und Forensics wird freigeschaltet."
+   "de": "Stell deinen Schlüssel für den Rest seiner Laufzeit auf das volle PadSpan Pro um: Du behältst denselben Schlüssel und dasselbe Ablaufdatum, und Forensik wird freigeschaltet."
   },
   {
    "en": "Upgrade to PadSpan Pro — $12",
@@ -844,7 +844,7 @@
   },
   {
    "en": "Locks, and alarms that stay red until someone resets them",
-   "de": "Schlösser, und Alarme, die rot bleiben, bis jemand sie zurücksetzt"
+   "de": "Schlösser und Alarme, die rot bleiben, bis jemand sie zurücksetzt"
   },
   {
    "en": "Guest tags, Follow alerts and Home Assistant sensors",
@@ -875,8 +875,8 @@
    "de": "Jedes Add-on ist eine Zahlung, die 2 Jahre gilt, kein Abo. Bis zu 3 Haushalte, Updates inklusive, funktioniert auch offline. Gib den Schlüssel unter Einstellungen → Funktionen → PadSpan-Lizenz ein; kaufst du ein weiteres mit derselben E-Mail, kommt es auf diesen Schlüssel. PadSpan Pro enthält sie alle."
   },
   {
-   "en": "Add-ons need PadSpan 0.38.300 or later, which is in beta for now; the next stable release includes them.",
-   "de": "Add-ons brauchen PadSpan 0.38.300 oder neuer. Das ist vorerst eine Beta; die nächste stabile Version enthält sie."
+   "en": "Add-ons need PadSpan 0.38.300 or later, which is in the beta releases for now.",
+   "de": "Add-ons brauchen PadSpan 0.38.300 oder neuer. Das gibt es vorerst nur in den Beta-Versionen."
   },
   {
    "en": "<a href=\"/add-ons/\">The add-ons page</a> has the details of each one.",
@@ -904,7 +904,7 @@
   },
   {
    "en": "Arm and disarm in the emergency button, the emergency lights test, and the door, garage and gate card with its openers. A triggered alarm, locks and Alert pulse stay free",
-   "de": "Scharf- und Unscharfschalten im Notfall-Knopf, der Test der Notbeleuchtung und die Karte von Tür, Garage und Tor mit ihren Öffnern. Ein ausgelöster Alarm, Schlösser und Alert pulse bleiben kostenlos"
+   "de": "Scharf- und Unscharfschalten im Notfall-Knopf, der Test der Notbeleuchtung und die Karte von Tür, Garage und Tor mit ihren Öffnern. Ein ausgelöster Alarm, Schlösser und der Alarmpuls bleiben kostenlos"
   },
   {
    "en": "Wi-Fi coverage <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$6.45 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$3.22 CAD</span>",
@@ -940,7 +940,7 @@
   },
   {
    "en": "Vacation Mode &amp; presets <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$4.25 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.12 CAD</span>",
-   "de": "Vacation Mode &amp; Presets <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,12 CAD · ca. 1,40 €</span>"
+   "de": "Urlaubsmodus &amp; Voreinstellungen <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,12 CAD · ca. 1,40 €</span>"
   },
   {
    "en": "Half off until January 1 (normally $4.25)",
@@ -948,7 +948,7 @@
   },
   {
    "en": "Vacation Mode and Whole House Presets",
-   "de": "Vacation Mode und Whole House Presets"
+   "de": "Urlaubsmodus und Presets fürs ganze Haus"
   },
   {
    "en": "Looks pack <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$4.25 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.12 CAD</span>",
@@ -960,7 +960,7 @@
   },
   {
    "en": "Forensics <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$5.56 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.78 CAD</span>",
-   "de": "Forensics <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">5,56 CAD · ca. 3,70 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,78 CAD · ca. 1,85 €</span>"
+   "de": "Forensik <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">5,56 CAD · ca. 3,70 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,78 CAD · ca. 1,85 €</span>"
   },
   {
    "en": "Half off until January 1 (normally $5.56)",
@@ -976,7 +976,7 @@
   },
   {
    "en": "Busy Times and Locate",
-   "de": "Busy Times und Locate"
+   "de": "Stoßzeiten und Finden"
   },
   {
    "en": "PadSpan Bright",
@@ -1028,7 +1028,7 @@
   },
   {
    "en": "Forensics — that is PadSpan Pro",
-   "de": "Forensics: Das ist PadSpan Pro"
+   "de": "Forensik: Das ist PadSpan Pro"
   },
   {
    "en": "Buy PadSpan Bright Pro",
@@ -1108,7 +1108,7 @@
   },
   {
    "en": "Arm and disarm the house alarm, the emergency lights test, and the door, garage and gate card",
-   "de": "Die Alarmanlage scharf- und unscharfschalten, der Notlicht-Test und die Karte für Tür, Garage und Tor"
+   "de": "Die Alarmanlage scharf- und unscharfschalten, der Test der Notbeleuchtung und die Karte für Tür, Garage und Tor"
   },
   {
    "en": "Import an existing house from PadSpan Bright into PadSpan HA",
@@ -1204,7 +1204,7 @@
   },
   {
    "en": "I love creating and experimenting, and I've spent most of my working life building new solutions to problems, many of them in wireless and radio. I'm a ham, too. That helps, because Bluetooth presence is a radio problem.",
-   "de": "Ich erschaffe und experimentiere gern, und ich habe den größten Teil meines Berufslebens damit verbracht, neue Lösungen für Probleme zu bauen, viele davon rund um Funk. Ich bin auch Funkamateur. Das hilft, denn Bluetooth-Anwesenheit ist ein Funkproblem."
+   "de": "Ich liebe es, Neues zu schaffen und zu experimentieren, und ich habe den größten Teil meines Berufslebens damit verbracht, neue Lösungen für Probleme zu entwickeln, viele davon rund um Funk. Ich bin auch Funkamateur. Das hilft, denn Bluetooth-Anwesenheit ist ein Funkproblem."
   },
   {
    "en": "I write PadSpan with the help of AI coding tools, mostly Claude, but PadSpan is still my design. I decide what it does and how it works, I test it in my own house, and I sign off on every release. <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md\">How PadSpan is built and checked</a>.",
@@ -1237,12 +1237,12 @@
   "PadSpan logo": "PadSpan-Logo",
   "PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices": "PadSpan auf einem Wanddisplay im Wohnzimmer, mit der Karte aller Etagen und den erfassten Geräten",
   "PadSpan™ HA – a control panel on your floor plan, with room presence, for Home Assistant": "PadSpan™ HA – eine Steuerzentrale auf deinem Grundriss, mit Anwesenheit pro Raum, für Home Assistant",
-  "An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence, a 3D house and wall screens.": "Eine ausgesprochen intuitive Steuerzentrale für Home Assistant. Jedes Licht, jedes Schloss und jeder Alarm auf deinem Grundriss, einen Fingertipp entfernt, dazu Anwesenheit pro Raum, ein 3D-Haus und Wanddisplays.",
   "Your whole house on one screen in Home Assistant. Lights, locks and alarms on your floor plan, which room everyone is in, and with PadSpan Pro a 3D house and wall mode. Free and open source.": "Dein ganzes Haus auf einem Bildschirm in Home Assistant. Lichter, Schlösser und Alarme auf deinem Grundriss, wer in welchem Raum ist, und mit PadSpan Pro ein 3D-Haus und der Wandmodus. Kostenlos und Open Source.",
   "PadSpan's first screen on a new install: a Make it a map checklist at 0 of 6, and the Who's where now card with the rooms Hall, Kitchen and Living Room and the devices in each": "Der erste Bildschirm von PadSpan bei einer neuen Installation: eine Checkliste Make it a map bei 0 von 6 und die Kachel Who's where now mit den Räumen Hall, Kitchen und Living Room und den Geräten darin",
   "The demo house's rooms on PadSpan's Overview: three floors stacked one above the other, each room outlined in its own colour with its name": "Die Räume des Demo-Hauses auf PadSpans Overview: drei Etagen übereinander, jeder Raum in seiner eigenen Farbe umrandet und mit Namen",
   "PadSpan's demo house in 3D: three floors pulled apart, furnished, with people, keys and a guest's tag in their rooms": "PadSpans Demo-Haus in 3D: drei Etagen auseinandergezogen, möbliert, mit Personen, Schlüsseln und dem Tracker eines Gastes in ihren Räumen",
-  "The demo house's main floor in 3D after dark, with the lights that are on glowing in their rooms, a guest's tag and the keys": "Das Hauptgeschoss des Demo-Hauses nachts in 3D, die eingeschalteten Lichter leuchten in ihren Räumen, dazu der Tracker eines Gastes und die Schlüssel"
+  "The demo house's main floor in 3D after dark, with the lights that are on glowing in their rooms, a guest's tag and the keys": "Das Hauptgeschoss des Demo-Hauses nachts in 3D, die eingeschalteten Lichter leuchten in ihren Räumen, dazu der Tracker eines Gastes und die Schlüssel",
+  "An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence. PadSpan Pro adds a 3D house and wall mode.": "Eine ausgesprochen intuitive Steuerzentrale für Home Assistant. Jedes Licht, jedes Schloss und jeder Alarm auf deinem Grundriss, nur einen Fingertipp entfernt, dazu Anwesenheit pro Raum. PadSpan Pro bringt ein 3D-Haus und den Wandmodus."
  },
  "raw": {
   "style=\"margin-top:auto\">Install free</a>": "style=\"margin-top:auto\">Kostenlos installieren</a>",

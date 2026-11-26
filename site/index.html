@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PadSpan™ HA – a control panel on your floor plan, with room presence, for Home Assistant</title>
-<meta name="description" content="An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence, a 3D house and wall screens.">
+<meta name="description" content="An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence. PadSpan Pro adds a 3D house and wall mode.">
 <meta property="og:title" content="PadSpan™ HA – a control panel on your floor plan, with room presence, for Home Assistant">
 <meta property="og:description" content="Your whole house on one screen in Home Assistant. Lights, locks and alarms on your floor plan, which room everyone is in, and with PadSpan Pro a 3D house and wall mode. Free and open source.">
 <meta property="og:image" content="https://padspan.traks.ca/images/social-preview.png">
@@ -178,15 +178,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="doors">
   <div class="kick">What it does</div>
   <h2>What do you want PadSpan for?</h2>
-  <p class="lede">Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. <span class="pill soon">Beta</span> marks what's in PadSpan's beta releases now and comes with the next stable. The demo links open a sample house that runs as PadSpan Pro.</p>
+  <p class="lede">Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. <span class="pill soon">Beta</span> marks what's in PadSpan's beta releases for now. The demo links open a sample house that runs as PadSpan Pro.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr))">
     <div class="feat door">
       <img src="images/wall-panel-in-situ.jpg" width="1400" height="1054" alt="PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices" loading="lazy">
       <p class="caption">PadSpan on the wall in my house, beside the thermostat and the light switches.</p>
       <h3>The whole house on one screen <span class="pill free">Free</span></h3>
-      <p><b>You see</b> every floor and room of your house, with the lights, locks, doors, windows, motion sensors and leak, smoke, gas and CO alarms in their rooms. A leak or smoke alarm turns its room red on every screen, and it stays red for up to two days or until someone presses Reset.</p>
+      <p><b>You see</b> every floor and room of your house, with the lights, locks, motion sensors and leak, smoke, gas and CO alarms in their rooms, and each door or window you draw on a wall shown open or shut. A leak or smoke alarm turns its room red on every screen, and it stays red for up to two days or until someone presses Reset.</p>
       <p><b>You tap</b> a light to switch it, a room's name for its devices with All on and All off, or a lock to lock or unlock it. Unlocking asks first.</p>
-      <p><b>Needs</b> Home Assistant 2024.8 or newer, and no Bluetooth scanner.</p>
+      <p><b>Needs</b> Home Assistant 2024.8 or newer and your rooms on a plan. No Bluetooth scanner.</p>
       <p><span class="pill pro">Pro</span> Wall mode fits the whole house to a wall screen and dims it at night, and the Atlas can open as your Overview.</p>
       <p class="more"><a href="demo/?page=atlas">The Atlas in the demo</a></p>
     </div>
@@ -204,8 +204,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <img src="/demo/media/setup-overview-rooms.jpg" width="1400" height="1242" alt="The demo house's rooms on PadSpan's Overview: three floors stacked one above the other, each room outlined in its own colour with its name" loading="lazy">
       <p class="caption">The free Overview: the sample house's three floors, stacked.</p>
       <h3>Your floor plan, and the house in 3D <span class="pill free">Free</span> <span class="pill pro">3D is Pro</span></h3>
-      <p><b>You see</b> your floors stacked one above the other, each room drawn to scale in its own colour, with its ceiling height.</p>
-      <p><b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor.</p>
+      <p><b>You see</b> your floors stacked one above the other, each room drawn to scale in its own colour.</p>
+      <p><b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor. PDFs and plan files are in the beta releases for now.</p>
       <p><b>You tap</b> Show what it will make, then Make the rough house, and you have a first map with one box per Home Assistant area, without drawing anything. <span class="pill soon">Beta</span></p>
       <p><b>Needs</b> Home Assistant. A LiDAR scan needs an iPhone 12 Pro or newer Pro, or an iPad Pro from 2020 or newer, and a RoomPlan app that shares USDZ.</p>
       <p><span class="pill pro">Pro</span> Live Aboard builds the house in 3D from the same map, like looking into a house in The Sims, and Furnish fills the rooms.</p>
@@ -231,7 +231,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <h2>What a tap does</h2>
   <p class="lede">What you use most is a tap away, on the map, in the room where it is.</p>
   <div class="docgrid">
-    <div class="doc"><b>Switch a light</b><span>Open Atlas in the Home Assistant sidebar and tap the light. Two taps from anywhere in Home Assistant.</span></div>
+    <div class="doc"><b>Switch a light</b><span>Open Atlas in the Home Assistant sidebar and tap the light. That's two taps.</span></div>
     <div class="doc"><b>Turn a room off</b><span>On the Atlas, tap the room's name, then All off.</span></div>
     <div class="doc"><b>Unlock a door</b><span>Tap the lock on the map, then Unlock. It asks before it unlocks.</span></div>
     <div class="doc"><b>See who's home</b><span>Open PadSpan HA. The first screen shows each room and who is in it.</span></div>
@@ -243,16 +243,16 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <div class="divider"></div>
 
 <section class="wrap" id="day">
-  <div class="kick">My house</div>
-  <h2>A day in my house</h2>
-  <p class="lede">I built PadSpan for my own house: three floors, 5,000 sq ft and a 4K screen on the wall. These are the moments in a day it's made for, and whether each one is free. Morning, Leaving and Guests need a Bluetooth scanner; the others don't.</p>
+  <div class="kick">Through the day</div>
+  <h2>A day with PadSpan</h2>
+  <p class="lede">Here's what PadSpan does through a day, and whether each part is free. Morning, Leaving and Guests need a Bluetooth scanner; the others don't. I built PadSpan for my own house: three floors, 5,000 sq ft and a 4K screen on the wall.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
     <div class="feat tile"><h3>Morning <span class="pill free">Free</span> <span class="pill soon">Beta</span></h3><p>Yesterday at home sends one morning message about the day before, with who came and went, guests' visits, and lights left on in empty rooms.</p></div>
-    <div class="feat tile"><h3>Leaving <span class="pill free">Free</span> <span class="pill soon">Beta</span></h3><p>Lights follow people switches a room off once nobody has been in it for 2 minutes. A light you switch off by hand stays off while you're still in the room.</p></div>
-    <div class="feat tile"><h3>At the door <span class="pill pro">Pro</span></h3><p>When the doorbell rings, the 3D house on the wall flies to the doorbell and shows the camera's snapshot, then goes back after 20 seconds.</p></div>
+    <div class="feat tile"><h3>Leaving <span class="pill free">Free</span> <span class="pill soon">Beta</span></h3><p>Lights follow people switches a room off once nobody has been in it for 2 minutes, or the time you set. A light you switch off by hand stays off while you're still in the room.</p></div>
+    <div class="feat tile"><h3>At the door <span class="pill pro">Pro</span></h3><p>Once an administrator picks the doorbell in Settings, the 3D house flies to it when it rings, shows a camera's snapshot if one is picked, and goes back after 20 seconds.</p></div>
     <div class="feat tile"><h3>Guests <span class="pill free">Free</span></h3><p>A guest gets a small Bluetooth tag for their visit, and the screen shows which room they're in. Their stay's report is deleted with their name after 30 days, unless you pick another time.</p></div>
-    <div class="feat tile"><h3>Something's wrong <span class="pill free">Free</span></h3><p>A leak, smoke, gas or CO alarm turns its room red on every screen and stays red until someone presses Reset. A sensor that went off for half a second still counts.</p></div>
-    <div class="feat tile"><h3>Bedtime <span class="pill free">Free</span></h3><p>One look at the wall shows which lights are still on and which doors and windows are open. Tap a room's name, then All off.</p></div>
+    <div class="feat tile"><h3>Something's wrong <span class="pill free">Free</span></h3><p>A leak, smoke, gas or CO alarm turns its room red on every screen and stays red for up to two days or until someone presses Reset. A sensor that went off for half a second still counts.</p></div>
+    <div class="feat tile"><h3>Bedtime <span class="pill free">Free</span></h3><p>One look at the Atlas shows which lights are still on and which doors and windows are open. Tap a room's name, then All off.</p></div>
     <div class="feat tile"><h3>Away <span class="pill pro">Pro or add-on</span></h3><p>Vacation Mode learns each light's routine by weekday from your Home Assistant history and keeps switching the lights that way until you turn it off.</p></div>
   </div>
 </section>
@@ -270,7 +270,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>Your rooms and floors, drawn from your own plan</li>
         <li>One marker per light and fan, in the room it belongs to</li>
         <li>Tap a light to switch it, or a room's name for All on and All off</li>
-        <li>Locks, doors and windows, motion, leak and smoke sensors in their rooms</li>
+        <li>Locks, motion, leak and smoke sensors in their rooms, and doors and windows on their walls, open or shut</li>
         <li>A wall dimmer and its smart bulbs as one light (a power team) that follows the day, with a wake-up, a bedtime and a night light</li>
         <li>Lights follow people, room by room, once you have a Bluetooth scanner <span class="pill soon">Beta</span></li>
         <li>Alert pulse, off until you turn it on, rings a room amber when a door has been open for more than 6 hours or a window is open in the rain</li>
@@ -297,7 +297,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <div class="divider"></div>
 
 <section class="wrap" id="layers">
-  <div class="kick">Simple or complex</div>
+  <div class="kick">Getting started</div>
   <h2>Where to start, and how far it goes</h2>
   <p class="lede">The first column needs no scanner and no drawing. The second is there when you want more.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
@@ -317,7 +317,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>Draw your real rooms on a plan to scale, then carry your phone round each room for 90 seconds with <b>Walk a room</b> to calibrate it.</li>
         <li>PadSpan has 23 dedicated views. <b>Advanced</b> puts 14 of them in the menu and keeps the rest under More tools.</li>
         <li>Pick the panel's look. Night, Light (inverted) and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro or the Looks pack add-on.</li>
-        <li>Your automations get a room for each named device, events when someone arrives, leaves or changes room, and three blueprints for lights. Assist answers "Which room is Alex in?" once you add its sentences.</li>
+        <li>Your automations get a room for each named device, events when someone arrives, leaves or changes room, and three blueprints for lights. Assist answers "Which room is Alex in?" once you add PadSpan's sentences.</li>
         <li>PadSpan Pro for exact placement, the 3D house and wall mode, or one add-on for a single feature.</li>
       </ul>
     </div>
@@ -402,10 +402,10 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <ul class="steps">
         <li><b>Live Aboard</b>, your house in 3D, like looking into a house in The Sims. Lights glow in their real colour, lit windows glow at night, rain and snow fall outside, and the Studio look puts the house under a sky that follows the real sun. It's experimental and off until you turn it on.</li>
         <li><b>Walk</b> through the 3D house at eye height. A door with a sensor opens when the real door does, and the stairs take you up and down. <span class="pill soon">Beta</span></li>
-        <li><b>The view goes to what happens.</b> On a wall screen the 3D house flies to a doorbell that rings, a door that opens or an alarm, with a camera's snapshot if you pick one, then goes back after 20 seconds.</li>
+        <li><b>The view flies to what happens.</b> On the sidebar and wall screens, the 3D house flies to a doorbell that rings, a door that opens or an alarm that goes off, with a camera's snapshot if you pick one, then goes back after 20 seconds. An administrator picks what to watch in Settings.</li>
         <li><b>Furnish</b> fills a room in one tap, or piece by piece from 33 kinds of furniture. Link a piece to a device and a lamp glows with its light, a TV lights up while it plays, and a fan's blades turn.</li>
         <li><b>Exact placement</b> of every light, fan, lock and sensor, in its real shape, size and angle, with WLED control, Automorph and Showcase. See <a href="#lights">Lights</a>.</li>
-        <li><b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and keeps the screen awake.</li>
+        <li><b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and, on HTTPS, keeps the screen awake.</li>
         <li><b>The new Atlas layout</b>, with a ⋯ list that sets what each screen shows.</li>
         <li><b>The Atlas as your Overview</b>, the first thing PadSpan opens.</li>
         <li><b>People and tags on the Atlas</b>, where PadSpan places them.</li>
@@ -420,7 +420,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li><b>Every new PadSpan feature</b>, for as long as the key runs.</li>
         <li><b>Up to 5 homes.</b> One key covers five Home Assistants. With more than two, every home on the key needs the anonymous usage report on.</li>
         <li><b>90 days free.</b> Try all of Pro for 90 days with no card. An admin starts it in the panel, there's one trial per home, and the usage report stays on until the trial ends.</li>
-        <li><b>Nothing is lost.</b> When a key ends, nothing you made is deleted. The key keeps working 14 days past its end date, and everything comes back when you renew.</li>
+        <li><b>Nothing is lost.</b> A key keeps working for 14 days after its end date. Then the paid features switch off, but nothing you made is deleted, and it stays readable and exportable.</li>
         <li data-until-pass><b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.</li>
       </ul>
     </div>
@@ -555,7 +555,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <div class="sub">For PadSpan HA without Pro · one feature each</div>
       <p data-addon-price="half" style="display:none;font-size:15px;color:var(--acc2);font-weight:800;margin:0 0 8px">Black Friday: every add-on is half off until January 1.</p>
       <p style="font-size:14px;color:#c4d6c9;margin:0 0 12px">Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.</p>
-      <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px">Add-ons need PadSpan 0.38.300 or later, which is in beta for now; the next stable release includes them.</p>
+      <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px">Add-ons need PadSpan 0.38.300 or later, which is in the beta releases for now.</p>
       <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px"><a href="/add-ons/">The add-ons page</a> has the details of each one.</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
         <div id="audio" data-addon="audio" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
@@ -876,7 +876,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="whatsnew">
   <div class="kick">What's new</div>
   <h2>The releases since v0.21, in plain terms</h2>
-  <p class="lede">Every release since v0.21, newest first, in plain words. The <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">full changelog</a> has every entry.</p>
+  <p class="lede">Newest first. The <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">full changelog</a> has every entry.</p>
 
   <div class="rel" style="margin-top:26px">
 

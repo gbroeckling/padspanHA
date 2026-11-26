@@ -1,6 +1,6 @@
 # PadSpan™ HA
 
-### Your house as a Home Assistant control panel: every light on your floor plan a tap away, room presence for each phone, watch and tag, and the house in 3D on a wall screen
+### Your house as a Home Assistant control panel: every light on your floor plan, room presence for each phone, watch and tag, and the house in 3D on a wall screen
 
 [![PadSpan on a sample house: the whole house in 3D, lit rooms after dark with a guest's tag, tapping lights on the Atlas, then a new install's free Who's where now screen](./images/padspan-tour.webp)](https://padspan.traks.ca/demo/)
 
@@ -16,7 +16,7 @@ It's a Home Assistant integration. It draws your house from its floor plan, floo
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · [PadSpan Pro](https://padspan.traks.ca/pro/) · [Add-ons](https://padspan.traks.ca/add-ons/) · 📖 **Guides:** [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) · [What can Home Assistant do once it knows the room?](https://padspan.traks.ca/guides/room-presence-automations/) · [Bermuda, NeonPlan 3D or PadSpan?](https://padspan.traks.ca/guides/bermuda-vs-neonplan/) · [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) · [Which Bluetooth tag works?](https://padspan.traks.ca/guides/bluetooth-tags/) · [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
 
-<sub>The tour is the real panel on the demo's sample house, at real speed, with captions added. Most of it shows PadSpan Pro; the Who's where now screen at the end is free. The full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
+<sub>The tour is the real panel on the demo's sample house, at real speed, with captions added. Most of it shows PadSpan Pro; the Who's where now screen at the end is free. Each part of the demo, the wall screen included, opens from [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
 ---
 
@@ -89,14 +89,14 @@ With PadSpan Pro you can:
 - **Put each light and device exactly where it is.** Drag lights, fans, locks and sensors to their real spot, and give each light its real shape (pot light, pendant, sconce, strip, chandelier), size and angle. WLED strips get live brightness, colour and effects, and **Exact look** brings a WLED light on the same way every time. **Automorph** draws each light's glow into its room, and **Fit room** keeps it inside the walls.
 - **Look into your house in 3D.** Live Aboard builds the house from the map you drew, like looking into a house in The Sims. Lights glow in their real colour, the house darkens with the real sun, lit windows show from outside after dark, and rain and snow fall outside the walls. The **Studio** look puts the house on a stage under a sky that follows the sun. Live Aboard is experimental and off until you turn it on.
 - **Walk through it.** **Walk** puts you at eye height just inside the front door. Walls and closed doors stop you, a door with a sensor opens when the real one does, and the stairs take you up and down.
-- **Have the view fly to what just happened.** Pick what to watch, and on the sidebar and wall screens the 3D view flies to a doorbell that rings, a door that opens or an alarm that goes off, shows its card (with a camera's snapshot if you pick one), and goes back after 20 seconds.
+- **Have the view fly to what just happened.** An administrator picks what to watch in Settings, and on the sidebar and wall screens the 3D view flies to a doorbell that rings, a door that opens or an alarm that goes off, shows its card (with a camera's snapshot if you pick one), and goes back after 20 seconds.
 - **Furnish it.** 33 kinds of furniture with their own sliders, a whole room furnished in one tap, stairs, floors and wall colours. Link a piece to a device and a lamp glows in its light's colour, the TV lights up while it plays and the washer shakes while it runs.
 - **Put the house on the wall.** Wall mode (`/padspan-lights?kiosk=1`) fits every floor to the screen, sizes the text for the screen and how far away people stand, dims at night and fades its controls 30 seconds after the last touch. With the new Atlas layout, each screen picks what it shows.
 - **Make the Atlas your first screen.** Overview shows the Atlas, or the 3D house, in place of the classic map.
 - **See people and tags on the map**, flat or in 3D, each where PadSpan has them.
 - **Use every add-on below** without buying it separately.
 
-One key covers up to five homes; with more than two, each home keeps its usage report on. If a key runs out, nothing you set up is lost, and it all comes back when you renew.
+One key covers up to five homes; with more than two, each home keeps its usage report on. A key keeps working for 14 days after its end date. Then the paid features switch off, but nothing you set up is deleted, and it stays readable and exportable.
 
 **Try all of Pro free for 90 days, no card.** An administrator starts it in **Settings → Features → PadSpan licence**, one trial per home, and the anonymous usage report stays on until it ends. Testers get two years of Pro (one year if they join from December 16, 2026) while their usage report stays on, and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
 
@@ -104,7 +104,7 @@ Everything Pro does: [padspan.traks.ca/pro](https://padspan.traks.ca/pro/). Pric
 
 ### Add-ons
 
-Just want one thing? Each add-on adds one area of PadSpan to an install without Pro. **PadSpan Pro includes all of them.** Each is one payment that covers two years on up to three homes. There's no subscription, and one key carries every add-on you buy. Add-ons need PadSpan 0.38.300 or later.
+Just want one thing? Each add-on adds one area of PadSpan to an install without Pro. **PadSpan Pro includes all of them.** Each is one payment that covers two years on up to three homes. There's no subscription, and one key carries every add-on you buy. Add-ons need PadSpan 0.38.300 or later, which is in the beta releases for now.
 
 | Add-on | What it adds | Needs |
 |:--|:--|:--|
@@ -180,7 +180,7 @@ Guests get a small Bluetooth tag for their visit, so PadSpan shows which room th
 - A device tracker for each named device (its state is the room, or `not_home`), area and distance sensors, occupancy sensors per room (off by default), sub-zone sensors, and binary sensors for Vacation Mode and guests at home. Each power team is one Home Assistant `light`.
 - Events when a named device arrives or leaves (`padspan_device_arrived`, `padspan_device_departed`), when a followed one changes room (`padspan_room_change`), and for guest tags (`padspan_ha_guest`).
 - `padspan_ha.announce` puts a big message with a chime on the PadSpan screens you name, read aloud, and `padspan_ha.reload_screens` reloads them (both need **Open screens** on).
-- Assist answers "Which room is Alex in?" once you add its sentences, and `/padspan-ha?room=Kitchen` or `?follow=Alex` opens a room's card or Follow straight away.
+- Assist answers "Which room is Alex in?" once you add PadSpan's sentences, and `/padspan-ha?room=Kitchen` or `?follow=Alex` opens a room's card or Follow straight away.
 - Three blueprints: room lights follow people, lights on in whichever room you walk into, and lights off when a room is empty. [What can Home Assistant do once it knows the room?](https://padspan.traks.ca/guides/room-presence-automations/) has eight tested recipes.
 
 ### Floor plans and rooms
@@ -198,7 +198,7 @@ Guests get a small Bluetooth tag for their visit, so PadSpan shows which room th
 The Atlas is the house as a control panel. It has its own page in the Home Assistant sidebar, made for a screen you leave up, and anyone in the household can use it without being an administrator.
 
 **Free**
-- Floors and rooms, with each light, fan, lock and sensor as a marker in its room. Tap a light to switch it. Tap a room's name for its card: who's there, All on, All off, and its scenes and scripts.
+- Floors and rooms, with each light, fan, lock and sensor as a marker in its room. Tap a light to switch it. Tap a room's name for its card: All on, All off, and its scenes and scripts.
 - Locks lock and unlock from the map and the room's card, and unlocking asks first.
 - Leak, smoke, gas and CO alarms ring their room red and stay up for 2 days or until someone presses Reset, with a red banner on every PadSpan screen and a notification when one goes off and when it clears. A house alarm going off shows in the emergency button and the same banner.
 - **Alert pulse** (off by default) rings a room amber when a door, window, gate or cover there has been open more than 6 hours, or a window is open while it rains or snows.
@@ -241,7 +241,7 @@ Guides: [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) and [Furnish Guide](./d
 
 - **23 dedicated views** with Basic and Advanced modes: Basic keeps a short main list, and the rest sit under More tools.
 - Themes: Night, Light and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro or the Looks pack add-on. **Follow the sun** switches to a light theme by day.
-- The panel speaks your Home Assistant profile's language when it's German, French or Dutch. German covers nearly all of it; French and Dutch leave the Atlas, the 3D house, Furnish, Rooms and Traceback in English.
+- The panel speaks your Home Assistant profile's language when it's German, French or Dutch. German covers nearly all of it; French and Dutch leave the Atlas map, the 3D house, Furnish, Rooms and Traceback in English.
 - Metres, or feet and inches.
 - A built-in **Training Hub** with 16 animated walkthroughs, and the full manual.
 - **Sample mode**: **Preview a finished house** shows a sample house with every feature set up, before your own hardware is in. **Back to my house** returns to yours.
