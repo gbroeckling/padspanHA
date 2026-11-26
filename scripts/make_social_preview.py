@@ -29,7 +29,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "custom_components" / "padspan_ha" / "manifest.json"
-SOURCE = ROOT / "images" / "overview-3d-multifloor.jpg"
+SOURCE = ROOT / "tools" / "demo" / "media" / "estate-wall-atlas.jpg"   # the demo's sample house: no real names
 OUT = ROOT / "images" / "social-preview.png"
 
 W, H = 1200, 630
@@ -37,9 +37,10 @@ ACC = (52, 211, 153)      # --acc, the site's green
 INK = (232, 245, 236)     # --fg
 MUT = (147, 169, 155)     # --mut
 
-_FONT_DIRS = [pathlib.Path(r"C:\Windows\Fonts"), pathlib.Path("/usr/share/fonts")]
-_BOLD = ["segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"]
-_REG = ["segoeui.ttf", "arial.ttf", "DejaVuSans.ttf"]
+_FONT_DIRS = [pathlib.Path(r"C:\Windows\Fonts"), pathlib.Path("/System/Library/Fonts/Supplemental"),
+              pathlib.Path("/usr/share/fonts")]
+_BOLD = ["segoeuib.ttf", "arialbd.ttf", "Arial Bold.ttf", "DejaVuSans-Bold.ttf"]
+_REG = ["segoeui.ttf", "arial.ttf", "Arial.ttf", "DejaVuSans.ttf"]
 
 
 def font(names: list[str], size: int) -> ImageFont.FreeTypeFont:
@@ -92,10 +93,10 @@ def build(version: str) -> Image.Image:
     f_meta = font(_BOLD, 23)
 
     d.text((x, H - 214), "PadSpan™ HA", font=f_title, fill=INK)
-    d.text((x, H - 116), "Room-level Bluetooth presence for Home Assistant",
+    d.text((x, H - 116), "A control panel on your floor plan, for Home Assistant",
            font=f_sub, fill=(200, 220, 205))
 
-    meta = f"v{version}   ·   3D FLOOR PLANS   ·   CALIBRATION   ·   LOCAL TRACKING"
+    meta = "LIGHTS AND LOCKS ON THE MAP   ·   ROOM PRESENCE   ·   RUNS LOCALLY"
     d.text((x, H - 62), meta, font=f_meta, fill=ACC)
 
     # A thin accent rule anchors the block to the site's visual language.
