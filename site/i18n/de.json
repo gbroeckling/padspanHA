@@ -39,8 +39,8 @@
    "de": "Wofür willst du PadSpan?"
   },
   {
-   "en": "Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. <span class=\"pill soon\">Beta</span> marks what's in PadSpan's beta releases for now. The demo links open a sample house that runs as PadSpan Pro.",
-   "de": "Jeder Teil funktioniert für sich, auf derselben Karte deines Hauses. Die Markierung zeigt, ob er kostenlos ist, und die Zeile „Braucht“ sagt, was er voraussetzt. <span class=\"pill soon\">Beta</span> kennzeichnet, was es vorerst nur in den Beta-Versionen von PadSpan gibt. Die Demo-Links öffnen ein Beispielhaus, das als PadSpan Pro läuft."
+   "en": "Each part works on its own, on the same map of your house. The badge says whether it's free, and the Needs line says what it takes. The demo links open a sample house that runs as PadSpan Pro.",
+   "de": "Jeder Teil funktioniert für sich, auf derselben Karte deines Hauses. Die Markierung zeigt, ob er kostenlos ist, und die Zeile „Braucht“ sagt, was er voraussetzt. Die Demo-Links öffnen ein Beispielhaus, das als PadSpan Pro läuft."
   },
   {
    "en": "PadSpan on the wall in my house, beside the thermostat and the light switches.",
@@ -107,12 +107,12 @@
    "de": "<b>Du siehst</b> deine Etagen übereinander, jeden Raum maßstabsgetreu in seiner eigenen Farbe."
   },
   {
-   "en": "<b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor. PDFs and plan files are in the beta releases for now.",
-   "de": "<b>Du beginnst</b> mit einem Bild oder PDF eines Plans, einem Foto deiner eigenen Skizze, einem LiDAR-Raumscan vom iPhone oder iPad, einer Datei aus Easy Floorplan, DXF oder Floorplanner, der Karte deines Saugroboters (experimentell) oder einer leeren Etage. PDFs und Plandateien gibt es vorerst nur in den Beta-Versionen."
+   "en": "<b>You start</b> from a picture or PDF of a plan, a photo of your own sketch, an iPhone or iPad LiDAR room scan, an Easy Floorplan, DXF or Floorplanner file, a robot vacuum's map (experimental) or a blank floor.",
+   "de": "<b>Du beginnst</b> mit einem Bild oder PDF eines Plans, einem Foto deiner eigenen Skizze, einem LiDAR-Raumscan vom iPhone oder iPad, einer Datei aus Easy Floorplan, DXF oder Floorplanner, der Karte deines Saugroboters (experimentell) oder einer leeren Etage."
   },
   {
-   "en": "<b>You tap</b> Show what it will make, then Make the rough house, and you have a first map with one box per Home Assistant area, without drawing anything. <span class=\"pill soon\">Beta</span>",
-   "de": "<b>Du tippst</b> auf „Zeigen, was angelegt wird“ und dann auf „Grobes Haus anlegen“, und du hast eine erste Karte mit einem Kasten pro Home-Assistant-Bereich, ohne etwas zu zeichnen. <span class=\"pill soon\">Beta</span>"
+   "en": "<b>You tap</b> Show what it will make, then Make the rough house, and you have a first map with one box per Home Assistant area, without drawing anything.",
+   "de": "<b>Du tippst</b> auf „Zeigen, was angelegt wird“ und dann auf „Grobes Haus anlegen“, und du hast eine erste Karte mit einem Kasten pro Home-Assistant-Bereich, ohne etwas zu zeichnen."
   },
   {
    "en": "<b>Needs</b> Home Assistant. A LiDAR scan needs an iPhone 12 Pro or newer Pro, or an iPad Pro from 2020 or newer, and a RoomPlan app that shares USDZ.",
@@ -135,8 +135,8 @@
    "de": "Jedes Licht an seinem Platz <span class=\"pill free\">Kostenlos</span>"
   },
   {
-   "en": "<b>You tap</b> a light to switch it, or a room's name and All off. Lights follow people switches a room on when someone carrying a named phone, watch or tag walks in, and off once it has been empty for 2 minutes, or the time you set. <span class=\"pill soon\">Beta</span>",
-   "de": "<b>Du tippst</b> auf ein Licht, um es zu schalten, oder auf den Namen eines Raums und „Alle aus“. „Licht folgt Personen“ schaltet einen Raum ein, wenn jemand mit einem benannten Handy, einer Uhr oder einem Tracker hereinkommt, und wieder aus, wenn er 2 Minuten leer war oder so lange, wie du einstellst. <span class=\"pill soon\">Beta</span>"
+   "en": "<b>You tap</b> a light to switch it, or a room's name and All off. Lights follow people switches a room on when someone carrying a named phone, watch or tag walks in, and off once it has been empty for 2 minutes, or the time you set.",
+   "de": "<b>Du tippst</b> auf ein Licht, um es zu schalten, oder auf den Namen eines Raums und „Alle aus“. „Licht folgt Personen“ schaltet einen Raum ein, wenn jemand mit einem benannten Handy, einer Uhr oder einem Tracker hereinkommt, und wieder aus, wenn er 2 Minuten leer war oder so lange, wie du einstellst."
   },
   {
    "en": "<b>Needs</b> Home Assistant. Lights follow people also needs a Bluetooth scanner.",
@@ -179,8 +179,8 @@
    "de": "<b>Einen Alarm zurücksetzen</b><span>Ein Wasser-, Rauch-, Gas- oder CO-Alarm legt ein rotes Banner über jeden Bildschirm, mit „Zurücksetzen“ darin.</span>"
   },
   {
-   "en": "<b>Play back the afternoon</b><span>Open Traceback, pick the time and press play. Share a replay turns it into a 10 to 30 second clip, with names replaced by initials or Person 1. <span class=\"pill soon\">Beta</span></span>",
-   "de": "<b>Den Nachmittag abspielen</b><span>Öffne Traceback, wähl die Zeit und drück auf Abspielen. „Wiedergabe teilen“ macht daraus einen Clip von 10 bis 30 Sekunden, mit Initialen oder „Person 1“ statt der Namen. <span class=\"pill soon\">Beta</span></span>"
+   "en": "<b>Play back the afternoon</b><span>Open Traceback, pick the time and press play. Share a replay turns it into a 10 to 30 second clip, with names replaced by initials or Person 1.</span>",
+   "de": "<b>Den Nachmittag abspielen</b><span>Öffne Traceback, wähl die Zeit und drück auf Abspielen. „Wiedergabe teilen“ macht daraus einen Clip von 10 bis 30 Sekunden, mit Initialen oder „Person 1“ statt der Namen.</span>"
   },
   {
    "en": "Through the day",
@@ -195,16 +195,16 @@
    "de": "Hier siehst du, was PadSpan im Lauf eines Tages tut und ob der jeweilige Teil kostenlos ist. „Morgens“, „Beim Gehen“ und „Gäste“ brauchen einen Bluetooth-Scanner, die anderen nicht. Ich habe PadSpan für mein eigenes Haus gebaut: drei Etagen, 5.000 Quadratfuß (rund 465 m²) und ein 4K-Bildschirm an der Wand."
   },
   {
-   "en": "Morning <span class=\"pill free\">Free</span> <span class=\"pill soon\">Beta</span>",
-   "de": "Morgens <span class=\"pill free\">Kostenlos</span> <span class=\"pill soon\">Beta</span>"
+   "en": "Morning <span class=\"pill free\">Free</span>",
+   "de": "Morgens <span class=\"pill free\">Kostenlos</span>"
   },
   {
    "en": "Yesterday at home sends one morning message about the day before, with who came and went, guests' visits, and lights left on in empty rooms.",
    "de": "„Gestern zu Hause“ schickt am Morgen eine Nachricht über den Vortag: wer kam und ging, Besuche von Gästen und Lichter, die in leeren Räumen anblieben."
   },
   {
-   "en": "Leaving <span class=\"pill free\">Free</span> <span class=\"pill soon\">Beta</span>",
-   "de": "Beim Gehen <span class=\"pill free\">Kostenlos</span> <span class=\"pill soon\">Beta</span>"
+   "en": "Leaving <span class=\"pill free\">Free</span>",
+   "de": "Beim Gehen <span class=\"pill free\">Kostenlos</span>"
   },
   {
    "en": "Lights follow people switches a room off once nobody has been in it for 2 minutes, or the time you set. A light you switch off by hand stays off while you're still in the room.",
@@ -287,8 +287,8 @@
    "de": "Ein Wanddimmer und seine smarten Lampen als ein Licht (ein Power-Team), das dem Tag folgt, mit Wecklicht, Schlafenszeit und Nachtlicht"
   },
   {
-   "en": "Lights follow people, room by room, once you have a Bluetooth scanner <span class=\"pill soon\">Beta</span>",
-   "de": "„Licht folgt Personen“, Raum für Raum, sobald du einen Bluetooth-Scanner hast <span class=\"pill soon\">Beta</span>"
+   "en": "Lights follow people, room by room, once you have a Bluetooth scanner",
+   "de": "„Licht folgt Personen“, Raum für Raum, sobald du einen Bluetooth-Scanner hast"
   },
   {
    "en": "Alert pulse, off until you turn it on, rings a room amber when a door has been open for more than 6 hours or a window is open in the rain",
@@ -351,8 +351,8 @@
    "de": "Installiere PadSpan über <b>Einstellungen → Marketplace</b> und wähl <b>OK</b>."
   },
   {
-   "en": "In Setup, press <b>Show what it will make</b>, then <b>Make the rough house</b>. You get one box per Home Assistant area. <span class=\"pill soon\">Beta</span>",
-   "de": "Tipp in der Einrichtung auf <b>Zeigen, was angelegt wird</b> und dann auf <b>Grobes Haus anlegen</b>. Du bekommst einen Kasten pro Home-Assistant-Bereich. <span class=\"pill soon\">Beta</span>"
+   "en": "In Setup, press <b>Show what it will make</b>, then <b>Make the rough house</b>. You get one box per Home Assistant area.",
+   "de": "Tipp in der Einrichtung auf <b>Zeigen, was angelegt wird</b> und dann auf <b>Grobes Haus anlegen</b>. Du bekommst einen Kasten pro Home-Assistant-Bereich."
   },
   {
    "en": "Open <b>Atlas</b> in the Home Assistant sidebar. Your lights are in their rooms, and a tap switches each one.",
@@ -567,8 +567,8 @@
    "de": "<b>Live Aboard</b>, dein Haus in 3D, als würdest du in ein Haus in „Die Sims“ schauen. Lichter leuchten in ihrer echten Farbe, erleuchtete Fenster glühen nachts, draußen fallen Regen und Schnee, und der Look Studio stellt das Haus unter einen Himmel, der der echten Sonne folgt. Es ist experimentell und aus, bis du es einschaltest."
   },
   {
-   "en": "<b>Walk</b> through the 3D house at eye height. A door with a sensor opens when the real door does, and the stairs take you up and down. <span class=\"pill soon\">Beta</span>",
-   "de": "Mit <b>Gehen</b> läufst du auf Augenhöhe durch das 3D-Haus. Eine Tür mit Sensor öffnet sich, wenn die echte Tür aufgeht, und über die Treppe kommst du rauf und runter. <span class=\"pill soon\">Beta</span>"
+   "en": "<b>Walk</b> through the 3D house at eye height. A door with a sensor opens when the real door does, and the stairs take you up and down.",
+   "de": "Mit <b>Gehen</b> läufst du auf Augenhöhe durch das 3D-Haus. Eine Tür mit Sensor öffnet sich, wenn die echte Tür aufgeht, und über die Treppe kommst du rauf und runter."
   },
   {
    "en": "<b>The view flies to what happens.</b> On the sidebar and wall screens, the 3D house flies to a doorbell that rings, a door that opens or an alarm that goes off, with a camera's snapshot if you pick one, then goes back after 20 seconds. An administrator picks what to watch in Settings.",
@@ -1373,12 +1373,12 @@
   "PadSpan logo": "PadSpan-Logo",
   "PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices": "PadSpan auf einem Wanddisplay im Wohnzimmer, mit der Karte aller Etagen und den erfassten Geräten",
   "PadSpan™ HA – a control panel on your floor plan, with room presence, for Home Assistant": "PadSpan™ HA – eine Steuerzentrale auf deinem Grundriss, mit Anwesenheit pro Raum, für Home Assistant",
-  "Your whole house on one screen in Home Assistant. Lights, locks and alarms on your floor plan, which room everyone is in, and with PadSpan Pro a 3D house and wall mode. Free and open source.": "Dein ganzes Haus auf einem Bildschirm in Home Assistant. Lichter, Schlösser und Alarme auf deinem Grundriss, wer in welchem Raum ist, und mit PadSpan Pro ein 3D-Haus und der Wandmodus. Kostenlos und Open Source.",
+  "Your whole house on one screen in Home Assistant. Lights, locks and alarms on your floor plan and which room everyone is in. PadSpan Pro furnishes the 3D house, puts your people in it and includes every add-on. Free and open source.": "Dein ganzes Haus auf einem Bildschirm in Home Assistant. Lichter, Schlösser und Alarme auf deinem Grundriss und wer in welchem Raum ist. PadSpan Pro richtet das 3D-Haus ein, setzt deine Leute hinein und enthält jedes Add-on. Kostenlos und Open Source.",
   "PadSpan's first screen on a new install: a Make it a map checklist at 0 of 6, and the Who's where now card with the rooms Hall, Kitchen and Living Room and the devices in each": "Der erste Bildschirm von PadSpan bei einer neuen Installation: eine Checkliste Make it a map bei 0 von 6 und die Kachel Who's where now mit den Räumen Hall, Kitchen und Living Room und den Geräten darin",
   "The demo house's rooms on PadSpan's Overview: three floors stacked one above the other, each room outlined in its own colour with its name": "Die Räume des Demo-Hauses auf PadSpans Overview: drei Etagen übereinander, jeder Raum in seiner eigenen Farbe umrandet und mit Namen",
   "PadSpan's demo house in 3D: three floors pulled apart, furnished, with people, keys and a guest's tag in their rooms": "PadSpans Demo-Haus in 3D: drei Etagen auseinandergezogen, möbliert, mit Personen, Schlüsseln und dem Tracker eines Gastes in ihren Räumen",
   "The demo house's main floor in 3D after dark, with the lights that are on glowing in their rooms, a guest's tag and the keys": "Das Hauptgeschoss des Demo-Hauses nachts in 3D, die eingeschalteten Lichter leuchten in ihren Räumen, dazu der Tracker eines Gastes und die Schlüssel",
-  "An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence. PadSpan Pro adds a 3D house and wall mode.": "Eine ausgesprochen intuitive Steuerzentrale für Home Assistant. Jedes Licht, jedes Schloss und jeder Alarm auf deinem Grundriss, nur einen Fingertipp entfernt, dazu Anwesenheit pro Raum. PadSpan Pro bringt ein 3D-Haus und den Wandmodus."
+  "An eminently intuitive control panel for Home Assistant. Every light, lock and alarm on your floor plan a tap away, plus room presence. PadSpan Pro adds Furnish and people in the 3D house, the wall screen's extras and every add-on.": "Eine ausgesprochen intuitive Steuerzentrale für Home Assistant. Jedes Licht, jedes Schloss und jeder Alarm auf deinem Grundriss, nur einen Fingertipp entfernt, dazu Anwesenheit pro Raum. PadSpan Pro bringt Möbel und Personen ins 3D-Haus, die Extras für den Wandbildschirm und jedes Add-on."
  },
  "raw": {
   "style=\"margin-top:auto\">Install free</a>": "style=\"margin-top:auto\">Kostenlos installieren</a>",
