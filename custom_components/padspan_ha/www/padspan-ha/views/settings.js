@@ -5381,7 +5381,7 @@ function _settingsAtlas(ctx, el){
   audioRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Audio")));
   lightsCard.appendChild(audioRow);
   const audioNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    t("A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (\u25A6 New layout) each screen ticks Audio in its \u22EF list instead. Off: none."));
+    t("A speaker beside a room's name while one of its players is on, and Audio in the room's card: volume, mute and off, and Match rooms for an administrator. For the whole house on the classic layout; on the new layout (\u25A6 New layout) and on a wall screen, each screen ticks Audio in its \u22EF list instead. Off: none."));
   lightsCard.appendChild(audioNote);
   audioCb.addEventListener("change", async ()=>{
     const want = audioCb.checked;
@@ -5420,10 +5420,10 @@ function _settingsAtlas(ctx, el){
     });
   };
   roomPartRow("atlas_shades_enabled", t("Shades"),
-    t("Open, Stop and Close for the room's blinds and shades in the room's card. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Shades in its ⋯ list instead. Off: none."));
+    t("Open, Stop and Close for the room's blinds and shades in the room's card. For the whole house on the classic layout; on the new layout (▦ New layout) and on a wall screen, each screen ticks Shades in its ⋯ list instead. Off: none."));
   if (addonAllowed(settings, "climate")) {
     roomPartRow("atlas_thermostats_enabled", t("Thermostats"),
-      t("Each thermostat in the room's card, its mode and its setpoint with − and +, and the room's temperature and humidity. For the whole house on the classic layout; on the new layout (▦ New layout) each screen ticks Thermostats in its ⋯ list instead. Off: none."));
+      t("Each thermostat in the room's card, its mode and its setpoint with − and +, and the room's temperature and humidity. For the whole house on the classic layout; on the new layout (▦ New layout) and on a wall screen, each screen ticks Thermostats in its ⋯ list instead. Off: none."));
   }
   lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));

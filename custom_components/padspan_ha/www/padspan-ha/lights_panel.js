@@ -36,7 +36,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, tapSwitches, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openLightsSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, peopleShownOn, withoutZigbeeDuplicates, confirmAsk, placeRoomDevices } =
+        vacationOptionsOf, vacationEndsText, layChildren, screenShowLine, carryShowLine, peopleShownOn, withoutZigbeeDuplicates, confirmAsk, placeRoomDevices } =
   await import(`./views/lights_map.js${STAMP}`);
 // Which add-ons this install has (views/editions.js addonAllowed, the backend's
 // own answer, settings.addons_licensed): this page asks _addon(name).
@@ -478,6 +478,8 @@ class PadSpanLightsApp extends HTMLElement {
       // Settings → Atlas → Shades and Thermostats: the same, for a room sheet's shades and its thermostats (_roomParts).
       if (s.atlas_shades_enabled !== undefined) this.state._shadesOn = s.atlas_shades_enabled === true;
       if (s.atlas_thermostats_enabled !== undefined) this.state._thermostatsOn = s.atlas_thermostats_enabled === true;
+      // Devices → Door Openers' marked openers: never a room sheet's shades (_roomCtl openers).
+      if (Array.isArray(s.door_opener_ids)) this.state._doorOpeners = s.door_opener_ids;
       // Settings → Atlas → Atlas — Mapped Light Control → Alert pulse, normally off.
       this.state._alertPulse = s.atlas_alert_pulse === true;
       // Outdoor weather (Settings → Atlas → Atlas — Mapped Light Control → Outdoor weather), field by field. A
@@ -1012,12 +1014,15 @@ class PadSpanLightsApp extends HTMLElement {
   // Whether this install has Audio (views/room_controls.js: the ⋯ list's "Audio" line, its "Set up ›", a room sheet's
   // Audio part, Settings → Atlas → Audio): the ONE place it is decided. PadSpan Pro or the Audio add-on.
   _audioAllowed(){ return this._addon("audio"); }
-  // Audio on this screen. Pro's display layout: the ⋯ list's "Audio" (key room_controls), ticked per screen. The classic
-  // layout has no ⋯ list: Settings → Atlas → Audio (atlas_audio_enabled) turns it on for the whole house.
+  // Whether this screen keeps its own ⋯ list (Show on this screen): Pro's display layout, or a wall (the layout a wall
+  // below Pro is drawn with too: the host's layoutV2). The classic layout has no ⋯ list: Settings → Atlas switches.
+  _screenLines(){ return (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall"); }
+  // Audio on this screen: the ⋯ list's "Audio" (key room_controls), ticked per screen, where the screen has the list
+  // (_screenLines: a wall's too, as its map's speakers follow, lights_map.js roomControlsOn); else Settings → Atlas →
+  // Audio (atlas_audio_enabled) for the whole house.
   _roomControlsOn(){
     if(!ROOMCTL || !this._audioAllowed()) return false;
-    const v2 = String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2;
-    return v2 ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;
+    return this._screenLines() ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;
   }
   // Which parts of a room's sheet are on for this screen (room_controls.js sheet's parts; the owner, 2026-11-26: "Shades
   // should go with doors and Windows", "Thermostats in climate and air quality"): Audio as ever; Shades, everyone's;
@@ -1025,7 +1030,10 @@ class PadSpanLightsApp extends HTMLElement {
   // has the ⋯ list) each is its own ⋯ line, off unless ticked; on the classic layout, Settings → Atlas → Shades and
   // Thermostats, off unless turned on.
   _roomParts(){
-    const lines = (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall");
+    const lines = this._screenLines();
+    // Shades and Thermostats were Audio's until 2026-11-26: a screen with Audio ticked keeps them, ticked (once: from
+    // then on each is its own line).
+    if (lines && !this._carried) { this._carried = true; carryShowLine("atlas", "room_controls", "room_shades"); carryShowLine("atlas", "room_controls", "room_climate"); }
     const on = (key, classic) => !!ROOMCTL && (lines ? screenShowLine("atlas", key)===true : classic === true);
     return { audio: this._roomControlsOn(), shades: on("room_shades", this.state._shadesOn),
              climate: this._addon("climate") && on("room_climate", this.state._thermostatsOn) };
@@ -1046,6 +1054,16 @@ class PadSpanLightsApp extends HTMLElement {
       },
       toast: (m,e)=>this._toast(m,e),
       errorText: (e)=>this._errorText(e),
+      // The covers that open a door or a gate, never a room sheet's shades: a wall's opener on the map (its own link a
+      // cover, or its linked opener) and Devices → Door Openers' marked ones.
+      openers: ()=>{
+        const out = new Set((this.state._doorOpeners || []).filter(e => typeof e === "string"));
+        for (const b of (this.state.model && this.state.model.rf_barriers_m) || []) {
+          if (b && typeof b.linked_opener_entity_id === "string") out.add(b.linked_opener_entity_id);
+          if (b && typeof b.linked_entity_id === "string" && b.linked_entity_id.startsWith("cover.")) out.add(b.linked_entity_id);
+        }
+        return out;
+      },
       // The opt-in report's room_controls:<word> (telemetry.py ROOM_CONTROLS_EVENTS), only while it is on.
       count: (word)=>{
         if(!this.state._telemetryOn || !this._hass) return;

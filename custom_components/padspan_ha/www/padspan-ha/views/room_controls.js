@@ -64,7 +64,8 @@ export const ROOM_AUDIO_SYSTEMS = Object.freeze({
 export const VOLUME_SET = 4, VOLUME_MUTE = 8, TURN_OFF = 256, VOLUME_STEP = 1024;
 const CLIMATE_TARGET = 1;
 const COVER_OPEN = 1, COVER_CLOSE = 2, COVER_STOP = 8;
-// A cover that is a garage door, a gate or a door is an opener (its door's card), never a shade here.
+// A cover that is a garage door, a gate or a door is an opener (its door's card, Alarm & security's), never a shade
+// here: by its device class, or linked as a door's opener (o.openers).
 const NOT_SHADES = new Set(["garage", "gate", "door"]);
 const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
 // How long a pressed level or mute shows before Home Assistant's own state is shown again.
@@ -192,6 +193,8 @@ const mk = (tag, style, text) => { const n = document.createElement(tag); if (st
  *   save(patch)   writes those two (settings_set); resolves when Home Assistant kept them
  *   admin()       an administrator: may match rooms
  *   toast(m, err), errorText(e), count(word) (the report's room_controls:<word>), redraw() (the open sheet and the map)
+ *   openers()     optional: the covers that open a door or a gate (a wall's opener on the map, Devices → Door Openers),
+ *                 never offered as shades whatever their device class
  * Returns { looks, sheet, switched, openMatch, canMatch } — functions only (the map card's signature keeps none of its
  * data). canMatch(): may this person open the matching card (an administrator).
  */
@@ -353,9 +356,11 @@ export function createRoomControls(o){
   // ── Shades: one row for the room's covers ──
   function shadesOf(aid){
     const out = [];
+    let doors = null;
+    try { doors = typeof o.openers === "function" ? o.openers() : null; } catch (_) { doors = null; }
     for (const [eid, s] of Object.entries(H().states || {})) {
       if (!eid.startsWith("cover.") || areaOf(H(), eid) !== aid || !s || s.state === "unavailable") continue;
-      if (NOT_SHADES.has(String((s.attributes || {}).device_class || ""))) continue;
+      if (NOT_SHADES.has(String((s.attributes || {}).device_class || "")) || (doors && doors.has(eid))) continue;
       out.push(eid);
     }
     return out.sort();
