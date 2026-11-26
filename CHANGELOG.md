@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.304 — The add-ons, sorted out: free shades, Climate & air quality, Presence insights with Forensics (2026-11-26)
+## 0.38.305 — The add-ons, sorted out: free shades, Climate & air quality, Presence insights with Forensics (2026-11-26)
 
 ### Changed
 - **Shades are free.** A room's blinds and shades are in its card on the Atlas, with how far open they are and Open, Stop and Close for them all, on any install with no key. Tick **Shades** in a screen's ⋯ list, under "Doors, windows and locks", or turn on **Settings → Atlas → Shades** on the classic layout. They used to come with Audio. Garage doors, gates and any cover linked as a door's opener never show up under Shades: they stay in their own door card, part of Alarm & security.
