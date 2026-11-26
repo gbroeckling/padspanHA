@@ -396,11 +396,25 @@ def _big_house(n: int, seed: int = 5) -> list[dict]:
 
 def test_a_big_calibration_is_sampled_across_rooms_the_same_way_every_run():
     import time as _t
+    from custom_components.padspan_ha.calibration_store import KNN_K
     pts = _big_house(5000)
-    t0 = _t.perf_counter()
-    ho = H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A)
-    took = _t.perf_counter() - t0
+    site = _site()
+    # What made it fast, counted (the same on any machine): the spatial sums built once, not once per spot, and each
+    # spot's k-NN run over its few nearest held-in prints, never the whole house.
+    real_knn, knn_sizes = CalibrationStore.knn_locate, []
+    def knn_locate(store, *a, **kw):
+        knn_sizes.append(len(store.data["points"]))
+        return real_knn(store, *a, **kw)
+    # The time is this process's CPU time, not the wall clock: a machine busy with the rest of the suite (-n auto)
+    # took 11.5 s of wall clock for what is about 3 s of work.
+    t0 = _t.process_time()
+    with (patch.object(CalibrationStore, "knn_locate", knn_locate),
+          patch.object(site, "fit_terms", wraps=site.fit_terms) as fit_terms):
+        ho = H.evaluate(pts, room_at=room_at, site=site, source_area=S2A)
+    took = _t.process_time() - t0
     assert ho["knn"]["spots"] <= H.MAX_TEST_SPOTS == 400
+    assert fit_terms.call_count == 1
+    assert 0 < len(knn_sizes) <= H.MAX_TEST_SPOTS and max(knn_sizes) <= KNN_K + H._KNN_SPARE, knn_sizes[:10]
     assert took < 10.0         # was ~20 s for 5000 points before the sample + sums (60 spots then, 400 now)
     assert H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A) == ho
     spots = list(range(len(pts)))

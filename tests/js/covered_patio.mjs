@@ -37,6 +37,10 @@ shim.install();
 globalThis.sessionStorage = { _d: {}, getItem(k) { return this._d[k] ?? null; }, setItem(k, v) { this._d[k] = String(v); },
   removeItem(k) { delete this._d[k]; }, clear() { this._d = {}; } };
 installStubGL();
+// The frames' clock is this harness's own, never how fast this machine runs (a machine busy with the whole
+// suite read as a slow screen and the view fell back to the flat map; live_aboard_view.mjs).
+const clockAt = performance.now();
+performance.now = () => clockAt;
 const shimRaf = globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
 

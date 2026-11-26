@@ -73,3 +73,20 @@ def test_the_harness_clock_moves_only_when_a_case_moves_it() -> None:
     src = (Path(__file__).parent / "js" / "live_aboard_view.mjs").read_text(encoding="utf-8")
     assert "performance.now = () => clockAt + clockOff;" in src
     assert "realNow" not in src
+
+
+def test_every_harness_that_times_frames_owns_its_clock() -> None:
+    """The same, for every harness that hands its frames performance.now():
+    the weather, screen and covered-patio harnesses still read the machine's
+    clock (2026-11-25: "dry: the view at rest", the covered patio's taps and
+    the screen cases failed under -n auto only, the view fallen back to the
+    flat Atlas)."""
+    import re
+    js = Path(__file__).parent / "js"
+    timed = [p for p in sorted(js.glob("*.mjs")) if "fn(performance.now())" in p.read_text(encoding="utf-8")]
+    assert len(timed) >= 16, [p.name for p in timed]
+    for p in timed:
+        src = p.read_text(encoding="utf-8")
+        line = re.search(r"^performance\.now = \(\) => (clockAt|clock0)( \+ clockOff)?;$", src, re.M)
+        assert line, f"{p.name}: the frames' clock is not the harness's own"
+        assert re.search(rf"^const {line.group(1)} = performance\.now\(\)", src, re.M), p.name
