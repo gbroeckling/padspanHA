@@ -39,7 +39,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["systems", "prefill", "looks", "icon", "icon-clear", "off", "sheet", "audio", "features", "quick", "climate", "covers",
+@pytest.mark.parametrize("case", ["systems", "prefill", "looks", "icon", "icon-clear", "off", "parts", "sheet", "audio", "features", "quick", "climate", "covers",
                                   "match", "first-time", "cleared", "kept", "non-admin", "german"])
 def test_room_controls(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]

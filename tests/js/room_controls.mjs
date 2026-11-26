@@ -229,6 +229,24 @@ await tryCase("off", async () => {
 });
 
 // ── sheet: status line, Room off first, Audio above the lights, Shades then Climate below ──
+// The sheet's three parts, each only while the host has it on (the owner, 2026-11-26: "Shades should go with doors and
+// Windows", "Thermostats in climate and air quality"): Audio with Room off; Shades; Thermostats with the status line.
+await tryCase("parts", async () => {
+  const h = house();
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"] } });
+  const kinds = (p) => (p ? Array.from(p.draw().children || []).map(c => c.attributes["data-room-controls"]).join() : null);
+  const on = ["light.great_room_pots"];
+  const shades = r.rc.sheet("Great Room", { lightsOn: on, parts: { audio: false, shades: true, climate: false } });
+  check("parts", shades.status === null && shades.roomOff === null && shades.before === null && kinds(shades.after) === "shades", shades);
+  const climate = r.rc.sheet("Great Room", { lightsOn: on, parts: { audio: false, shades: false, climate: true } });
+  check("parts", climate.status === "21.5° · 45 %" && climate.roomOff === null && climate.before === null && kinds(climate.after) === "climate", climate);
+  const audio = r.rc.sheet("Great Room", { lightsOn: on, parts: { audio: true, shades: false, climate: false } });
+  check("parts", audio.status === null && audio.roomOff && audio.roomOff.label === "Room off (3)" && audio.before && audio.after === null, audio);
+  const none = r.rc.sheet("Great Room", { lightsOn: on, parts: { audio: false, shades: false, climate: false } });
+  check("parts", none.status === null && none.roomOff === null && none.before === null && none.after === null, none);
+  check("parts", h.calls.length === 0, h.calls);
+});
+
 await tryCase("sheet", async () => {
   const h = house(), lights = lightsOf(h);
   const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2"] } });

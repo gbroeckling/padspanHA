@@ -82,9 +82,16 @@ def test_the_flat_lines_are_exactly_what_the_flat_map_reads() -> None:
     read = set(re.findall(r'flatShow\("([a-z_]+)"\)', lm))
     show = (_VIEWS / "live_aboard_show.js").read_text(encoding="utf-8")
     flat = set(re.findall(r'\{ key: "([a-z_]+)"[^\n]*flat: true', show))
-    assert read == flat == {"scenes", "light_taps", "other_floors", "scan_furniture", "edgecut", "room_controls"}, (read, flat)
+    # A room sheet's Shades and Thermostats (2026-11-26) are read by the panel that draws the sheet (lights_panel.js
+    # _roomParts, the same "atlas" slot), listed where it hands them (host.roomLines).
+    sheet = {"room_shades", "room_climate"}
+    assert read | sheet == flat == {"scenes", "light_taps", "other_floors", "scan_furniture", "edgecut", "room_controls", *sheet}, (read, flat)
+    lp = _code(_VIEWS.parent / "lights_panel.js")
+    assert 'return { audio: this._roomControlsOn(), shades: on("room_shades", this.state._shadesOn),' in lp
+    assert 'climate: this._addon("climate") && on("room_climate", this.state._thermostatsOn) };' in lp
+    assert 'roomLines: ROOMCTL ? ["room_shades", ...(this._addon("climate") ? ["room_climate"] : [])] : [],' in lp
     # "Furniture from scans" (2026-11-16): listed on the sidebar Atlas, read only once a screen ticks it.
-    assert 'lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],' in lm
+    assert 'lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(host.roomLines || []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],' in lm
     # Room controls (2026-11-25): listed where the host hands its room controls (the Atlas tab), read only once ticked;
     # the classic layout (no ⋯ list) goes by Settings → Atlas → Audio instead (host.audioOn; tests/test_addon_gates.py).
     assert ('const roomControlsOn = () => !!host.roomControls && (DISPLAY ? flatShow("room_controls") === true : '

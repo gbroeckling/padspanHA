@@ -125,7 +125,7 @@ const LBE = Object.fromEntries(LM.gatherLights(STATES, {}, {}, "pro", {}, {}, {}
 // ── the host: the sidebar's, with its settings ──────────────────────────────
 const SENT = [];
 let SCAN = null;                 // a scanned plan's furniture, beside the file (house3d_get's scan_pieces)
-const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null, looks: null, asked: 0, top: null };
+const H = { sent: [], went: [], toasts: [], settings: null, admin: true, weather: null, saved: [], audio: null, looks: null, asked: 0, top: null, roomLines: [] };
 const store = new Map();
 const prefs = { get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, String(v)) };
 const host = document.createElement("padspan-lights-app");
@@ -145,7 +145,7 @@ const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden:
   people: H.settings && H.settings.atlas_3d_people ? { snapshot: () => SNAP } : null,
   tags: H.settings && H.settings.atlas_3d_tags ? { snapshot: () => SNAP } : null,
   settings3d: H.settings, admin: H.admin, saveSetting: async (k, v) => { H.saved.push([k, v]); return true; },
-  goTo: (t) => H.went.push(t), audio: H.audio, roomAudio: H.looks ? () => { H.asked++; return H.looks; } : null });
+  goTo: (t) => H.went.push(t), audio: H.audio, roomAudio: H.looks ? () => { H.asked++; return H.looks; } : null, roomLines: H.roomLines });
 let slot = null;
 function poll(){
   const c = document.createElement("div"), stage = document.createElement("div");
@@ -188,8 +188,8 @@ await tryCase("button: ⋯ beside the compass, clear of it, and the list opens g
   const keys = qa(".la3d-srow").map(r => r.getAttribute("data-show"));
   const alarm = tick("alarms");
   // This host hands in no scenes (Mapping's, say): no Scene row line (tests/js/scene_row.mjs has the sidebar's); nor
-  // Audio, so no Audio line (its own case below).
-  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && it.key !== "scenes" && it.key !== "room_controls").map(it => it.key);
+  // Audio, so no Audio line (its own case below); nor a room sheet's Shades and Thermostats (their own case too).
+  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && !["scenes", "room_controls", "room_shades", "room_climate"].includes(it.key)).map(it => it.key);
   check("button: ⋯ beside the compass, clear of it, and the list opens grouped with the alarms ticked and greyed",
     b && compass && b.parentNode === compass.parentNode && b.textContent === "⋯" && b.getAttribute("aria-expanded") === "true"
     && S().show.menu.open && groups.length === SHOW.SHOW_GROUPS.length && want.every(k => keys.includes(k)) && !keys.includes("scenes")
@@ -585,6 +585,27 @@ await tryCase("setup: Audio is listed where the host hands it, says Audio, and i
   store.delete("show_show-a"); H.audio = null; poll(); await settle();
   check(name, none && JSON.stringify(said) === JSON.stringify(["Audio", "Set up ›", "audio_setup", false]) && closed && tickedNow
     && JSON.stringify(opened) === JSON.stringify(["card", "card"]) && wall && plain, { none, said, closed, tickedNow, opened, wall, plain });
+});
+
+// ── A room sheet's Shades and Thermostats (the owner, 2026-11-26: "Shades should go with doors and Windows", "Thermostats
+// in climate and air quality"): each listed only where the host hands its line, in its own group, off until ticked ──
+await tryCase("setup: Shades and Thermostats are listed only where the host hands them, Shades with the doors and windows, Thermostats with the sensors, off until ticked", async () => {
+  const name = "setup: Shades and Thermostats are listed only where the host hands them, Shades with the doors and windows, Thermostats with the sensors, off until ticked";
+  const listOpen = async () => { if (S().show.menu.open) { click(more()); await settle(); } click(more()); await settle(); };
+  const groupOf = (k) => { const r = row(k), g = r && r.closest(".la3d-sgrp"); return g && g.getAttribute("aria-label"); };
+  H.roomLines = []; poll(); await settle(); await listOpen();
+  const none = !row("room_shades") && !row("room_climate");
+  H.roomLines = ["room_shades"]; poll(); await settle(); await listOpen();
+  const shadesOnly = !!row("room_shades") && !row("room_climate");      // no Climate map: no Thermostats line
+  H.roomLines = ["room_shades", "room_climate"]; poll(); await settle(); await listOpen();
+  const both = [groupOf("room_shades"), groupOf("room_climate"), row("room_shades").querySelector(".la3d-sname").textContent,
+    row("room_climate").querySelector(".la3d-sname").textContent, ticked("room_shades"), ticked("room_climate")];
+  await toggle("room_shades");
+  const kept = JSON.parse(store.get("show_show-a") || "{}").room_shades === true;
+  if (S().show.menu.open) { click(more()); await settle(); }
+  store.delete("show_show-a"); H.roomLines = []; poll(); await settle();
+  check(name, none && shadesOnly && JSON.stringify(both) === JSON.stringify(["Doors, windows and locks", "Motion and sensors", "Shades", "Thermostats", false, false]) && kept,
+    { none, shadesOnly, both, kept });
 });
 
 // ── Audio's speakers in 3D (the owner, 2026-11-25: "Yes, add them in 3D") ──────────────────────────────────────────
