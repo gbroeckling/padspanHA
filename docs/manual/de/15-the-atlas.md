@@ -155,12 +155,39 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
   eine Beschattung, ein Thermostat oder eine Steckdose, und erscheint nur, solange etwas an ist. Dann
   die Szenen wie bisher, und:
   - **Audio**: eine Zeile für jeden Player, mit seinem System benannt („Control4 · Great Room“,
-    „Denon · Zone 2“), ob er an, aus oder stumm ist, **Stumm**, **−**, die Lautstärke, **+** und ⏻
-    (dieser Player aus), diese fünf immer in einer Zeile. Jedes **−** oder **+** ändert die
-    angezeigte Lautstärke sofort um einen Schritt (1 von 100 bei einem Player, der selbst schrittweise
-    regelt, etwa einem Control4-Raum), und schnelle Tipps zählen zusammen; meldet Home Assistant eine
-    Lautstärke, wird sie gezeigt. Was ein Player nicht kann, fehlt oder ist grau: Ein
-    ausgeschalteter Player zeigt seine Lautstärke als —.
+    „Denon · Zone 2“), ob er an, aus oder stumm ist, **Stumm**, die Lautstärke und ⏻ (dieser Player
+    aus), oder **An**, solange er aus ist (nie bei einem Control4-Raum, dessen „an“ einen Fernseher
+    starten kann: Wähl stattdessen eine Quelle). Die Lautstärke ist ein Schieberegler bei einem
+    Player, der eine Lautstärke annimmt: Die Zahl folgt deinem Finger, Home Assistant erfährt sie
+    höchstens viermal pro Sekunde und noch einmal, wenn du loslässt, und unter deinem Finger wird
+    nichts neu gezeichnet. Ein Player, der selbst schrittweise regelt (ein Control4-Raum), behält
+    **−**, die Lautstärke und **+**: Jeder Druck ändert die angezeigte Lautstärke sofort um 1 von 100,
+    und schnelle Tipps zählen zusammen.
+    Unter der Zeile, solange etwas läuft: das Cover, der Titel und der Interpret, mit ▶/⏸ (eine
+    Taste, solange Home Assistant „spielt“ oder „pausiert“ meldet, sonst getrennte ▶ und ⏸, wie bei
+    einem Control4-Raum), ⏮ ⏭ und ⏹, und ⏪ ⏩ bei einem Control4-Raum, dessen Integration die
+    Aktion `control4.media_scan` hat. Dann:
+    - **Quelle**: bis zu vier als Tasten, mehr als Liste mit Filter. Die aktuelle ist markiert.
+      Eine zu wählen, schaltet den Raum ein, wenn er aus war.
+    - **Modus**: der Klangmodus eines Receivers oder einer Soundbar. Lange Listen (die von Denon)
+      kommen in Gruppen: Direct, Stereo, Auto, Film, Musik, Spiel, Decoder, DSP. **Gerade:** zeigt,
+      was der Receiver dekodiert.
+    - **Klang**: die eigenen Klang- und Surround-Einstellungen des Players, die, die seine
+      Integration in Home Assistant auf demselben Gerät anlegt, und sonst nichts: Bass, Höhen,
+      Balance, Loudness, EQ-Bänder und -Modus, der Subwoofer, Surround-Pegel und -Modus,
+      Sprachverbesserung, Dialog, klare Stimme, Nachtmodus, Lippensynchronisation, der Klangmodus
+      und der Surround-Decoder, und Denons Dynamic EQ. Player von Sonos, Russound, Yamaha
+      MusicCast, Music Assistant, Xantech und Nuvo haben sie; Player von Control4, Anthem,
+      Monoprice und HEOS haben keine, also keine Taste **Klang**.
+    - **Teilen**: die Räume, deren Player sich mit diesem gruppieren lassen (dasselbe System, und
+      Gruppieren in Home Assistant: Sonos, Music Assistant, HEOS, MusicCast, WiiM, Bluesound...).
+      Hak einen Raum an, und er spielt, was dieser Raum spielt, mit eigener Lautstärke; nimm den
+      Haken weg, oder **Gruppe verlassen**. Die Zeile sagt „mit Küche, Arbeitszimmer“, solange sie
+      gruppiert ist.
+
+    Was ein Player nicht kann, fehlt oder ist grau: Ein ausgeschalteter Player zeigt seine
+    Lautstärke als —. **Alles Audio aus**, nach den Playern, schaltet nach einer Rückfrage die Musik
+    in allen Räumen aus (Player, die sich nicht ausschalten lassen, werden pausiert oder gestoppt).
   - die Lichter des Raums wie bisher.
 
   Jeder Druck ist ein Aufruf an Home Assistant, ohne Rückfrage. Wer die Lichter schalten kann, kann
@@ -179,7 +206,11 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
   **Fertig** schließt sie. Hat sie einmal eine Wahl gespeichert, schlägt sie nie wieder vor, also
   bleiben Player, die von der Karte genommen wurden, weg, und eine Zuordnung zu einem Player, den
   Home Assistant gerade nicht zeigt (ausgeblendet, noch nicht geladen), oder zu einem auf der Karte
-  umbenannten Raum bleibt, wie sie war. Wer kein Administrator ist, sieht den Knopf grau.
+  umbenannten Raum bleibt, wie sie war. Wer kein Administrator ist, sieht den Knopf grau. Jeder
+  Player auf der Karte hat außerdem **Quellen** (eine Quelle umbenennen, ausblenden, nach oben oder
+  unten schieben; Home Assistant behält seine eigenen Namen) und **Lautstärkegrenze** (10 % bis
+  100 % oder keine), die überall gilt, wo seine Lautstärke eingestellt wird: Der Schieberegler hält
+  dort an, **+** hält dort an, und **Teilen** hält sie ein.
 - **Welche Player**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha und Anthem, nach der Integration in Home Assistant, aus der sie kommen.
   **Lautsprecher aus Home Assistant einbeziehen** auf der Zuordnungskarte (aus, bis angehakt) nimmt
