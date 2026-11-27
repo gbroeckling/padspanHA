@@ -1,5 +1,4 @@
-"""The Atlas's hold card and room sheet, picked from the comparison with
-NeonPlan 3D (2026-11-18).
+"""The Atlas's hold card and room sheet (2026-11-18).
 
 tests/js/atlas_controls.mjs runs views/lights_map.js under the DOM shim:
 Unlock asks "Unlock {name}?" first wherever it is pressed (a tap's toggle,

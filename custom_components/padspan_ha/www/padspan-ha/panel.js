@@ -131,6 +131,12 @@ let C4L = null;
 import(`./views/c4local.js?b=${BUILD_ID}`)
   .then(m => { C4L = m; })
   .catch(err => console.warn("PadSpan: c4local module failed to load", err));
+// The first-run question, "What do you want PadSpan for?" (views/first_question.js): at the top of the Getting
+// started card on a new install, and its next steps once answered. Optional like the others.
+let FQ = null;
+import(`./views/first_question.js?b=${BUILD_ID}`)
+  .then(m => { FQ = m; })
+  .catch(err => console.warn("PadSpan: first_question module failed to load", err));
 // "Is this setup step done?": views/setup_status.js, the one rule Setup, the
 // Setup Wizard and Mapping read; the Getting started card waits for it.
 let SETUP_STATUS = null;
@@ -1897,8 +1903,8 @@ class PadSpanHaApp extends HTMLElement {
     const card = el("div", { style: cardStyle });
     card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" }, t("Help improve PadSpan")));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
-      [t("PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house."),
-       t("It needs all the help it can find, and the biggest help is being able to see what other houses look like."),
+      [t("PadSpan shows your whole house on one screen: who's in which room, your floor plan in 3D and every light in its place."),
+       t("It gets better with every release. It is developed against one house, so the biggest help is seeing what other houses look like."),
        t("Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, how hard the machine works and what class of machine it is, and how many warnings each part logged."),
        t("Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Tracking turns it off again any time."),
        t("Now and then the developer invites houses that report to try something, like a free year of Pro. You can say no.")].join(" ")));
@@ -5768,13 +5774,21 @@ class PadSpanHaApp extends HTMLElement {
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
           t("Who's where already works below. A floor plan adds the map, and with three or more receivers placed on it, positions between them.")));
+        // The first-run question (views/first_question.js): while it is due it is the card's first thing, in place of
+        // the steps; once answered, the next steps it gave.
+        let _fqDue = false;
+        try {
+          _fqDue = !!FQ && FQ.due(this._ctx());
+          const _fq = !FQ ? null : _fqDue ? FQ.askCard(this._ctx()) : FQ.nextCard(this._ctx());
+          if (_fq) bar.appendChild(_fq);
+        } catch(e) { console.warn("PadSpan: first-run question failed", e); }
 
         // Progress dots
         const dots = el("div",{style:"display:flex;gap:4px;margin-bottom:8px"});
         for (const s of _setupRows) {
           dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.done ? "#52b788" : "#1b3526"}`}));
         }
-        bar.appendChild(dots);
+        if (!_fqDue) bar.appendChild(dots);
 
         // Step list
         const list = el("div",{style:"display:flex;flex-direction:column;gap:4px"});
@@ -5827,7 +5841,7 @@ class PadSpanHaApp extends HTMLElement {
             } catch(e) { console.warn("PadSpan: trial offer failed", e); }
           }
         }
-        bar.appendChild(list);
+        if (!_fqDue) bar.appendChild(list);
         const _ask = this._telemetryAskCard(true);
         if (_ask) bar.appendChild(_ask);
         frag.appendChild(bar);

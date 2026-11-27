@@ -351,7 +351,7 @@ def _irk_capture_devices(hass: HomeAssistant) -> list[dict[str, Any]]:
     its options (what the ESP32 looks like to the phone or watch) and a
     button ending in "_refresh_ble_identity" (a new Bluetooth identity, so
     the device paired before does not connect to it again). These names are
-    as NeonPlan 3D's key helper, a repackaged irk-capture, reads them.
+    irk-capture's own.
 
     Read only: PadSpan never presses the button or changes the select.
     Each: {name, irk_bytes (or None), profile ("" when unknown), refresh

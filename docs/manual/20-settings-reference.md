@@ -37,6 +37,7 @@ folding heading on that tab.
 
 | Card: control | Default | Range or choices | What it does | Key |
 |---|---|---|---|---|
+| What do you want PadSpan for? | empty |  | Your answer to the first-run question: any of `whole_house` (the whole house on one screen), `presence` (who's in which room), `plan` (your floor plan and 3D house) and `lights` (every light in its place), the first ticked first. Sent with the usage report as these words, only when one is ticked. | `purpose` |
 | Panel Style | `2025` | `classic`, `2025` | `2025` restyles the panel's frame (grouped menu with icons); `classic` is the original. | `ui_skin` |
 | Theme | empty | `graphite`, `ocean`, `dusk`, `contrast` | The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro or the Looks pack add-on. | `theme_palette` |
 | Theme: Light (inverted) | off | on or off | The panel's colours turned light (inverted). | `light_theme` |
@@ -338,6 +339,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `onboarding` | empty |  | A new install's first steps and how long they took. |
 | `telemetry_asked` | off | on or off | The panel has asked about the usage report once. |
 | `telemetry_heard_ask` | empty |  | Whether the where-did-you-hear question is due, or done. |
+| `purpose_ask` | empty |  | Whether the first-run question is due (a new install only), or done. |
 | `telemetry_install_id` | empty |  | The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it). |
 | `telemetry_last_day` | empty |  | The day the last usage report was sent. |
 | `yesterday_home_sent_day` | empty |  | The day Yesterday at home last told, so it is never told twice. |

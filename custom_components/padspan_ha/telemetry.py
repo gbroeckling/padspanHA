@@ -15,6 +15,10 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     where the person heard about PadSpan, only if they chose to say: one
         word from HEARD_WORDS, their own answer to an optional question
         asked once after the opt-in (env.heard_from)
+    what the person wants PadSpan for, only if they answered: the keys
+        of onboarding.PURPOSE_KEYS they ticked (env.purpose)
+    how many leak, smoke, gas and CO alarms are placed on the map, only
+        from a house with one (env.emergency_count)
     which store keeps this copy up to date (the Marketplace, HACS, or
         neither: env.store), and how many automations and scripts use a
         PadSpan entity or device (env.used_in: two counts, never which)
@@ -568,6 +572,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "ai_wizard_offer", "plan_room_shapes",          # Let Claude draw your rooms (experimental; the view itself is in VIEWS)
     "c4local",                                      # OS 2 Local for Control4: Settings' card and the Overview's (c4local_install.py)
     "rough_plan",                                   # "No floor plan? Ways to get one" and the phone's walk-through of a room scan
+    "first_question",                               # the first-run question on Getting started, and its Settings card
     "plan_carry",                                   # a moved plan's line in the Library, and what could move with it
     "room_snap",                                    # drawing rooms in Edit and Layout: corners that land, Straighten edges
     "person_home", "room_spot",                     # one rule for "is this person home"; where a room-only device stands
@@ -1250,6 +1255,12 @@ def plan_sources(maps: Any, transforms: Any) -> dict[str, str]:
         out[src] = PLAN_STAGES[max(stages)]
         out[src + "_n"] = "1" if len(stages) == 1 else "2_3" if len(stages) <= 3 else "4_plus"
     return out
+
+
+# env.emergency_count (2026-11-26): how many of the Atlas's Emergency devices are placed on the map: a binary sensor
+# whose device class is one of these (views/light_codes.js EMERGENCY_CLASSES: a leak, smoke, gas or carbon monoxide
+# alarm). A count only, sent only when there is one.
+EMERGENCY_DEVICE_CLASSES: frozenset[str] = frozenset({"moisture", "smoke", "gas", "carbon_monoxide"})
 
 
 # env.power_teams (2026-11-21, owner: "Add any opt in fields to watch use of the teaming, and hue adoption — or other
@@ -2864,6 +2875,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "air_quality_sensor": 0, "other": 0,
     }
     _tf: dict[str, Any] = {"n": 0, "changed": 0, "updated": 0, "reported": 0, "has_lr": 0, "age": {}}
+    _emergency = 0      # env.emergency_count: the Atlas's Emergency devices placed (EMERGENCY_DEVICE_CLASSES)
     _tf_now = datetime.now(timezone.utc)
     for _eid in _light_ids:
         _eid = str(_eid)
@@ -2876,6 +2888,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         elif _eid.startswith("binary_sensor.") or _eid.startswith("sensor."):
             _st = hass.states.get(_eid)
             _dc = _st.attributes.get("device_class") if _st else None
+            if _eid.startswith("binary_sensor.") and _dc in EMERGENCY_DEVICE_CLASSES:
+                _emergency += 1
             if _dc in ("motion", "occupancy"):
                 placed_by_domain["motion_sensor"] += 1
             elif _dc in ("door", "window"):
@@ -2949,6 +2963,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "placed_lights": _len(fab.get("light_positions_m") or {}),
         "placed_by_domain": placed_by_domain,
         "temp_fresh": _tf if _tf["n"] else None,
+        # Leak, smoke, gas and CO alarms placed on the map: a count, only from a house with one.
+        **({"emergency_count": _emergency} if _emergency else {}),
         "light_type_overrides_by_kind": type_overrides_by_kind,
         "walls": _len(fab.get("rf_barriers_m") or []),
         "maps": _len(maps.get("maps") or []),
@@ -3050,6 +3066,11 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _heard = heard_word(settings.get("telemetry_heard"))
     if _heard:
         env["heard_from"] = _heard
+    # What the owner wants PadSpan for (onboarding.purpose_keys): the keys ticked, only when one is.
+    from .onboarding import purpose_keys as _purpose_keys  # noqa: PLC0415
+    _purpose = _purpose_keys(settings.get("purpose"))
+    if _purpose:
+        env["purpose"] = _purpose
     # Which store keeps this copy up to date, and how many automations and
     # scripts use PadSpan (report_context.py): one word and two counts.
     try:
@@ -3559,6 +3580,15 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         raise ValueError("env.install_age not in the vocabulary")
     if isinstance(env, dict) and "heard_from" in env and env["heard_from"] not in HEARD_WORDS:
         raise ValueError("env.heard_from not in the vocabulary")
+    if isinstance(env, dict) and "purpose" in env:
+        from .onboarding import purpose_keys as _purpose_keys  # noqa: PLC0415
+        pp = env["purpose"]
+        if not isinstance(pp, list) or not pp or _purpose_keys(pp) != pp:
+            raise ValueError("env.purpose not in the vocabulary")
+    if isinstance(env, dict) and "emergency_count" in env:
+        ec = env["emergency_count"]
+        if isinstance(ec, bool) or not isinstance(ec, int) or ec < 1:
+            raise ValueError("env.emergency_count is not a count above 0")
     if isinstance(env, dict) and ("store" in env or "used_in" in env):
         from .report_context import STORE_WORDS, USED_IN_KEYS  # noqa: PLC0415
         if "store" in env and env["store"] not in STORE_WORDS:

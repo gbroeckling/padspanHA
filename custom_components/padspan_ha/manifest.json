@@ -12,6 +12,9 @@
     "tag",
     "websocket_api"
   ],
+  "categories": [
+    "sensors.motion_presence"
+  ],
   "codeowners": [
     "@gbroeckling"
   ],

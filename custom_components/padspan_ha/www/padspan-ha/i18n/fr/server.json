@@ -249,5 +249,6 @@
 "The files couldn't be written; nothing was changed.": "Les fichiers n’ont pas pu être écrits ; rien n’a été modifié.",
 "The files couldn't be moved; check Home Assistant's control4 folder.": "Les fichiers n’ont pas pu être déplacés ; vérifiez le dossier control4 de Home Assistant.",
 "OS 2 Local for Control4 is not published yet.": "OS 2 Local for Control4 n'est pas encore publié.",
-"A local Control4 integration is installed (not OS 2 Local for Control4), so PadSpan does not install over it.": "Une intégration Control4 locale est installée (pas OS 2 Local for Control4) : PadSpan ne l'écrase donc pas."
+"A local Control4 integration is installed (not OS 2 Local for Control4), so PadSpan does not install over it.": "Une intégration Control4 locale est installée (pas OS 2 Local for Control4) : PadSpan ne l'écrase donc pas.",
+"Only an administrator can change what PadSpan is for": "Seul un administrateur peut changer ce à quoi sert PadSpan"
 }

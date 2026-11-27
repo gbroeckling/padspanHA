@@ -15,6 +15,8 @@
 
 // Basic's focused views (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// The panel's words in its language (views/i18n.js; English is the key). So far the tag advice and the consent line.
+const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const REFRESH_MS = 10000;
 const AMBER = "#fbbf24";
 
@@ -141,7 +143,7 @@ function _draw(ctx, el, content, data) {
     }
     addRow.push(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
       "A guest tag is a device you have already named (Follow or Devices → Rename), so give a spare tag a name like \"Guest tag 1\" first. " +
-      "A phone works too; a tag with a steady identity (a beacon, a Find My tag, a phone with Private BLE) works best."));
+      t("A beacon with a fixed address (iBeacon or Eddystone) works best, or a phone with Private BLE. Find My, Tile and similar tracker tags change their address, so they won't be followed reliably.")));
   }
   content.appendChild(_card(el, "Guest tags", [
     ...(tagRows.length ? tagRows : [el("div", { class: "muted", style: "font-size:13px" }, "No guest tags yet.")]),
@@ -227,6 +229,9 @@ function _lendModal(ctx, el, tag, existing) {
   const name = input("text", existing ? existing.name : "", "Guest's name");
   name.maxLength = 60;
   const end = input("datetime-local", existing && existing.end_planned ? _localInput(existing.end_planned) : "");
+  // Consent (the owner, 2026-11-26): the guest is told.
+  body.appendChild(el("div", { "data-guest-consent": "", style: `font-size:12px;color:${AMBER};line-height:1.5` },
+    t("Tell your guest their tag is followed: which room it's in, while they have it.")));
   body.appendChild(el("div", {}, [lbl(`Who has ${tag.label}?`), name]));
   body.appendChild(el("div", {}, [lbl("Until (optional — the stay ends by itself then)"), end]));
 
