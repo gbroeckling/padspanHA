@@ -24,10 +24,16 @@ def _read(p: pathlib.Path) -> str:
 def test_trial_key_defaults_to_false_and_is_not_the_gate() -> None:
     s = _read(_CC / "settings_store.py")
     assert '"license_is_trial": False,' in s, "license_is_trial is not a defined, default-False setting"
-    # It must be display-only: the tier ladder reads license_tier, never this flag.
+    # It must be display-only: the tier ladder reads license_tier, never this flag. The one exception (the owner,
+    # 2026-11-26: "Hold it back from trials") is an add-on not on sale yet and in HELD_FROM_TRIALS; every other gate
+    # treats a trial key exactly like a purchased one. The flag comes from the licence server (activation's plan and
+    # the daily update check), never from settings_set.
     licence_src = _read(_CC / "licence.py")
-    assert "license_is_trial" not in licence_src, (
-        "licence.py must not branch on license_is_trial — a trial key gates exactly like a purchased one")
+    uses = [ln.strip() for ln in licence_src.splitlines() if "license_is_trial" in ln and not ln.strip().startswith("#")]
+    assert uses == ['if name in HELD_FROM_TRIALS and name in NOT_ON_SALE and d.get("license_is_trial") is True:'], (
+        "licence.py may read license_is_trial only to hold an unsold add-on back from a trial", uses)
+    ws_settings = _read(_CC / "ws_settings.py")
+    assert "license_is_trial" not in ws_settings, "settings_set must never write license_is_trial"
 
 
 def test_trial_start_is_registered_and_admin_gated() -> None:

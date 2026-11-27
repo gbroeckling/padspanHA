@@ -15,7 +15,7 @@
 
 // Basic's focused views (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
-// The panel's words in its language (views/i18n.js; English is the key). So far the tag advice and the consent line.
+// The panel's words in its language (views/i18n.js; English is the key). So far the add row and the lend dialog.
 const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const REFRESH_MS = 10000;
 const AMBER = "#fbbf24";
@@ -137,12 +137,12 @@ function _draw(ctx, el, content, data) {
       const sel = el("select", { class: "select", style: "width:auto;min-width:200px" });
       for (const c of cands) sel.appendChild(el("option", { value: c.key }, `${c.label}${c.room ? " (" + c.room + ")" : ""}`));
       addRow.push(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px" }, [
-        el("span", { style: "font-size:12px;color:#94a3b8" }, "Use as a guest tag:"), sel,
-        el("button", { class: "btn inline", onclick: () => _call(ctx, { type: "padspan_ha/guest_tag_mark", key: sel.value }, "Added to guest tags") }, "Add"),
+        el("span", { style: "font-size:12px;color:#94a3b8" }, t("Use as a guest tag:")), sel,
+        el("button", { class: "btn inline", onclick: () => _call(ctx, { type: "padspan_ha/guest_tag_mark", key: sel.value }, t("Added to guest tags")) }, t("Add")),
       ]));
     }
     addRow.push(el("div", { class: "muted", style: "font-size:11px;margin-top:6px" },
-      "A guest tag is a device you have already named (Follow or Devices → Rename), so give a spare tag a name like \"Guest tag 1\" first. " +
+      t("A guest tag is a device you have already named (Follow or Devices → Rename), so give a spare tag a name like \"Guest tag 1\" first.") + " " +
       t("A beacon with a fixed address (iBeacon or Eddystone) works best, or a phone with Private BLE. Find My, Tile and similar tracker tags change their address, so they won't be followed reliably.")));
   }
   content.appendChild(_card(el, "Guest tags", [
@@ -224,16 +224,16 @@ function _toTraceback(ctx, s) {
 function _lendModal(ctx, el, tag, existing) {
   const o = (existing && existing.opts) || { notify_arrive: true, notify_leave: true };
   const body = el("div", { style: "display:flex;flex-direction:column;gap:12px;min-width:min(90vw,460px)" });
-  const lbl = (t) => el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:4px" }, t);
+  const lbl = (s) => el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:4px" }, s);
   const input = (type, val, ph) => { const i = document.createElement("input"); i.type = type; i.className = "select"; i.style.cssText = "width:100%;box-sizing:border-box"; if (val) i.value = val; if (ph) i.placeholder = ph; return i; };
-  const name = input("text", existing ? existing.name : "", "Guest's name");
+  const name = input("text", existing ? existing.name : "", t("Guest's name"));
   name.maxLength = 60;
   const end = input("datetime-local", existing && existing.end_planned ? _localInput(existing.end_planned) : "");
   // Consent (the owner, 2026-11-26): the guest is told.
   body.appendChild(el("div", { "data-guest-consent": "", style: `font-size:12px;color:${AMBER};line-height:1.5` },
     t("Tell your guest their tag is followed: which room it's in, while they have it.")));
-  body.appendChild(el("div", {}, [lbl(`Who has ${tag.label}?`), name]));
-  body.appendChild(el("div", {}, [lbl("Until (optional — the stay ends by itself then)"), end]));
+  body.appendChild(el("div", {}, [lbl(t("Who has {tag}?", { tag: tag.label })), name]));
+  body.appendChild(el("div", {}, [lbl(t("Until (optional — the stay ends by itself then)")), end]));
 
   // Off-limits rooms: the house's rooms (Home Assistant areas).
   const areas = ((ctx.state.model && ctx.state.model.areas) || []).map(a => (typeof a === "string" ? a : a.name)).filter(Boolean).sort();
@@ -245,47 +245,45 @@ function _lendModal(ctx, el, tag, existing) {
     offChecks.push(c);
     offBox.appendChild(el("label", { style: "font-size:12px;color:#e2e8f0;display:flex;gap:4px;align-items:center" }, [c, a]));
   }
-  body.appendChild(el("div", {}, [lbl("Rooms they shouldn't go into (you're told if they're there for half a minute)"),
-    areas.length ? offBox : el("div", { class: "muted", style: "font-size:12px" }, "No rooms in Home Assistant yet.")]));
+  body.appendChild(el("div", {}, [lbl(t("Rooms they shouldn't go into (you're told if they're there for half a minute)")),
+    areas.length ? offBox : el("div", { class: "muted", style: "font-size:12px" }, t("No rooms in Home Assistant yet."))]));
 
   const check = (on, text) => { const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!on; return [c, el("label", { style: "font-size:13px;color:#e2e8f0;display:flex;gap:6px;align-items:center" }, [c, text])]; };
-  const [arr, arrL] = check(o.notify_arrive, "Tell me when they arrive");
-  const [lv, lvL] = check(o.notify_leave, "Tell me when they leave");
-  const [home, homeL] = check(o.counts_home, "Staying here (a house-sitter): counts as someone home for Vacation Mode");
+  const [arr, arrL] = check(o.notify_arrive, t("Tell me when they arrive"));
+  const [lv, lvL] = check(o.notify_leave, t("Tell me when they leave"));
+  const [home, homeL] = check(o.counts_home, t("Staying here (a house-sitter): counts as someone home for Vacation Mode"));
   body.appendChild(el("div", { style: "display:flex;flex-direction:column;gap:6px" }, [arrL, lvL, homeL]));
 
   const target = el("select", { class: "select", style: "width:100%" });
-  target.appendChild(el("option", { value: "" }, "A Home Assistant notification"));
+  target.appendChild(el("option", { value: "" }, t("A Home Assistant notification")));
   const fill = (list) => { for (const svc of list || []) target.appendChild(el("option", { value: svc }, svc)); target.value = o.notify_target || ""; };
   if (Array.isArray(ctx.state._notifyServices) && ctx.state._notifyServices.length) fill(ctx.state._notifyServices);
   else ctx.actions.wsCall("padspan_ha/notify_services_list", {}).then(r => { ctx.state._notifyServices = (r && r.services) || []; fill(ctx.state._notifyServices); }).catch(() => {});
-  body.appendChild(el("div", {}, [lbl("Send notices to"), target]));
+  body.appendChild(el("div", {}, [lbl(t("Send notices to")), target]));
 
   const [qa, qb] = String(o.quiet || "").split("-");
   const qFrom = input("time", qa || ""), qTo = input("time", qb || "");
   qFrom.style.width = qTo.style.width = "auto";
-  body.appendChild(el("div", {}, [lbl("Quiet hours (no arrive/leave notices then; off-limits ones still come)"),
-    el("div", { style: "display:flex;gap:8px;align-items:center" }, [qFrom, el("span", { class: "muted" }, "to"), qTo])]));
+  body.appendChild(el("div", {}, [lbl(t("Quiet hours (no arrive/leave notices then; off-limits ones still come)")),
+    el("div", { style: "display:flex;gap:8px;align-items:center" }, [qFrom, el("span", { class: "muted" }, t("to")), qTo])]));
 
-  body.appendChild(el("div", { style: "font-size:12px;color:#fcd34d;border:1px solid #b45309;border-radius:6px;padding:6px 8px;background:rgba(180,83,9,.12)" },
-    "Tell your guest this tag is tracked while they have it."));
   const status = el("div", { style: "font-size:12px;color:#f87171;min-height:16px" }, "");
   const go = el("button", { class: "btn primary", onclick: async () => {
     const nm = name.value.trim();
-    if (!nm) { status.textContent = "A name is needed."; return; }
+    if (!nm) { status.textContent = t("A name is needed."); return; }
     const quiet = qFrom.value && qTo.value ? `${qFrom.value}-${qTo.value}` : "";
     const opts = { off_limits: offChecks.filter(c => c.checked).map(c => c.value), notify_arrive: arr.checked,
       notify_leave: lv.checked, notify_target: target.value, quiet, counts_home: home.checked };
     const endAt = end.value ? Math.round(new Date(end.value).getTime() / 1000) : null;
     go.disabled = true;
     const r = existing
-      ? await _call(ctx, { type: "padspan_ha/guest_session_update", session: existing.id, name: nm, end_at: endAt, ...opts }, "Stay updated")
-      : await _call(ctx, { type: "padspan_ha/guest_session_start", pid: tag.pid, name: nm, end_at: endAt, ...opts }, `${tag.label} lent to ${nm}`);
+      ? await _call(ctx, { type: "padspan_ha/guest_session_update", session: existing.id, name: nm, end_at: endAt, ...opts }, t("Stay updated"))
+      : await _call(ctx, { type: "padspan_ha/guest_session_start", pid: tag.pid, name: nm, end_at: endAt, ...opts }, t("{tag} lent to {name}", { tag: tag.label, name: nm }));
     go.disabled = false;
     if (r) ctx.actions.closeModal();
-  } }, existing ? "Save" : "Start the stay");
+  } }, existing ? t("Save") : t("Start the stay"));
   body.appendChild(el("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, [
-    el("button", { class: "btn", onclick: () => ctx.actions.closeModal() }, "Cancel"), go]));
+    el("button", { class: "btn", onclick: () => ctx.actions.closeModal() }, t("Cancel")), go]));
   body.appendChild(status);
-  ctx.actions.openModal(existing ? `${existing.name}'s stay` : `Lend ${tag.label}`, body);
+  ctx.actions.openModal(existing ? t("{name}'s stay", { name: existing.name }) : t("Lend {tag}", { tag: tag.label }), body);
 }

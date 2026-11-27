@@ -880,7 +880,6 @@ const W_EVENT = {
   wizard_tiers_step_upgrade: "Editions tour: upgrade", wizard_tiers_completed: "Editions tour: finished",
   wizard_la_opened: "3D house setup: opened", wizard_la_finished: "3D house setup: finished",
   menu_more_tools_open: "Opened More tools in the menu",
-  purpose_skipped: "Skipped the first-run question",
   cal_results_opened: "Opened Calibration Results",
   rooms_page_edit: "Rooms page: a colour, ceiling height or split level saved",
 };

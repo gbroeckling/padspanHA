@@ -337,7 +337,9 @@ const _viewsPromise = _criticalPromise;
 //             Live, records the release notes seen, answers the report's
 //             question or changes how the panel looks (theme, palette, Day /
 //             Light, follow the sun, the 2025 look: display preferences, not
-//             the house). Nothing about the house.
+//             the house), or answers the first-run question (views/
+//             first_question.js: a new install opens on the sample house until a
+//             receiver is heard, and is asked there). Nothing about the house.
 //   "drop"  - the opt-in report's counts: answered at once, never sent. The
 //             sample house's stairs, 3D and screens are never counted as the
 //             real one's (nothing is counted from Sample mode).
@@ -367,7 +369,8 @@ function _sampleKind(payload){
   if (type === "padspan_ha/settings_set") {
     const keys = Object.keys(payload).filter(k => k !== "type" && k !== "id");
     const ok = ["data_mode", "whatsnew_seen_version", "telemetry_enabled", "telemetry_asked",
-                "telemetry_heard", "telemetry_heard_ask", "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
+                "telemetry_heard", "telemetry_heard_ask", "purpose", "purpose_ask",
+                "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
     // Only ever back to Live (_setDataMode): Sample is this browser's own choice, never the server's.
     if ("data_mode" in payload && payload.data_mode !== "live") return "write";
     return keys.length && keys.every(k => ok.includes(k)) ? "pass" : "write";
@@ -5722,6 +5725,20 @@ class PadSpanHaApp extends HTMLElement {
       catch(e) { console.warn("PadSpan: setup bar failed", e); }
     }
 
+    // The first-run question (views/first_question.js), on the Overview whenever it is due: in any data mode (a new
+    // install opens on the sample house, whose finished setup hides Getting started, and a house with no receivers
+    // stays there), above the view and its sample banner. While it shows it is the only card: Getting started (its
+    // counter, its Skip setup and the usage report's ask) and the Overview's other cards come once it is answered.
+    let _fqDue = false;
+    if (v === "overview" && FQ) {
+      try {
+        _fqDue = FQ.due(this._ctx());
+        if (_fqDue) { frag.appendChild(FQ.askCard(this._ctx())); this._overviewCardShown = true; }
+        // A plan or lights answer on the sample house: the line in place of the step it blocks.
+        else { const _fs = FQ.sampleLine(this._ctx()); if (_fs) frag.appendChild(_fs); }
+      } catch(e) { console.warn("PadSpan: first-run question failed", e); _fqDue = false; }
+    }
+
     // ── Onboarding wizard ──────────────────────────────────────────────────
     // Shows a persistent progress bar when setup is incomplete. Detects each
     // step's completion from live state. Navigates to the right view on click.
@@ -5795,7 +5812,7 @@ class PadSpanHaApp extends HTMLElement {
       // arrived. A new install still sees the card the moment they settle -
       // an empty maps list is an answer; an unfetched one is not.
       const _setupKnown = this.state._mapsLoaded && this.state._modelLoaded;
-      if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && _ss && !this.state._onboardingDismissed && this.state.view === "overview") {
+      if (_setupKnown && !_onboardingDone && !_allDone && _posKnown && _ss && !this.state._onboardingDismissed && this.state.view === "overview" && !_fqDue) {
         // Opt-in usage report: the card was seen, once per page.
         if (!this._gettingStartedCounted) { this._gettingStartedCounted = true; this._telemetryEvent("getting_started_shown"); }
         this._overviewCardShown = true;   // the trial milestone waits for another page load
@@ -5832,21 +5849,18 @@ class PadSpanHaApp extends HTMLElement {
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
           t("Who's where already works below. A floor plan adds the map, and with three or more receivers placed on it, positions between them.")));
-        // The first-run question (views/first_question.js): while it is due it is the card's first thing, in place of
-        // the steps; once answered, the next steps it gave.
-        let _fqDue = false;
+        // Once the first-run question is answered (views/first_question.js): the next steps it gave.
         try {
-          _fqDue = !!FQ && FQ.due(this._ctx());
-          const _fq = !FQ ? null : _fqDue ? FQ.askCard(this._ctx()) : FQ.nextCard(this._ctx());
+          const _fq = FQ ? FQ.nextCard(this._ctx()) : null;
           if (_fq) bar.appendChild(_fq);
-        } catch(e) { console.warn("PadSpan: first-run question failed", e); }
+        } catch(e) { console.warn("PadSpan: first-run next steps failed", e); }
 
         // Progress dots
         const dots = el("div",{style:"display:flex;gap:4px;margin-bottom:8px"});
         for (const s of _setupRows) {
           dots.appendChild(el("div",{style:`flex:1;height:4px;border-radius:2px;background:${s.done ? "#52b788" : "#1b3526"}`}));
         }
-        if (!_fqDue) bar.appendChild(dots);
+        bar.appendChild(dots);
 
         // Step list
         const list = el("div",{style:"display:flex;flex-direction:column;gap:4px"});
@@ -5899,11 +5913,11 @@ class PadSpanHaApp extends HTMLElement {
             } catch(e) { console.warn("PadSpan: trial offer failed", e); }
           }
         }
-        if (!_fqDue) bar.appendChild(list);
+        bar.appendChild(list);
         const _ask = this._telemetryAskCard(true);
         if (_ask) bar.appendChild(_ask);
         frag.appendChild(bar);
-      } else if (this.state.view === "overview") {
+      } else if (this.state.view === "overview" && !_fqDue) {
         // Set-up skipped but not finished (Skip setup, or Setup's own Finish): one quiet way back where the card was
         // (review 2026-11-11, item 10), on the house's own data, never on a wall; ✕ hides it in this browser. A
         // finished house has none.

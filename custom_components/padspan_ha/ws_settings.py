@@ -707,7 +707,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("telemetry_heard"): str,                 # where they heard about PadSpan: a telemetry.HEARD_WORDS word, or "" to clear
         vol.Optional("telemetry_heard_ask"): str,             # "done": that question was skipped; never asked again
         vol.Optional("purpose"): _LIST,                       # the first-run question's answer: onboarding.PURPOSE_KEYS ticked
-        vol.Optional("purpose_ask"): str,                     # "done": that question was skipped; never asked again
+        vol.Optional("purpose_ask"): str,                     # "skipped" (or "done"): that question was skipped; never asked again
         vol.Optional("trial_nudge_done"): bool,               # the Overview trial milestone card was answered; never again
         vol.Optional("tester_nudge_done"): bool,              # the Overview tester card was shown; never again
         vol.Optional("launch_card_done"): bool,               # the Overview launch-price card was shown; never again
@@ -1007,7 +1007,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the usage report")
                 return
             payload["telemetry_heard_ask"] = "done"
-        if "purpose" in msg or msg.get("purpose_ask") == "done":
+        if "purpose" in msg or msg.get("purpose_ask") in ("skipped", "done"):
             # The first-run question (onboarding.PURPOSE_KEYS), on its card or in Settings: an administrator's answer.
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
@@ -1016,13 +1016,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .onboarding import purpose_keys  # noqa: PLC0415
             if "purpose" in msg:
                 payload["purpose"] = purpose_keys(msg.get("purpose"))
-            # Answered or skipped: never asked again. Only ever forward to "done", and only from "due": an install
-            # that was never asked stays so.
-            if st is not None and st.data.get("purpose_ask") == "due":
-                payload["purpose_ask"] = "done"
-                if not payload.get("purpose"):
-                    from .telemetry import bump as _bump  # noqa: PLC0415
-                    _bump(hass, "purpose_skipped")       # the usage report, a count only (when it is on)
+            # Never asked again once answered ("done") or skipped ("skipped"; a later answer in Settings makes it
+            # "done"). Only ever forward, and only for an install that was asked: one never asked stays "".
+            _ask = st.data.get("purpose_ask") if st is not None else ""
+            if _ask in ("due", "skipped"):
+                if payload.get("purpose"):
+                    payload["purpose_ask"] = "done"
+                elif _ask == "due":
+                    payload["purpose_ask"] = "skipped"
         if "telemetry_enabled" in msg:
             # Opting a whole install into sending reports is an admin's call,
             # like the send-now and reset-id commands beside it.
