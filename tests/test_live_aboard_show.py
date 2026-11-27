@@ -114,7 +114,7 @@ def test_both_hosts_hand_over_a_way_to_settings_and_mapping_but_not_in_basic() -
     pj = _code(_WWW / "panel.js")
     assert 'if (reqView === "settings" && reqPart && /^[a-z0-9_]+$/.test(reqPart)) this.state._settingsPart = reqPart;' in pj
     st = _code(_VIEWS / "settings.js")
-    assert "FOCUS.pickPart(root, wantPart)" in st and "ctx.state._settingsPart = null;" in st
+    assert "FOCUS.pickPart(root, scrollTo.part)" in st and "ctx.state._settingsPart = null;" in st
     # Every place a line links to is a card or tab that exists.
     show = _js(_VIEWS / "live_aboard_show.js")
     for part in set(re.findall(r'part: "([a-z_0-9]+)"', show)):

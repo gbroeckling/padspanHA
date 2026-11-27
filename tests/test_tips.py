@@ -450,7 +450,7 @@ def test_the_alarm_and_ai_plans_show_their_own_place() -> None:
     assert '"data-focus-part":"ai_plans"' in _src(_VIEWS / "settings.js")
     lp = _src(_WWW / "lights_panel.js")
     assert 'if (t.atlas === "emergency") { this._openEmergencyCard(); return; }' in lp
-    assert 'want === "emergency" && !this.hasAttribute("data-wall") && !this._kiosk()' in lp, "the link opens the card, never on a wall"
+    assert 'const btn = !this.hasAttribute("data-wall") && !this._kiosk() && this.shadowRoot' in lp, "the link opens the card, never on a wall"
     assert "this._loadEmergency().then(()=>{ this._render(); this._cardLink(); });" in lp
 
 
@@ -501,3 +501,30 @@ def test_no_tip_word_from_sample_data() -> None:
     note = pj[i:pj.index("\n  _telemetryEvent(name, extra){", i)]
     assert 'if (!this.state._dataModeKnown || this.state.dataMode !== "live") return;' in note
     assert "if (host.live === false) return Promise.resolve();" in _src(_VIEWS / "tips.js"), "a sample host never saves"
+
+
+# ── 11. the regression review's nits ─────────────────────────────────────────
+
+def test_the_robot_vacuum_tip_is_the_add_ons_alone() -> None:
+    js = _src(_VIEWS / "tips.js")
+    lic = js[js.index("export function licensed(tip, settings) {"):]
+    lic = lic[:lic.index("\n}\n")]
+    assert "vacuumAllowed" not in lic and "return E.addonAllowed(s, need);" in lic
+
+
+def test_the_emergency_link_opens_once_and_leaves_the_address() -> None:
+    lp = _src(_WWW / "lights_panel.js")
+    i = lp.index("  _cardLink(tries = 0){")
+    link = lp[i:lp.index("  // A word that says a feature was used", i)]
+    assert "setTimeout(()=>this._cardLink(tries + 1), 250)" in link and "tries < 8" in link, "retried for about 2 s"
+    assert 'u.searchParams.delete("card")' in link and "history.replaceState(" in link, "the parameter leaves the address"
+    assert link.index("this._dropCardParam();") < link.index("if(btn) this._openEmergencyCard();")
+
+
+def test_show_me_scrolls_to_the_card_on_the_draw_that_is_on_the_page() -> None:
+    st = _src(_VIEWS / "settings.js")
+    i = st.index("  const wantPart = ctx.state._settingsPart;")
+    block = st[i:st.index("  return root;", i)]
+    assert "ctx.state._settingsScrollTo = { part: wantPart, until: Date.now() + 3000 };" in block
+    assert "root.isConnected !== false ? FOCUS.pickPart(root, scrollTo.part) : null" in block, "found again just before the scroll"
+    assert "setTimeout(() => tryScroll(left - 1), 150)" in block and "ctx.state._settingsScrollTo !== scrollTo" in block
