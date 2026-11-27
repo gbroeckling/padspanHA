@@ -58,6 +58,11 @@ check("energy: Energy at $8.65, not on sale and no date", EN.words === "Energy" 
 check("energy: never half off while not sold", E.addonPriceParts("energy", Date.parse("2026-12-24T12:00:00Z")).half === false);
 check("energy: Pro and a key holding it may use it", E.addonAllowed({ tier: "pro" }, "energy") === true
   && E.addonAllowed({ ...KEY, addons_licensed: ["energy"] }, "energy") === true && E.addonAllowed(KEY, "energy") === false);
+// Held back from trials while not on sale (the owner, 2026-11-26: "Hold it back from trials"): a trial's Pro doesn't
+// unlock it, a paid Pro key does; the other add-ons follow the trial as ever.
+check("energy: never a trial's while not on sale", E.addonAllowed({ tier: "pro", license_is_trial: true }, "energy") === false
+  && E.addonAllowed({ tier: "pro", license_is_trial: true }, "audio") === true && E.addonAllowed({ tier: "pro", license_is_trial: false }, "energy") === true
+  && JSON.stringify(E.HELD_FROM_TRIALS) === JSON.stringify(["energy"]));
 check("energy: never in the sale card", !E.addonSaleCardPicks({ tier: "free" }, Date.parse("2026-12-24T12:00:00Z")).includes("energy"));
 check("the sale still halves the feature add-ons", E.addonPriceParts("audio", Date.parse("2026-12-24T12:00:00Z")).half === true);
 check("c4local: an add-on key holding it may use it", E.addonAllowed({ ...KEY, addons_licensed: ["c4local"] }, "c4local") === true

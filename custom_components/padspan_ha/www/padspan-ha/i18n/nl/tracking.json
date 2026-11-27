@@ -322,5 +322,6 @@
 "Guest tags that arrived or left": "Gasttags die aankwamen of vertrokken",
 "The rooms empty longest": "De kamers die het langst leeg waren",
 "Lights left on in rooms where nobody was": "Lampen die aan bleven in kamers waar niemand was",
-"Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Alleen een beheerder kan dit wijzigen. Na het tijdstip van vandaag aangezet, komt het eerste bericht morgen."
+"Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Alleen een beheerder kan dit wijzigen. Na het tijdstip van vandaag aangezet, komt het eerste bericht morgen.",
+"The power used in rooms nobody was in (Energy)": "De stroom in kamers waar niemand was (Energie)"
 }

@@ -117,14 +117,19 @@ await tryCase("map", async () => {
   check("map", plain === draw({ roomEnergy: undefined, deviceWatts: undefined }) && plain === draw({ roomEnergy: {}, deviceWatts: {} })
     && !plain.includes("lroom-energy") && !plain.includes("ldev-watts"), "an empty Energy changed the drawing");
   const on = draw({ roomEnergy: { Kitchen: "180 W" } });
-  check("map", (on.match(/class="lroom-energy"/g) || []).length === 1 && on.includes(">⚡ 180 W</text>"), "one chip, its words");
+  // The bolt as text (U+FE0E), never a colour emoji, a space before the watts.
+  check("map", (on.match(/class="lroom-energy"/g) || []).length === 1 && on.includes(">\u26A1\uFE0E 180 W</text>"), "one chip, its words");
+  // Its own tap area, the room's, drawn over the markers (after them), so a fixture's code chip under it never takes it.
+  const tap = on.match(/<g class="lroom lroom-energy-tap" data-role="room" data-room="Kitchen" data-z="[^"]*" style="cursor:pointer"><rect x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)" fill="transparent" stroke="none" pointer-events="all"\/><\/g>/);
+  check("map", !!tap && on.lastIndexOf("lroom-energy-tap") > on.lastIndexOf('class="lhex'), "the chip's tap area, over the markers");
   // In the room name's own group (its tap is the room's), under the name.
   const grp = on.slice(on.indexOf('<g class="lroom" data-role="room" data-room="Kitchen"'));
   check("map", grp.indexOf("lroom-energy") > 0 && grp.indexOf("lroom-energy") < grp.indexOf("</g></g>") + 8, "the chip is not with its room's name");
   const name = on.match(/data-room="Kitchen"[\s\S]*?<text x="([\d.]+)" y="([\d.]+)"/), chip = on.match(/class="lroom-energy"[^>]*><rect x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/);
   check("map", name && chip && Number(chip[2]) > Number(name[2]), [name && name.slice(1), chip && chip.slice(1)]);
   // Only that room changed.
-  check("map", on.replace(/<g opacity="[^"]*"><g class="lroom-energy"[\s\S]*?<\/g><\/g>/, "") === plain, "more than the Kitchen changed");
+  check("map", on.replace(/<g opacity="[^"]*"><g class="lroom-energy"[\s\S]*?<\/g><\/g>/, "").replace(/<g class="lroom lroom-energy-tap"[\s\S]*?<\/g>/, "") === plain,
+    "more than the Kitchen changed");
   // With the speaker too: the two never overlap.
   const both = draw({ roomEnergy: { Kitchen: "180 W" }, roomAudio: { Kitchen: "on" } });
   const spk = both.match(/<g class="lroom-audio"[^>]*><circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.]+)"/).slice(1).map(Number);
@@ -136,7 +141,25 @@ await tryCase("map", async () => {
   const lbe = Object.fromEntries(LM.gatherLights(states, { "light.kitchen_lamp": "Kitchen" }, {}, "pro").map(l => [l.entity_id, l]));
   const placed = { ...MODEL, light_positions_m: { "light.kitchen_lamp": { x_m: 2, y_m: 2, floor_id: "main" } } };
   const dw = (m) => ISO.buildIsoSVG(m, { Kitchen: Object.values(lbe) }, new Set(), null, 150, 0, lbe, false, MODEL.floors, { codeChip: true, deviceWatts: { "light.kitchen_lamp": "80 W" } });
-  check("map", Object.keys(lbe).length === 1 && (dw(placed).match(/class="ldev-watts"/g) || []).length === 1 && dw(placed).includes(">⚡80 W</text>"), "the placed lamp's watts");
+  check("map", Object.keys(lbe).length === 1 && (dw(placed).match(/class="ldev-watts"/g) || []).length === 1 && dw(placed).includes(">\u26A1\uFE0E 80 W</text>"), "the placed lamp's watts");
+  // Never on the room's name, its chip or its speaker: with all three crowding the lamp, the label finds a clear spot
+  // or isn't drawn.
+  const crowd = ISO.buildIsoSVG(placed, { Kitchen: Object.values(lbe) }, new Set(), null, 150, 0, lbe, false, MODEL.floors,
+    { codeChip: true, roomEnergy: { Kitchen: "180 W" }, roomAudio: { Kitchen: "on" }, deviceWatts: { "light.kitchen_lamp": "80 W" } });
+  const box = (re) => { const m = crowd.match(re); return m ? m.slice(1).map(Number) : null; };
+  const wl = crowd.match(/class="ldev-watts" x="([\d.-]+)" y="([\d.-]+)"[^>]*font-size="([\d.]+)"[^>]*>([^<]*)</);
+  const nm = crowd.match(/data-room="Kitchen"[\s\S]*?<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>Kitchen</);
+  const spk2 = box(/<g class="lroom-audio"[^>]*><circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.]+)"/);
+  const chipB = box(/class="lroom-energy"[^>]*><rect x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/);
+  let clear = true;
+  if (wl) {
+    const [x, y, fs] = wl.slice(1, 4).map(Number), hw = (wl[4].length - 1) * fs * 0.3, hh = fs * 0.6;
+    const apart = (ax0, ay0, ax1, ay1) => x + hw <= ax0 || x - hw >= ax1 || y + hh <= ay0 || y - hh >= ay1;
+    const [nx, ny, nfs] = nm.slice(1).map(Number), nhw = "Kitchen".length * nfs * 0.3;
+    clear = apart(nx - nhw, ny - nfs / 2, nx + nhw, ny + nfs / 2) && apart(spk2[0] - spk2[2], spk2[1] - spk2[2], spk2[0] + spk2[2], spk2[1] + spk2[2])
+      && apart(chipB[0], chipB[1], chipB[0] + chipB[2], chipB[1] + chipB[3]);
+  }
+  check("map", clear, { wl: wl && wl.slice(1), nm: nm && nm.slice(1), spk2, chipB });
   check("map", !dw(MODEL).includes("ldev-watts"), "an unplaced device got watts");
 });
 
@@ -160,6 +183,14 @@ await tryCase("review", async () => {
   const r = energy(two);
   r.en.chips(); await tick(); await tick();
   check("review", r.en.deviceWatts()["switch.fridge_plug"] === "120 W", r.en.deviceWatts());
+  // The entity registry is walked once per answer, never on every draw.
+  let walks = 0;
+  const big = Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`switch.s${i}`, { device_id: "dev_fridge" }]));
+  const rr = EN.createEnergy({ fetch: async () => SUMMARY(), hass: () => ({ get entities() { walks++; return big; } }), count: () => {}, redraw: () => {} });
+  rr.chips(); await tick(); await tick();
+  const w0 = walks;
+  for (let i = 0; i < 20; i++) { rr.chips(); rr.deviceWatts(); }
+  check("review", w0 === 1 && walks === 1 && rr.deviceWatts()["switch.s3"] === "80 W", { w0, walks });
 });
 
 // ── sheet: the room's Energy part; a room without metering, and Energy not passed, gain nothing ──
@@ -185,7 +216,25 @@ await tryCase("sheet", async () => {
   s.close(); reset();
   // A stale device says so; a room with no metering: no part at all, the sheet as it was.
   const den = r.en.sheet("Den");
-  check("sheet", den && all(den.draw()).some(x => x._text === "No recent reading"), "the stale TV");
+  // A stale device's watts are "—", said once under the rows; its room total "—", never "0 W", when every reading in it
+  // is stale.
+  const denPart = den && den.draw();
+  const denTotal = denPart && all(denPart).find(n => n.attributes && n.attributes["data-energy-total"] !== undefined);
+  check("sheet", denPart && all(denPart).some(x => x._text === "— No recent reading") && all(denTotal).some(x => x._text === "—")
+    && !all(denTotal).some(x => x._text === "0 W"), "the stale TV");
+  // The column legend above the rows, and the figures one no-wrap group beside the name.
+  const kp = r.en.sheet("Kitchen").draw();
+  const kids = kp.children.map(c => (c.attributes && (c.attributes["data-energy-legend"] !== undefined ? "legend" : c.attributes["data-energy-device"] ? "row" : c.attributes["data-energy-total"] !== undefined ? "total" : "")) || "");
+  check("sheet", kids.indexOf("legend") > -1 && kids.indexOf("legend") < kids.indexOf("row"), kids);
+  const row0 = all(kp).find(n => n.attributes && n.attributes["data-energy-device"]);
+  check("sheet", /flex-wrap:nowrap/.test(row0.style.cssText) && row0.children.length === 2 && /flex-wrap:nowrap/.test(row0.children[1].style.cssText),
+    row0.style.cssText);
+  // Below COST_MIN_PX the cost column goes.
+  const W0 = globalThis.window;
+  globalThis.window = { ...(W0 || {}), innerWidth: 360 };
+  const narrow = r.en.sheet("Kitchen").draw();
+  check("sheet", all(narrow).find(n => n.attributes && n.attributes["data-energy-device"]).children[1].children.length === 2, "the cost column on a phone");
+  globalThis.window = W0;
   check("sheet", r.en.sheet("Hall") === null, "a room without metering has a part");
   const hall = LM.openRoomSheet(apiOf(r.en), [], "Hall");
   check("sheet", !all(sheetNow()).some(n => n.attributes && n.attributes["data-room-controls"] === "energy"), "the Hall gained Energy");
@@ -208,6 +257,9 @@ await tryCase("german", async () => {
   const part = r.en.sheet("Kitchen").draw();
   const words = all(part).map(x => x._text).filter(Boolean);
   check("german", words.includes("Energie") && words.includes("Raum gesamt") && words.some(w => w.startsWith("Leer seit 2 Std.")), words);
+  // Numbers and money in the panel's language.
+  check("german", EN.fmtW(1834) === "1,8 kW" && EN.fmtKwh(4.81) === "4,81 kWh" && EN.fmtMoney(0.06, "CAD").includes("0,06"),
+    [EN.fmtW(1834), EN.fmtKwh(4.81), EN.fmtMoney(0.06, "CAD")]);
   await I.useLanguage({ language: "en", locale: { language: "en" } }, ["atlas1"]);
 });
 

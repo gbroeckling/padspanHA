@@ -80,6 +80,9 @@ ADDON_ON_SALE_FROM: dict[str, int] = {"maps": FREE_BASICS_FROM_TS, "vacuum": FRE
 # publishes it (views/editions.js on_sale: false says the same), so nothing offers it. Pro installs and keys holding it
 # use it meanwhile.
 NOT_ON_SALE: tuple[str, ...] = ("c4local", "forensics", "energy")
+# Held back from a Pro trial while not on sale (the owner, 2026-11-26: "Hold it back from trials"): a trial key does not
+# unlock it, a paid Pro key and a key holding it do. Taken out of NOT_ON_SALE, it follows the trial like any add-on.
+HELD_FROM_TRIALS: tuple[str, ...] = ("energy",)
 # An add-on sold as part of another (the owner, 2026-11-26: Forensics merged into Presence insights, "insights"): no
 # longer sold on its own (NOT_ON_SALE), and a key holding either has both, so a Forensics bought before the merge
 # keeps working and gets the rest. The licence server answers the same way (license/index.php ps_addons).
@@ -275,6 +278,8 @@ def addon_allowed(settings: dict[str, Any] | None, key_active: bool, name: str, 
     the answer as settings.addons_licensed (ws_common._get_settings) through
     views/editions.js addonAllowed(settings, name)."""
     d = settings or {}
+    if name in HELD_FROM_TRIALS and name in NOT_ON_SALE and d.get("license_is_trial") is True:
+        return False                                   # not on sale yet: never a trial's (HELD_FROM_TRIALS)
     if tier_at_least(effective_tier(d, key_active, floor=floor), "pro"):
         return True
     if name not in ADDONS or not key_active or not str(d.get("forensics_license_key") or "").strip():

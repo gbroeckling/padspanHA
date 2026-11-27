@@ -98,3 +98,15 @@ def test_a_chip_is_a_placed_label_so_the_next_room_s_chip_keeps_clear():
     iso = _src("views/iso_lights.js")
     at = iso.index("energyMark(ex, ey, efs, color, label)")
     assert "placedLabels.push({x:ex, y:ey, w:ehw*2, h:ehh*2});" in iso[at:at + 300]
+
+
+def test_the_view_asks_again_only_after_its_refresh_time_and_reads_as_the_panel_does():
+    """A failed energy_get is tried again after REFRESH_MS, not on every redraw (es.ts stamped before the call, as
+    energy_map.js refresh() stamps `at`); card headings in the panel's green; the always-on rows at least 36 px; on a
+    phone a row's figures go under its name instead of breaking it; dates in the panel's language."""
+    v = _src("views/energy.js")
+    body = v[v.index("async function load(ctx) {"):v.index("const card =")]
+    assert body.index("es.ts = Date.now();") < body.index('await ctx.actions.wsCall("padspan_ha/energy_get")')
+    assert body.count("es.ts = Date.now();") == 1
+    assert 'const HEAD = "#52b788";' in v and "color:${HEAD};margin-bottom:8px" in v and "color:${AMBER};margin-bottom:8px" not in v
+    assert "min-height:36px" in v and "flex-wrap:wrap" in v and "toLocaleString(locale()," in v

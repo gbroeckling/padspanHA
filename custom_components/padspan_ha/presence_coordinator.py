@@ -808,7 +808,7 @@ async def async_send_follow_notify(
 # off. The day told is saved before the message goes (yesterday_home_sent_day),
 # so a restart never sends it twice. In English, as every PadSpan notification is.
 
-YESTERDAY_LINES: tuple[str, ...] = ("comings", "guests", "empty_rooms", "lights")
+YESTERDAY_LINES: tuple[str, ...] = ("comings", "guests", "empty_rooms", "lights", "energy")   # energy: only while Energy is on
 LIGHT_LEFT_MIN_S = 1800.0     # on this long with nobody in the room: "left on"
 EMPTY_ROOMS_SHOWN = 3
 PEOPLE_SHOWN = 8
@@ -1048,7 +1048,7 @@ async def async_send_yesterday_home(hass: HomeAssistant, day: str, rooms: list[s
             _quiet_error("presence:yesterday_lights")
     # Energy (the add-on, while it is on): the kWh and cost used in rooms nobody had been in for its empty time.
     energy_line = None
-    if covered and room_list:
+    if "energy" in lines and covered and room_list:
         try:
             from .energy import async_yesterday, yesterday_words  # noqa: PLC0415
             energy_line = yesterday_words(await async_yesterday(hass, start, end, {r: occ.get(r) or [] for r in room_list}))

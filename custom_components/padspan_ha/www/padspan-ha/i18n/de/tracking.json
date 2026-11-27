@@ -322,5 +322,6 @@
 "Guest tags that arrived or left": "Gast-Tags, die ankamen oder gingen",
 "The rooms empty longest": "Die Räume, die am längsten leer waren",
 "Lights left on in rooms where nobody was": "Lichter, die in Räumen brannten, in denen niemand war",
-"Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Nur ein Administrator kann das ändern. Nach der heutigen Uhrzeit eingeschaltet, kommt die erste Nachricht morgen."
+"Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Nur ein Administrator kann das ändern. Nach der heutigen Uhrzeit eingeschaltet, kommt die erste Nachricht morgen.",
+"The power used in rooms nobody was in (Energy)": "Der Strom in Räumen, in denen niemand war (Energie)"
 }

@@ -147,8 +147,13 @@ export function addonOnSale(name, now = Date.now()) {
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
 export function addonAllowed(settings, name) {
   const s = settings || {};
+  if (HELD_FROM_TRIALS.includes(name) && !addonOnSale(name) && s.license_is_trial === true) return false;
   return currentTier(s) === "pro" || (Array.isArray(s.addons_licensed) && s.addons_licensed.includes(name));
 }
+// Held back from a Pro trial while not on sale (the owner, 2026-11-26: "Hold it back from trials"; licence.py
+// HELD_FROM_TRIALS is the backend's twin): a trial doesn't unlock it, a paid Pro key and a key holding it do. On sale,
+// it follows the trial like any add-on.
+export const HELD_FROM_TRIALS = Object.freeze(["energy"]);
 /** The gate of a feature that was free and moves into add-on `name`: everyone's while the add-on is not on sale
  *  (nobody could buy it), then addonAllowed. licence.hass_addon_gate is its twin. Whether it is on sale is the
  *  backend's word (settings.addons_on_sale, licence.addons_on_sale, every settings read), so the panel and the

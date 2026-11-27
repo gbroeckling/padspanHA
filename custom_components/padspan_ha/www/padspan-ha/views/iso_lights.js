@@ -2778,10 +2778,10 @@ export function energyMark(x, y, fs, color, label){
     + `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="${color}" font-size="${fs.toFixed(2)}" `
     + `font-family="system-ui,sans-serif" font-weight="700">${escSVG(label)}</text></g>`;
 }
-/** A placed device's watts beside its marker (energy_map.js deviceWatts): up and right of it, haloed, never a tap. */
-export function deviceWattsSvg(x, y, r, label){
-  const fs = Math.max(5, r * 0.9);
-  return `<text class="ldev-watts" x="${(x + r * 1.1).toFixed(1)}" y="${(y - r * 1.1).toFixed(1)}" text-anchor="start" dominant-baseline="central" `
+/** A placed device's watts by its marker (energy_map.js deviceWatts), centred on (x, y): the spot buildIsoSVG found clear
+ *  of names, badges, readouts and fixtures. Haloed, never a tap. */
+export function deviceWattsSvg(x, y, fs, label){
+  return `<text class="ldev-watts" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" `
     + `fill="#fbbf24" font-size="${fs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="700" paint-order="stroke" stroke="#071008" `
     + `stroke-width="1.6" stroke-linejoin="round" pointer-events="none">${escSVG(label)}</text>`;
 }
@@ -6104,13 +6104,16 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           nameTxt+=`<g opacity="${SHOW?THEME.roomLabelOpacity:"0.85"}">${speakerMark(audioX, audioY, audioS, color, audioLook)}</g>`;
           s+=`<circle class="lroom-audio-hit" cx="${audioX.toFixed(1)}" cy="${audioY.toFixed(1)}" r="${Math.max(audioS*2.6, 9).toFixed(1)}" `+
             `fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;
+          // A placed label: a device's watts, and a later room's chip, keep clear of the badge.
+          placedLabels.push({x:audioX, y:audioY, w:br*2, h:br*2});
         }
         // Energy: a metered room's watts in a pill by its name, in the name's colour, drawn where the name is. Under the
         // name, else above it, right or left of it: the first spot clear of a live reading's digits, another name, the
         // fixtures and the speaker, so it sits with the room's readouts and never on them.
         const energyTxt=ROOM_ENERGY && Object.prototype.hasOwnProperty.call(ROOM_ENERGY, r.room) ? ROOM_ENERGY[r.room] : null;
         if(energyTxt){
-          const efs=rfs*0.62, label=`⚡ ${energyTxt}`, ehw=label.length*efs*0.3+efs*0.5, ehh=efs*0.75, egap=Math.max(1.5, efs*0.3);
+          // \uFE0E: the bolt as text in the chip's colour, never a colour emoji.
+          const efs=rfs*0.62, label=`\u26A1\uFE0E ${energyTxt}`, ehw=(label.length-1)*efs*0.3+efs*0.5, ehh=efs*0.75, egap=Math.max(1.5, efs*0.3);
           let ex=lix, ey=liy+rh/2+egap+ehh, best=Infinity;
           for(const [x,y] of [[lix,liy+rh/2+egap+ehh],[lix,liy-rh/2-egap-ehh],[lix+rw/2+egap+ehw,liy],[lix-rw/2-egap-ehw,liy]]){
             const spk=audioLook && Math.abs(audioX-x)<ehw+audioS*SPEAKER_R && Math.abs(audioY-y)<ehh+audioS*SPEAKER_R;
@@ -6120,6 +6123,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           }
           nameTxt+=`<g opacity="${SHOW?THEME.roomLabelOpacity:"0.85"}">${energyMark(ex, ey, efs, color, label)}</g>`;
           placedLabels.push({x:ex, y:ey, w:ehw*2, h:ehh*2});   // the next room's chip keeps clear of this one
+          // Its own tap area, the room's (its card opens, as a tap on the name does), drawn over the markers so a
+          // fixture's code chip under it never takes the tap and switches a light.
+          namesOver.push(`<g class="lroom lroom-energy-tap" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
+            `<rect x="${(ex-ehw).toFixed(1)}" y="${(ey-ehh).toFixed(1)}" width="${(ehw*2).toFixed(1)}" height="${(ehh*2).toFixed(1)}" `+
+            `fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/></g>`);
         }
         // A room so full that no spot in it is clear (a small larder between
         // two strips, a closet its own strip runs the length of): its name is
@@ -6885,8 +6893,20 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     jobs.forEach((j,i)=>{ s+=markerSvg(j[0], j[1], j[2], j[3], j[4], !!j[7], nearestDist[i], j[8]); });
     for(const st of stacks) s+=stackChipSvg(...st);
     for(const t of namesOver) s+=t;
-    // Energy: a placed device's watts by its marker (deviceWatts), over the markers.
-    if(DEVICE_W) for(const j of jobs){ const w=j[3] && j[0] && DEVICE_W[j[0].entity_id]; if(w) s+=deviceWattsSvg(j[1], j[2], HEX_R, `⚡${w}`); }
+    // Energy: a placed device's watts by its marker (deviceWatts), over the markers, on the first spot round it clear of
+    // names, badges, chips, readouts and other fixtures (its own marker aside); none clear, none drawn. Never for a
+    // marker that isn't drawn (a perimeter light's trace, a glyph its glow stands in for).
+    if(DEVICE_W) for(const j of jobs){
+      const w=j[3] && j[0] && j[0].shape!=="perimeter" && !j[7] && DEVICE_W[j[0].entity_id];
+      if(!w) continue;
+      const [,hx,hy]=j, fs=Math.max(5, HEX_R*0.9), label=`\u26A1\uFE0E ${w}`, hw=(label.length-1)*fs*0.3, hh=fs*0.6, r0=HEX_R*1.2;
+      const own=avoidC.filter(o=>Math.hypot((o[0]+o[2])/2-hx, (o[1]+o[3])/2-hy)>0.5);
+      const spot=[[hx+r0+hw, hy-r0], [hx+r0+hw, hy], [hx-r0-hw, hy], [hx, hy-r0-hh], [hx-r0-hw, hy-r0]].find(([x,y])=>
+        coverOf(x,y,hw,hh,own)===0 && !placedLabels.some(p=>Math.abs(p.x-x)<p.w/2+hw && Math.abs(p.y-y)<p.h/2+hh));
+      if(!spot) continue;
+      placedLabels.push({x:spot[0], y:spot[1], w:hw*2, h:hh*2});
+      s+=deviceWattsSvg(spot[0], spot[1], fs, label);
+    }
     if(!isFocused) s+=`</g>`+overGhost;
 
     // Floor level badge
