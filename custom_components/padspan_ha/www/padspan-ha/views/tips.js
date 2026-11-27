@@ -51,6 +51,10 @@ const OVERVIEW = Object.freeze(["overview"]);
 const ATLAS = Object.freeze(["atlas_adjust"]);
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+// Audio used: the room card's words (room_controls:<word>), the same list as the usage report's addon_report.AUDIO_USED
+// (tests/test_tips.py holds the two equal).
+export const AUDIO_USED = Object.freeze(["up", "down", "mute", "off", "match_saved", "source", "sound_mode", "play", "pause", "next",
+  "previous", "scan", "slider", "sound", "share", "unshare", "all_off", "sources_saved", "limit_saved"]);
 /** A setting that is on: true, a non-empty list, map or text. */
 export function isOn(v) {
   if (v === true) return true;
@@ -148,9 +152,10 @@ export const TIPS = Object.freeze([
   // ── Audio ──
   { id: "audio", need: "audio", where: BOTH, admin: true,
     get title() { return t("Room audio on the Atlas"); },
-    get body() { return t("Volume, mute and off for each room's players in the room's panel, and a speaker beside the room's name while one plays."); },
+    get body() { return t("Each room's players in its panel on the Atlas: on and off, volume, source and sound, play and skip, sharing with other rooms, and Room off."); },
     fit: (f) => (f.audioMatched ? 3 : f.media && f.rooms ? 1 : 0),
-    used: { settings: ["atlas_audio_enabled"], events: ["room_controls:on", "room_controls:up", "room_controls:down", "room_controls:mute", "room_controls:off", "room_controls:room_off"] },
+    used: { settings: ["atlas_audio_enabled"],
+      events: ["house3d_show:show:room_controls", ...AUDIO_USED.map((w) => `room_controls:${w}`)] },
     target: { view: "settings", tab: "atlas", part: "atlas_audio" }, line: "room_controls" },
   // ── Alarm & security ──
   { id: "alarm_arm", need: "alarm", where: BOTH, admin: false,
@@ -480,10 +485,23 @@ export function pageTip() { return { ..._page }; }
 
 const _send = (host, word) => { try { if (host && typeof host.send === "function") host.send(word); } catch (_) { /* the report is a courtesy */ } };
 function _write(host, patch) {
+  if (host.live === false) return Promise.resolve();            // sample data: the real house's settings are not this page's
   if (host.settings) Object.assign(host.settings, patch);      // at once: the next draw reads it
   try { return Promise.resolve(typeof host.save === "function" ? host.save(patch) : null).catch(() => {}); } catch (_) { return Promise.resolve(); }
 }
 const _known = (host) => !!(host && host.settings && "tips_enabled" in host.settings);
+// "No more tips" from someone who is not an administrator: this browser only (the house's switch, tips_enabled, is an
+// administrator's: ws_settings refuses it to anyone else).
+export const LOCAL_OFF_KEY = "padspan_tips_off";
+export function localOff() { try { return globalThis.localStorage && globalThis.localStorage.getItem(LOCAL_OFF_KEY) === "1"; } catch (_) { return false; } }
+function _setLocalOff(off) {
+  try { if (off) globalThis.localStorage.setItem(LOCAL_OFF_KEY, "1"); else globalThis.localStorage.removeItem(LOCAL_OFF_KEY); } catch (_) { /* this page only */ }
+}
+/** Tips on for whoever this is: the house's switch, and for anyone but an administrator this browser's too. */
+export function tipsOnFor(host) {
+  const s = (host && host.settings) || {};
+  return s.tips_enabled !== false && (!!host.admin || !localOff());
+}
 function _apply(host, ch) {
   if (!ch) return;
   _write(host, { tips_state: ch.state });
@@ -519,7 +537,7 @@ export function noteEvent(host, word, now = Date.now()) {
 export function currentTip(host, place, spot = place, now = Date.now()) {
   if (!host || host.kiosk || host.live === false || !_known(host)) return null;
   reconcile(host, now);                            // a feature turned on since its tip: used (tips on or off)
-  if (host.settings.tips_enabled === false) return null;
+  if (!tipsOnFor(host)) return null;
   if (_page.id) return !_page.closed && _page.spot === spot ? tipById(_page.id) : null;
   const facts = typeof host.facts === "function" ? host.facts() : host.facts;
   const tip = pickTip({ settings: host.settings, facts, place, now, admin: !!host.admin, basic: !!host.basic,
@@ -531,7 +549,8 @@ export function currentTip(host, place, spot = place, now = Date.now()) {
   return tip;
 }
 
-/** An answer to the page's tip: "go" (Show me), "not_now", "dismiss" or "off" (No more tips). */
+/** An answer to the page's tip: "go" (Show me), "not_now" (Got it: seen, so never again, as the owner's rule says),
+ *  "dismiss" (✕) or "off" (No more tips: the house's for an administrator, this browser's for anyone else). */
 export function answer(host, tip, what, now = Date.now()) {
   if (!tip) return;
   _page.closed = true;
@@ -541,8 +560,10 @@ export function answer(host, tip, what, now = Date.now()) {
     _write(host, { tips_state: withDismissed(withSeen(st, tip.id, now), tip.id, now) });
   } else if (what === "off") {
     _send(host, "tips_off");
-    _write(host, { tips_enabled: false });
-    if (typeof host.toast === "function") host.toast(t("Tips are off. Settings → Appearance → Tips brings them back."));
+    if (host.admin) _write(host, { tips_enabled: false });
+    else _setLocalOff(true);
+    if (typeof host.toast === "function") host.toast(host.admin ? t("Tips are off. Settings → Appearance → Tips brings them back.")
+      : t("Tips are off on this browser. Settings → Appearance → Tips brings them back."));
   } else {
     _send(host, (what === "go" ? "tip_go:" : "tip_not_now:") + tip.id);
     // Seen it stays, so it never comes back (the owner's rule); written again only if the first save was lost.
@@ -633,7 +654,7 @@ function _actions(host, tip, mark) {
     ? _button(t("Show me"), { [mark]: "go" }, () => answer(host, tip, "go"), true) : null;
   return h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, [
     go,
-    _button(t("Not now"), { [mark]: "not_now" }, () => answer(host, tip, "not_now")),
+    _button(t("Got it"), { [mark]: "not_now" }, () => answer(host, tip, "not_now")),
     _button(t("No more tips"), { [mark]: "off" }, () => answer(host, tip, "off")),
   ]);
 }
@@ -690,7 +711,7 @@ export function menuTip(host, keys, now = Date.now()) {
   const canGo = !!line || (!!tip.target && typeof hh.go === "function" && (typeof hh.canGo !== "function" || hh.canGo(tip.target)));
   return {
     id: tip.id, title: tip.title, body: tip.body, line,
-    words: { label: t("Tip"), go: t("Show me"), notNow: t("Not now"), off: t("No more tips") },
+    words: { label: t("Tip"), go: t("Show me"), notNow: t("Got it"), off: t("No more tips") },
     canGo,
     go: () => answer(line ? { ...hh, go: null } : hh, line ? { ...tip, target: null } : tip, "go", Date.now()),
     notNow: () => answer(hh, tip, "not_now", Date.now()),
@@ -706,13 +727,17 @@ export function menuTip(host, keys, now = Date.now()) {
 export function settingsCard(host) {
   const s = (host && host.settings) || {};
   if (!("tips_enabled" in s)) return null;          // an older backend: nothing to switch
-  const on = s.tips_enabled !== false;
+  const admin = !!host.admin, houseOff = s.tips_enabled === false;
+  const on = tipsOnFor(host);
   const card = h("div", { class: "card", "data-focus-part": "tips", "data-tips-card": "", style: "margin-top:12px" });
   card.appendChild(h("div", { class: "h2", style: "margin:0 0 4px;color:#52b788" }, t("Tips")));
   const cb = h("input", { type: "checkbox", id: "tipsEnabledToggle", "data-tips-card": "switch", style: "width:18px;height:18px;accent-color:#52b788;cursor:pointer" });
   cb.checked = on;
+  // Off for the whole house: only an administrator turns it back on.
+  if (!admin && houseOff) cb.disabled = true;
   const set = (want) => {
     if (!want) _send(host, "tips_off");
+    if (!admin) { _setLocalOff(!want); if (typeof host.rerender === "function") host.rerender(); return; }
     _write(host, { tips_enabled: want }).then(() => { if (typeof host.rerender === "function") host.rerender(); });
   };
   cb.addEventListener("change", () => set(cb.checked));
@@ -720,7 +745,9 @@ export function settingsCard(host) {
     [cb, t("Show a tip now and then")]));
   card.appendChild(h("div", { class: "muted", style: "font-size:12px;margin-top:2px;line-height:1.5" },
     t("At most one a day, about something this house already has and doesn't use yet: on the Overview, or where you adjust the Atlas. Never on a wall screen, and never one you've seen before.")));
-  if (!on) {
+  if (!admin) card.appendChild(h("div", { class: "muted", "data-tips-card": "local", style: "font-size:12px;margin-top:4px" },
+    houseOff ? t("An administrator turned tips off for the whole house.") : t("This switch is for this browser only.")));
+  if (!on && !(houseOff && !admin)) {
     card.appendChild(h("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px" }, [
       h("span", { class: "muted", style: "font-size:12px" }, t("Tips are off.")),
       _button(t("Bring tips back"), { "data-tips-card": "back" }, () => set(true), true),

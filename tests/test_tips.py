@@ -95,7 +95,8 @@ def test_the_settings_and_their_defaults() -> None:
     schema = {str(getattr(k, "schema", k)) for k in WS.ws_settings_set.ws_schema}
     assert {"tips_enabled", "tips_state"} <= schema
     assert "server_tips_rank" not in schema, "the ranking is the update check's, never settings_set's"
-    assert {"tips_enabled", "tips_state"} <= WS._EVERYONE_KEYS, "written as anyone uses the panel, Enhanced security or not"
+    assert "tips_state" in WS._EVERYONE_KEYS, "written as anyone uses the panel, Enhanced security or not"
+    assert "tips_enabled" not in WS._EVERYONE_KEYS, "the whole house's switch is an administrator's"
 
 
 def test_the_state_is_cleaned_and_bounded() -> None:
@@ -133,11 +134,14 @@ def test_the_command_keeps_what_the_golden_rows_say() -> None:
     assert len(took) >= 5
     assert took and all(r["error"] is None for r in took), "a map is cleaned, never refused"
     assert all(r["schema"] == "refused" for r in rows if not isinstance(r["sent"]["tips_state"], dict)), "only a map is taken"
-    for key in ("tips_enabled", "tips_state"):
-        others = [r for r in _golden(key) if r["as"] != "admin"]
-        assert len(others) == 2, (key, "a user, and a user with Enhanced security on")
-        for r in others:
-            assert r["error"] is None and r["answered"], (key, r["as"], r.get("from"))
+    others = [r for r in _golden("tips_state") if r["as"] != "admin"]
+    assert len(others) == 2, "a user, and a user with Enhanced security on"
+    for r in others:
+        assert r["error"] is None and r["answered"], (r["as"], r.get("from"))
+    # The whole house's switch: refused to anyone but an administrator, Enhanced security or not, and nothing written.
+    refused = [r for r in _golden("tips_enabled") if r["as"] != "admin"]
+    assert len(refused) == 2 and all(r["error"] and r["error"][0] in ("unauthorized", "admin_only") and not r["written"] for r in refused), refused
+    assert any(r["error"][0] == "unauthorized" for r in refused), "refused with Enhanced security off too"
 
 
 # ── 4. the update check keeps the ranking ───────────────────────────────────
@@ -466,3 +470,34 @@ def test_every_view_host_knows_a_full_screen_wall() -> None:
     assert "kiosk: wallScreen(!!st.kioskMode)," in js and "export function wallScreen(kiosk, win = globalThis)" in js
     pj = _src(_WWW / "panel.js")
     assert "TIPS.hostFromCtx(this._ctx(), { kiosk: this.state.kioskMode || wallScreen(false) })" in pj
+
+
+# ── 10. the whole-beta inspection's fixes (2026-11-26) ───────────────────────
+
+def test_the_audio_tips_words_are_the_reports() -> None:
+    """Audio is used where the report says so (addon_report.AUDIO_USED, room_controls:<word>): one list in two places."""
+    from custom_components.padspan_ha import addon_report
+    js = _src(_VIEWS / "tips.js")
+    m = re.search(r"export const AUDIO_USED = Object\.freeze\(\[([^\]]*)\]\)", js)
+    words = re.findall(r'"([a-z_]+)"', m.group(1))
+    assert "house3d_show:show:room_controls" in js and "AUDIO_USED.map((w) => `room_controls:${w}`)" in js
+    report = getattr(addon_report, "AUDIO_USED", None)
+    if report is None:
+        pytest.skip("addon_report.AUDIO_USED comes with the Audio branch; the merge brings it")
+    assert tuple(words) == tuple(report), "views/tips.js AUDIO_USED and addon_report.AUDIO_USED, the same words in the same order"
+
+
+def test_one_card_per_visit_after_a_tip_too() -> None:
+    pj = _src(_WWW / "panel.js")
+    i = pj.index("\n  _accuracyTipsCard(){")
+    card = pj[i:pj.index("\n  _proInviteOverviewCard(){", i)]
+    assert "if (!this._accTipsVisible && this._overviewCardShown) return null;" in card
+    assert "this._accTipsVisible = true; this._overviewCardShown = true;" in card
+
+
+def test_no_tip_word_from_sample_data() -> None:
+    pj = _src(_WWW / "panel.js")
+    i = pj.index("\n  _tipNote(name){")
+    note = pj[i:pj.index("\n  _telemetryEvent(name, extra){", i)]
+    assert 'if (!this.state._dataModeKnown || this.state.dataMode !== "live") return;' in note
+    assert "if (host.live === false) return Promise.resolve();" in _src(_VIEWS / "tips.js"), "a sample host never saves"

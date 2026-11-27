@@ -514,5 +514,68 @@ const c4Ctx = { state: { settings: { addons_on_sale: [] } }, hass: { user: { is_
   actions: { wsCall: () => new Promise(() => {}), renderRooms() {} } };
 check("review: OS 2 Local not published: never pending", C4LM.overviewPending(c4Ctx) === false);
 
+// ── the whole-beta inspection's fixes ───────────────────────────────────────
+attempt("beta", () => {
+  // Got it, not Not now: seen is never again.
+  T.resetPage();
+  const g = host();
+  const card = T.overviewCard(g.h, NOW);
+  const gotIt = card.querySelector('[data-feature-tip-act="not_now"]');
+  check("beta: the answer says Got it", gotIt && gotIt.textContent === "Got it", gotIt && gotIt.textContent);
+  // A household member's No more tips: this browser only, the house's switch untouched.
+  localStorage.removeItem(T.LOCAL_OFF_KEY);
+  T.resetPage();
+  const m = host({ admin: false });
+  const tip = T.currentTip(m.h, "overview", "overview", NOW);
+  T.answer(m.h, tip, "off", NOW);
+  check("beta: a member's No more tips: this browser, no house write", T.localOff() === true && m.h.settings.tips_enabled === true
+    && !m.saved.some((p) => "tips_enabled" in p) && m.sent.at(-1) === "tips_off");
+  T.resetPage();
+  check("beta: then no tip for them here", T.currentTip(host({ admin: false }).h, "overview", "overview", NOW + 3 * DAY) === null);
+  T.resetPage();
+  check("beta: an administrator on the same browser still gets tips", T.currentTip(host({ admin: true }).h, "overview", "overview", NOW + 3 * DAY) !== null);
+  const mc = host({ admin: false });
+  const box = T.settingsCard(mc.h);
+  check("beta: a member's Tips card says it is this browser's", !!box.querySelector('[data-tips-card="local"]'));
+  box.querySelector('[data-tips-card="back"]').click();
+  check("beta: a member brings tips back on this browser, nothing written", T.localOff() === false && mc.saved.length === 0);
+  const houseOff = host({ admin: false });
+  houseOff.h.settings.tips_enabled = false;
+  const hb = T.settingsCard(houseOff.h);
+  check("beta: off for the house: a member can't switch it, and is told why", hb.querySelector('[data-tips-card="switch"]').disabled === true
+    && !hb.querySelector('[data-tips-card="back"]'));
+  // Sample data: nothing is ever saved, whatever happens.
+  T.resetPage();
+  const smp = host({ live: false });
+  T.noteEvent(smp.h, "addon_used:timetravel", NOW);
+  T.noteEvent(smp.h, "tab:wifi", NOW);
+  T.noteUse("busy_times", NOW);
+  T.reconcile(smp.h, NOW);
+  T.answer(smp.h, T.tipById("audio"), "dismiss", NOW);
+  T.settingsCard(smp.h).querySelector('[data-tips-card="switch"]').dispatchEvent({ type: "change" });
+  check("beta: sample data: no settings_set, ever", smp.saved.length === 0, JSON.stringify(smp.saved));
+  // The panel's own word in Sample mode never reaches the server.
+  const src = readFileSync(join(WWW, "panel.js"), "utf8");
+  const i = src.indexOf("\n  _tipNote(name){"), j = src.indexOf("\n  _telemetryEvent(name, extra){", i);
+  const noteFn = new Function("TIPS", `return { ${src.slice(i, j)} }._tipNote;`)(T);
+  const calls = [];
+  const pSample = { state: { settings: { ...base, tips_state: { seen: { audio: (Date.now() - DAY) / 1000 } } }, _dataModeKnown: true, dataMode: "sample" },
+    _callWS: (m) => { calls.push(m); return Promise.resolve({}); }, _telemetryEvent: () => {} };
+  T.resetPage();
+  noteFn.call(pSample, "room_controls:up");
+  pSample.state.dataMode = "live"; pSample.state._dataModeKnown = false;
+  noteFn.call(pSample, "room_controls:up");
+  check("beta: the panel in Sample mode (or not yet known) writes nothing", calls.length === 0, JSON.stringify(calls));
+  pSample.state._dataModeKnown = true;
+  noteFn.call(pSample, "room_controls:up");
+  check("beta: live, the same word is written", calls.length === 1 && calls[0].type === "padspan_ha/settings_set");
+  // Audio: the card's new words count.
+  for (const w of ["source", "sound_mode", "play", "share", "all_off"])
+    check(`beta: room_controls:${w} is Audio used`, T.eventUses(T.tipById("audio"), "room_controls:" + w));
+  check("beta: the ⋯ line ticked is Audio used", T.eventUses(T.tipById("audio"), "house3d_show:show:room_controls"));
+  check("beta: Audio's words describe the card", /source/.test(T.tipById("audio").body) && /Room off/.test(T.tipById("audio").body));
+  localStorage.removeItem(T.LOCAL_OFF_KEY);
+});
+
 console.log(JSON.stringify({ checks, failures }));
 process.exit(failures.length ? 1 : 0);

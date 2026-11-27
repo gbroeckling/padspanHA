@@ -1412,6 +1412,8 @@ class PadSpanHaApp extends HTMLElement {
     if (!this.state.settings || this.state.kioskMode || wallScreen(false)) return null;
     if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
     if (!(this._hass && this._hass.user && this._hass.user.is_admin)) return null;
+    // One card per page load: after a feature tip was answered (or any other card held the slot), not this one too.
+    if (!this._accTipsVisible && this._overviewCardShown) return null;
     const hidden = new Set(this.state.settings.accuracy_tips_hidden || []);
     if (hidden.has("all")) return null;
     const T = this._tips || (this._tips = { at: 0, list: null, busy: false, shown: new Set() });
@@ -1497,6 +1499,7 @@ class PadSpanHaApp extends HTMLElement {
       row.appendChild(x);
       card.appendChild(row);
     }
+    this._accTipsVisible = true; this._overviewCardShown = true;   // it holds the slot for this page load
     return card;
   }
 
@@ -3019,6 +3022,8 @@ class PadSpanHaApp extends HTMLElement {
   _tipNote(name){
     const s = this.state.settings;
     if (!TIPS || !s || !("tips_enabled" in s)) return;
+    // Sample data (the sample house, or a mode not known yet): nothing of it is this house's, and nothing is written.
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return;
     try {
       TIPS.noteEvent({ settings: s, send: (w) => this._telemetryEvent(w), live: !!this.state._dataModeKnown && this.state.dataMode === "live",
         save: (patch) => this._callWS({ type: "padspan_ha/settings_set", ...patch })
