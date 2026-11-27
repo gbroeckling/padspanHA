@@ -236,6 +236,9 @@ await tryCase("sheet", async () => {
   check("sheet", all(narrow).find(n => n.attributes && n.attributes["data-energy-device"]).children[1].children.length === 2, "the cost column on a phone");
   globalThis.window = W0;
   check("sheet", r.en.sheet("Hall") === null, "a room without metering has a part");
+  // What the Energy rows read, for the 3D panel's "More devices of the area" to leave out; nothing where there is no part.
+  check("sheet", r.en.shownIn("Kitchen").join() === "sensor.fridge_energy,sensor.fridge_power,sensor.kettle_energy,sensor.kettle_power"
+    && r.en.shownIn("Hall").length === 0 && energy({ ...SUMMARY(), on: false }).en.shownIn("Kitchen").length === 0, r.en.shownIn("Kitchen"));
   const hall = LM.openRoomSheet(apiOf(r.en), [], "Hall");
   check("sheet", !all(sheetNow()).some(n => n.attributes && n.attributes["data-room-controls"] === "energy"), "the Hall gained Energy");
   hall.close(); reset();

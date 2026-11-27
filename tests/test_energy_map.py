@@ -70,7 +70,9 @@ def test_settings_offers_energy_only_where_the_add_on_is_allowed():
     assert 'if (addonAllowed(settings, "energy")) wrap.appendChild(_atlasEnergySection(ctx, el, settings));' in st
     body = st[st.index("function _atlasEnergySection(ctx, el, settings){"):]
     assert 'row("energy_enabled", t("Energy"),' in body and "if (settings.energy_enabled !== true) return card;" in body
-    assert body.index("if (settings.energy_enabled !== true) return card;") < body.index('row("atlas_energy_enabled"')
+    # Energy on the map is with the room's card's other parts (Settings → Atlas, "In the room's card"), once Energy is on.
+    assert 'row("atlas_energy_enabled"' not in body
+    assert 'if (addonAllowed(settings, "energy") && settings.energy_enabled === true) {\n    roomPartRow("atlas_energy_enabled", t("Energy on the map"),' in st
     assert body.index("if (admin) {") < body.index('row("energy_spikes_enabled"')
 
 
@@ -110,3 +112,11 @@ def test_the_view_asks_again_only_after_its_refresh_time_and_reads_as_the_panel_
     assert body.count("es.ts = Date.now();") == 1
     assert 'const HEAD = "#52b788";' in v and "color:${HEAD};margin-bottom:8px" in v and "color:${AMBER};margin-bottom:8px" not in v
     assert "min-height:36px" in v and "flex-wrap:wrap" in v and "toLocaleString(locale()," in v
+
+
+def test_more_devices_of_the_area_leaves_out_what_the_energy_rows_read():
+    """While the room's card shows Energy (its sheet part is there), the 3D panel's "More devices of the area" leaves out
+    the metered devices' power and energy sensors (energy_map.js shownIn), as it does the room controls' parts."""
+    la = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8").replace(chr(13), "")
+    body = la[la.index("function paintRoomMore(api){"):][:1400]
+    assert 'api.energy && typeof api.energy.shownIn === "function" && api.energy.sheet(room) ? api.energy.shownIn(room) : []' in body

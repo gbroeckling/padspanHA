@@ -95,11 +95,11 @@ for a cover (**Trigger** for a switch, button or script), and the lock. A cover 
 says open or shut itself.
 
 **Shades** (free): tick **Shades** in the map's **⋯**, in the group "Doors, windows and locks" (on
-the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Shades**, for the whole
-house), and each room's sheet gains one row for every blind and shade in the room: how far open
-they are, and **Open**, **Stop** and **Close** for all of them at once. It is off until ticked.
-Garage doors, gates, doors and any cover linked as a door's opener are never in it; they stay on
-their door's card.
+the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → In the room's card →
+Shades**, for the whole house), and each room's sheet gains a row for each blind and shade: how far
+open it is, and its own **Open**, **Stop** and **Close**, with **All shades** under two or more. It
+is off until ticked. Garage doors, gates, doors, dampers, windows, any cover linked as a door's
+opener, and a cover with no kind named as a door, a gate or a garage are never in it.
 
 ## Alarms and the emergency banner
 
@@ -124,32 +124,35 @@ Tick **Audio** in the map's **⋯** (Show on this screen, in the rail beside the
 view's own ⋯) and each room's sheet (in 3D, its panel) gains its music and **Room off**. It is off
 until a screen ticks it, and each screen (a phone, a wall) has its own tick. Off, the map and the
 sheets are exactly as before. **Set up ›** on the same line opens the matching card (below) right
-there over the map, ticked or not, for an administrator, on a wall screen too. A room's shades and
+there over the map, ticked or not, for an administrator; a wall screen doesn't offer it. A room's shades and
 thermostats are lines of their own in the same list: **Shades** (free,
 [above](#doors-windows-and-locks)) and **Thermostats**
 ([Climate & air quality](#heatmap-and-thermostats-pro-or-the-climate--air-quality-add-on)).
 
-- **On the map**: a small round speaker badge beside a room's name while one of its players is on,
-  struck through while the room's first player is muted. It keeps clear of the name and of the
+- **On the map**: a small round speaker badge beside a room's name while one of its players plays
+  (a paused or idle one doesn't count; a Control4 room counts while it's on), struck through while
+  the room's first player is muted. It keeps clear of the name and of the
   room's readings (temperature, humidity, air), so a reading never looks like a volume. Nothing
   while they are all off, and no other new marks. Tap it, or the name, for the room's sheet: a tap
   on the map never changes anything. The 3D view shows the same badge beside the room's name and
   readings (where the names are hidden, beside the readings); a tap on it opens the room's panel,
   which opens below the emergency button, never under it.
-- **The sheet**: **Room off (n)** turns off the room's lights and its players, never a lock, a
-  shade, a thermostat or a plug, and shows only while something is on. Then the scenes, as before,
+- **The sheet**: **Room off (n)** turns off the room's lights and its players (one playing that
+  can't be turned off is paused, else stopped, else muted), never a lock, a shade, a thermostat or a
+  plug, and shows only while something is on. Then the scenes, as before,
   and:
   - **Audio**: a row for each player, named by its system ("Control4 · Great Room", "Denon · Zone
-    2"), with whether it is on, off or muted, **Mute**, the volume and ⏻ (that player off), or **On**
-    while it is off (never for a Control4 room, whose "on" can start a TV: pick a source instead).
+    2"), with whether it is on, idle, off or muted, **Mute**, the volume and ⏻ (that player off). A
+    player that is off shows only **On** (never for a Control4 room, whose "on" can start a TV) and
+    its sources where picking one starts it.
     The volume is a slider for a player that takes a level: the number follows your finger, Home
     Assistant is told at most four times a second and once more when you let go, and nothing
     redraws under your finger. A player that steps (a Control4 room) keeps **−**, the level and **+**,
     beside the slider where it also takes a level: each press moves the level shown at once, 1 in
     100 on a player that steps itself, and quick presses add up.
     Under the row, while something plays: the cover, the title and the artist, with ▶/⏸ (one
-    button while Home Assistant says playing or paused, separate ▶ and ⏸ otherwise, as for a
-    Control4 room), ⏮ ⏭ and ⏹, and ⏪ ⏩ for a Control4 room whose integration has the
+    button while Home Assistant says playing or paused, ▶ alone while idle, separate ▶ and ⏸
+    otherwise, as for a Control4 room), ⏮ ⏭ and ⏹, and ⏪ ⏩ for a Control4 room whose integration has the
     `control4.media_scan` action. Then:
     - **Source**: up to four as buttons, more as a list with a filter. The current one is marked.
       Picking one starts the room if it was off.
@@ -167,37 +170,37 @@ thermostats are lines of their own in the same list: **Shades** (free,
       it plays what this room plays, with its own volume; untick it, or **Leave group**. The row
       says "with Kitchen, Den" while it's grouped.
 
-    What a player can't do is left out or greyed: a player that is off shows its level as —.
-    **Any audio in house off**, after the players, turns off whatever is playing in every room, after
-    asking: a player that can't be turned off is paused, else stopped, else muted. Players that are
-    paused or idle are left as they are.
-  - the room's lights, as before.
+    What a player can't do is left out or greyed. **Any audio in house off**, after the players and
+    only while something in the house plays, turns off, after asking, every player matched to a room
+    that is playing: one that can't be turned off is paused, else stopped, else muted. Players that
+    are paused or idle are left as they are.
+  - the room's lights, under **Lights**, as before.
 
   Each press is one call to Home Assistant, with no question first. Anyone who can switch the lights
   can use them, on a wall screen too. If Home Assistant refuses, it says why in its own words.
 - **Matching the players to the rooms**: Home Assistant doesn't know which room a whole-house
-  system's zone is in, so an administrator matches them once. **Match rooms** at the end of the
-  Audio part (**Match Control4 to HA** where Control4 is the only system) opens a card with every
-  player, by system, and a room for each, or **Not on the map**. The first time, it guesses from the
-  player's Home Assistant area, else from its name. **Set up ›** on the **Audio** line in **⋯** opens
-  it too, and ticking **Audio** with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
+  system's zone is in, so an administrator matches them once. **Set up ›** on the **Audio** line in
+  **⋯** (never on a wall screen) opens **Match rooms** (**Match Control4 to HA** where Control4 is the
+  only system): a card with every player, by system, and a room for each, or **Not on the map**. The
+  first time, it guesses from the player's Home Assistant area, else from its name, and ticking
+  **Audio** with nothing matched opens it at once. Several players can share a room (a Control4 zone and a Denon zone, say): ▲ and
   ▼ set their order, and the first is the one the map's speaker follows. Every pick is kept the
   moment it's made (the card's guesses too, the first time it opens), so there is no Save: **Done**
   closes it. Once it has kept a pick it never guesses again, so players taken off the map stay off,
   and a match to a player Home Assistant doesn't show right now (hidden, not loaded yet) or to a
-  room renamed on the map is kept as it was. Someone who isn't an administrator sees the button
-  greyed. Each player on the card also has **Sources** (rename a source, hide it, move it up or
-  down; Home Assistant keeps its own names) and **Volume limit** (10 % to 100 %, or none), kept
-  wherever its volume is set: the slider stops there, **+** stops there, and **Share** keeps it.
+  room renamed on the map is kept as it was. Each player on the card also has **Sources** (rename a
+  source, hide it, move it up or down; Home Assistant keeps its own names) and **Volume limit**
+  (10 % to 100 %, or none), kept wherever its volume is set: the slider keeps its 0 to 100 with the
+  part past the limit marked and stops there, **+** stops there, and **Share** keeps it.
 - **Which players**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha and Anthem, by the Home Assistant integration they come from. **Include Home
   Assistant speakers** on the matching card (off unless ticked) adds every other player with a
   volume: Music Assistant, ESPHome, Cast, TVs.
 
 Audio needs PadSpan Pro or the Audio add-on. The **⋯** list is part of the new layout, PadSpan
-Pro's and a wall screen's; on the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Audio** (off by
-default, shown where Audio is allowed) does the same for the whole house: the speaker beside a
-playing room's name, in the 3D view too, and the sheet's Audio with **Match rooms**. It is the one
+Pro's and a wall screen's; on the classic layout, **Settings → Atlas → Atlas — Mapped Light Control → In the room's card →
+Audio** (off by default, shown where Audio is allowed) does the same for the whole house: the
+speaker beside a playing room's name, in the 3D view too, and the sheet's Audio. It is the one
 switch there: the 3D view's **⋯** has no Audio line of its own.
 
 ## Heatmap and thermostats (Pro or the Climate & air quality add-on)
@@ -210,10 +213,11 @@ room's sensors at its centre. Nothing crosses a wall, a room with no sensor stay
 reading over an hour old isn't used.
 
 **Thermostats**: tick **Thermostats** in the map's **⋯**, in the group "Motion and sensors" (on the
-classic layout, **Settings → Atlas → Atlas — Mapped Light Control → Thermostats**, for the whole
-house), and each room's sheet gains each of its thermostats: its temperature now, its mode, and its
-setpoint with − and +. The line under the room's name with its temperature and humidity (the middle
-reading of its sensors) comes with them. It is off until ticked. Each press is one call to Home
+classic layout, **Settings → Atlas → Atlas — Mapped Light Control → In the room's card →
+Thermostats**, for the whole house), and each room's sheet gains each of its thermostats: its mode
+and its setpoint with − and +, or **Heat to** and **Cool to**, each with − and +, for one that holds
+a range. The line under the room's name with its temperature and humidity (the middle reading of its
+sensors) comes with them, and then the thermostat doesn't repeat it. It is off until ticked. Each press is one call to Home
 Assistant, as in Audio. The temperature, humidity and air chips under room names stay free.
 
 ## Power teams

@@ -149,13 +149,25 @@ export function createEnergy(o){
   function deviceWatts(){ refresh(); return watts; }
 
   /** The room's Energy part for its sheet ({sig, draw}), or null: no metering in the room, or Energy not answered. */
-  function sheet(room){
-    refresh();
+  /** The room's answer and its metered devices, or null: no metering in the room, or Energy not answered. */
+  function roomOf(room){
     if (!live()) return null;
     const r = (data.rooms || []).find(x => x && (x.room === room || key(x.room) === key(room)));
     if (!r || !r.metered) return null;
     const byId = new Map((data.devices || []).map(d => [d.id, d]));
-    const devs = (r.devices || []).map(id => byId.get(id)).filter(Boolean);
+    return { r, devs: (r.devices || []).map(id => byId.get(id)).filter(Boolean) };
+  }
+  /** The sensors the room's Energy rows read (each device's energy sensor and its power sensor): what the 3D panel's
+   *  "More devices of the area" leaves out while the card shows them. [] where the card has no Energy part. */
+  function shownIn(room){
+    const got = roomOf(room);
+    return got ? got.devs.flatMap(d => [d.id, d.rate]).filter(e => typeof e === "string" && e) : [];
+  }
+  function sheet(room){
+    refresh();
+    const got = roomOf(room);
+    if (!got) return null;
+    const { r, devs } = got;
     const cur = data.currency;
     const wide = !(typeof window !== "undefined" && Number(window.innerWidth) > 0 && window.innerWidth < COST_MIN_PX);
     const price = data.price !== null && data.price !== undefined && wide;
@@ -208,5 +220,5 @@ export function createEnergy(o){
       },
     };
   }
-  return { refresh, chips, deviceWatts, sheet, data: () => data };
+  return { refresh, chips, deviceWatts, sheet, shownIn, data: () => data };
 }

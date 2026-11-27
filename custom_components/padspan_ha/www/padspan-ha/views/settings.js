@@ -5398,43 +5398,26 @@ function _settingsAtlas(ctx, el){
     }
   });
   }
-  // Audio (views/room_controls.js) on the classic layout, house-wide, normally off: what the ⋯ list's Audio line does
-  // per screen on the new layout (lights_panel.js _roomControlsOn). PadSpan Pro's and the Audio add-on's: without
-  // either, no row at all, and whatever is stored is kept for when a key comes back.
-  if (addonAllowed(settings, "audio")) {
-  const audioRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-audio","data-focus-part":"atlas_audio"});
-  const audioCb = el("input",{type:"checkbox"});
-  audioCb.checked = settings.atlas_audio_enabled === true;
-  audioRow.appendChild(audioCb);
-  audioRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, t("Audio")));
-  lightsCard.appendChild(audioRow);
-  const audioNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
-    t("A speaker beside a room's name while one of its players plays, and Audio in the room's card: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off. For the whole house on the classic layout; on the new layout (\u25A6 New layout) and on a wall screen, each screen ticks Audio in its \u22EF list instead. Off: none."));
-  lightsCard.appendChild(audioNote);
-  audioCb.addEventListener("change", async ()=>{
-    const want = audioCb.checked;
-    try {
-      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_audio_enabled: want });
-      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
-      audioNote.textContent = t("Saved \u2014 the Atlas changes at its next refresh.");
-    } catch (e) {
-      audioCb.checked = !want;
-      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
-    }
-  });
-  }
-  // Shades and Thermostats in a room's card on the classic layout, house-wide, normally off (lights_panel.js _roomParts;
-  // the owner, 2026-11-26: "Shades should go with doors and Windows", "Thermostats in climate and air quality"): Shades
-  // everyone's; Thermostats the Climate map add-on's (Pro includes it), without it no row and whatever is stored kept.
-  const roomPartRow = (key, words, note) => {
-    const row = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-" + key.split("_")[1],
+  // The room's card's parts on the classic layout, house-wide, each normally off: what the ⋯ list's lines do per screen
+  // on the new layout (lights_panel.js _roomParts, _roomControlsOn). Under one heading, the classic layout said once.
+  // Audio: PadSpan Pro's and the Audio add-on's; Shades: everyone's (the owner, 2026-11-26: "Shades should go with doors
+  // and Windows"); Thermostats: the Climate map add-on's (Pro includes it; "Thermostats in climate and air quality");
+  // Energy on the map: Energy's, once Energy is on (energy.py). Without its licence a part has no row at all, and
+  // whatever is stored is kept for when a key comes back.
+  const partsHead = el("div",{style:"font-size:12px;font-weight:700;color:#e2e8f0;margin-top:14px","data-settings":"atlas-card-parts"}, t("In the room's card"));
+  const partsNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 2px"},
+    t("For the whole house on the classic layout; on the new layout (\u25A6 New layout) and on a wall screen, each screen ticks these in its \u22EF list instead. Off: none."));
+  let partsShown = false;
+  const roomPartRow = (key, words, note, attr) => {
+    if (!partsShown) { partsShown = true; lightsCard.appendChild(partsHead); lightsCard.appendChild(partsNote); }
+    const row = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;min-height:36px","data-settings":attr || ("atlas-" + key.split("_")[1]),
       "data-focus-part":key.replace(/_enabled$/, "")});
-    const cb = el("input",{type:"checkbox"});
+    const cb = el("input",{type:"checkbox",style:"width:18px;height:18px;margin:0;flex:0 0 auto"});
     cb.checked = settings[key] === true;
     row.appendChild(cb);
     row.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, words));
     lightsCard.appendChild(row);
-    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, note);
+    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:0 0 0 26px"}, note);
     lightsCard.appendChild(noteEl);
     cb.addEventListener("change", async ()=>{
       const want = cb.checked;
@@ -5448,11 +5431,18 @@ function _settingsAtlas(ctx, el){
       }
     });
   };
-  roomPartRow("atlas_shades_enabled", t("Shades"),
-    t("Open, Stop and Close for the room's blinds and shades in the room's card. For the whole house on the classic layout; on the new layout (▦ New layout) and on a wall screen, each screen ticks Shades in its ⋯ list instead. Off: none."));
+  if (addonAllowed(settings, "audio")) {
+    roomPartRow("atlas_audio_enabled", t("Audio"),
+      t("A speaker beside a room's name while one of its players plays, and its players: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off."));
+  }
+  roomPartRow("atlas_shades_enabled", t("Shades"), t("Open, Stop and Close for each of the room's blinds and shades."));
   if (addonAllowed(settings, "climate")) {
     roomPartRow("atlas_thermostats_enabled", t("Thermostats"),
-      t("Each thermostat in the room's card, its mode and its setpoint with − and +, and the room's temperature and humidity. For the whole house on the classic layout; on the new layout (▦ New layout) and on a wall screen, each screen ticks Thermostats in its ⋯ list instead. Off: none."));
+      t("Each thermostat with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity."));
+  }
+  if (addonAllowed(settings, "energy") && settings.energy_enabled === true) {
+    roomPartRow("atlas_energy_enabled", t("Energy on the map"),
+      t("A room's watts beside its name, a device's watts by it, and its metered devices: watts now, kWh and cost today."), "atlas-energy");
   }
   lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
@@ -5558,8 +5548,7 @@ function _atlasEnergySection(ctx, el, settings){
   row("energy_enabled", t("Energy"),
     t("Adds the Energy view to the menu and offers Energy in the Atlas's ⋯ list. Off: nothing of it shows anywhere, and nothing is read or measured."), "energy");
   if (settings.energy_enabled !== true) return card;
-  row("atlas_energy_enabled", t("Energy on the map (classic layout)"),
-    t("A room's watts beside its name, a device's watts by it, and Energy in the room's card: watts now, kWh and cost today. For the whole house on the classic layout; on the new layout (▦ New layout) and on a wall screen, each screen ticks Energy in its ⋯ list instead. Off: none."), "atlas-energy");
+  // Energy on the map is with the room's card's other parts (_settingsAtlas, "In the room's card").
   const emptyRow = el("label",{style:"display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:#e2e8f0","data-settings":"energy-empty"});
   const mins = el("input",{type:"number",min:"1",max:"240",step:"1",style:"width:70px"});
   mins.value = String(Number.isInteger(settings.energy_empty_after_min) ? settings.energy_empty_after_min : 15);

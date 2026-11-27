@@ -108,10 +108,11 @@ ohne Sensor verknüpft ist, meldet offen oder zu selbst.
 
 **Beschattung** (kostenlos): Hak im **⋯** der Karte **Beschattung** an, in der Gruppe „Türen, Fenster
 und Schlösser“ (auf dem klassischen Layout **Einstellungen → Atlas → Atlas — Mapped Light Control →
-Beschattung**, für das ganze Haus), und das Blatt jedes Raums bekommt eine Zeile für alle Jalousien
-und Rollos des Raums: wie weit sie offen sind, und **Öffnen**, **Stopp** und **Schließen** für alle
-zugleich. Ab Werk ist es aus, bis es angehakt wird. Garagentore, Tore, Türen und jede Abdeckung, die
-als Öffner einer Tür verknüpft ist, sind nie dabei; sie bleiben auf der Karte ihrer Tür.
+In der Karte des Raums → Beschattung**, für das ganze Haus), und das Blatt jedes Raums bekommt eine
+Zeile für jede Jalousie und jedes Rollo: wie weit es offen ist, und sein eigenes **Öffnen**, **Stopp**
+und **Schließen**, mit **Alle Rollos** unter zweien oder mehr. Ab Werk ist es aus, bis es angehakt
+wird. Garagentore, Tore, Türen, Klappen, Fenster, jede Abdeckung, die als Öffner einer Tür verknüpft
+ist, und eine Abdeckung ohne Art, deren Name nach Tür, Tor oder Garage klingt, sind nie dabei.
 
 ## Alarme und das Notfall-Banner
 
@@ -138,26 +139,28 @@ Hak im **⋯** der Karte (Show on this screen, in der Leiste neben der Karte, un
 **Raum aus**. Ab Werk ist es aus, bis ein Bildschirm es anhakt, und jeder Bildschirm (ein Handy, eine
 Wand) hat seinen eigenen Haken. Aus sind die Karte und die Blätter genau wie vorher. **Einrichten ›**
 in derselben Zeile öffnet die Zuordnungskarte (unten) gleich dort über der Karte, angehakt oder
-nicht, für einen Administrator, auch auf einem Wandbildschirm. Die Beschattung und die Thermostate
+nicht, für einen Administrator; ein Wandbildschirm bietet es nicht an. Die Beschattung und die Thermostate
 eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
 [oben](#türen-fenster-und-schlösser)) und **Thermostate**
 ([Klima & Luftqualität](#heatmap-und-thermostate-pro-oder-das-add-on-klima--luftqualität)).
 
 - **Auf der Karte**: ein kleines rundes Lautsprecher-Abzeichen neben dem Namen eines Raums,
-  solange einer seiner Player an ist, durchgestrichen, solange der erste Player des Raums stumm ist.
+  solange einer seiner Player spielt (ein pausierter oder bereiter zählt nicht; ein Control4-Raum
+  zählt, solange er an ist), durchgestrichen, solange der erste Player des Raums stumm ist.
   Es hält Abstand zum Namen und zu den Werten des Raums (Temperatur, Luftfeuchtigkeit, Luft), damit
   ein Wert nie wie eine Lautstärke aussieht. Nichts, solange alle aus sind, und keine anderen neuen
   Zeichen. Tipp darauf oder auf den Namen für das Blatt des Raums: Ein Tippen auf die Karte ändert
   nie etwas. Die 3D-Ansicht zeigt dasselbe Abzeichen neben dem Namen und den Werten des Raums (sind
   die Namen ausgeblendet, neben den Werten); ein Tippen darauf öffnet das Feld des Raums, das sich
   unterhalb des Notfallknopfs öffnet, nie darunter verdeckt.
-- **Das Blatt**: **Raum aus (n)** schaltet die Lichter und Player des Raums aus, nie ein Schloss,
-  eine Beschattung, ein Thermostat oder eine Steckdose, und erscheint nur, solange etwas an ist. Dann
+- **Das Blatt**: **Raum aus (n)** schaltet die Lichter und Player des Raums aus (einer, der spielt
+  und sich nicht ausschalten lässt, wird pausiert, sonst gestoppt, sonst stummgeschaltet), nie ein
+  Schloss, eine Beschattung, ein Thermostat oder eine Steckdose, und erscheint nur, solange etwas an ist. Dann
   die Szenen wie bisher, und:
   - **Audio**: eine Zeile für jeden Player, mit seinem System benannt („Control4 · Great Room“,
-    „Denon · Zone 2“), ob er an, aus oder stumm ist, **Stumm**, die Lautstärke und ⏻ (dieser Player
-    aus), oder **An**, solange er aus ist (nie bei einem Control4-Raum, dessen „an“ einen Fernseher
-    starten kann: Wähl stattdessen eine Quelle). Die Lautstärke ist ein Schieberegler bei einem
+    „Denon · Zone 2“), ob er an, bereit, aus oder stumm ist, **Stumm**, die Lautstärke und ⏻ (dieser
+    Player aus). Ein ausgeschalteter Player zeigt nur **An** (nie bei einem Control4-Raum, dessen „an“
+    einen Fernseher starten kann) und seine Quellen, wo eine zu wählen ihn startet. Die Lautstärke ist ein Schieberegler bei einem
     Player, der eine Lautstärke annimmt: Die Zahl folgt deinem Finger, Home Assistant erfährt sie
     höchstens viermal pro Sekunde und noch einmal, wenn du loslässt, und unter deinem Finger wird
     nichts neu gezeichnet. Ein Player, der schrittweise regelt (ein Control4-Raum), behält **−**, die
@@ -165,8 +168,8 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
     ändert die angezeigte Lautstärke sofort, um 1 von 100 bei einem Player, der selbst schrittweise
     regelt, und schnelle Tipps zählen zusammen.
     Unter der Zeile, solange etwas läuft: das Cover, der Titel und der Interpret, mit ▶/⏸ (eine
-    Taste, solange Home Assistant „spielt“ oder „pausiert“ meldet, sonst getrennte ▶ und ⏸, wie bei
-    einem Control4-Raum), ⏮ ⏭ und ⏹, und ⏪ ⏩ bei einem Control4-Raum, dessen Integration die
+    Taste, solange Home Assistant „spielt“ oder „pausiert“ meldet, ▶ allein, solange er bereit ist,
+    sonst getrennte ▶ und ⏸, wie bei einem Control4-Raum), ⏮ ⏭ und ⏹, und ⏪ ⏩ bei einem Control4-Raum, dessen Integration die
     Aktion `control4.media_scan` hat. Dann:
     - **Quelle**: bis zu vier als Tasten, mehr als Liste mit Filter. Die aktuelle ist markiert.
       Eine zu wählen, schaltet den Raum ein, wenn er aus war.
@@ -186,33 +189,33 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
       Haken weg, oder **Gruppe verlassen**. Die Zeile sagt „mit Küche, Arbeitszimmer“, solange sie
       gruppiert ist.
 
-    Was ein Player nicht kann, fehlt oder ist grau: Ein ausgeschalteter Player zeigt seine
-    Lautstärke als —. **Jedes Audio im Haus aus**, nach den Playern, schaltet nach einer Rückfrage aus, was in allen Räumen gerade
-    spielt: Ein Player, der sich nicht ausschalten lässt, wird pausiert, sonst gestoppt, sonst
-    stummgeschaltet. Pausierte oder ruhende Player bleiben, wie sie sind.
-  - die Lichter des Raums wie bisher.
+    Was ein Player nicht kann, fehlt oder ist grau. **Alle Audioquellen im Haus aus**, nach den
+    Playern und nur, solange im Haus etwas spielt, schaltet nach einer Rückfrage jeden einem Raum
+    zugeordneten Player aus, der spielt: Ein Player, der sich nicht ausschalten lässt, wird
+    pausiert, sonst gestoppt, sonst stummgeschaltet. Pausierte oder bereite Player bleiben, wie sie sind.
+  - die Lichter des Raums unter **Lichter**, wie bisher.
 
   Jeder Druck ist ein Aufruf an Home Assistant, ohne Rückfrage. Wer die Lichter schalten kann, kann
   sie benutzen, auch auf einem Wandbildschirm. Lehnt Home Assistant ab, sagt es mit eigenen Worten,
   warum.
 - **Player den Räumen zuordnen**: Home Assistant weiß nicht, in welchem Raum die Zone eines
-  Systems für das ganze Haus liegt, also ordnet ein Administrator sie einmal zu. **Räume zuordnen**
-  am Ende des Audio-Teils (**Control4 mit HA abgleichen**, wo Control4 das einzige System ist)
-  öffnet eine Karte mit jedem Player, nach System, und einem Raum für jeden, oder **Nicht auf der
-  Karte**. Beim ersten Mal rät sie nach dem Bereich des Players in Home Assistant, sonst nach seinem
-  Namen. **Einrichten ›** in der Zeile **Audio** im **⋯** öffnet sie auch, und **Audio** anzuhaken,
-  solange nichts zugeordnet ist, öffnet sie sofort. Mehrere
+  Systems für das ganze Haus liegt, also ordnet ein Administrator sie einmal zu. **Einrichten ›** in
+  der Zeile **Audio** im **⋯** (nie auf einem Wandbildschirm) öffnet **Räume zuordnen** (**Control4
+  mit HA abgleichen**, wo Control4 das einzige System ist): eine Karte mit jedem Player, nach System,
+  und einem Raum für jeden, oder **Nicht auf der Karte**. Beim ersten Mal rät sie nach dem Bereich des
+  Players in Home Assistant, sonst nach seinem Namen, und **Audio** anzuhaken, solange nichts
+  zugeordnet ist, öffnet sie sofort. Mehrere
   Player können sich einen Raum teilen (etwa eine Control4-Zone und eine Denon-Zone): ▲ und ▼ legen
   ihre Reihenfolge fest, und dem ersten folgt der Lautsprecher auf der Karte. Jede Wahl wird sofort
   gespeichert (beim ersten Öffnen auch die Vorschläge der Karte), also gibt es kein Speichern:
   **Fertig** schließt sie. Hat sie einmal eine Wahl gespeichert, schlägt sie nie wieder vor, also
   bleiben Player, die von der Karte genommen wurden, weg, und eine Zuordnung zu einem Player, den
   Home Assistant gerade nicht zeigt (ausgeblendet, noch nicht geladen), oder zu einem auf der Karte
-  umbenannten Raum bleibt, wie sie war. Wer kein Administrator ist, sieht den Knopf grau. Jeder
-  Player auf der Karte hat außerdem **Quellen** (eine Quelle umbenennen, ausblenden, nach oben oder
-  unten schieben; Home Assistant behält seine eigenen Namen) und **Lautstärkegrenze** (10 % bis
-  100 % oder keine), die überall gilt, wo seine Lautstärke eingestellt wird: Der Schieberegler hält
-  dort an, **+** hält dort an, und **Teilen** hält sie ein.
+  umbenannten Raum bleibt, wie sie war. Jeder Player auf der Karte hat außerdem **Quellen** (eine
+  Quelle umbenennen, ausblenden, nach oben oder unten schieben; Home Assistant behält seine eigenen
+  Namen) und **Lautstärkegrenze** (10 % bis 100 % oder keine), die überall gilt, wo seine Lautstärke
+  eingestellt wird: Der Schieberegler behält seine 0 bis 100, markiert den Teil über der Grenze und
+  hält dort an, **+** hält dort an, und **Teilen** hält sie ein.
 - **Welche Player**: Control4, Crestron, Savant, Savant Audio, Russound, Nuvo, Monoprice, Xantech,
   Triad, Denon, Yamaha und Anthem, nach der Integration in Home Assistant, aus der sie kommen.
   **Lautsprecher aus Home Assistant einbeziehen** auf der Zuordnungskarte (aus, bis angehakt) nimmt
@@ -220,9 +223,9 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
 
 Audio braucht PadSpan Pro oder das Add-on Audio. Die **⋯**-Liste gehört zum neuen Layout von
 PadSpan Pro und eines Wanddisplays; auf dem klassischen Layout macht **Einstellungen → Atlas → Atlas — Mapped Light Control
-→ Audio** (ab Werk aus, da, wo Audio freigeschaltet ist) dasselbe für das ganze Haus: den
-Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, auch in der 3D-Ansicht, und Audio im
-Blatt mit **Räume zuordnen**. Dort ist es der einzige Schalter: Das **⋯** der 3D-Ansicht hat keine
+→ In der Karte des Raums → Audio** (ab Werk aus, da, wo Audio freigeschaltet ist) dasselbe für das
+ganze Haus: den Lautsprecher neben dem Namen eines Raums, in dem Musik läuft, auch in der
+3D-Ansicht, und Audio im Blatt. Dort ist es der einzige Schalter: Das **⋯** der 3D-Ansicht hat keine
 eigene Audio-Zeile.
 
 ## Heatmap und Thermostate (Pro oder das Add-on Klima & Luftqualität)
@@ -236,10 +239,12 @@ eine Wand, ein Raum ohne Sensor bleibt ungefärbt, und ein Messwert, der älter 
 wird nicht benutzt.
 
 **Thermostate**: Hak im **⋯** der Karte **Thermostate** an, in der Gruppe „Bewegung und Sensoren“
-(auf dem klassischen Layout **Einstellungen → Atlas → Atlas — Mapped Light Control → Thermostate**,
-für das ganze Haus), und das Blatt jedes Raums bekommt jedes seiner Thermostate: seine Temperatur
-jetzt, seine Betriebsart und seinen Sollwert mit − und +. Die Zeile unter dem Namen des Raums mit
-seiner Temperatur und Luftfeuchtigkeit (der mittlere Wert seiner Sensoren) gehört dazu. Ab Werk ist
+(auf dem klassischen Layout **Einstellungen → Atlas → Atlas — Mapped Light Control → In der Karte des Raums → Thermostate**,
+für das ganze Haus), und das Blatt jedes Raums bekommt jedes seiner Thermostate: seine Betriebsart
+und seinen Sollwert mit − und +, oder **Heizen auf** und **Kühlen auf**, jeweils mit − und +, bei
+einem, das einen Bereich hält. Die Zeile unter dem Namen des Raums mit seiner Temperatur und
+Luftfeuchtigkeit (der mittlere Wert seiner Sensoren) gehört dazu, und das Thermostat wiederholt sie
+dann nicht. Ab Werk ist
 es aus, bis es angehakt wird. Jeder Druck ist ein Aufruf an Home Assistant, wie bei Audio. Die Chips
 für Temperatur, Luftfeuchtigkeit und Luft unter den Raumnamen bleiben kostenlos.
 

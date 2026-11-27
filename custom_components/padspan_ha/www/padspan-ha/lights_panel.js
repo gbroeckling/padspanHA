@@ -1159,7 +1159,7 @@ class PadSpanLightsApp extends HTMLElement {
     } : null;
     return {
       settings: s, admin, basic, kiosk: wall, live: s.data_mode !== "sample",
-      facts: ()=>TIPS.factsFrom({ states: this._hass?.states, entities: this._hass?.entities, model: this.state.model, settings: s }),
+      facts: ()=>TIPS.factsFrom({ states: this._hass?.states, entities: this._hass?.entities, model: this.state.model, settings: s, openers: this._doorOpeners() }),
       save: (patch)=>Promise.resolve(this._ws({ type:"padspan_ha/settings_set", ...patch })),
       send: (w)=>{ if(this.state._telemetryOn && this._hass) Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(w) })).catch(()=>{}); },
       go,

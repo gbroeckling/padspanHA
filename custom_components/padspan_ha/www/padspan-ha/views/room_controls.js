@@ -109,7 +109,7 @@ const pretty = (platform) => String(platform || "").split(/[_-]+/).filter(Boolea
 /** Is this cover a shade (a blind, a shade, a curtain, an awning...): a cover Home Assistant has, not a garage door, a
  *  gate, a door, a damper or a window by its device class, not a door's or a gate's opener (openers: the covers linked
  *  as one, a Set), and with no device class not named as a door, a gate or a garage. The one rule for a room card's
- *  Shades and for the Shades tip (tips.js). */
+ *  Shades and for the Shades tip. */
 export function isShade(hass, eid, openers = null){
   if (typeof eid !== "string" || !eid.startsWith("cover.")) return false;
   const s = hass && hass.states && Object.prototype.hasOwnProperty.call(hass.states, eid) ? hass.states[eid] : null;

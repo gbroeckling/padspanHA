@@ -577,5 +577,28 @@ attempt("beta", () => {
   localStorage.removeItem(T.LOCAL_OFF_KEY);
 });
 
+// ── the Shades tip goes by the room card's own rule (room_controls.js isShade) ─────────────
+attempt("shades rule", () => {
+  const cover = (dc, name) => ({ state: "closed", attributes: { friendly_name: name, ...(dc ? { device_class: dc } : {}), supported_features: 3 } });
+  const model = { room_geometry_m: { Kitchen: {}, Garage: {} } };
+  const shadesTip = (states, extra = {}) => {
+    const facts = T.factsFrom({ states, model, settings: {}, ...extra });
+    return { n: facts.shades, fit: T.tipById("shades").fit(facts, base) };
+  };
+  // Only a garage door, a door, a damper, a window and an unlinked opener: no shade, no Shades tip.
+  const notShades = { "cover.garage": cover("garage", "Garage door"), "cover.front": cover("door", "Front door"), "cover.hvac": cover("damper", "Damper"),
+    "cover.sky": cover("window", "Skylight"), "cover.side_opener": cover(null, "Garage side door opener") };
+  const a = shadesTip(notShades);
+  check("shades rule: a house with only doors, dampers, windows and openers gets no Shades tip", a.n === 0 && a.fit === 0);
+  // One blind: the tip fits. Linked as a door's opener (the model's barrier, or the host's own list): not a shade.
+  const b = shadesTip({ ...notShades, "cover.kitchen_blind": cover("blind", "Kitchen blind") });
+  check("shades rule: one blind gets the Shades tip", b.n === 1 && b.fit > 0);
+  const c = shadesTip({ "cover.kitchen_blind": cover(null, "Kitchen blind") }, { model: { ...model, rf_barriers_m: [{ linked_entity_id: "cover.kitchen_blind" }] } });
+  const d = shadesTip({ "cover.kitchen_blind": cover(null, "Kitchen blind") }, { openers: new Set(["cover.kitchen_blind"]) });
+  check("shades rule: a cover linked as a door's opener is never a shade", c.n === 0 && d.n === 0);
+  check("shades rule: the openers the model and settings name", [...T.openersFrom({ rf_barriers_m: [{ linked_opener_entity_id: "cover.a" }, { linked_entity_id: "light.x" }] },
+    { door_opener_ids: ["cover.b", 3] })].sort().join() === "cover.a,cover.b");
+});
+
 console.log(JSON.stringify({ checks, failures }));
 process.exit(failures.length ? 1 : 0);
