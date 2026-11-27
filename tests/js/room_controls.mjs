@@ -257,7 +257,8 @@ await tryCase("parts", async () => {
   const blinds = (rc) => { const p = rc.sheet("Great Room", { parts: { audio: false, shades: true, climate: false } }).after;
     return p ? Array.from(p.draw().children[0].children || []).map(r => all(r).map(n => n._text).filter(Boolean).join("|")).join() : ""; };
   const r2 = controls(h, { openers: ["cover.great_room_left"] });
-  check("parts", /2 shades/.test(blinds(r.rc)) && /Right blind/.test(blinds(r2.rc)) && !/2 shades/.test(blinds(r2.rc)), [blinds(r.rc), blinds(r2.rc)]);
+  check("parts", blinds(r.rc) === ",Left blind|100 % open|Open|Stop|Close,Right blind|0 % open|Open|Close,All shades|Open|Stop|Close"
+    && blinds(r2.rc) === ",Right blind|0 % open|Open|Close", [blinds(r.rc), blinds(r2.rc)]);
 });
 
 await tryCase("sheet", async () => {
@@ -280,7 +281,8 @@ await tryCase("sheet", async () => {
   check("sheet", row[0] === "Room off (4)" && row.includes("All lights off") && row.includes("All lights on"), row);
   check("sheet", r.redraws === 0 && h.calls.length === 0, "opening the sheet moved something");
   // The lights' list is the one it was (the lock, the lights), between Audio and Shades.
-  const listRows = kids.slice(3, kids.length - 1).map(k => all(k).map(n => n._text).filter(Boolean).join("|"));
+  check("sheet", kids[3] && kids[3].attributes["data-room-lights"] !== undefined && kids[3].textContent === "Lights", kids[3] && kids[3].textContent);
+  const listRows = kids.slice(4, kids.length - 1).map(k => all(k).map(n => n._text).filter(Boolean).join("|"));
   check("sheet", listRows.length === 4, listRows);
   // Room off: the lights through the sheet's own switch, each player turned off; never the lock, the blinds, the thermostat.
   await press(byText(kids[1], "Room off (4)"));
@@ -347,7 +349,7 @@ await tryCase("audio", async () => {
   s.close(); reset();
 });
 
-// ── features: −/+ greyed with no way to step; no Mute or ⏻ the player can't do; an off player's level is — ──
+// ── features: − / + only where it steps; no Mute or ⏻ the player can't do; an off player: nothing to press, no level ──
 await tryCase("features", async () => {
   const h = house({
     "media_player.c4_great_room": ST("media_player.c4_great_room", "off", { friendly_name: "Great Room", supported_features: F.SET }),
@@ -357,8 +359,8 @@ await tryCase("features", async () => {
   reset();
   const s = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Great Room");
   const c4 = rowOf(section(sheetNow(), "audio"), "media_player.c4_great_room"), dz = rowOf(section(sheetNow(), "audio"), "media_player.denon_zone_2");
-  check("features", words(c4).join() === "−,+" && all(c4).filter(n => n.localName === "button").every(b => b.disabled), words(c4));
-  check("features", all(c4).find(n => n.attributes["data-level"] !== undefined).textContent === "—" && c4.children[1].textContent === "Off");
+  check("features", words(c4).join() === "" && !all(c4).some(n => n.attributes["data-level"] !== undefined) && c4.children[1].textContent === "Off", words(c4));
+  check("features", !all(section(sheetNow(), "audio")).some(n => n.attributes && n.attributes["data-slider"] === "media_player.c4_great_room"), "an off player's slider");
   check("features", words(dz).join() === "−,+" && all(dz).filter(n => n.localName === "button").every(b => !b.disabled), words(dz));
   await press(byText(dz, "+"));
   check("features", h.calls.length === 1 && h.calls[0].service === "volume_up", h.calls);
@@ -438,7 +440,10 @@ await tryCase("climate", async () => {
   const s = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Great Room");
   const cl = section(sheetNow(), "climate");
   const row = rowOf(cl, "climate.great_room");
-  check("climate", all(row).map(n => n._text).filter(Boolean).join("|") === "Great Room thermostat|20.4 °C|Heat|−|22°|+", all(row).map(n => n._text).filter(Boolean));
+  check("climate", all(row).map(n => n._text).filter(Boolean).join("|") === "Great Room thermostat|Heat|−|22°|+", all(row).map(n => n._text).filter(Boolean));
+  // −, the setpoint and + as one group that never wraps; the section says Thermostats.
+  const grp = all(row).find(n => n.attributes && n.attributes["data-setpoint"] === "target");
+  check("climate", grp && /flex-wrap:nowrap/.test(grp.style.cssText) && words(grp).join() === "−,+" && cl.children[0].textContent === "Thermostats", grp && grp.style.cssText);
   await press(byAria(row, "Great Room thermostat cooler"));
   check("climate", JSON.stringify(h.calls) === JSON.stringify([{ domain: "climate", service: "set_temperature", entity_id: "climate.great_room", temperature: 21.5 }]), h.calls);
   h.hass.states["climate.great_room"].attributes.target_temp_step = 1;
@@ -455,16 +460,28 @@ await tryCase("covers", async () => {
   reset();
   const s = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Great Room");
   const sh = section(sheetNow(), "shades");
-  // One row for both blinds (the right one is in the room through its device); the garage door is never a shade.
-  check("covers", sh.children.length === 2 && all(sh).map(n => n._text).filter(Boolean).join("|") === "Shades|2 shades|50 % open|Open|Stop|Close", all(sh).map(n => n._text).filter(Boolean));
-  await press(byText(sh, "Open"));
-  await press(byText(sh, "Stop"));
-  await press(byText(sh, "Close"));
+  // A row per blind (the right one is in the room through its device), then All; the garage door is never a shade.
+  check("covers", sh.children.length === 4 && all(sh).map(n => n._text).filter(Boolean).join("|")
+    === "Shades|Left blind|100 % open|Open|Stop|Close|Right blind|0 % open|Open|Close|All shades|Open|Stop|Close", all(sh).map(n => n._text).filter(Boolean));
+  const allRow = all(sh).find(n => n.attributes && n.attributes["data-shades-all"] !== undefined);
+  await press(byText(rowOf(sh, "cover.great_room_right"), "Open"));
+  await press(byText(allRow, "Open"));
+  await press(byText(allRow, "Stop"));
+  await press(byText(allRow, "Close"));
   check("covers", JSON.stringify(h.calls) === JSON.stringify([
+    { domain: "cover", service: "open_cover", entity_id: "cover.great_room_right" },
     { domain: "cover", service: "open_cover", entity_id: ["cover.great_room_left", "cover.great_room_right"] },
     { domain: "cover", service: "stop_cover", entity_id: "cover.great_room_left" },
     { domain: "cover", service: "close_cover", entity_id: ["cover.great_room_left", "cover.great_room_right"] }]), h.calls);
-  check("covers", r.counts.filter(w => w === "cover").length === 3, r.counts);
+  check("covers", r.counts.filter(w => w === "cover").length === 4, r.counts);
+  // Open, Stop and Close stay together on one line (a narrow panel wrapped Close onto its own).
+  check("covers", all(sh).filter(n => n.attributes && (n.attributes["data-eid"] || n.attributes["data-shades-all"] !== undefined) && n.localName === "div")
+    .every(rw => { const g = rw.children[rw.children.length - 1]; return /flex-wrap:nowrap/.test(g.style.cssText) && g.children.every(b => b.localName === "button"); }), "the buttons split");
+  // One shade: its own row, no All; no position: its state in words.
+  delete h.hass.states["cover.great_room_right"];
+  h.hass.states["cover.great_room_left"] = ST("cover.great_room_left", "closed", { friendly_name: "Left blind", supported_features: 1 | 2 });
+  const one = r.rc.sheet("Great Room", { parts: { audio: false, shades: true, climate: false } }).after.draw();
+  check("covers", all(one).map(n => n._text).filter(Boolean).join("|") === "Shades|Left blind|closed|Open|Close", all(one).map(n => n._text).filter(Boolean));
   s.close(); reset();
   // The garage: its door is no shade, so the sheet has none.
   const g = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Garage");
@@ -477,20 +494,19 @@ await tryCase("match", async () => {
   const h = house();
   const r = controls(h, { matches: {} });
   reset();
-  // Nothing matched yet: in every room the button alone, prominent.
+  // Match rooms is never in a room's card (the ⋯ list's Set up › opens it): a room with no player has no Audio part.
   const s = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Kitchen");
-  const a = section(sheetNow(), "audio");
-  const mb = a && btn(a, b => b.attributes["data-room-match"] !== undefined);
-  // Control4 and Denon here: "Match rooms"; a house with Control4 alone says so.
-  check("match", !!mb && mb.textContent === "Match rooms" && /#2d6a4f/.test(mb.style.cssText), mb && [mb.textContent, mb.style.cssText]);
+  check("match", !section(sheetNow(), "audio") && !all(sheetNow()).some(n => n.attributes && n.attributes["data-room-match"] !== undefined), "Match rooms in the card");
+  const card = () => document.body.children.find(n => all(n).some(x => x.attributes && x.attributes["data-room-match-card"] !== undefined));
   {
+    // Control4 and Denon here: "Match rooms"; a house with Control4 alone says so.
     const h4 = house(); delete h4.hass.states["media_player.denon_zone_2"];
     const r4 = controls(h4, { matches: {} });
-    const p4 = r4.rc.sheet("Kitchen").before.draw();
-    check("match", btn(p4, b => b.attributes["data-room-match"] !== undefined).textContent === "Match Control4 to HA", words(p4));
+    r4.rc.openMatch();
+    check("match", all(card()).map(x => x._text).filter(Boolean)[0] === "Match Control4 to HA", all(card()).map(x => x._text).filter(Boolean).slice(0, 2));
+    r4.rc.close();
   }
-  await press(mb);
-  const card = () => document.body.children.find(n => all(n).some(x => x.attributes && x.attributes["data-room-match-card"] !== undefined));
+  r.rc.openMatch(); await tick();
   check("match", !!card() && r.counts.includes("match_open"), r.counts);
   const sel = (eid) => all(card()).find(n => n.localName === "select" && rowOf(card(), eid) && rowOf(card(), eid).contains(n));
   // Its guesses: Denon by its Home Assistant area, Control4's "Alex’s office" by name.
@@ -607,8 +623,7 @@ await tryCase("non-admin", async () => {
   reset();
   const s = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Great Room");
   const a = section(sheetNow(), "audio");
-  const mb = btn(a, b => b.attributes["data-room-match"] !== undefined);
-  check("non-admin", mb && mb.disabled && all(a).some(n => n._text === "An administrator matches the players to the rooms."), mb && mb.disabled);
+  check("non-admin", !btn(a, b => b.attributes["data-room-match"] !== undefined), "Match rooms in the card");
   // The ⋯ line's Set up › is offered by this (lights_map.js audioSetup): an administrator's only.
   check("non-admin", r.rc.canMatch() === false && controls(house()).rc.canMatch() === true, "canMatch is not the administrator's");
   // The controls themselves are for everyone, as the lights are.
@@ -789,8 +804,13 @@ await tryCase("limit", async () => {
       limits: { "media_player.c4_great_room": 0.5, "media_player.denon_zone_2": 0.4 } });
     const sec = drawAudio(r);
     const sl = q(sec, "data-slider", "media_player.denon_zone_2");
-    check("limit", sl.max === "40" && sl.value === "40", [sl.max, sl.value]);                  // 0.5 now: shown at the top
-    sl.value = "90"; await fire(sl, "input"); await fire(sl, "change");                       // a browser stops at max; this one says 90
+    // 0 to 100 whatever the limit (the knob sits at the level, never stretched); the part past 40 marked; 0.5 now: at 40.
+    const mark = all(sec).find(n => n.attributes && n.attributes["data-limit-mark"] !== undefined);
+    check("limit", sl.max === "100" && sl.value === "40" && mark && mark.attributes["data-limit-mark"] === "40" && /left:calc\(8px \+ \(100% - 16px\) \* 0\.4\)/.test(mark.style.cssText),
+      [sl.max, sl.value, mark && mark.style.cssText]);
+    sl.value = "90"; await fire(sl, "input");
+    check("limit", sl.value === "40", sl.value);                                                // the knob stops at the limit
+    await fire(sl, "change");
     check("limit", h.calls.filter(c => c.service === "volume_set").every(c => c.volume_level <= 0.4) && h.calls.some(c => c.volume_level === 0.4), h.calls);
     // − and + (Control4): one press to the limit, then + is greyed and asks nothing.
     const c4 = rowOf(sec, "media_player.c4_great_room"), plus = byAria(c4, "Great Room volume up");
@@ -818,7 +838,7 @@ await tryCase("onoff", async () => {
   h.hass.states["media_player.c4_great_room"].attributes.supported_features = C4 | F.ON;
   const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.cast_great"] }, ha: true });
   let cast = rowOf(drawAudio(r), "media_player.cast_great");
-  check("onoff", words(cast).join() === "−,+,On", words(cast));
+  check("onoff", words(cast).join() === "On", words(cast));                 // off: On alone
   const n = h.calls.length;
   await press(byAria(cast, "Turn Nest on"));
   check("onoff", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "turn_on", entity_id: "media_player.cast_great" }]), h.calls.slice(n));
@@ -826,9 +846,9 @@ await tryCase("onoff", async () => {
   h.hass.states["media_player.cast_great"].state = "idle";
   cast = rowOf(drawAudio(r), "media_player.cast_great");
   check("onoff", words(cast).join() === "−,+,⏻", words(cast));
-  // A Control4 room never offers On (its turn_on can start a TV): its ⏻ greyed while off, as before.
   const c4 = rowOf(drawAudio(r), "media_player.c4_great_room");
-  check("onoff", !byText(c4, "On") && byText(c4, "⏻").disabled === true, words(c4));
+  // Off: nothing but On, and a Control4 room has no On (nor a greyed ⏻): its sources start it.
+  check("onoff", words(c4).join() === "", words(c4));
 });
 
 await tryCase("sources", async () => {
@@ -998,7 +1018,9 @@ await tryCase("share", async () => {
   check("share", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "join", entity_id: "media_player.sonos_great", group_members: ["media_player.sonos_kitchen"] }]), h.calls.slice(n));
   // Ticked: the room's own slider, capped by its limit.
   const ks = q(card(), "data-slider", "media_player.sonos_kitchen");
-  check("share", ks && ks.max === "40" && ks.value === "40", ks && [ks.max, ks.value]);
+  check("share", ks && ks.max === "100" && ks.value === "40" && all(dlg("data-audio-share")).some(n => n.attributes && n.attributes["data-limit-mark"] === "40"), ks && [ks.max, ks.value]);
+  // One line: the room's name, its slider and its level never wrap.
+  check("share", /flex-wrap:nowrap/.test(rowOf(dlg("data-audio-share"), "media_player.sonos_kitchen").style.cssText), "the row wraps");
   n = h.calls.length;
   ks.value = "30"; await fire(ks, "input"); await fire(ks, "change");
   check("share", h.calls.slice(n).map(c => `${c.service}:${c.entity_id}:${c.volume_level}`).join() === "volume_set:media_player.sonos_kitchen:0.3", h.calls.slice(n));
@@ -1079,7 +1101,7 @@ await tryCase("tidy", async () => {
   r.rc.close();
   check("tidy", !card() && !sc(), "a card stayed");
   check("tidy", words(q(drawAudio(r), "data-audio-source", "media_player.denon_zone_2")).join() === "Compact disc,TV", words(q(drawAudio(r), "data-audio-source")));
-  check("tidy", q(drawAudio(r), "data-slider", "media_player.denon_zone_2").max === "50", "the limit is not held");
+  check("tidy", all(drawAudio(r)).some(n => n.attributes && n.attributes["data-limit-mark"] === "50"), "the limit is not held");
   // Cleaned as the server cleans: labels trimmed, a label that is its source dropped, a player with nothing left out.
   check("tidy", JSON.stringify(RC.cleanSources({ "media_player.a": { names: { TV: " TV ", CD: "Disc" }, hidden: ["X", "X", 3] }, "media_player.b": {}, "light.c": { hidden: ["Y"] } }))
     === JSON.stringify({ "media_player.a": { names: { CD: "Disc" }, hidden: ["X"], order: [] } }), "cleanSources");
@@ -1108,7 +1130,7 @@ await tryCase("c4-core", async () => {
   const s = h.hass.states["media_player.c4_great_room"];
   s.state = "idle"; delete s.attributes.volume_level; delete s.attributes.source;
   sec = drawAudio(r); row = rowOf(sec, "media_player.c4_great_room");
-  check("c4-core", row.children[1].textContent === "Off" && byText(row, "⏻").disabled === true && !byText(row, "On"), words(row));
+  check("c4-core", row.children[1].textContent === "Off" && words(row).join() === "", words(row));
   check("c4-core", !q(sec, "data-audio-transport") && !q(sec, "data-slider") && !q(sec, "data-audio-now") && !q(sec, "data-audio-all-off"), words(sec));
   check("c4-core", words(q(sec, "data-audio-source")).join() === "Apple TV,Sonos", words(sec));
   check("c4-core", JSON.stringify(r.rc.looks()) === "{}" && r.rc.sheet("Great Room", { lightsOn: [], parts: AUDIO_ONLY }).roomOff === null, r.rc.looks());
@@ -1395,6 +1417,114 @@ await tryCase("doc-pointer", async () => {
   } finally { document.addEventListener = realAdd; document.removeEventListener = realRemove; }
 });
 
+// ── the whole-beta inspection (2026-11-26) ──
+// Room off: a playing Sonos (no turn off) is paused and counted, as Any audio in house off does.
+await tryCase("room-off-quiet", async () => {
+  const h = house();
+  h.hass.states["media_player.denon_zone_2"].state = "off";
+  addPlayer(h, "media_player.sonos_great", "sonos", "playing", { friendly_name: "Arc", volume_level: 0.3, supported_features: F.PLAY | F.PAUSE | F.SET });
+  addPlayer(h, "media_player.ma_great", "music_assistant", "idle", { friendly_name: "MA", supported_features: F.PLAY | F.PAUSE | F.SET });
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.denon_zone_2", "media_player.sonos_great", "media_player.ma_great"] }, ha: true });
+  const sh = r.rc.sheet("Great Room", { lightsOn: ["light.great_room_pots"], parts: AUDIO_ONLY });
+  // One light, the Control4 room (on, turns off) and the playing Sonos; never the off Denon or the idle player.
+  check("room-off-quiet", sh.roomOff && sh.roomOff.label === "Room off (3)", sh.roomOff && sh.roomOff.label);
+  const n = h.calls.length;
+  sh.roomOff.run(); await tick(); await tick();
+  check("room-off-quiet", h.calls.slice(n).map(c => `${c.service}:${c.entity_id}`).join() === "turn_off:media_player.c4_great_room,media_pause:media_player.sonos_great", h.calls.slice(n));
+});
+
+// ── what a shade is: one rule (isShade) for the card and the Shades tip ──
+await tryCase("shade-rule", async () => {
+  const h = house({
+    "cover.great_room_damper": ST("cover.great_room_damper", "open", { friendly_name: "HVAC damper", device_class: "damper", supported_features: 3 }),
+    "cover.great_room_window": ST("cover.great_room_window", "closed", { friendly_name: "Skylight", device_class: "window", supported_features: 3 }),
+    "cover.great_room_side_door_opener": ST("cover.great_room_side_door_opener", "closed", { friendly_name: "Garage side door opener", supported_features: 3 }),
+    "cover.great_room_curtain": ST("cover.great_room_curtain", "open", { friendly_name: "Curtain", device_class: "curtain", supported_features: 3 }),
+  });
+  for (const e of ["cover.great_room_damper", "cover.great_room_window", "cover.great_room_side_door_opener", "cover.great_room_curtain"]) h.hass.entities[e].area_id = "great_room";
+  const is = (e, op) => RC.isShade(h.hass, e, op);
+  check("shade-rule", is("cover.great_room_left") && is("cover.great_room_curtain") && !is("cover.great_room_damper") && !is("cover.great_room_window")
+    && !is("cover.great_room_side_door_opener") && !is("cover.garage_door") && !is("light.great_room_pots") && !is("cover.nothing_here"), "isShade");
+  check("shade-rule", !is("cover.great_room_left", new Set(["cover.great_room_left"])), "a linked opener is a shade");
+  const r = controls(h, { matches: {} });
+  const sec = r.rc.sheet("Great Room", { parts: { audio: false, shades: true, climate: false } }).after.draw();
+  const rows = all(sec).filter(n => n.attributes && n.attributes["data-eid"]).map(n => n.attributes["data-eid"]);
+  check("shade-rule", rows.join() === "cover.great_room_curtain,cover.great_room_left,cover.great_room_right", rows);
+});
+
+// ── an idle player: no speaker on the map, "Idle", ▶ alone ──
+await tryCase("idle", async () => {
+  const h = house();
+  h.hass.states["media_player.c4_great_room"].state = "off"; h.hass.states["media_player.denon_zone_2"].state = "off";
+  addPlayer(h, "media_player.sonos_great", "sonos", "idle", { friendly_name: "Arc", volume_level: 0.3, supported_features: F.PLAY | F.PAUSE | F.SET | F.MUTE });
+  const r = controls(h, { matches: { great_room: ["media_player.sonos_great", "media_player.c4_great_room"] }, ha: true });
+  check("idle", JSON.stringify(r.rc.looks()) === "{}", r.rc.looks());
+  const sec = drawAudio(r), row = rowOf(sec, "media_player.sonos_great");
+  check("idle", row.children[1].textContent === "Idle" && words(q(sec, "data-audio-transport", "media_player.sonos_great")).join() === "▶", [row.children[1].textContent, words(sec)]);
+  check("idle", !q(sec, "data-audio-all-off"), "Any audio in house off with nothing playing");
+  h.hass.states["media_player.sonos_great"].state = "playing";
+  check("idle", JSON.stringify(r.rc.looks()) === JSON.stringify({ "Great Room": "on" }), r.rc.looks());
+  h.hass.states["media_player.sonos_great"].state = "paused";
+  check("idle", JSON.stringify(r.rc.looks()) === "{}", "a paused player keeps the speaker");
+});
+
+// ── a thermostat that holds a range: heat to and cool to, each with − and +, sent together ──
+await tryCase("range", async () => {
+  const h = house({ "climate.great_room": ST("climate.great_room", "heat_cool", { friendly_name: "Living Room range", current_temperature: 20.4, target_temp_low: 19,
+    target_temp_high: 24, target_temp_step: 0.5, min_temp: 7, max_temp: 30, supported_features: 2, hvac_modes: ["off", "heat_cool"] }) });
+  const r = controls(h, { matches: {} });
+  const sec = () => r.rc.sheet("Great Room", { parts: { audio: false, shades: false, climate: true } }).after.draw();
+  const row = () => rowOf(sec(), "climate.great_room");
+  check("range", texts(row()).join("|") === "Living Room range|Heat and cool|Heat to|−|19°|+|Cool to|−|24°|+", texts(row()));
+  const n = h.calls.length;
+  await press(byAria(row(), "Living Room range: heat to, up"));
+  await press(byAria(row(), "Living Room range: cool to, down"));
+  check("range", JSON.stringify(h.calls.slice(n)) === JSON.stringify([
+    { domain: "climate", service: "set_temperature", entity_id: "climate.great_room", target_temp_low: 19.5, target_temp_high: 24 },
+    { domain: "climate", service: "set_temperature", entity_id: "climate.great_room", target_temp_low: 19.5, target_temp_high: 23.5 }]), h.calls.slice(n));
+  // Heat to never passes cool to.
+  const r2 = controls(house({ "climate.great_room": ST("climate.great_room", "heat_cool", { friendly_name: "Tight", target_temp_low: 22, target_temp_high: 22, supported_features: 2 }) }), { matches: {} });
+  const row2 = rowOf(r2.rc.sheet("Great Room", { parts: { audio: false, shades: false, climate: true } }).after.draw(), "climate.great_room");
+  check("range", texts(row2).includes("22°") && byAria(row2, "Tight: heat to, up"), texts(row2));
+  // Its own current temperature only without the card's status line (no temperature sensor in the room).
+  const h3 = house({ "climate.great_room": ST("climate.great_room", "heat", { friendly_name: "T", current_temperature: 20.4, temperature: 21, supported_features: 1 }) });
+  for (const e of Object.keys(h3.hass.states)) if (e.startsWith("sensor.")) delete h3.hass.states[e];
+  const r3 = controls(h3, { matches: {} });
+  check("range", texts(rowOf(r3.rc.sheet("Great Room", { parts: { audio: false, shades: false, climate: true } }).after.draw(), "climate.great_room")).includes("20.4 °C"), "no status line, no current temperature");
+});
+
+// ── what the card's parts show, for "More devices of the area" to leave out ──
+await tryCase("shown-in", async () => {
+  const h = house();
+  addPlayer(h, "media_player.sonos_great", "sonos", "playing", { friendly_name: "Arc", volume_level: 0.3, supported_features: F.SET }, "dev_arc");
+  addEntity(h, "number.arc_bass", "sonos", "dev_arc", "3", { min: -10, max: 10, step: 1 }, { translation_key: "bass" });
+  const r = controls(h, { matches: { great_room: ["media_player.c4_great_room", "media_player.sonos_great"] }, ha: true });
+  const got = new Set(r.rc.shownIn("Great Room"));
+  check("shown-in", ["media_player.c4_great_room", "media_player.sonos_great", "number.arc_bass", "cover.great_room_left", "cover.great_room_right", "climate.great_room",
+    "sensor.great_room_temperature", "sensor.great_room_humidity"].every(e => got.has(e)) && !got.has("light.great_room_pots") && !got.has("cover.garage_door"), [...got]);
+  const audioOnly = r.rc.shownIn("Great Room", { audio: true, shades: false, climate: false });
+  check("shown-in", audioOnly.join() === "media_player.c4_great_room,media_player.sonos_great,number.arc_bass", audioOnly);
+});
+
+// ── the sheet: the room's temperature sensors are the status line's, not rows; a wall's card larger ──
+await tryCase("sheet-tidy", async () => {
+  const h = house();
+  const r = controls(h, { matches: {} });
+  const lights = LM.gatherLights(h.hass.states, { "light.great_room_pots": "Great Room", "sensor.great_room_temperature": "Great Room", "sensor.great_room_humidity": "Great Room" }, {}, "pro");
+  reset();
+  const api = { ...apiOf(h, r.rc), roomParts: { audio: false, shades: false, climate: true } };
+  const s = LM.openRoomSheet(api, lights, "Great Room");
+  check("sheet-tidy", !/great room temperature|great room humidity/.test(words(sheetNow()).join() + all(sheetNow()).map(n => n._text).join("|")), all(sheetNow()).map(n => n._text).filter(Boolean));
+  s.close(); reset();
+  const plain = LM.openRoomSheet(apiOf(h, null), lights, "Great Room");
+  check("sheet-tidy", /great room temperature/.test(all(sheetNow()).map(n => n._text).join("|")), "the sensors' rows went without room controls");
+  plain.close(); reset();
+  const wall = LM.openRoomSheet({ ...apiOf(h, r.rc), kiosk: true }, lights, "Great Room");
+  check("sheet-tidy", /zoom:1\.35/.test(sheetNow().children[0].style.cssText), sheetNow().children[0].style.cssText);
+  wall.close(); reset();
+  check("sheet-tidy", !/zoom/.test((() => { const x = LM.openRoomSheet(apiOf(h, r.rc), lights, "Great Room"); const c = sheetNow().children[0].style.cssText; x.close(); reset(); return c; })()), "zoom off a wall");
+});
+
 // ── German ──
 await tryCase("german", async () => {
   await I.useLanguage({ language: "de", locale: { language: "de" } }, ["atlas1", "aboard2"]);
@@ -1403,7 +1533,7 @@ await tryCase("german", async () => {
   reset();
   const s = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Great Room");
   const w = words(sheetNow());
-  check("german", w.includes("Stumm") && w.some(x => /^Raum aus \(\d\)$/.test(x)) && w.includes("Öffnen") && w.includes("Räume zuordnen"), w);
+  check("german", w.includes("Stumm") && w.some(x => /^Raum aus \(\d\)$/.test(x)) && w.includes("Öffnen") && w.includes("Alle Audioquellen im Haus aus") && !w.includes("Räume zuordnen"), w);
   s.close(); reset();
   await I.useLanguage({ language: "en", locale: { language: "en" } }, ["atlas1", "aboard2"]);
 });

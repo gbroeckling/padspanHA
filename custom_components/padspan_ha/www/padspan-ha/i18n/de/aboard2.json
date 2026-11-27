@@ -62,10 +62,7 @@
 "Follow": "Folgen",
 "Let the camera go": "Die Kamera loslassen",
 "Keep the camera on them as they move": "Die Kamera bleibt bei der Person, wenn sie sich bewegt",
-"{n} people home: go to each in turn": {
-"one": "1 Person zu Hause: zu ihr gehen",
-"other": "{n} Personen zu Hause: der Reihe nach zu jeder gehen"
-},
+"{n} people home: go to each in turn": {"one": "1 Person zu Hause: zu ihr gehen", "other": "{n} Personen zu Hause: der Reihe nach zu jeder gehen"},
 "Tick that the person in the photo agrees first. Nothing is sent until then.": "Hak zuerst an, dass die Person auf dem Foto einverstanden ist. Bis dahin wird nichts gesendet.",
 "Not heard now": "Gerade nicht gehört",
 "In {room}": "In {room}",
@@ -131,10 +128,7 @@
 "Reading the photo": "Das Foto wird gelesen",
 "{task} is reading it. On a home computer this can take a minute or two.": "{task} liest es. Auf einem Heimrechner kann das ein, zwei Minuten dauern.",
 "The AI Task": "Die KI-Aufgabe",
-"Done ({n} changes)": {
-"one": "Fertig (1 Änderung)",
-"other": "Fertig ({n} Änderungen)"
-},
+"Done ({n} changes)": {"one": "Fertig (1 Änderung)", "other": "Fertig ({n} Änderungen)"},
 "Rooms": "Räume",
 "Rooms ▾": "Räume ▾",
 "Go to a room": "Zu einem Raum gehen",
@@ -369,22 +363,10 @@
 "It could not be sent back to its dock: send it there yourself.": "Er ließ sich nicht zur Station zurückschicken: schick ihn selbst dorthin.",
 "Undone: its points were taken out of calibration.": "Rückgängig gemacht: ihre Punkte wurden aus der Kalibrierung genommen.",
 "Undo this run": "Diese Fahrt rückgängig machen",
-"The tag on the robot is heard now by {n} receivers": {
-"one": "Der Tag auf dem Roboter wird gerade von 1 Empfänger gehört",
-"other": "Der Tag auf dem Roboter wird gerade von {n} Empfängern gehört"
-},
-"Run started: {n} spots": {
-"one": "Fahrt gestartet: 1 Stelle",
-"other": "Fahrt gestartet: {n} Stellen"
-},
-"Remove the {n} points this run added? Every other calibration point stays as it is.": {
-"one": "Den 1 Punkt entfernen, den diese Fahrt hinzugefügt hat? Alle anderen Kalibrierpunkte bleiben, wie sie sind.",
-"other": "Die {n} Punkte entfernen, die diese Fahrt hinzugefügt hat? Alle anderen Kalibrierpunkte bleiben, wie sie sind."
-},
-"Removed {n} points": {
-"one": "1 Punkt entfernt",
-"other": "{n} Punkte entfernt"
-},
+"The tag on the robot is heard now by {n} receivers": {"one": "Der Tag auf dem Roboter wird gerade von 1 Empfänger gehört", "other": "Der Tag auf dem Roboter wird gerade von {n} Empfängern gehört"},
+"Run started: {n} spots": {"one": "Fahrt gestartet: 1 Stelle", "other": "Fahrt gestartet: {n} Stellen"},
+"Remove the {n} points this run added? Every other calibration point stays as it is.": {"one": "Den 1 Punkt entfernen, den diese Fahrt hinzugefügt hat? Alle anderen Kalibrierpunkte bleiben, wie sie sind.", "other": "Die {n} Punkte entfernen, die diese Fahrt hinzugefügt hat? Alle anderen Kalibrierpunkte bleiben, wie sie sind."},
+"Removed {n} points": {"one": "1 Punkt entfernt", "other": "{n} Punkte entfernt"},
 "Find mistakes": "Fehler finden",
 "Where the robot's runs say each receiver is, from the tag's readings at the spots the robot stood on. Nothing is moved here.": "Wo jeder Empfänger laut den Fahrten des Roboters steht, aus den Messwerten des Tags an den Stellen, an denen der Roboter stand. Hier wird nichts verschoben.",
 "no room": "keinem Raum",
@@ -397,24 +379,15 @@
 "Not enough readings to judge: {names}": "Zu wenige Messwerte für ein Urteil: {names}",
 "Looking…": "Wird gesucht …",
 "Could not read the findings: {why}": "Die Ergebnisse ließen sich nicht lesen: {why}",
-"From {n} robot spots.": {
-"one": "Aus 1 Roboterstelle.",
-"other": "Aus {n} Roboterstellen."
-},
-"No receiver looks misplaced: {n} checked.": {
-"one": "Kein Empfänger scheint falsch platziert: 1 geprüft.",
-"other": "Kein Empfänger scheint falsch platziert: {n} geprüft."
-},
+"From {n} robot spots.": {"one": "Aus 1 Roboterstelle.", "other": "Aus {n} Roboterstellen."},
+"No receiver looks misplaced: {n} checked.": {"one": "Kein Empfänger scheint falsch platziert: 1 geprüft.", "other": "Kein Empfänger scheint falsch platziert: {n} geprüft."},
 "ended when PadSpan restarted": "beendet, als PadSpan neu startete",
 "ended: the robot went back to its dock": "beendet: der Roboter ist zur Station zurückgefahren",
 "ended: the robot's battery ran low": "beendet: der Akku des Roboters wurde knapp",
 "The robot's battery is low: let it charge first.": "Der Akku des Roboters ist schwach: lass ihn zuerst laden.",
 "That address or login cannot be used: put the user and password in their own boxes, without a colon in the user name.": "Diese Adresse oder Anmeldung geht nicht: trag Benutzer und Passwort in ihre eigenen Felder ein, ohne Doppelpunkt im Benutzernamen.",
 "Undo": "Rückgängig",
-"{when} UTC, {rooms}: {n} points": {
-"one": "{when} UTC, {rooms}: 1 Punkt",
-"other": "{when} UTC, {rooms}: {n} Punkte"
-},
+"{when} UTC, {rooms}: {n} points": {"one": "{when} UTC, {rooms}: 1 Punkt", "other": "{when} UTC, {rooms}: {n} Punkte"},
 "Not enough readings around it to judge: {names}": "Zu wenige Messwerte rund um ihn für ein Urteil: {names}",
 "Robot (floor level, {band} GHz)": "Roboter (Bodenhöhe, {band} GHz)",
 "Robot at floor level: {dbm} dBm (what a device at this spot hears)": "Roboter in Bodenhöhe: {dbm} dBm (was ein Gerät an dieser Stelle empfängt)",
@@ -444,32 +417,17 @@
 "Undo this change": "Diese Änderung rückgängig machen",
 "A Valetudo timer starts the robot at {time} UTC: the run ends there if it is still going.": "Ein Valetudo-Zeitplan startet den Roboter um {time} UTC: läuft die Fahrt dann noch, endet sie dort.",
 "On your own test spots: rooms right {before} % before this run, {after} % after; typical error {eb} m, then {ea} m.": "An deinen eigenen Teststellen: Räume richtig {before} % vor dieser Fahrt, {after} % danach; typischer Fehler {eb} m, dann {ea} m.",
-"{n} runs from before this choice existed stay as they are.": {
-"one": "1 Fahrt von vor dieser Wahl bleibt, wie sie ist.",
-"other": "{n} Fahrten von vor dieser Wahl bleiben, wie sie sind."
-},
-"{n} spots kept for Find mistakes only.": {
-"one": "1 Stelle nur für Fehler finden behalten.",
-"other": "{n} Stellen nur für Fehler finden behalten."
-},
+"{n} runs from before this choice existed stay as they are.": {"one": "1 Fahrt von vor dieser Wahl bleibt, wie sie ist.", "other": "{n} Fahrten von vor dieser Wahl bleiben, wie sie sind."},
+"{n} spots kept for Find mistakes only.": {"one": "1 Stelle nur für Fehler finden behalten.", "other": "{n} Stellen nur für Fehler finden behalten."},
 "Placed on floor {placed}, yet it hears the robot on floor {here} about as strongly as the receivers placed there ({strong} spots, up to {dbm} dBm). It may be on the wrong floor.": "Auf Etage {placed} platziert, hört den Roboter aber auf Etage {here} etwa so stark wie die dort platzierten Empfänger ({strong} Stellen, bis zu {dbm} dBm). Vielleicht steht er auf der falschen Etage.",
 "Collect Wi-Fi while it cleans": "WLAN beim Saugen erfassen",
 "These readings are taken on the move, count far less than its standing-still ones, and add one small request to the robot every few seconds while it cleans.": "Diese Messwerte entstehen während der Fahrt, zählen viel weniger als die im Stillstand und schicken dem Roboter beim Saugen alle paar Sekunden eine kleine Anfrage.",
 "It reads only while the robot's live position is on, from its map imported from Valetudo.": "Gemessen wird nur, solange die Live-Position des Roboters an ist, mit seiner aus Valetudo importierten Karte.",
-"{n} readings kept so far.": {
-"one": "Bisher 1 Messwert behalten.",
-"other": "Bisher {n} Messwerte behalten."
-},
+"{n} readings kept so far.": {"one": "Bisher 1 Messwert behalten.", "other": "Bisher {n} Messwerte behalten."},
 "While it cleaned": "Beim Saugen",
-"While cleaning: {n} readings": {
-"one": "Beim Saugen: 1 Messwert",
-"other": "Beim Saugen: {n} Messwerte"
-},
+"While cleaning: {n} readings": {"one": "Beim Saugen: 1 Messwert", "other": "Beim Saugen: {n} Messwerte"},
 "Weighted: {dbm} dBm at floor level": "Gewichtet: {dbm} dBm in Bodenhöhe",
-"With {n} stops here, which count ten times as much": {
-"one": "Mit 1 Halt hier, der zehnmal so viel zählt",
-"other": "Mit {n} Halten hier, die zehnmal so viel zählen"
-},
+"With {n} stops here, which count ten times as much": {"one": "Mit 1 Halt hier, der zehnmal so viel zählt", "other": "Mit {n} Halten hier, die zehnmal so viel zählen"},
 "Faint squares: its Wi-Fi taken every few seconds while it cleaned. They count a tenth of a stop's, so where it also stood, the stop decides.": "Blasse Quadrate: sein WLAN, beim Saugen alle paar Sekunden gemessen. Sie zählen ein Zehntel eines Halts; wo er auch stand, entscheidet der Halt.",
 "✕ Stop walking": "✕ Gehen beenden",
 "Back to the 3D view you came from (Esc)": "Zurück zur 3D-Ansicht, aus der du kamst (Esc)",
@@ -482,8 +440,8 @@
 "Shades": "Beschattung",
 "Thermostats": "Thermostate",
 "Open, Stop and Close for the room's blinds and shades in the room's panel": "Öffnen, Stopp und Schließen für die Jalousien und Rollos des Raums im Raumblatt",
-"Each thermostat in the room's panel, its mode and its setpoint with − and +, and the room's temperature and humidity": "Jedes Thermostat im Raumblatt, seine Betriebsart und sein Sollwert mit − und +, dazu Temperatur und Luftfeuchtigkeit des Raums",
-"Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, dazu „Raum aus“; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist",
 "Energy": "Energie",
-"A room's watts beside its name, a device's watts on the map, and Energy in the room's panel: watts now, kWh and cost today": "Die Watt eines Raums neben seinem Namen, die Watt eines Geräts auf der Karte und Energie im Feld des Raums: Watt jetzt, kWh und Kosten heute"
+"A room's watts beside its name, a device's watts on the map, and Energy in the room's panel: watts now, kWh and cost today": "Die Watt eines Raums neben seinem Namen, die Watt eines Geräts auf der Karte und Energie im Feld des Raums: Watt jetzt, kWh und Kosten heute",
+"Each thermostat in the room's panel with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity": "Jeder Thermostat im Raumpanel mit − und + für seinen Sollwert (oder „Heizen auf“ und „Kühlen auf“) und Temperatur und Luftfeuchtigkeit des Raums",
+"Each room's players in its panel: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off; a speaker beside a room's name while one plays": "Die Player jedes Raums in seinem Panel: an und aus, Lautstärke, stumm, Quelle, Klangmodus und Klang, Abspielen, Pause und Springen, Teilen mit anderen Räumen und Raum aus; ein Lautsprecher neben dem Namen eines Raums, solange einer spielt"
 }

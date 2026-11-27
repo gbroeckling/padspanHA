@@ -73,11 +73,13 @@ export const ROOM_AUDIO_SYSTEMS = Object.freeze({
 export const VOLUME_SET = 4, VOLUME_MUTE = 8, TURN_OFF = 256, VOLUME_STEP = 1024;
 export const PAUSE = 1, PREVIOUS_TRACK = 16, NEXT_TRACK = 32, TURN_ON = 128, SELECT_SOURCE = 2048, STOP = 4096, PLAY = 16384,
   SELECT_SOUND_MODE = 65536, GROUPING = 524288;
-const CLIMATE_TARGET = 1;
+const CLIMATE_TARGET = 1, CLIMATE_RANGE = 2;
 const COVER_OPEN = 1, COVER_CLOSE = 2, COVER_STOP = 8;
 // A cover that is a garage door, a gate or a door is an opener (its door's card, Alarm & security's), never a shade
 // here: by its device class, or linked as a door's opener (o.openers).
-const NOT_SHADES = new Set(["garage", "gate", "door"]);
+const NOT_SHADES = new Set(["garage", "gate", "door", "damper", "window"]);
+// A cover with no device class named as a door, a gate or a garage is an opener too ("Garage side door opener").
+const DOORISH = /\b(door|gate|garage)\b/i;
 const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
 // A player making sound now, and the states of a player that has media at all (Any audio in house off).
 const SOUNDING = new Set(["playing", "buffering"]), MEDIA_STATES = new Set(["playing", "paused", "idle", "buffering"]);
@@ -104,6 +106,18 @@ const features = (st) => Number((st && st.attributes && st.attributes.supported_
 const has = (st, bit) => (features(st) & bit) === bit;
 const nameOf = (st, eid) => String((st && st.attributes && st.attributes.friendly_name) || eid.split(".")[1] || eid);
 const pretty = (platform) => String(platform || "").split(/[_-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+/** Is this cover a shade (a blind, a shade, a curtain, an awning...): a cover Home Assistant has, not a garage door, a
+ *  gate, a door, a damper or a window by its device class, not a door's or a gate's opener (openers: the covers linked
+ *  as one, a Set), and with no device class not named as a door, a gate or a garage. The one rule for a room card's
+ *  Shades and for the Shades tip (tips.js). */
+export function isShade(hass, eid, openers = null){
+  if (typeof eid !== "string" || !eid.startsWith("cover.")) return false;
+  const s = hass && hass.states && Object.prototype.hasOwnProperty.call(hass.states, eid) ? hass.states[eid] : null;
+  if (!s) return false;
+  const a = s.attributes || {}, dc = String(a.device_class || "");
+  if (NOT_SHADES.has(dc) || (openers && typeof openers.has === "function" && openers.has(eid))) return false;
+  return !(!dc && DOORISH.test(`${a.friendly_name || ""} ${eid}`.replace(/_/g, " ")));
+}
 /** Is a player on (playing, paused, idle, on): anything but off, standby, unavailable, unknown. platform: a Control4
  *  room (Home Assistant core's control4) says idle while it is off, never off: idle is off there. */
 export const playerOn = (st, platform) => !!st && !OFF_STATES.has(String(st.state)) && !(platform === "control4" && st.state === "idle");
@@ -334,7 +348,7 @@ const S = {
     + "background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.22);color:#e2e8f0",
   primary: "min-height:36px;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;"
     + "color:#e2e8f0;background:#2d6a4f;border:1px solid #52b788",
-  quiet: "min-height:32px;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;"
+  quiet: "min-height:36px;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;"
     + "background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);color:rgba(226,240,232,.75)",
   level: "min-width:36px;text-align:center;font-variant-numeric:tabular-nums;font-weight:800;font-size:14px",
   note: "font-size:11px;color:#94a3b8;margin-top:4px",
@@ -405,9 +419,26 @@ export function createRoomControls(o){
   const rooms = () => once("rooms", () => mapRooms(o.model()));
   // Is a player on, by its platform too (a Control4 room's idle is off): what every part of the card goes by.
   const isOn = (eid) => { const e = own(H().entities, eid) ? H().entities[eid] : null; return playerOn(st(eid), e && e.platform ? String(e.platform) : ""); };
+  // Is a player making sound: playing or buffering, or on with no media state (a Control4 room). An idle or a paused
+  // player is not (a Sonos sits idle for good): no speaker on the map for it.
+  const sounding = (eid) => { const s = st(eid); if (!s) return false; const v = String(s.state); return SOUNDING.has(v) || (isOn(eid) && !MEDIA_STATES.has(v)); };
+  /** How a player is quieted: ["turn_off"] where it turns off, else, while it is playing, paused, stopped or muted;
+   *  null when there is nothing to do (silent already, or nothing to press). room: Room off, which turns off every
+   *  player of the room that is on and turns off (Any audio in house off: only one that is making sound). */
+  function quietHow(eid, room){
+    const s = st(eid);
+    if (!s || !isOn(eid)) return null;
+    const playing = SOUNDING.has(String(s.state));
+    if (has(s, TURN_OFF) && (room || sounding(eid))) return ["turn_off"];
+    if (!playing) return null;
+    if (has(s, PAUSE)) return ["media_pause"];
+    if (has(s, STOP)) return ["media_stop"];
+    if (has(s, VOLUME_MUTE)) return ["volume_mute", { is_volume_muted: true }];
+    return null;
+  }
   const soundOf = (eid) => once(`sound:${eid}`, () => soundControls(H(), eid, memo ? once("devices", () => devicesIndex(H())) : null));
   // Set up: the card has kept its picks once (or, from before that was written down, some are kept). Only a house
-  // never set up gets the card's guesses, the card opening by itself and the prominent button in every room.
+  // never set up gets the card's guesses and the card opening by itself.
   const setUp = () => settings().room_audio_matched === true || Object.keys(matches()).length > 0;
   const sourcesOf = (eid) => { const all = once("sources", () => cleanSources(settings().room_audio_sources)); return own(all, eid) ? all[eid] : null; };
   /** A player's volume limit (0.1..1; 1: none). */
@@ -509,17 +540,18 @@ export function createRoomControls(o){
       () => { const w = vol.get(p.eid); if (w) clearTimeout(w.timer); vol.delete(p.eid); paintLevel(p.eid); }, false);
   }
 
-  /** {room name: "on" | "muted"} for the map: a room with a player on; muted while its first player is. */
+  /** {room name: "on" | "muted"} for the map: a room with a player making sound (sounding); muted while its first player
+   *  is. */
   function looks(){ return withMemo(new Map(), looksOf); }
   function looksOf(){
     if (!counted) { counted = true; count("on"); }
     const out = {};
     for (const r of rooms()) {
       const ps = playersIn(r.name);
-      if (!ps.some(p => isOn(p.eid))) continue;
+      if (!ps.some(p => sounding(p.eid))) continue;
       const first = st(ps[0].eid), op = optOf(ps[0].eid);
       const muted = op && typeof op.muted === "boolean" ? op.muted : !!(first && first.attributes && first.attributes.is_volume_muted === true);
-      out[r.name] = isOn(ps[0].eid) && muted ? "muted" : "on";
+      out[r.name] = sounding(ps[0].eid) && muted ? "muted" : "on";
     }
     return out;
   }
@@ -543,10 +575,17 @@ export function createRoomControls(o){
     label.appendChild(mk("span", S.sys, `${p.system} · `));
     label.appendChild(document.createTextNode(p.name));
     row.appendChild(label);
-    row.appendChild(mk("span", S.chip(on), na ? t("Unavailable") : !on ? t("Off") : muted ? t("Muted") : t("On")));
+    row.appendChild(mk("span", S.chip(on), na ? t("Unavailable") : !on ? t("Off") : s.state === "idle" ? t("Idle") : muted ? t("Muted") : t("On")));
     const btn = button;
     const ctl = mk("span", S.ctl);
     row.appendChild(ctl);
+    plusEls.delete(p.eid); levelEls.delete(p.eid);
+    // Off: only On, for a player that turns on; never a Control4 room's (its turn_on starts the room's last source,
+    // else its first video source: it can turn a TV on; a source picked starts the room instead, audioLines).
+    if (!on && !na) {
+      if (has(s, TURN_ON) && p.platform !== "control4") ctl.appendChild(btn(t("On"), t("Turn {name} on", { name: p.name }), () => call("media_player", "turn_on", { entity_id: p.eid }, null, p.name)));
+      return row;
+    }
     if (has(s, VOLUME_MUTE)) {
       ctl.appendChild(btn(muted ? t("Unmute") : t("Mute"), muted ? t("Unmute {name}", { name: p.name }) : t("Mute {name}", { name: p.name }), () => {
         opt.set(p.eid, { ...(optOf(p.eid) || {}), muted: !muted, until: Date.now() + OPTIMISTIC_MS });
@@ -566,7 +605,6 @@ export function createRoomControls(o){
     // slider) and for one whose level is not known (greyed when it can't step). + is greyed at the player's limit, in
     // place (paintLevel).
     const pm = !(has(s, VOLUME_SET) && lvl !== null) || has(s, VOLUME_STEP);
-    plusEls.delete(p.eid);
     if (pm) ctl.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
     const lv = mk("span", S.level, levelText(lvl));
     lv.setAttribute("data-level", "");
@@ -577,10 +615,7 @@ export function createRoomControls(o){
       if (!na && steps) { plusEls.set(p.eid, { btn: plus, step }); if (upBlocked(p.eid, lvl, step)) { plus.disabled = true; plus.style.opacity = ".4"; } }
       ctl.appendChild(plus);
     }
-    // On while it is off, for a player that turns on; never a Control4 room's (its turn_on starts the room's last
-    // source, else its first video source: it can turn a TV on; a source picked starts the room instead).
-    if (!on && !na && has(s, TURN_ON) && p.platform !== "control4") ctl.appendChild(btn(t("On"), t("Turn {name} on", { name: p.name }), () => call("media_player", "turn_on", { entity_id: p.eid }, null, p.name)));
-    else if (has(s, TURN_OFF)) ctl.appendChild(btn(glyph("⏻"), t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
+    if (has(s, TURN_OFF)) ctl.appendChild(btn(glyph("⏻"), t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
     return row;
   }
 
@@ -591,6 +626,8 @@ export function createRoomControls(o){
     const s = st(p.eid), out = [];
     if (!s || s.state === "unavailable") return out;
     const a = s.attributes || {}, on = isOn(p.eid);
+    // Off: the source line alone, where picking one starts the player (sourceLine).
+    if (!on) { const src = sourceLine(p, s); if (src) out.push(src); return out; }
     const pic = typeof a.entity_picture === "string" ? a.entity_picture : "";
     const picOK = pictureOK(pic);
     const showNow = (s.state === "playing" || s.state === "paused") && !!(a.media_title || a.media_artist || picOK);
@@ -688,7 +725,8 @@ export function createRoomControls(o){
     if (P && Z && (now === "playing" || now === "paused")) {
       const playing = now === "playing";
       add(glyph(playing ? "⏸" : "▶"), playing ? t("Pause {name}", n) : t("Play {name}", n), "media_player", "media_play_pause", playing ? "pause" : "play");
-    } else if (P && Z) {
+    } else if (P && now === "idle") add(glyph("▶"), t("Play {name}", n), "media_player", "media_play", "play");   // idle: nothing to pause
+    else if (P && Z) {
       add(glyph("▶"), t("Play {name}", n), "media_player", "media_play", "play");
       add(glyph("⏸"), t("Pause {name}", n), "media_player", "media_pause", "pause");
     } else if (P && now !== "playing") add(glyph("▶"), t("Play {name}", n), "media_player", "media_play", "play");
@@ -705,9 +743,22 @@ export function createRoomControls(o){
    *  is not drawn again under the finger (sheet: frozen). */
   function volumeSlider(p){
     const lim = limitOf(p.eid), lvl = levelNow(p.eid);
-    const r = mk("input", S.slider);
-    r.type = "range"; r.min = "0"; r.max = String(Math.round(lim * 100)); r.step = "1";
+    // 0 to 100 always (a 60 % limit must not move the knob a third along at 20): the part past the limit is marked on
+    // the track, and the knob stops at it (stopAt).
+    const wrap = mk("span", "position:relative;display:flex;align-items:center;flex:1 1 160px;min-width:80px");
+    const r = mk("input", S.slider + ";flex:1 1 auto;width:100%;min-width:0");
+    r.type = "range"; r.min = "0"; r.max = "100"; r.step = "1";
     r.value = String(Math.round(Math.min(lvl === null ? 0 : lvl, lim) * 100));
+    wrap.appendChild(r);
+    if (lim < 1) {
+      // Where a 16 px knob's middle is at the limit: the track runs from half a knob in to half a knob short.
+      const mark = mk("span", `position:absolute;top:9px;bottom:9px;left:calc(8px + (100% - 16px) * ${lim});right:4px;pointer-events:none;`
+        + "border-left:2px solid #f59e0b;background:rgba(148,163,184,.22);border-radius:0 6px 6px 0");
+      mark.setAttribute("data-limit-mark", String(Math.round(lim * 100)));
+      mark.title = t("Volume limit {pct} %", { pct: Math.round(lim * 100) });
+      wrap.appendChild(mark);
+    }
+    const stopAt = () => { const top = Math.round(limitOf(p.eid) * 100); if (Number(r.value) > top) r.value = String(top); };
     r.setAttribute("aria-label", t("{name} volume", { name: p.name }));
     r.setAttribute("data-slider", p.eid);
     if (lvl === null) r.disabled = true;
@@ -733,6 +784,7 @@ export function createRoomControls(o){
     // Held (a finger or the mouse down): what it shows now is where it starts, nothing to send yet.
     const begin = () => { const d = take(); if (!d.active) { d.active = true; d.sent = d.level; } };
     const move = () => {
+      stopAt();
       const d = take();
       d.active = true;
       paintLevel(p.eid);
@@ -752,11 +804,11 @@ export function createRoomControls(o){
     }
     const quiet = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
     r.addEventListener("input", move);
-    r.addEventListener("change", () => { take(); finish(); });
+    r.addEventListener("change", () => { stopAt(); take(); finish(); });
     for (const ev of ["pointerdown", "touchstart"]) r.addEventListener(ev, (e) => { quiet(e); begin(); });
     for (const ev of ["pointerup", "pointercancel", "touchend", "touchcancel", "blur"]) r.addEventListener(ev, finish);
     r.addEventListener("click", quiet);
-    return r;
+    return wrap;
   }
 
   /** A line of choices: up to CHIPS_MAX as chips, the current one marked; more as one button (the current one's
@@ -918,10 +970,10 @@ export function createRoomControls(o){
       d.box.replaceChildren();
       d.box.appendChild(cardHead(d, t("Share {name}", { name: p.name }), t("The ticked rooms play what this room plays.")));
       for (const c of shareCandidates(p)) {
-        const row = mk("div", S.row + ";border-bottom:1px solid rgba(120,190,155,.08)");
+        const row = mk("div", S.row + ";flex-wrap:nowrap;border-bottom:1px solid rgba(120,190,155,.08)");
         row.setAttribute("data-eid", c.eid);
-        const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 150px;cursor:pointer;font-size:13px");
-        const cb = mk("input", "width:20px;height:20px");
+        const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 0;min-width:0;cursor:pointer;font-size:13px");
+        const cb = mk("input", "width:22px;height:22px;margin:0;flex:0 0 auto;accent-color:#52b788");
         cb.type = "checkbox"; cb.checked = inGroup(c.eid);
         cb.setAttribute("aria-label", t("Play in {room}", { room: c.room }));
         cb.addEventListener("change", () => {
@@ -932,7 +984,7 @@ export function createRoomControls(o){
           else call("media_player", "unjoin", { entity_id: c.eid }, "unshare", c.name, () => pending.delete(c.eid));
           draw();
         });
-        lab.appendChild(cb); lab.appendChild(mk("span", null, c.room));
+        lab.appendChild(cb); lab.appendChild(mk("span", "overflow:hidden;text-overflow:ellipsis;white-space:nowrap", c.room));
         row.appendChild(lab);
         if (inGroup(c.eid) && has(st(c.eid), VOLUME_SET) && reported(c.eid) !== null) {
           row.appendChild(volumeSlider(c));
@@ -973,14 +1025,8 @@ export function createRoomControls(o){
   function allOffTargets(){
     const offered = offeredMap(), out = [];
     for (const list of Object.values(matches())) for (const e of list) {
-      const q = offered.get(e), s = st(e);
-      if (!q || !s) continue;
-      const playing = SOUNDING.has(String(s.state));
-      if (!playing && !(isOn(e) && !MEDIA_STATES.has(String(s.state)) && has(s, TURN_OFF))) continue;
-      if (has(s, TURN_OFF)) out.push([q, "turn_off"]);
-      else if (playing && has(s, PAUSE)) out.push([q, "media_pause"]);
-      else if (has(s, STOP)) out.push([q, "media_stop"]);
-      else if (has(s, VOLUME_MUTE)) out.push([q, "volume_mute", { is_volume_muted: true }]);
+      const q = offered.get(e), how = q ? quietHow(e, false) : null;
+      if (how) out.push([q, ...how]);
     }
     return out;
   }
@@ -1002,48 +1048,40 @@ export function createRoomControls(o){
     rest();
     return wrap;
   }
-  const systemsPresent = () => [...new Set(offeredPlayers().map(p => p.platform))];
-  function matchButton(prominent){
-    const wrap = mk("div", "padding:4px 0 2px");
-    const onlyC4 = (() => { const s = systemsPresent(); return s.length === 1 && s[0] === "control4"; })();
-    const b = mk("button", (prominent ? S.primary : S.quiet) + (o.admin() ? "" : off), onlyC4 ? t("Match Control4 to HA") : t("Match rooms"));
-    b.setAttribute("data-room-match", "");
-    if (o.admin()) b.addEventListener("click", (e) => { if (e && e.stopPropagation) e.stopPropagation(); openMatch(); });
-    else b.disabled = true;
-    wrap.appendChild(b);
-    if (!o.admin()) wrap.appendChild(mk("div", S.note, t("An administrator matches the players to the rooms.")));
-    return wrap;
-  }
   const section = (word, key) => { const n = mk("div", S.section); n.setAttribute("data-room-controls", key); n.appendChild(mk("div", S.head, word)); return n; };
 
-  // ── Shades: one row for the room's covers ──
+  // ── Shades: a row per shade (isShade), and All for two or more ──
+  const openersNow = () => { try { return typeof o.openers === "function" ? o.openers() : null; } catch (_) { return null; } };
   function shadesOf(aid){
-    const out = [];
-    let doors = null;
-    try { doors = typeof o.openers === "function" ? o.openers() : null; } catch (_) { doors = null; }
+    const out = [], doors = openersNow();
     for (const [eid, s] of Object.entries(H().states || {})) {
       if (!eid.startsWith("cover.") || areaOf(H(), eid) !== aid || !s || s.state === "unavailable") continue;
-      if (NOT_SHADES.has(String((s.attributes || {}).device_class || "")) || (doors && doors.has(eid))) continue;
-      out.push(eid);
+      if (isShade(H(), eid, doors)) out.push(eid);
     }
     return out.sort();
   }
-  function shadesRow(eids){
+  const SHADE_STATE = { open: () => t("open"), closed: () => t("closed"), opening: () => t("opening"), closing: () => t("closing") };
+  /** One shade's row (its name, how far open, Open, Stop and Close by what it can do), or with eids of two or more the
+   *  All row (each button for every shade that can). The buttons stay together on one line (S.ctl). */
+  function shadeRow(eids, all){
     const row = mk("div", S.row);
-    const pos = eids.map(e => Number((st(e).attributes || {}).current_position)).filter(Number.isFinite);
-    const open = eids.filter(e => ["open", "opening"].includes(st(e).state)).length;
-    const word = pos.length === eids.length ? t("{pct} % open", { pct: Math.round(pos.reduce((a, b) => a + b, 0) / pos.length) }) : t("{n} of {total} open", { n: open, total: eids.length });
-    const label = mk("span", S.name, eids.length === 1 ? nameOf(st(eids[0]), eids[0]) : t("{n} shades", { n: eids.length }));
-    row.appendChild(label);
-    row.appendChild(mk("span", S.chip(open > 0), word));
+    if (!all) row.setAttribute("data-eid", eids[0]);
+    else row.setAttribute("data-shades-all", "");
+    const s = all ? null : st(eids[0]), a = (s && s.attributes) || {};
+    const label = all ? t("All shades") : nameOf(s, eids[0]);
+    row.appendChild(mk("span", S.name, label));
+    if (!all) {
+      const pos = Number(a.current_position), known = a.current_position !== null && a.current_position !== undefined && Number.isFinite(pos);
+      const open = known ? pos > 0 : ["open", "opening"].includes(s.state);
+      row.appendChild(mk("span", S.chip(open), known ? t("{pct} % open", { pct: Math.round(pos) }) : SHADE_STATE[s.state] ? SHADE_STATE[s.state]() : String(s.state)));
+    }
+    const ctl = mk("span", S.ctl);
     for (const [bit, service, text] of [[COVER_OPEN, "open_cover", t("Open")], [COVER_STOP, "stop_cover", t("Stop")], [COVER_CLOSE, "close_cover", t("Close")]]) {
       const can = eids.filter(e => has(st(e), bit));
       if (!can.length) continue;
-      const b = mk("button", S.btn + ";font-size:12px", text);
-      b.addEventListener("click", (e) => { if (e && e.stopPropagation) e.stopPropagation();
-        call("cover", service, { entity_id: can.length === 1 ? can[0] : can }, "cover", label.textContent); });
-      row.appendChild(b);
+      ctl.appendChild(button(text, `${label}: ${text}`, () => call("cover", service, { entity_id: can.length === 1 ? can[0] : can }, "cover", label), false, S.btn + ";font-size:12px"));
     }
+    row.appendChild(ctl);
     return row;
   }
 
@@ -1053,28 +1091,47 @@ export function createRoomControls(o){
   function climateOf(aid){
     return Object.keys(H().states || {}).filter(e => e.startsWith("climate.") && areaOf(H(), e) === aid && st(e).state !== "unavailable").sort();
   }
-  function climateRow(eid){
-    const s = st(eid), a = s.attributes || {}, op = optOf(eid) || {};
+  const num = (x) => (x !== null && x !== undefined && x !== "" && Number.isFinite(Number(x)) ? Number(x) : null);
+  /** A thermostat's row: its name, its mode, and − value + for its setpoint; a thermostat that holds a range (heat to,
+   *  cool to: target_temp_low and target_temp_high) gets a pair for each, both sent together as Home Assistant wants.
+   *  Its own current temperature only when the card's status line doesn't say the room's (withCurrent). */
+  function climateRow(eid, withCurrent){
+    const s = st(eid), a = s.attributes || {}, op = optOf(eid) || {}, name = nameOf(s, eid);
     const unit = (H().config && H().config.unit_system && H().config.unit_system.temperature) || "°";
     const row = mk("div", S.row);
     row.setAttribute("data-eid", eid);
-    row.appendChild(mk("span", S.name, nameOf(s, eid)));
-    if (Number.isFinite(Number(a.current_temperature)) && a.current_temperature !== null) row.appendChild(mk("span", S.sys + ";font-size:13px", `${one(Number(a.current_temperature))} ${unit}`));
+    row.appendChild(mk("span", S.name, name));
+    if (withCurrent && num(a.current_temperature) !== null) row.appendChild(mk("span", S.sys + ";font-size:13px", `${one(num(a.current_temperature))} ${unit}`));
     row.appendChild(mk("span", S.chip(s.state !== "off"), MODE[s.state] ? MODE[s.state]() : String(s.state)));
-    const target = typeof op.target === "number" ? op.target : Number(a.temperature);
-    if (has(s, CLIMATE_TARGET) && a.temperature !== null && a.temperature !== undefined && Number.isFinite(target)) {
-      const step = Number(a.target_temp_step) > 0 ? Number(a.target_temp_step) : 0.5;
-      const lo = Number.isFinite(Number(a.min_temp)) ? Number(a.min_temp) : -Infinity, hi = Number.isFinite(Number(a.max_temp)) ? Number(a.max_temp) : Infinity;
-      const set = (dir) => () => {
-        const v = Math.round(Math.max(lo, Math.min(hi, target + dir * step)) * 100) / 100;
+    const step = Number(a.target_temp_step) > 0 ? Number(a.target_temp_step) : 0.5;
+    const lo = num(a.min_temp) ?? -Infinity, hi = num(a.max_temp) ?? Infinity;
+    const clamp = (v, a1 = lo, b1 = hi) => Math.round(Math.max(a1, Math.min(b1, v)) * 100) / 100;
+    // − value + as one group: never split over two lines in a narrow panel.
+    const pair = (what, value, down, up, run, key) => {
+      const g = mk("span", S.ctl);
+      g.setAttribute("data-setpoint", key);
+      if (what) g.appendChild(mk("span", S.what + ";min-width:0", what));
+      g.appendChild(button("−", down, () => run(-1)));
+      const v = mk("span", S.level, `${one(value)}°`); v.setAttribute("data-target", key); g.appendChild(v);
+      g.appendChild(button("+", up, () => run(1)));
+      return g;
+    };
+    const target = typeof op.target === "number" ? op.target : num(a.temperature);
+    const low = typeof op.low === "number" ? op.low : num(a.target_temp_low), high = typeof op.high === "number" ? op.high : num(a.target_temp_high);
+    if (has(s, CLIMATE_TARGET) && target !== null) {
+      row.appendChild(pair(null, target, t("{name} cooler", { name }), t("{name} warmer", { name }), (dir) => {
+        const v = clamp(target + dir * step);
         opt.set(eid, { target: v, until: Date.now() + OPTIMISTIC_MS });
-        call("climate", "set_temperature", { entity_id: eid, temperature: v }, "climate", nameOf(s, eid), () => opt.delete(eid));
+        call("climate", "set_temperature", { entity_id: eid, temperature: v }, "climate", name, () => opt.delete(eid));
+      }, "target"));
+    } else if (has(s, CLIMATE_RANGE) && low !== null && high !== null) {
+      // Heat to never passes cool to, nor cool to heat to.
+      const send = (l, h) => {
+        opt.set(eid, { low: l, high: h, until: Date.now() + OPTIMISTIC_MS });
+        call("climate", "set_temperature", { entity_id: eid, target_temp_low: l, target_temp_high: h }, "climate", name, () => opt.delete(eid));
       };
-      const b = (text, aria, run) => { const n = mk("button", S.btn, text); n.setAttribute("aria-label", aria); n.title = aria;
-        n.addEventListener("click", (e) => { if (e && e.stopPropagation) e.stopPropagation(); run(); }); return n; };
-      row.appendChild(b("−", t("{name} cooler", { name: nameOf(s, eid) }), set(-1)));
-      const v = mk("span", S.level, `${one(target)}°`); v.setAttribute("data-target", ""); row.appendChild(v);
-      row.appendChild(b("+", t("{name} warmer", { name: nameOf(s, eid) }), set(1)));
+      row.appendChild(pair(t("Heat to"), low, t("{name}: heat to, down", { name }), t("{name}: heat to, up", { name }), (dir) => send(clamp(low + dir * step, lo, high), high), "low"));
+      row.appendChild(pair(t("Cool to"), high, t("{name}: cool to, down", { name }), t("{name}: cool to, up", { name }), (dir) => send(low, clamp(high + dir * step, low, hi)), "high"));
     }
     return row;
   }
@@ -1103,18 +1160,17 @@ export function createRoomControls(o){
     const mt = median(temps), mh = median(hums);
     const status = [mt === null ? null : `${one(mt)}°`, mh === null ? null : `${Math.round(mh)} %`].filter(Boolean).join(" · ") || null;
     const players = want.audio ? playersIn(room) : [];
-    const onPlayers = players.filter(p => isOn(p.eid) && has(st(p.eid), TURN_OFF));
-    // Room off is Audio's: without the players it would be All lights off again.
-    const n = lightsOn.length + onPlayers.length;
+    // Room off is Audio's (without the players it would be All lights off again): each player of the room that is on
+    // turned off where it can be, and one playing that can't paused, stopped or muted (quietHow), as Any audio in house
+    // off does; each counted.
+    const quiet = players.map(p => [p, quietHow(p.eid, true)]).filter(([, how]) => how);
+    const n = lightsOn.length + quiet.length;
     const roomOff = want.audio && n ? { label: t("Room off ({n})", { n }), run: () => {
       count("room_off");
       if (lightsOn.length && typeof setMany === "function") setMany(lightsOn, false);
-      for (const p of onPlayers) call("media_player", "turn_off", { entity_id: p.eid }, null, p.name);
+      for (const [p, [how, extra]] of quiet) call("media_player", how, { entity_id: p.eid, ...(extra || {}) }, null, p.name);
     } } : null;
-    // Audio: the room's players; the matching button after them. In a house never set up, the button alone,
-    // prominent, in every room (where else would one start).
-    const none = want.audio && !setUp();
-    const offered = none ? audioPlayers(h, haOn()).length : 0;
+    // Audio: the room's players. Match rooms is the ⋯ list's Set up › (lights_map.js audioSetup), never in the card.
     // A level is not in the signature, only whether there is one: a new one goes into the number in place, so a row
     // is never drawn again between quick presses.
     // The full card's lines go in too (what is playing, the source, the mode, the group, the Sound entities' states,
@@ -1127,31 +1183,54 @@ export function createRoomControls(o){
     for (const p of players) paintLevel(p.eid);
     if (share) share.refresh();
     const allOff = players.length > 0 && allOffTargets().length > 0;
-    let sig = JSON.stringify([audioSig, none, offered, !!o.admin(), systemsPresent(), allOff, scanOK()]);
+    let sig = JSON.stringify([audioSig, allOff, scanOK()]);
     // A slider held (or just let go of) in this room: the signature it was last drawn with, so the sheet is not drawn
     // again under the finger; what changed meanwhile is drawn after.
     if (players.some(p => dragging(p.eid)) && frozen.has(room)) sig = frozen.get(room);
     else frozen.set(room, sig);
-    const before = players.length || (none && offered) ? {
+    const before = players.length ? {
       sig,
       draw: () => {
         const sec = section(t("Audio"), "audio");
         for (const p of players) { sec.appendChild(audioRow(p)); for (const n of audioLines(p)) sec.appendChild(n); }
-        sec.appendChild(matchButton(!players.length));
         if (allOff) sec.appendChild(allOffButton());
         return sec;
       } } : null;
     const shades = aid && want.shades ? shadesOf(aid) : [], climate = aid && want.climate ? climateOf(aid) : [];
     const after = shades.length || climate.length ? {
       sig: JSON.stringify([shades.map(e => { const s = st(e), a = s.attributes || {}; return [e, s.state, a.current_position, features(s), a.friendly_name]; }),
-        climate.map(e => { const s = st(e), a = s.attributes || {}, op = optOf(e); return [e, s.state, a.temperature, a.current_temperature, features(s), a.friendly_name, op && op.target]; })]),
+        climate.map(e => { const s = st(e), a = s.attributes || {}, op = optOf(e);
+          return [e, s.state, a.temperature, a.target_temp_low, a.target_temp_high, status ? null : a.current_temperature, features(s), a.friendly_name, op && [op.target, op.low, op.high]]; })]),
       draw: () => {
         const frag = mk("div");
-        if (shades.length) { const sec = section(t("Shades"), "shades"); sec.appendChild(shadesRow(shades)); frag.appendChild(sec); }
-        if (climate.length) { const sec = section(t("Climate"), "climate"); for (const e of climate) sec.appendChild(climateRow(e)); frag.appendChild(sec); }
+        if (shades.length) {
+          const sec = section(t("Shades"), "shades");
+          for (const e of shades) sec.appendChild(shadeRow([e], false));
+          if (shades.length > 1) sec.appendChild(shadeRow(shades, true));
+          frag.appendChild(sec);
+        }
+        // Thermostats, as the ⋯ line and Settings call them; the room's temperature is the status line's alone.
+        if (climate.length) { const sec = section(t("Thermostats"), "climate"); for (const e of climate) sec.appendChild(climateRow(e, !status)); frag.appendChild(sec); }
         return frag;
       } } : null;
     return { status, roomOff, before, after };
+  }
+  /** What the room's card parts show (lights_map.js and the 3D panel's "More devices of the area" leave them out): the
+   *  room's players and their Sound entities, its shades, its thermostats and the sensors of its status line. */
+  function shownIn(room, parts = { audio: true, shades: true, climate: true }){
+    return withMemo(new Map(), () => {
+      const aid = roomArea(room), want = parts || {}, out = [];
+      if (want.audio) for (const p of playersIn(room)) { out.push(p.eid); for (const c of soundOf(p.eid)) if (c.eid !== p.eid) out.push(c.eid); }
+      if (aid && want.shades) out.push(...shadesOf(aid));
+      if (aid && want.climate) {
+        out.push(...climateOf(aid));
+        for (const [eid, s] of Object.entries(H().states || {})) {
+          const dc = s && s.attributes && s.attributes.device_class;
+          if (eid.startsWith("sensor.") && (dc === "temperature" || dc === "humidity") && areaOf(H(), eid) === aid) out.push(eid);
+        }
+      }
+      return out;
+    });
   }
   /** The switch was ticked (on) on this screen: in a house never set up, the matching card opens for an administrator. */
   function switched(on){
@@ -1321,18 +1400,18 @@ export function createRoomControls(o){
         // As the server keeps them: the first 100 sources, none over 100 long (capped).
         const all = orderSources(capped(((st(p.eid) || {}).attributes || {}).source_list), conf());
         all.forEach((x, i) => {
-          const row = mk("div", S.row + ";border-bottom:1px solid rgba(120,190,155,.08)");
+          const row = mk("div", S.row + ";flex-wrap:nowrap;border-bottom:1px solid rgba(120,190,155,.08)");
           row.setAttribute("data-source", x.raw);
           // The tick and the source's name are one label, 36 px tall: a press anywhere on them shows or hides it.
-          const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 140px;min-width:0;cursor:pointer;font-size:13px");
-          const cb = mk("input", "width:22px;height:22px;margin:0;flex:0 0 auto");
+          const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 0;min-width:0;cursor:pointer;font-size:13px");
+          const cb = mk("input", "width:22px;height:22px;margin:0;flex:0 0 auto;accent-color:#52b788");
           cb.type = "checkbox"; cb.checked = !x.hidden;
           cb.setAttribute("aria-label", t("Show {source}", { source: x.raw }));
           cb.addEventListener("change", () => { const show = !!cb.checked; edit(c => { c.hidden = show ? c.hidden.filter(v => v !== x.raw) : [...c.hidden, x.raw]; }); draw(); });
           lab.appendChild(cb);
-          lab.appendChild(mk("span", "overflow:hidden;text-overflow:ellipsis", x.raw));
+          lab.appendChild(mk("span", "overflow:hidden;text-overflow:ellipsis;white-space:nowrap", x.raw));
           row.appendChild(lab);
-          const name = mk("input", S.select + ";flex:1 1 140px;max-width:none;box-sizing:border-box");
+          const name = mk("input", S.select + ";flex:1 1 0;min-width:64px;max-width:none;box-sizing:border-box");
           name.type = "text"; name.value = x.label === x.raw ? "" : x.label; name.placeholder = x.raw; name.maxLength = 60;
           name.setAttribute("aria-label", t("Name for {source}", { source: x.raw }));
           // Kept as it is typed (a pause of RENAME_MS), on leaving the field, and when the card closes (Escape too).
@@ -1349,8 +1428,10 @@ export function createRoomControls(o){
             const b = button(text, aria, () => { const ord = all.map(y => y.raw); [ord[i], ord[j]] = [ord[j], ord[i]]; edit(c => { c.order = ord; }); draw(); }, !can);
             return b;
           };
-          row.appendChild(arrow("▲", t("Earlier in the list"), i - 1, i > 0));
-          row.appendChild(arrow("▼", t("Later in the list"), i + 1, i < all.length - 1));
+          const arrows = mk("span", S.ctl + ";gap:4px");
+          arrows.appendChild(arrow("▲", t("Earlier in the list"), i - 1, i > 0));
+          arrows.appendChild(arrow("▼", t("Later in the list"), i + 1, i < all.length - 1));
+          row.appendChild(arrows);
           sd.box.appendChild(row);
         });
         const foot = mk("div", "display:flex;justify-content:flex-end;margin-top:12px");
@@ -1372,7 +1453,7 @@ export function createRoomControls(o){
         t("Pick the room each player is in. Several can share a room: the first in a room is the one the map's speaker follows.")));
       // Home Assistant's own speakers: off unless ticked.
       const lab = mk("label", "display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0 8px;cursor:pointer");
-      const cb = mk("input"); cb.type = "checkbox"; cb.checked = ha; cb.setAttribute("data-ha-speakers", "");
+      const cb = mk("input", "width:22px;height:22px;margin:0;flex:0 0 auto;accent-color:#52b788"); cb.type = "checkbox"; cb.checked = ha; cb.setAttribute("data-ha-speakers", "");
       cb.addEventListener("change", () => { ha = !!cb.checked; draw(); persist(); });
       lab.appendChild(cb); lab.appendChild(mk("span", null, t("Include Home Assistant speakers (Music Assistant, ESPHome, Cast, TVs)")));
       box.appendChild(lab);
@@ -1385,13 +1466,13 @@ export function createRoomControls(o){
       for (const p of players) {
         const gname = p.ha ? t("Home Assistant speakers") : p.system;
         if (gname !== group) { group = gname; box.appendChild(mk("div", S.head + ";margin-top:10px", gname)); }
-        const row = mk("div", S.row + ";border-bottom:1px solid rgba(120,190,155,.08)");
+        const row = mk("div", S.row + ";flex-wrap:nowrap;border-bottom:1px solid rgba(120,190,155,.08)");
         row.setAttribute("data-eid", p.eid);
-        const nm = mk("span", S.name);
+        const nm = mk("span", S.name + ";flex:1 1 0");
         nm.appendChild(document.createTextNode(p.ha ? `${p.system} · ${p.name}` : p.name));
         nm.appendChild(mk("div", "font-size:10px;color:#64748b;font-family:ui-monospace,monospace", p.eid));
         row.appendChild(nm);
-        const sel = mk("select", "min-height:34px;max-width:200px;border-radius:8px;padding:4px 6px;background:#0b1710;color:#e2e8f0;border:1px solid rgba(120,190,155,.3);font-size:13px");
+        const sel = mk("select", "min-height:36px;max-width:42%;flex:0 1 auto;min-width:0;border-radius:8px;padding:4px 6px;background:#0b1710;color:#e2e8f0;border:1px solid rgba(120,190,155,.3);font-size:13px");
         sel.setAttribute("aria-label", t("Room for {name}", { name: p.name }));
         const none = mk("option", null, t("Not on the map")); none.value = ""; sel.appendChild(none);
         for (const r of rooms) { const op = mk("option", null, r.name); op.value = r.area_id; sel.appendChild(op); }
@@ -1402,16 +1483,19 @@ export function createRoomControls(o){
         const list = at ? draft[at] : [];
         if (list.length > 1) {
           const i = list.indexOf(p.eid);
-          if (i === 0) row.appendChild(mk("span", S.chip(true), t("First in this room")));
+          // Under the player's name, so the row stays one line on a phone.
+          if (i === 0) { const first = mk("span", S.chip(true) + ";margin-top:2px", t("First in this room")); nm.appendChild(mk("div", null)).appendChild(first); }
+          const arrows = mk("span", S.ctl + ";gap:4px");
+          row.appendChild(arrows);
           const arrow = (text, aria, j, can) => {
-            const b = mk("button", S.btn + ";min-width:34px;min-height:32px;font-size:12px" + (can ? "" : off), text);
+            const b = mk("button", S.btn + ";min-width:36px;min-height:36px;font-size:12px" + (can ? "" : off), text);
             b.setAttribute("aria-label", aria); b.title = aria;
             if (!can) b.disabled = true;
             else b.addEventListener("click", () => { const l = draft[at]; [l[i], l[j]] = [l[j], l[i]]; draw(); persist(); });
             return b;
           };
-          row.appendChild(arrow("▲", t("Earlier in this room"), i - 1, i > 0));
-          row.appendChild(arrow("▼", t("Later in this room"), i + 1, i < list.length - 1));
+          arrows.appendChild(arrow("▲", t("Earlier in this room"), i - 1, i > 0));
+          arrows.appendChild(arrow("▼", t("Later in this room"), i + 1, i < list.length - 1));
         }
         box.appendChild(row);
         const tidy = tidyLine(p);
@@ -1445,5 +1529,5 @@ export function createRoomControls(o){
       for (const d of [...dialogs]) d.close();
       if (letGoHooked) { letGoHooked = false; for (const ev of ["pointerup", "pointercancel"]) document.removeEventListener(ev, letGo, true); }
     },
-    held: () => [...drag.values()].some(d => d.active && Date.now() - d.at < DRAG_IDLE_MS), letGo };
+    held: () => [...drag.values()].some(d => d.active && Date.now() - d.at < DRAG_IDLE_MS), letGo, shownIn };
 }

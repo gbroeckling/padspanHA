@@ -88,7 +88,7 @@ async function load(ctx) {
 
 const card = (el, title, kids, attr) => el("div", { class: "card", style: "padding:14px 16px;margin-bottom:12px", ...(attr ? { "data-energy": attr } : {}) },
   [el("div", { style: `font-weight:700;font-size:14px;color:${HEAD};margin-bottom:8px` }, title), ...kids]);
-// A name and its figures: on a phone the figures go under the name rather than break it mid-word.
+// A name and its numbers: on a phone the numbers go under the name rather than break it mid-word.
 const line = (el, left, right, attrs = {}) => el("div", { style: "display:flex;flex-wrap:wrap;justify-content:space-between;column-gap:12px;row-gap:2px;padding:4px 0;font-size:13px;border-bottom:1px solid rgba(120,190,155,.08)", ...attrs },
   [el("span", { style: "flex:1 1 9em;min-width:0;overflow-wrap:normal;word-break:normal" }, left),
    el("span", { style: "flex:0 1 auto;margin-left:auto;text-align:right;font-variant-numeric:tabular-nums" }, right)]);
