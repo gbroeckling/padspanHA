@@ -6,7 +6,11 @@ address is a page nobody finds, or one a search engine files under the wrong
 URL. Prices stay on the main page: they change (the launch price ends on
 November 30), and a guide that quoted one would go stale without anyone noticing.
 The Pro page (/pro/) and the add-ons page (/add-ons/) sell, so they link to the
-main page's prices for the same reason, and each has a German twin.
+main page's prices for the same reason, and each has a German twin. The one
+exception is Pro for life on /pro/ (the owner, 2026-11-26): the home page's own
+lifetime and two-year boxes, and the description that quotes them, which
+tests/test_site_seo.py holds to the home page and the panel. Structured data
+quotes prices too, pinned to the panel's by the same file.
 """
 from __future__ import annotations
 
@@ -71,9 +75,21 @@ def test_each_sales_page_is_there_in_english_and_german(folder: str) -> None:
         assert f"<loc>{_url(page)}</loc>" in sitemap, page
 
 
+def _without_pinned_prices(page: pathlib.Path) -> str:
+    """The page with what may quote a price because tests/test_site_seo.py pins it left out: structured data
+    everywhere, and on /pro/ (EN, DE) the lifetime and two-year boxes with their scripts and the description."""
+    from tests.test_pricing_dec16 import _without
+
+    html = re.sub(r'<script type="application/ld\+json">.*?</script>', "", page.read_text(encoding="utf-8"), flags=re.S)
+    if page.parent.relative_to(_SITE).parts[0] == "pro":
+        html = _without(_without(html, "data-until-pass"), "data-from-pass")
+        html = re.sub(r'<meta name="description" content="[^"]*">', "", html)
+    return html
+
+
 def test_no_guide_quotes_a_price() -> None:
     for page in _GUIDES:
-        assert not re.search(r"\$\s?\d|\d\s?(CAD|USD|EUR|€)", page.read_text(encoding="utf-8")), page
+        assert not re.search(r"\$\s?\d|\d\s?(CAD|USD|EUR|€)", _without_pinned_prices(page)), page
 
 
 def test_links_into_the_site_are_absolute() -> None:

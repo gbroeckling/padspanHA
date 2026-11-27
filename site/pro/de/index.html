@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PadSpan Pro für Home Assistant: jedes Licht in seiner echten Form und dein Haus in 3D, eingerichtet | PadSpan HA</title>
-<meta name="description" content="Was PadSpan Pro zum kostenlosen PadSpan HA hinzufügt: Leuchtenformen, Möbel und Personen im 3D-Haus, die Extras des Wanddisplays, Personen auf der Karte und jedes Add-on. Bis zum 1. Dezember 2026 auch das genaue Platzieren, das 3D-Haus und den Wandmodus. Teste ganz Pro 90 Tage kostenlos, ohne Kreditkarte.">
+<meta name="description" content="PadSpan Pro auf Lebenszeit: 89 CAD bis 30. November 2026, dann 168 CAD bis 15. Dezember, danach nicht mehr. Verkaufte Lebenszeit-Lizenzen bleiben gültig.">
 <link rel="canonical" href="https://padspan.traks.ca/pro/de/">
 <link rel="alternate" hreflang="en" href="https://padspan.traks.ca/pro/">
 <link rel="alternate" hreflang="de" href="https://padspan.traks.ca/pro/de/">
@@ -37,7 +37,7 @@ p{margin:10px 0}
 ul,ol{margin:10px 0 10px 22px}
 li{margin:6px 0}
 .cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
-.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px;font-family:inherit}
 .btn.primary{background:var(--acc);color:#04160c}
 .btn.ghost{border:1px solid var(--line);color:var(--fg)}
 .btn:hover{text-decoration:none;filter:brightness(1.08)}
@@ -76,6 +76,43 @@ footer p{margin:4px 0}
   <a class="btn ghost" href="https://padspan.traks.ca/de/#pro">Preise ansehen</a>
 </div>
 <p class="how">Für den Testzeitraum installierst du PadSpan und drückst dann <b>Start 90-day free trial</b> unter <b>Einstellungen → Funktionen → PadSpan-Lizenz</b>. Du bekommst ganz Pro für 90 Tage, alle Add-ons eingeschlossen, ohne Kreditkarte. Die <a href="/demo/?hl=de">Demo</a> zeigt PadSpan Pro auf einem Beispielhaus direkt im Browser, ohne dass du etwas installierst.</p>
+<div id="pro-lifetime" data-until-pass data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+  <div id="pl-kick" style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Einführungspreis · bis 30. November 2026</div>
+  <div style="font-size:30px;font-weight:900;margin:4px 0"><span id="pl-price">89</span> <small style="font-size:14px;font-weight:600">CAD, einmalig</small></div>
+  <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro auf Lebenszeit. Nie wieder verlängern. <span id="pl-later">89 CAD (ca. 59 €) bis zum 30. November 2026, dann 168 CAD (ca. 112 €) bis zum 15. Dezember. Nach dem 15. Dezember gibt es keine Lebenszeit-Lizenz mehr: PadSpan bekommt jede Woche neue Versionen, und ein einmaliger Preis trägt das nicht, deshalb wird Pro zu 85 CAD (ca. 56 €) für zwei Jahre oder 49 CAD (ca. 33 €) im Jahr. Jede neue PadSpan-Funktion ist enthalten, solange dein Pro läuft.</span> Bereits verkaufte Lebenszeit-Lizenzen bleiben lebenslang gültig. Du hast schon einen PadSpan-Schlüssel? Bezahl mit derselben E-Mail-Adresse, dann gilt dieser Schlüssel lebenslang.</p>
+  <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+    <input type="hidden" name="cmd" value="_xclick">
+    <input type="hidden" name="business" value="garry@bcmail.net">
+    <input type="hidden" name="item_name" value="PadSpan Pro — lifetime">
+    <input type="hidden" name="item_number" value="padspan-pro-lifetime">
+    <input type="hidden" name="amount" value="89.00" id="pl-amount">
+    <input type="hidden" name="currency_code" value="CAD">
+    <input type="hidden" name="no_shipping" value="1">
+    <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+    <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+    <button class="btn primary" type="submit" style="cursor:pointer;border:0">PadSpan Pro auf Lebenszeit mit PayPal kaufen</button>
+  </form>
+</div>
+<script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
+  document.getElementById("pl-kick").textContent="PadSpan Pro auf Lebenszeit · bis 15. Dezember";document.getElementById("pl-price").textContent="168";
+  document.getElementById("pl-later").textContent="Nach dem 15. Dezember gibt es keine Lebenszeit-Lizenz mehr: PadSpan bekommt jede Woche neue Versionen, und ein einmaliger Preis trägt das nicht, deshalb wird Pro zu 85 CAD (ca. 56 €) für zwei Jahre oder 49 CAD (ca. 33 €) im Jahr. Jede neue PadSpan-Funktion ist enthalten, solange dein Pro läuft.";document.getElementById("pl-amount").value="168.00";})();</script>
+<div id="pro-pass" data-from-pass style="display:none;margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+  <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">PadSpan Pro · zwei Jahre</div>
+  <div style="font-size:30px;font-weight:900;margin:4px 0">85 <small style="font-size:14px;font-weight:600">CAD für zwei Jahre · ca. 56 €</small></div>
+  <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">Zwei Jahre PadSpan Pro, einmal bezahlt. Eine Lebenszeit-Lizenz gibt es nicht mehr: PadSpan bekommt jede Woche neue Versionen, und ein einmaliger Preis trägt das nicht. Jede neue PadSpan-Funktion ist enthalten, solange dein Pro läuft. Du hast schon einen PadSpan-Schlüssel? Bezahl mit derselben E-Mail-Adresse, dann kommen die zwei Jahre dazu.</p>
+  <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+    <input type="hidden" name="cmd" value="_xclick">
+    <input type="hidden" name="business" value="garry@bcmail.net">
+    <input type="hidden" name="item_name" value="PadSpan Pro — 2 years">
+    <input type="hidden" name="item_number" value="padspan-pro-2year">
+    <input type="hidden" name="amount" value="85.00">
+    <input type="hidden" name="currency_code" value="CAD">
+    <input type="hidden" name="no_shipping" value="1">
+    <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+    <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+    <button class="btn primary" type="submit" style="cursor:pointer;border:0">Zwei Jahre PadSpan Pro mit PayPal kaufen</button>
+  </form>
+</div>
 <p>Ich habe PadSpan für mein eigenes Haus gebaut, mit drei Etagen, rund 465 m² und einem 4K-Bildschirm an der Wand. Diese Seite geht Funktion für Funktion durch, was Pro zur kostenlosen Version hinzufügt.</p>
 
 <h2 id="you-can">Was PadSpan Pro hinzufügt</h2>
@@ -249,5 +286,12 @@ footer p{margin:4px 0}
 <script>(function(){var from="2026-12-01T08:00:00Z";if(Date.now()<Date.parse(from))return;
   document.querySelectorAll("[data-until-basics]").forEach(function(e){e.remove();});
   document.querySelectorAll("[data-from-basics]").forEach(function(e){e.style.display="";});})();</script>
+<!-- From the end of December 15, 2026 (editions.js PRO_PASS_FROM): no lifetime, and the two-year box (#pro-pass)
+     takes its place. The home page's own switch. Visitors without JavaScript keep seeing the lifetime box until
+     the Dec 16 tidy (the note in <head>). -->
+<script>(function(){if(Date.now()<Date.parse("2026-12-16T08:00:00Z"))return;
+  document.querySelectorAll("[data-until-pass]").forEach(function(e){e.remove();});
+  document.querySelectorAll("[data-from-pass]").forEach(function(e){e.style.display="";});
+  var a=document.getElementById("pro-year-amount");if(a)a.value="49.00";})();</script>
 </body>
 </html>
