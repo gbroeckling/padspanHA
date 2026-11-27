@@ -17,6 +17,42 @@
 <meta property="og:image" content="https://padspan.traks.ca/demo/media/estate-3d-three-floors.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/images/icon.png">
+<!-- Pro for life's two prices for search engines, from editions.js (tests/test_site_seo.py pins them). The Dec 16
+     tidy: from 2026-12-16T08:00:00Z (PRO_PASS_FROM) lifetime is no longer sold, so take this block out with the
+     lifetime box (#pro-lifetime) and its script, take the lifetime prices out of the description, and let the
+     two-year box (#pro-pass) show without JavaScript. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "PadSpan Pro",
+  "brand": {
+    "@type": "Brand",
+    "name": "PadSpan"
+  },
+  "image": "https://padspan.traks.ca/demo/media/estate-3d-three-floors.jpg",
+  "url": "https://padspan.traks.ca/pro/",
+  "offers": [
+    {
+      "@type": "Offer",
+      "name": "PadSpan Pro for life, launch price",
+      "price": "89.00",
+      "priceCurrency": "CAD",
+      "priceValidUntil": "2026-11-30",
+      "url": "https://padspan.traks.ca/pro/"
+    },
+    {
+      "@type": "Offer",
+      "name": "PadSpan Pro for life",
+      "price": "168.00",
+      "priceCurrency": "CAD",
+      "validFrom": "2026-12-01",
+      "priceValidUntil": "2026-12-15",
+      "url": "https://padspan.traks.ca/pro/"
+    }
+  ]
+}
+</script>
 <style>
 :root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
 *{box-sizing:border-box;margin:0;padding:0}

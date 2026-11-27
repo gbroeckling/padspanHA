@@ -220,3 +220,68 @@ def test_the_add_ons_page_says_the_sale_in_its_title_and_description(lang: str) 
     assert _first_day("FREE_BASICS_FROM") > _first_day("ADDON_HALF_FROM")
     for name in _FROM_DEC1[lang]:
         assert name not in title + desc, name
+
+
+# --------------------------------------------------------------------- structured data
+
+def _jsonld(page: str) -> list:
+    """Each JSON-LD block on a page, parsed; every one sits in <head>, as static text."""
+    import json
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S)
+    head = page[:page.index("</head>")]
+    assert all(f">{b}</script>" in head for b in blocks), "a JSON-LD block outside <head>"
+    return [json.loads(b) for b in blocks]
+
+
+def _keys(node) -> set:
+    if isinstance(node, dict):
+        return set(node) | set().union(*(_keys(v) for v in node.values()))
+    if isinstance(node, list):
+        return set().union(*(_keys(v) for v in node)) if node else set()
+    return set()
+
+
+def test_no_page_claims_a_rating_or_a_review() -> None:
+    """There are none, so no page's structured data may say there are."""
+    for page in sorted(_SITE.rglob("*.html")):
+        for data in _jsonld(_read(page)):
+            assert not {"aggregateRating", "review", "reviews"} & _keys(data), page
+
+
+def test_the_home_page_says_padspan_ha_is_free_software_and_the_german_page_says_the_same(homes: dict) -> None:
+    """A SoftwareApplication: free (0 CAD), for Home Assistant, downloaded from its GitHub repository. The German page
+    is built from this one and leaves every script as it is (build_site_de.check() stops a deploy otherwise)."""
+    assert _jsonld(homes["en"]) == [{
+        "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "PadSpan HA",
+        "applicationCategory": "HomeApplication", "operatingSystem": "Home Assistant", "url": "https://padspan.traks.ca/",
+        "downloadUrl": "https://github.com/gbroeckling/padspanHA",
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "CAD"}}]
+    assert _jsonld(homes["de"]) == _jsonld(homes["en"])
+    assert '<link rel="canonical" href="https://padspan.traks.ca/">' in homes["en"]
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_pros_structured_data_is_pro_for_life_at_the_panels_prices_and_days(lang: str) -> None:
+    """$89 until the end of November 30 (PRO_LIFETIME_LAUNCH_UNTIL), then $168 from December 1 until the end of
+    December 15 (PRO_PASS_FROM): the prices the page's form and its script charge."""
+    pro = _read(_PRO[lang])
+    url = re.search(r'<link rel="canonical" href="([^"]+)">', pro).group(1)
+    launch = f'{float(_dollars("PRO_LIFETIME_LAUNCH_PRICE")):.2f}'
+    full = f'{float(_dollars("PRO_LIFETIME_FULL_PRICE")):.2f}'
+    names = {"en": ("PadSpan Pro for life, launch price", "PadSpan Pro for life"),
+             "de": ("PadSpan Pro auf Lebenszeit, Einführungspreis", "PadSpan Pro auf Lebenszeit")}[lang]
+    [data] = _jsonld(pro)
+    assert data["@type"] == "Product" and data["name"] == "PadSpan Pro" and data["url"] == url
+    assert data["image"] == _meta(pro, "property", "og:image")
+    assert data["offers"] == [
+        {"@type": "Offer", "name": names[0], "price": launch, "priceCurrency": "CAD",
+         "priceValidUntil": _last_day("PRO_LIFETIME_LAUNCH_UNTIL").isoformat(), "url": url},
+        {"@type": "Offer", "name": names[1], "price": full, "priceCurrency": "CAD",
+         "validFrom": _first_day("PRO_LIFETIME_LAUNCH_UNTIL").isoformat(),
+         "priceValidUntil": _last_day("PRO_PASS_FROM").isoformat(), "url": url}]
+    assert [o["price"] for o in data["offers"]] == ["89.00", "168.00"]
+    assert f'name="amount" value="{launch}" id="pl-amount"' in pro
+    assert f'getElementById("pl-amount").value="{full}"' in _launch_script(pro)
+    # The Dec 16 tidy is written down beside it.
+    head = pro[:pro.index("</head>")]
+    assert "The Dec 16\n     tidy" in head and _const("PRO_PASS_FROM") in head
