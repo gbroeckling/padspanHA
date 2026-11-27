@@ -285,3 +285,93 @@ def test_pros_structured_data_is_pro_for_life_at_the_panels_prices_and_days(lang
     # The Dec 16 tidy is written down beside it.
     head = pro[:pro.index("</head>")]
     assert "The Dec 16\n     tidy" in head and _const("PRO_PASS_FROM") in head
+
+
+def _on_sale() -> list[dict]:
+    """editions.js ADDONS that are sold in the sale: not part of another (on_sale: false with no moment), not a
+    specialty. Each with its name, words, price, desc and on_sale_from ("" or the constant it names)."""
+    out = []
+    for row in re.findall(r'\{ name: "\w+",.*?desc: "[^"]+" \}', _read(_ED), re.S):
+        get = {m.group(1): m.group(2) if m.group(2) is not None else m.group(3)
+               for m in re.finditer(r'(\w+): (?:"([^"]*)"|(\w+))', row)}
+        if get.get("category") == "specialty" or (get.get("on_sale") == "false" and not get.get("on_sale_from")):
+            continue
+        out.append(get)
+    return out
+
+
+def _half(price: str) -> str:
+    """editions.js halfPrice: half the price, rounded down to the cent ("$6.45 CAD" -> "3.22")."""
+    return f"{round(float(re.sub(r'[^0-9.]', '', price)) * 100) // 2 / 100:.2f}"
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_the_add_ons_structured_data_is_the_panels_sale(homes: dict, lang: str) -> None:
+    """Every add-on on sale at half its editions.js price, rounded down to the cent, from the sale's first day
+    (ADDON_HALF_FROM) or, for one that goes on sale later, from that day (FREE_BASICS_FROM: Advanced map creation
+    and Robot vacuum), until the sale's last day (ADDON_HALF_UNTIL). Named and described as the panel and the home
+    page's #addons box say it (in German as site/i18n/de.json says it), and sold where its offer points: the home
+    page's own box for it, at that half amount."""
+    import html as htmllib
+    import json
+    page, home = _read(_ADDONS[lang]), homes[lang]
+    base = "https://padspan.traks.ca/" + ("de/" if lang == "de" else "")
+    units = {u["en"]: u["de"] for u in json.loads(_read(_SITE / "i18n" / "de.json"))["units"]}
+    [data] = _jsonld(page)
+    assert set(data) == {"@context", "@graph"} and data["@context"] == "https://schema.org"
+    got = {p["url"].rsplit("#", 1)[1]: p for p in data["@graph"]}
+    want = _on_sale()
+    assert len(got) == len(data["@graph"]) == len(want) == 11
+    assert {a["name"] for a in want} == {"audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks",
+                                         "insights", "maps", "lighting", "vacuum"}
+    ids, home_ids = set(re.findall(r'\sid="([^"]+)"', page)), set(re.findall(r'\sid="([^"]+)"', home))
+    for a in want:
+        anchor = "activity" if a["name"] == "timetravel" else a["name"]
+        product = got[anchor]
+        words, desc = a["words"], a["desc"]
+        if lang == "de":
+            unit = next(v for k, v in units.items() if k.startswith(htmllib.escape(words, quote=False) + " <span data-addon-price"))
+            words = htmllib.unescape(unit[:unit.index(" <span")])
+            desc = htmllib.unescape(units[htmllib.escape(desc, quote=False)])
+        start = a.get("on_sale_from") or "ADDON_HALF_FROM"
+        assert start in ("ADDON_HALF_FROM", "FREE_BASICS_FROM"), a["name"]
+        assert product == {
+            "@type": "Product", "name": ("PadSpan-Add-on: " if lang == "de" else "PadSpan add-on: ") + words,
+            "description": desc, "brand": {"@type": "Brand", "name": "PadSpan"},
+            "url": f"https://padspan.traks.ca/add-ons/{'de/' if lang == 'de' else ''}#{anchor}",
+            "offers": {"@type": "Offer", "price": _half(a["price"]), "priceCurrency": "CAD",
+                       "validFrom": _first_day(start).isoformat(),
+                       "priceValidUntil": _last_day("ADDON_HALF_UNTIL").isoformat(), "url": f"{base}#{anchor}"}}, a["name"]
+        assert anchor in ids and anchor in home_ids, anchor
+        # The box the offer points at charges this amount in the sale.
+        box = re.search(rf'<div id="{anchor}" data-addon="{a["name"]}".*?</form>', home, re.S).group(0)
+        assert f'data-half-amount="{_half(a["price"])}"' in box, a["name"]
+    starts = {a: p["offers"]["validFrom"] for a, p in got.items()}
+    assert {a for a, d in starts.items() if d != "2026-11-27"} == {"maps", "vacuum"} and starts["maps"] == "2026-12-01"
+
+
+def test_the_add_ons_half_prices_are_what_the_panel_charges_on_each_first_and_last_day() -> None:
+    """The panel's own addonPrice, run on each offer's first and last moment: the price in the structured data. And
+    the day before Advanced map creation and Robot vacuum go on sale, it doesn't sell them half off."""
+    import json
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    run = ("const E = await import(" + json.dumps(_ED.as_uri()) + ");"
+           "const out = {}; for (const a of E.ADDONS) { const from = Math.max(Date.parse(E.ADDON_HALF_FROM),"
+           " a.on_sale_from ? Date.parse(a.on_sale_from) : 0);"
+           " out[a.name] = [E.addonPrice(a.name, from), E.addonPrice(a.name, Date.parse(E.ADDON_HALF_UNTIL) - 1),"
+           " E.addonPriceParts(a.name, from - 1).half, E.addonOnSale(a.name, from - 1)]; }"
+           "console.log(JSON.stringify(out));")
+    r = subprocess.run([node, "--input-type=module", "-e", run], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr
+    panel = json.loads(r.stdout.strip().splitlines()[-1])
+    [data] = _jsonld(_read(_ADDONS["en"]))
+    for product in data["@graph"]:
+        anchor = product["url"].rsplit("#", 1)[1]
+        first, last, half_before, sold_before = panel["timetravel" if anchor == "activity" else anchor]
+        assert first == last == f'${product["offers"]["price"]} CAD', anchor
+        assert not half_before, anchor
+        assert sold_before == (anchor not in ("maps", "vacuum")), anchor
