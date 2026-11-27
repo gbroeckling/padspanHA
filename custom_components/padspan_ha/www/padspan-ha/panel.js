@@ -1889,6 +1889,8 @@ class PadSpanHaApp extends HTMLElement {
 
   _telemetryAskCard(compact){
     const st = this.state.settings;
+    // Not beside the first-run question or its sample-house line (views/first_question.js): one thing at a time.
+    try { if (FQ && (FQ.due(this._ctx()) || FQ.sampleLineShown(this.state))) return null; } catch(e) { /* asked as before */ }
     const cardStyle = compact
       ? "margin-top:8px;padding:8px 10px;border-top:1px solid #1a4228"
       : "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px";
@@ -5730,12 +5732,15 @@ class PadSpanHaApp extends HTMLElement {
     // stays there), above the view and its sample banner. While it shows it is the only card: Getting started (its
     // counter, its Skip setup and the usage report's ask) and the Overview's other cards come once it is answered.
     let _fqDue = false;
+    // A presence, plan or lights answer on the sample house: the line in place of the step it blocks, with its own
+    // "Back to my house" (the sample banner leaves its button out meanwhile, views/overview.js) and, as while the
+    // question is due, no usage report ask beside it (_telemetryAskCard).
+    this.state._fqSampleLineShown = false;
     if (v === "overview" && FQ) {
       try {
         _fqDue = FQ.due(this._ctx());
         if (_fqDue) { frag.appendChild(FQ.askCard(this._ctx())); this._overviewCardShown = true; }
-        // A plan or lights answer on the sample house: the line in place of the step it blocks.
-        else { const _fs = FQ.sampleLine(this._ctx()); if (_fs) frag.appendChild(_fs); }
+        else { const _fs = FQ.sampleLine(this._ctx()); if (_fs) { frag.appendChild(_fs); this.state._fqSampleLineShown = true; } }
       } catch(e) { console.warn("PadSpan: first-run question failed", e); _fqDue = false; }
     }
 

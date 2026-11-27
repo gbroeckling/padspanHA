@@ -172,6 +172,14 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         # The feature tips' ranking likewise (update_check._keep_tips): the server's, not the house's.
         if isinstance(_live, dict) and _live.get("server_tips_rank"):
             _reset["server_tips_rank"] = _live["server_tips_rank"]
+        # The first-run question's outcome and answer (onboarding.PURPOSE_KEYS): a reset is not a new install, so an
+        # install that was asked is not asked again, and stays counted among the asked (as a restore keeps it,
+        # settings_store.purpose_ask_kept).
+        if isinstance(_live, dict):
+            from .onboarding import PURPOSE_ASK_WORDS as _ASK_WORDS, purpose_keys as _purpose_keys
+            if _live.get("purpose_ask") in _ASK_WORDS:
+                _reset["purpose_ask"] = _live["purpose_ask"]
+            _reset["purpose"] = _purpose_keys(_live.get("purpose"))
         # A free licence that holds the usage report on keeps it on through a
         # reset (settings_store.report_locked_until).
         from .settings_store import report_locked_until as _locked_until

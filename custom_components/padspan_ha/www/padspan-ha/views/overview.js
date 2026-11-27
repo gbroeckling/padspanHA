@@ -250,7 +250,8 @@ export function renderClassic(ctx){
   const sampleBanner = (modeKnown && dataMode === "sample")
     ? el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid #92400e;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px","data-sample-banner":"1"},[
         el("span",{style:"font-size:13px;color:#fde68a;flex:1;min-width:12em"}, t("You're looking at a sample house, with every feature set up.")),
-        (() => {
+        // The first-run question's sample line shows its own "Back to my house" above (views/first_question.js): one only.
+        ctx.state._fqSampleLineShown ? null : (() => {
           const b = el("button",{class:"btn inline",style:"font-size:12px;font-weight:700"}, t("Back to my house"));
           b.addEventListener("click", () => ctx.actions.setDataMode("live"));
           return b;
