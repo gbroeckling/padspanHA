@@ -803,7 +803,7 @@ const W_SHOW_LINE = {
   covers: "garage doors and gates", locks: "locks", room_shades: "shades", railings: "railings", radios: "receivers", tags: "beacons and tags", people: "people",
   trails: "trails", codes: "device codes", furniture: "furniture", devices: "devices in furniture", scan_furniture: "furniture from scans", stairs: "stairs",
   room_names: "room names", room_outlines: "room outlines", room_row: "room chips along the top", floor_outlines: "floor outlines", other_floors: "other floors, faded", edgecut: "Edgecut", room_controls: "audio", glass_walls: "glass walls", roof: "the roof",
-  rain: "rain and snow", theme: "theme colours", forest: "forest trees",
+  rain: "rain and snow", theme: "theme colours", forest: "forest trees", energy: "energy",
 };
 const W_EVENT = {
   stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
@@ -951,7 +951,8 @@ const W_ADDON_BUY_PLACES = ["licence_card", "power_teams", "team_card", "c4local
 const W_ADDONS = {
   addon: { audio: "Audio", alarm: "Alarm & security", wifi: "Wi-Fi coverage", climate: "Climate & air quality", timetravel: "Full house activity",
     vacation: "Vacation Mode & presets", looks: "Looks pack", forensics: "Forensics", insights: "Presence insights",
-    maps: "Advanced map creation", lighting: "Advanced smart lighting", vacuum: "Robot vacuum", c4local: "OS 2 Local for Control4" },
+    maps: "Advanced map creation", lighting: "Advanced smart lighting", vacuum: "Robot vacuum", energy: "Energy",
+    c4local: "OS 2 Local for Control4" },
   licence: { free: "Free", trial: "Pro trial", pro_year: "Pro, a year", pro_pass: "Pro, a two-year pass", pro_life: "Pro for life",
     pro_tester: "Pro, a tester's or a free year", bright: "Bright (Atlas only)", addon: "An add-on key", lapsed_trial: "Trial ended",
     lapsed_pro: "Pro ended", lapsed_bright: "Bright ended", lapsed_addon: "Add-on key ended" },

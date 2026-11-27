@@ -278,14 +278,8 @@
 "UI render error — view: {view}": "Anzeigefehler — Ansicht: {view}",
 "A JavaScript error prevented this view from rendering. Open browser console (F12) for details.": "Ein JavaScript-Fehler hat diese Ansicht verhindert. Details stehen in der Browserkonsole (F12).",
 "Something went wrong. Try again.": "Etwas ist schiefgegangen. Versuch es noch einmal.",
-"{n} active": {
-"one": "{n} aktiv",
-"other": "{n} aktiv"
-},
-"{n} problems": {
-"one": "1 Problem",
-"other": "{n} Probleme"
-},
+"{n} active": {"one": "{n} aktiv", "other": "{n} aktiv"},
+"{n} problems": {"one": "1 Problem", "other": "{n} Probleme"},
 "What's new in PadSpan HA": "Neu in PadSpan HA",
 "Loading the release notes…": "Versionshinweise werden geladen…",
 "The release notes couldn't be loaded. Refresh the page and try again.": "Die Versionshinweise ließen sich nicht laden. Lade die Seite neu und versuch es noch einmal.",
@@ -309,18 +303,9 @@
 "Something is broken": "Etwas ist kaputt",
 "Something needs attention": "Etwas braucht Aufmerksamkeit",
 "Open Health.": "Zustand öffnen.",
-"{n} receivers haven't been heard from in over 10 minutes": {
-"one": "{n} Empfänger seit über 10 Minuten nicht gehört",
-"other": "{n} Empfänger seit über 10 Minuten nicht gehört"
-},
-"{n} receivers are hearing far fewer devices than usual": {
-"one": "{n} Empfänger hört viel weniger Geräte als sonst",
-"other": "{n} Empfänger hören viel weniger Geräte als sonst"
-},
-"{n} issues": {
-"one": "1 Problem",
-"other": "{n} Probleme"
-},
+"{n} receivers haven't been heard from in over 10 minutes": {"one": "{n} Empfänger seit über 10 Minuten nicht gehört", "other": "{n} Empfänger seit über 10 Minuten nicht gehört"},
+"{n} receivers are hearing far fewer devices than usual": {"one": "{n} Empfänger hört viel weniger Geräte als sonst", "other": "{n} Empfänger hören viel weniger Geräte als sonst"},
+"{n} issues": {"one": "1 Problem", "other": "{n} Probleme"},
 "The connection to Home Assistant was lost. Wait a moment and try again.": "Die Verbindung zu Home Assistant ist abgebrochen. Warte einen Moment und versuch es noch einmal.",
 "PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan war über das Netzwerk nicht erreichbar. Prüfe die Verbindung und versuch es noch einmal.",
 "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Diese Seite und das PadSpan in Home Assistant passen nicht zusammen. Lade die Seite neu; hilft das nicht, starte Home Assistant neu.",
@@ -328,10 +313,7 @@
 "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "In PadSpan ist etwas schiefgegangen. Versuch es noch einmal; passiert es immer wieder, findest du unter Zustand → Open Diagnostics einen Bericht zum Senden.",
 "Something went wrong on this page. Refresh it and try again.": "Auf dieser Seite ist etwas schiefgegangen. Lade sie neu und versuch es noch einmal.",
 "Only an administrator can do this.": "Das kann nur ein Administrator.",
-"{n} duplicates hidden (same units on {via})": {
-"one": "1 Duplikat ausgeblendet (dasselbe Gerät in {via})",
-"other": "{n} Duplikate ausgeblendet (dieselben Geräte in {via})"
-},
+"{n} duplicates hidden (same units on {via})": {"one": "1 Duplikat ausgeblendet (dasselbe Gerät in {via})", "other": "{n} Duplikate ausgeblendet (dieselben Geräte in {via})"},
 "{name} is the {via} copy of a device that is also in {twin_via}, as {twin}. PadSpan uses the {twin_via} one.": "{name} ist die {via}-Kopie eines Geräts, das auch in {twin_via} vorhanden ist, als {twin}. PadSpan verwendet das von {twin_via}.",
 "{name} is the {via} copy of {device}, which is also in {twin_via}. Pick the {twin_via} one in the list.": "{name} ist die {via}-Kopie von {device}, das auch in {twin_via} vorhanden ist. Wähle in der Liste das von {twin_via}.",
 "Use the {twin_via} one": "Das von {twin_via} verwenden",
@@ -419,5 +401,6 @@
 "Your next steps": "Deine nächsten Schritte",
 "Tick any. The first ticked comes first. With the usage report on, the answers go with it as words.": "Kreuz beliebig viele an. Was du zuerst ankreuzt, kommt zuerst. Ist der Nutzungsbericht an, gehen die Antworten als Wörter mit.",
 "Track your phone": "Dein Handy verfolgen",
-"Start": "Start"
+"Start": "Start",
+"Energy": "Energie"
 }

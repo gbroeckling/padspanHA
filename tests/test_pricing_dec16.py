@@ -146,8 +146,9 @@ def test_after_the_switch_the_page_sells_the_pass_and_the_year_only(site: str) -
     # Every add-on (licence.ADDONS: Advanced map creation and Robot vacuum are on sale by then, from December 1), the
     # specialty OS 2 Local for Control4 among them (padspan-addon-c4local, its own box, for life by design).
     # Forensics is part of Presence insights since 2026-11-26 (licence.ADDON_PART_OF): no button of its own.
+    # Energy (2026-11-26) is not on sale until the owner publishes it: no button yet.
     from custom_components.padspan_ha.licence import ADDON_PART_OF, ADDONS
-    assert len(addons) == len(ADDONS) - len(ADDON_PART_OF) == 12 and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
+    assert len(addons) == len(ADDONS) - len(ADDON_PART_OF) - 1 == 12 and "padspan-addon-energy" not in addons and [s for s in skus if s not in addons] == ["padspan-pro-2year", "padspan-pro-annual"], skus
     assert 'name="amount" value="85.00"' in next(f for f in forms if "padspan-pro-2year" in f)
     sales = after[after.index('id="lights"'):after.index('id="donate"')]
     spec = sales.index('<div class="ed" id="specialty"')

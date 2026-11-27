@@ -146,47 +146,17 @@
 "Are you sure? Every recorded presence session will be permanently deleted.": "Vous êtes sûr ? Chaque session de présence enregistrée sera définitivement supprimée.",
 "Deleting…": "Suppression…",
 "Delete failed: {why}": "Échec de la suppression : {why}",
-"light placement goes read-only and the 3D house and the wall screen switch off in {n} days.": {
-"one": "le placement des lumières passe en lecture seule, la maison en 3D et l’écran mural se désactivent dans {n} jour.",
-"other": "le placement des lumières passe en lecture seule, la maison en 3D et l’écran mural se désactivent dans {n} jours."
-},
-"light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in {n} days.": {
-"one": "le placement des lumières passe en lecture seule, Forensique cesse d’enregistrer, et la maison en 3D, l’écran mural, Localiser et Busy Times se désactivent dans {n} jour.",
-"other": "le placement des lumières passe en lecture seule, Forensique cesse d’enregistrer, et la maison en 3D, l’écran mural, Localiser et Busy Times se désactivent dans {n} jours."
-},
-"{n} days left": {
-"one": "{n} jour restant",
-"other": "{n} jours restants"
-},
-"renews in {n} days": {
-"one": "renouvellement dans {n} jour",
-"other": "renouvellement dans {n} jours"
-},
-"{n} days": {
-"one": "{n} jour",
-"other": "{n} jours"
-},
-"Forensics retention set to {n} days": {
-"one": "Conservation Forensique réglée sur {n} jour",
-"other": "Conservation Forensique réglée sur {n} jours"
-},
-"{n} addresses": {
-"one": "{n} adresse",
-"other": "{n} adresses"
-},
-"{n} sessions recorded": {
-"one": "{n} session enregistrée",
-"other": "{n} sessions enregistrées"
-},
-"Deleted forensics data for {n} addresses": {
-"one": "Données Forensique supprimées pour {n} adresse",
-"other": "Données Forensique supprimées pour {n} adresses"
-},
+"light placement goes read-only and the 3D house and the wall screen switch off in {n} days.": {"one": "le placement des lumières passe en lecture seule, la maison en 3D et l’écran mural se désactivent dans {n} jour.", "other": "le placement des lumières passe en lecture seule, la maison en 3D et l’écran mural se désactivent dans {n} jours."},
+"light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in {n} days.": {"one": "le placement des lumières passe en lecture seule, Forensique cesse d’enregistrer, et la maison en 3D, l’écran mural, Localiser et Busy Times se désactivent dans {n} jour.", "other": "le placement des lumières passe en lecture seule, Forensique cesse d’enregistrer, et la maison en 3D, l’écran mural, Localiser et Busy Times se désactivent dans {n} jours."},
+"{n} days left": {"one": "{n} jour restant", "other": "{n} jours restants"},
+"renews in {n} days": {"one": "renouvellement dans {n} jour", "other": "renouvellement dans {n} jours"},
+"{n} days": {"one": "{n} jour", "other": "{n} jours"},
+"Forensics retention set to {n} days": {"one": "Conservation Forensique réglée sur {n} jour", "other": "Conservation Forensique réglée sur {n} jours"},
+"{n} addresses": {"one": "{n} adresse", "other": "{n} adresses"},
+"{n} sessions recorded": {"one": "{n} session enregistrée", "other": "{n} sessions enregistrées"},
+"Deleted forensics data for {n} addresses": {"one": "Données Forensique supprimées pour {n} adresse", "other": "Données Forensique supprimées pour {n} adresses"},
 "Your PadSpan add-ons ended on {date}. They are locked until you renew; nothing you set up is lost.": "Vos modules PadSpan ont expiré le {date}. Ils sont verrouillés jusqu’au renouvellement ; rien de ce que vous avez configuré n’est perdu.",
-"Your PadSpan add-ons ended on {date}. They keep working for {n} more days; renew to keep them.": {
-"one": "Vos modules PadSpan ont expiré le {date}. Ils fonctionnent encore {n} jour ; renouvelez pour les garder.",
-"other": "Vos modules PadSpan ont expiré le {date}. Ils fonctionnent encore {n} jours ; renouvelez pour les garder."
-},
+"Your PadSpan add-ons ended on {date}. They keep working for {n} more days; renew to keep them.": {"one": "Vos modules PadSpan ont expiré le {date}. Ils fonctionnent encore {n} jour ; renouvelez pour les garder.", "other": "Vos modules PadSpan ont expiré le {date}. Ils fonctionnent encore {n} jours ; renouvelez pour les garder."},
 "{addon} until {date}": "{addon} jusqu’au {date}",
 "{addon} ended on {date}": "{addon} a expiré le {date}",
 "PadSpan add-ons: {list}": "Modules PadSpan : {list}",
@@ -226,19 +196,14 @@
 "fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times are off, and Forensics has stopped recording. Lights stay where you placed them; the plain wall screen and the 3D house stay free.": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times sont désactivés, et Forensique n’enregistre plus. Les lumières restent là où vous les avez placées ; l’écran mural simple et la maison en 3D restent gratuits.",
 "A PadSpan Pro key unlocks the paid features, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor, Furnish and the wall screen's night dimming. A PadSpan Bright Pro key unlocks the lights' looks only. Light placement, the plain wall screen and the 3D house are free. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.": "Une clé PadSpan Pro débloque les fonctions payantes, dont l’apparence des lumières (formes et tailles de luminaires, WLED, Showcase, Fit room), l’éditeur 3D, Furnish et l’atténuation la nuit de l’écran mural. Une clé PadSpan Bright Pro débloque seulement l’apparence des lumières. Le placement des lumières, l’écran mural simple et la maison en 3D sont gratuits. Une licence expirée ne supprime jamais rien : ce que vous avez configuré revient comme vous l’avez laissé quand vous renouvelez.",
 "A PadSpan Pro key unlocks the paid features, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times. A PadSpan Bright Pro key unlocks the lights' looks only. Light placement, the plain wall screen and the 3D house are free. A lapsed licence never deletes anything: what you set up comes back as you left it when you renew.": "Une clé PadSpan Pro débloque les fonctions payantes, dont l’apparence des lumières (formes et tailles de luminaires, WLED, Showcase, Fit room), Forensique, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times. Une clé PadSpan Bright Pro débloque seulement l’apparence des lumières. Le placement des lumières, l’écran mural simple et la maison en 3D sont gratuits. Une licence expirée ne supprime jamais rien : ce que vous avez configuré revient comme vous l’avez laissé quand vous renouvelez.",
-"fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming switch off in {n} days. Lights stay where you placed them.": {
-"one": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish et l’atténuation la nuit de l’écran mural se désactivent dans {n} jour. Les lumières restent là où vous les avez placées.",
-"other": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish et l’atténuation la nuit de l’écran mural se désactivent dans {n} jours. Les lumières restent là où vous les avez placées."
-},
-"fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} days. Lights stay where you placed them.": {
-"one": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times se désactivent et Forensique cesse d’enregistrer dans {n} jour. Les lumières restent là où vous les avez placées.",
-"other": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times se désactivent et Forensique cesse d’enregistrer dans {n} jours. Les lumières restent là où vous les avez placées."
-},
+"fixture shapes, Showcase, the 3D editor, Furnish and the wall screen's night dimming switch off in {n} days. Lights stay where you placed them.": {"one": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish et l’atténuation la nuit de l’écran mural se désactivent dans {n} jour. Les lumières restent là où vous les avez placées.", "other": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish et l’atténuation la nuit de l’écran mural se désactivent dans {n} jours. Les lumières restent là où vous les avez placées."},
+"fixture shapes, Showcase, the 3D editor, Furnish, people in 3D, the wall screen's night dimming, Locate and Busy Times switch off and Forensics stops recording in {n} days. Lights stay where you placed them.": {"one": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times se désactivent et Forensique cesse d’enregistrer dans {n} jour. Les lumières restent là où vous les avez placées.", "other": "les formes de luminaires, Showcase, l’éditeur 3D, Furnish, les personnes en 3D, l’atténuation la nuit de l’écran mural, Localiser et Busy Times se désactivent et Forensique cesse d’enregistrer dans {n} jours. Les lumières restent là où vous les avez placées."},
 "for life": "à vie",
 "{price}, once, for life": "{price}, une fois, à vie",
 "Specialty": "Spécialité",
 "Your PadSpan add-on key is active.": "Votre clé de module PadSpan est active.",
 "This key is on {count} PadSpan homes.": "Cette clé est sur {count} maisons PadSpan.",
 "This key is used on {count} PadSpan homes. With more than 2, every PadSpan home must keep the report on.": "Cette clé est utilisée dans {count} maisons PadSpan. Au-delà de 2, chaque maison PadSpan doit garder le rapport activé.",
-"To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.": "Pour essayer d’abord PadSpan Pro chez vous, un essai gratuit unique de 90 jours est disponible ci-dessous, sans carte. À la fin, rien de ce que vous avez configuré n’est supprimé, et tout revient comme vous l’avez laissé quand vous achetez."
+"To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.": "Pour essayer d’abord PadSpan Pro chez vous, un essai gratuit unique de 90 jours est disponible ci-dessous, sans carte. À la fin, rien de ce que vous avez configuré n’est supprimé, et tout revient comme vous l’avez laissé quand vous achetez.",
+"Energy": "Énergie"
 }

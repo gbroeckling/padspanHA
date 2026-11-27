@@ -85,11 +85,16 @@ def test_the_flat_lines_are_exactly_what_the_flat_map_reads() -> None:
     # A room sheet's Shades and Thermostats (2026-11-26) are read by the panel that draws the sheet (lights_panel.js
     # _roomParts, the same "atlas" slot), listed where it hands them (host.roomLines).
     sheet = {"room_shades", "room_climate"}
-    assert read | sheet == flat == {"scenes", "light_taps", "other_floors", "scan_furniture", "edgecut", "room_controls", *sheet}, (read, flat)
+    # Energy (2026-11-26) is read by both: the flat map draws its chips (energyOn), the panel the sheet's part (_energyOn).
+    assert read | sheet == flat == {"scenes", "light_taps", "other_floors", "scan_furniture", "edgecut", "room_controls", "energy",
+                                    *sheet}, (read, flat)
     lp = _code(_VIEWS.parent / "lights_panel.js")
     assert 'return { audio: this._roomControlsOn(), shades: on("room_shades", this.state._shadesOn),' in lp
     assert 'climate: this._addon("climate") && on("room_climate", this.state._thermostatsOn) };' in lp
-    assert 'roomLines: ROOMCTL ? ["room_shades", ...(this._addon("climate") ? ["room_climate"] : [])] : [],' in lp
+    assert 'roomLines: [...(ROOMCTL ? ["room_shades", ...(this._addon("climate") ? ["room_climate"] : [])] : []),' in lp
+    assert '...(this._energyHouse() ? ["energy"] : [])],' in lp
+    assert 'return this._screenLines() ? screenShowLine("atlas","energy")===true : this.state._energyAtlas === true;' in lp
+    assert 'const energyOn = () => !!host.energy && (DISPLAY ? flatShow("energy") === true : host.energyOn === true);' in lm
     # "Furniture from scans" (2026-11-16): listed on the sidebar Atlas, read only once a screen ticks it.
     assert 'lines: () => ["light_taps", "other_floors", "edgecut", ...(host.roomControls ? ["room_controls"] : []), ...(host.roomLines || []), ...(scanLoad ? ["scan_furniture"] : []), ...(sc() ? ["scenes"] : [])],' in lm
     # Room controls (2026-11-25): listed where the host hands its room controls (the Atlas tab), read only once ticked;

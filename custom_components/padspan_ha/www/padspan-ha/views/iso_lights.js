@@ -2768,6 +2768,24 @@ export function speakerMark(x, y, s, color, look){
     + `</g>`;
 }
 
+/** Energy by a room's name (energy_map.js chips): a small pill, dark and edged in the room name's colour, "⚡ 120 W" in
+ *  it, `fs` its text size. Never takes a tap itself (the name's tap box is the room's). */
+export function energyMark(x, y, fs, color, label){
+  const hw = String(label).length * fs * 0.3 + fs * 0.5, hh = fs * 0.75;
+  return `<g class="lroom-energy" pointer-events="none">`
+    + `<rect x="${(x - hw).toFixed(1)}" y="${(y - hh).toFixed(1)}" width="${(hw * 2).toFixed(1)}" height="${(hh * 2).toFixed(1)}" rx="${hh.toFixed(1)}" `
+    + `fill="#071008" fill-opacity="0.85" stroke="${color}" stroke-width="${Math.max(0.5, fs * 0.08).toFixed(2)}"/>`
+    + `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="${color}" font-size="${fs.toFixed(2)}" `
+    + `font-family="system-ui,sans-serif" font-weight="700">${escSVG(label)}</text></g>`;
+}
+/** A placed device's watts beside its marker (energy_map.js deviceWatts): up and right of it, haloed, never a tap. */
+export function deviceWattsSvg(x, y, r, label){
+  const fs = Math.max(5, r * 0.9);
+  return `<text class="ldev-watts" x="${(x + r * 1.1).toFixed(1)}" y="${(y - r * 1.1).toFixed(1)}" text-anchor="start" dominant-baseline="central" `
+    + `fill="#fbbf24" font-size="${fs.toFixed(2)}" font-family="system-ui,sans-serif" font-weight="700" paint-order="stroke" stroke="#071008" `
+    + `stroke-width="1.6" stroke-linejoin="round" pointer-events="none">${escSVG(label)}</text>`;
+}
+
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   // A wall screen sized for its room (lights_map, wall mode): room names grow
@@ -2828,6 +2846,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   //   "muted"}, a small speaker beside those rooms' names, inside the name's own tap target (its tap opens the room's
   //   sheet, as the name's does). Not passed: the markup is the same as without it.
   const ROOM_AUDIO = opts.roomAudio && typeof opts.roomAudio === "object" ? opts.roomAudio : null;
+  // roomEnergy / deviceWatts (Energy, energy_map.js chips and deviceWatts; the flat Atlas while a screen has it on):
+  //   {room: "120 W"}, a small "⚡ 120 W" pill by those rooms' names; {entity id: "45 W"}, a placed device's watts by its
+  //   marker. Not passed: the markup is the same as without them.
+  const ROOM_ENERGY = opts.roomEnergy && typeof opts.roomEnergy === "object" ? opts.roomEnergy : null;
+  const DEVICE_W = opts.deviceWatts && typeof opts.deviceWatts === "object" ? opts.deviceWatts : null;
   // Automorph (2026-09-07): 0 disables it outright — see
   // automorphAuraSvg/automorphRing below, near perimeterSvg.
   const AUTOMORPH_PCT = opts.automorph ? Math.max(0, Math.min(100, Number(opts.automorphRoomPct) || 0)) : 0;
@@ -6082,6 +6105,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           s+=`<circle class="lroom-audio-hit" cx="${audioX.toFixed(1)}" cy="${audioY.toFixed(1)}" r="${Math.max(audioS*2.6, 9).toFixed(1)}" `+
             `fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;
         }
+        // Energy: a metered room's watts in a pill by its name, in the name's colour, drawn where the name is. Under the
+        // name, else above it, right or left of it: the first spot clear of a live reading's digits, another name, the
+        // fixtures and the speaker, so it sits with the room's readouts and never on them.
+        const energyTxt=ROOM_ENERGY && Object.prototype.hasOwnProperty.call(ROOM_ENERGY, r.room) ? ROOM_ENERGY[r.room] : null;
+        if(energyTxt){
+          const efs=rfs*0.62, label=`⚡ ${energyTxt}`, ehw=label.length*efs*0.3+efs*0.5, ehh=efs*0.75, egap=Math.max(1.5, efs*0.3);
+          let ex=lix, ey=liy+rh/2+egap+ehh, best=Infinity;
+          for(const [x,y] of [[lix,liy+rh/2+egap+ehh],[lix,liy-rh/2-egap-ehh],[lix+rw/2+egap+ehw,liy],[lix-rw/2-egap-ehw,liy]]){
+            const spk=audioLook && Math.abs(audioX-x)<ehw+audioS*SPEAKER_R && Math.abs(audioY-y)<ehh+audioS*SPEAKER_R;
+            const c=coverOf(x,y,ehw,ehh)+(placedLabels.some(p=>Math.abs(p.x-x)<p.w/2+ehw && Math.abs(p.y-y)<p.h/2+ehh)?LABEL_TEXT:0)+(spk?LABEL_TEXT:0);
+            if(c<best){ best=c; ex=x; ey=y; }
+            if(c===0) break;
+          }
+          nameTxt+=`<g opacity="${SHOW?THEME.roomLabelOpacity:"0.85"}">${energyMark(ex, ey, efs, color, label)}</g>`;
+        }
         // A room so full that no spot in it is clear (a small larder between
         // two strips, a closet its own strip runs the length of): its name is
         // drawn over the markers instead (namesOver), its halo keeping it
@@ -6846,6 +6884,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     jobs.forEach((j,i)=>{ s+=markerSvg(j[0], j[1], j[2], j[3], j[4], !!j[7], nearestDist[i], j[8]); });
     for(const st of stacks) s+=stackChipSvg(...st);
     for(const t of namesOver) s+=t;
+    // Energy: a placed device's watts by its marker (deviceWatts), over the markers.
+    if(DEVICE_W) for(const j of jobs){ const w=j[3] && j[0] && DEVICE_W[j[0].entity_id]; if(w) s+=deviceWattsSvg(j[1], j[2], HEX_R, `⚡${w}`); }
     if(!isFocused) s+=`</g>`+overGhost;
 
     // Floor level badge

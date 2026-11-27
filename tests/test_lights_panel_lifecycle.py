@@ -330,3 +330,26 @@ def test_room_controls_through_the_panel(result) -> None:
     # The ⋯ line where the screen has the list (Pro's display layout, or a wall: _screenLines), else the switch.
     assert 'return this._screenLines() ? screenShowLine("atlas","room_controls")===true : this.state._audioOn === true;' in panel
     assert '_screenLines(){ return (String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2) || this.hasAttribute("data-wall"); }' in panel
+
+
+def test_energy_through_the_panel(result) -> None:
+    """Energy (views/energy_map.js, the Energy add-on; the owner, 2026-11-26): OFF BY DEFAULT means nothing at all, the
+    drawing and a room's sheet the panel's without the module and energy_get never asked, ticked or not; the house's
+    switch alone offers the ⋯ line and draws nothing; ticked on this screen, the room's chip and its sheet's Energy,
+    counted energy:on and :sheet; only where the add-on is allowed; on the classic layout Settings → Atlas → Energy."""
+    e = result["energy"]
+    nothing = {"on": False, "chip": False, "chipWords": False, "part": False, "asked": 0, "sent": []}
+    for case in ("off", "offTicked"):
+        assert e[case] == {"svgSame": True, "sheetSame": True, "house": False, **nothing}, (case, e[case])
+    assert e["houseOnly"] == {"svgSame": True, "sheetSame": True, "house": True, **nothing}, e["houseOnly"]
+    lit = {"house": True, "on": True, "chip": True, "chipWords": True, "part": True}
+    for case in ("ticked", "classicOn"):
+        got = e[case]
+        # Asked through the host (again only after REFRESH_MS, which a slow machine may reach); each word once.
+        assert {k: got[k] for k in lit} == lit and got["asked"] >= 1, (case, got)
+        assert sorted(got["sent"]) == ["energy:on", "energy:sheet"], (case, got)
+    assert e["notAllowed"] == {"house": False, **nothing}, e["notAllowed"]
+    assert e["classicOff"] == {"house": True, **nothing}, e["classicOff"]
+    panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert '_energyHouse(){ return !!ENERGY && this._addon("energy") && this.state._energyHouse === true; }' in panel
+    assert "energy: this._energyOn() ? this._energy() : null," in panel

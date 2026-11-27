@@ -752,6 +752,7 @@ SCREENS = {
     "sandbox": "A look under the hood at the live data; changes nothing.",
     "installbase": "The developer's screen for the opt-in usage reports; asks for a PIN.",
     "wifi": "A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia.",
+    "energy": "The house's power from Home Assistant's Energy setup: now, standby while everyone is out, the watts in empty rooms, today's rooms and devices with their cost, and the sensors' health.",
 }
 
 # When a screen the menu leaves out until something holds is there (_getVisibleTabs).
@@ -760,6 +761,7 @@ SHOWN_WHEN = {
     "guests": "While guest tags are on (Settings → Tracking → Phones and guest tags)",
     "setup": "Until every step is done, or setup is skipped",
     "wifi": "While UniFi Utopia's Wi-Fi survey answers, with Pro or the Wi-Fi coverage add-on",
+    "energy": "While Energy is on (Settings → Atlas → Energy), with Pro or the Energy add-on",
 }
 
 
@@ -1299,6 +1301,7 @@ PLACE_FILES = {
     "Traceback": ("views/traceback.js",),
     "Occupancy": ("views/occupancy.js",),
     "Locate": ("views/locate.js",),
+    "Energy": ("views/energy.js",),
     "Follow": ("views/follow.js", "panel.js"),
     "Live Aboard": ("views/live_aboard.js", "views/live_aboard_furnish.js", "views/live_aboard_people.js", "views/lights_map.js"),
 }
@@ -1425,6 +1428,12 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "atlas_audio_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Audio", "On the classic layout, for the whole house: a speaker beside a room's name while one of its players is on, and Audio in the room's card. Pro or the Audio add-on; on the new layout each screen's ⋯ list has it instead."),
     "atlas_shades_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Shades", "On the classic layout, for the whole house: Open, Stop and Close for the room's blinds and shades in the room's card. Free; on the new layout each screen's ⋯ list has it instead."),
     "atlas_thermostats_enabled": ("Settings → Atlas", "Atlas — Mapped Light Control", "Thermostats", "On the classic layout, for the whole house: each thermostat in the room's card with its setpoint, and the room's temperature and humidity. Pro or the Climate & air quality add-on; on the new layout and on a wall screen, each screen's ⋯ list has it instead."),
+    # Settings → Atlas → Energy (the Energy add-on: PadSpan Pro, or an Energy key; not sold yet)
+    "energy_enabled": ("Settings → Atlas", "Energy", "Energy", "Energy for this house: the Energy view in the menu, Energy in the Atlas's ⋯ list, and standby measured while everyone is out, all from Home Assistant's own Energy setup. Off: nothing of it shows and nothing is read. Pro or the Energy add-on."),
+    "atlas_energy_enabled": ("Settings → Atlas", "Energy", "Energy on the map (classic layout)", "On the classic layout, for the whole house: a room's watts beside its name, a device's watts by it, and Energy in the room's card. On the new layout and on a wall screen, each screen's ⋯ list has it instead."),
+    "energy_empty_after_min": ("Settings → Atlas", "Energy", "A room counts as empty after", "How long nobody has been in a room before its watts count as used in an empty room (1 to 240 minutes)."),
+    "energy_always_on": ("Energy", "Expected always on", "", "The metered devices expected to run all the time (a fridge, network gear), left out of the empty rooms' watts. An administrator's."),
+    "energy_spikes_enabled": ("Settings → Atlas", "Energy", "Who was home at spikes", "The biggest jumps in the house's power over the last 7 days, with who PadSpan saw at home and where, in the Energy view. Energy data shows routines: it stays on the house, and only administrators see it."),
     "power_teams": ("Settings → Atlas", "Power teams", "", "Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). Made and changed, and following the day, with Pro, Bright Pro or the Advanced smart lighting add-on."),
     "atlas_weather_enabled": ("Settings → Atlas", "Outdoor weather", "Show rain and snow on the Atlas", "Rain or snow around the house while it really rains or snows."),
     "atlas_weather_rain_entity": ("Settings → Atlas", "Outdoor weather", "Rain sensor", "A rain sensor that says when it is wet. Empty: the weather entity decides."),

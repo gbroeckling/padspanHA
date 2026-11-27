@@ -121,6 +121,12 @@ export const ADDONS = Object.freeze([
   { name: "lighting", words: "Advanced smart lighting", price: "$8.65 CAD", desc: "Smart bulbs behind a wall switch work as one light that follows the day, dims for sleep and wakes you; WLED's Advanced controls; a glow from each light into its room; fixture shapes with their size and angle, the type override, Hide untouched and Showcase's Classic theme" },
   { name: "vacuum", words: "Robot vacuum", price: "$6.45 CAD", on_sale_from: FREE_BASICS_FROM,
     desc: "Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder, and Wi-Fi while it cleans (with Wi-Fi coverage)" },
+  // Energy (the owner, 2026-11-26): each room's power on the Atlas and in its card, the watts in empty rooms, standby
+  // while everyone is out and who was home at spikes, from Home Assistant's own Energy setup (energy.py, views/energy.js,
+  // views/energy_map.js). Not sold until the owner publishes it (on_sale: false, licence.NOT_ON_SALE), so nothing offers
+  // it; PadSpan Pro includes it, and a key holding it uses it.
+  { name: "energy", words: "Energy", price: "$8.65 CAD", on_sale: false,
+    desc: "Each room's power on the Atlas map and in its card, the watts in rooms nobody is in, standby while you're out, and who was home at spikes" },
   // Specialty (the owner, 2026-11-25): a product of its own, sold beside the add-ons and never in their list or their
   // sale. OS 2 Local for Control4 is a separate Home Assistant integration (domain control4) PadSpan can install
   // (views/c4local.js, c4local_install.py); one payment, good for life (lifetime). on_sale: false until it is
@@ -476,6 +482,7 @@ export const SURFACE_CLASS = Object.freeze({
   // but it is a presence-build surface: Bright has no Pro key to present.
   installbase: "presence",
   wifi: "presence",           // Wi-Fi coverage: needs the presence side's tracked phones and its floor model
+  energy: "presence",         // Energy (the add-on): empty rooms and who was home come from the presence side
 });
 
 /**

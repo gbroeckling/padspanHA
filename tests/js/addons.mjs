@@ -22,12 +22,12 @@ const KEY = { tier: "free", pro_has_key: true, addon_key: true, pro_active: true
   license_addons_until: { audio: "2028-11-25 10:00:00", wifi: "2028-12-01 10:00:00" }, addons_licensed: ["audio", "wifi"] };
 const LAPSED = { ...KEY, pro_active: false, license_addons: [], addons_licensed: [] };
 
-// The table: twelve add-ons and one specialty, the owner's prices, words and a line each (maps and vacuum: on sale from
-// December 1; c4local: not on sale yet, 2026-11-25).
+// The table: thirteen add-ons and one specialty, the owner's prices, words and a line each (maps and vacuum: on sale from
+// December 1; c4local: not on sale yet, 2026-11-25; energy: not on sale until published, 2026-11-26).
 const want = { audio: "$6.45 CAD", alarm: "$6.45 CAD", wifi: "$6.45 CAD", climate: "$8.65 CAD", timetravel: "$7.55 CAD",
   vacation: "$4.25 CAD", looks: "$4.25 CAD", forensics: "$5.56 CAD", insights: "$5.56 CAD", maps: "$8.65 CAD",
-  lighting: "$8.65 CAD", vacuum: "$6.45 CAD", c4local: "$26 CAD" };
-check("twelve add-ons and one specialty, in order", JSON.stringify(E.ADDONS.map(a => a.name)) === JSON.stringify(Object.keys(want)),
+  lighting: "$8.65 CAD", vacuum: "$6.45 CAD", energy: "$8.65 CAD", c4local: "$26 CAD" };
+check("thirteen add-ons and one specialty, in order", JSON.stringify(E.ADDONS.map(a => a.name)) === JSON.stringify(Object.keys(want)),
   E.ADDONS.map(a => a.name));
 for (const a of E.ADDONS) {
   check(`${a.name}: its price`, a.price === want[a.name], a.price);
@@ -50,6 +50,15 @@ for (const at of ["2026-11-27T08:00:00Z", "2026-12-24T12:00:00Z", "2027-01-02T07
   check(`c4local: never half off (${at})`, p.price === "$26 CAD" && p.half === false && E.addonPrice("c4local", Date.parse(at)) === "$26 CAD",
     JSON.stringify(p));
 }
+// Energy (the owner, 2026-11-26): an add-on like the others, not on sale until the owner publishes it, so never offered
+// and never half off; Pro includes it and a key holding it uses it.
+const EN = E.ADDONS.find(a => a.name === "energy") || {};
+check("energy: Energy at $8.65, not on sale and no date", EN.words === "Energy" && EN.on_sale === false && !EN.on_sale_from
+  && !EN.category && E.addonOnSale("energy") === false && E.addonOnSale("energy", Date.parse("2030-01-01T00:00:00Z")) === false);
+check("energy: never half off while not sold", E.addonPriceParts("energy", Date.parse("2026-12-24T12:00:00Z")).half === false);
+check("energy: Pro and a key holding it may use it", E.addonAllowed({ tier: "pro" }, "energy") === true
+  && E.addonAllowed({ ...KEY, addons_licensed: ["energy"] }, "energy") === true && E.addonAllowed(KEY, "energy") === false);
+check("energy: never in the sale card", !E.addonSaleCardPicks({ tier: "free" }, Date.parse("2026-12-24T12:00:00Z")).includes("energy"));
 check("the sale still halves the feature add-ons", E.addonPriceParts("audio", Date.parse("2026-12-24T12:00:00Z")).half === true);
 check("c4local: an add-on key holding it may use it", E.addonAllowed({ ...KEY, addons_licensed: ["c4local"] }, "c4local") === true
   && E.addonAllowed(KEY, "c4local") === false && E.addonAllowed({ tier: "pro" }, "c4local") === true);

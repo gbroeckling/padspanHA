@@ -29,6 +29,7 @@ button explains it in the panel.
 | **Forensics** | Pro or the Presence insights add-on: which Bluetooth devices were near your receivers between two times. | – |
 | **Occupancy** | How many people are in the building, and how the number was reached. | – |
 | **Guests** | Guest tags: who is staying now, the tags you lend, and past stays. | – |
+| **Energy** | The house's power from Home Assistant's Energy setup: now, standby while everyone is out, the watts in empty rooms, today's rooms and devices with their cost, and the sensors' health. | – |
 | **Health** | Is PadSpan working? Its own checks, receivers' health, and Problems found. | – |
 | **Wi-Fi coverage** | A test: how strongly your Wi-Fi access points hear each part of the house, from UniFi Utopia. | – |
 | **QA** | Checks on your setup, backups, and each receiver ranked. | – |

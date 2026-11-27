@@ -344,8 +344,9 @@ def test_maps_and_vacuum_go_on_sale_at_the_moment_in_both_halves(gates) -> None:
     licence card; the site: tests/test_site_claims.py), from it the licence card does. OS 2 Local for Control4 (c4local,
     the specialty) is on sale at neither moment (licence.NOT_ON_SALE, editions.js on_sale: false), and is never in the
     add-ons' list (tests/test_c4local.py: its own part of the card, its own box on the site, hidden until it is).
-    Forensics, part of Presence insights since 2026-11-26 (licence.ADDON_PART_OF), is never on sale on its own."""
-    late, not_yet = ("maps", "vacuum"), ("c4local", "forensics")
+    Forensics, part of Presence insights since 2026-11-26 (licence.ADDON_PART_OF), is never on sale on its own. Energy
+    (2026-11-26) is not on sale until the owner publishes it."""
+    late, not_yet = ("maps", "vacuum"), ("c4local", "forensics", "energy")
     assert all(a in ADDONS for a in late + not_yet) and licence.NOT_ON_SALE == not_yet
     assert licence.ADDON_ON_SALE_FROM == {"maps": FREE_BASICS_FROM_TS, "vacuum": FREE_BASICS_FROM_TS}
     for a in ADDONS:

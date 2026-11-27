@@ -278,14 +278,8 @@
 "UI render error — view: {view}": "Erreur d’affichage — vue : {view}",
 "A JavaScript error prevented this view from rendering. Open browser console (F12) for details.": "Une erreur JavaScript a empêché l’affichage de cette vue. Ouvrez la console du navigateur (F12) pour les détails.",
 "Something went wrong. Try again.": "Un problème est survenu. Réessayez.",
-"{n} active": {
-"one": "{n} actif",
-"other": "{n} actifs"
-},
-"{n} problems": {
-"one": "1 problème",
-"other": "{n} problèmes"
-},
+"{n} active": {"one": "{n} actif", "other": "{n} actifs"},
+"{n} problems": {"one": "1 problème", "other": "{n} problèmes"},
 "What's new in PadSpan HA": "Nouveautés de PadSpan HA",
 "Loading the release notes…": "Chargement des notes de version…",
 "The release notes couldn't be loaded. Refresh the page and try again.": "Impossible de charger les notes de version. Actualisez la page et réessayez.",
@@ -309,18 +303,9 @@
 "Something is broken": "Quelque chose ne marche pas",
 "Something needs attention": "Quelque chose demande votre attention",
 "Open Health.": "Ouvrez Santé.",
-"{n} receivers haven't been heard from in over 10 minutes": {
-"one": "{n} récepteur n’a rien envoyé depuis plus de 10 minutes",
-"other": "{n} récepteurs n’ont rien envoyé depuis plus de 10 minutes"
-},
-"{n} receivers are hearing far fewer devices than usual": {
-"one": "{n} récepteur entend bien moins d’appareils que d’habitude",
-"other": "{n} récepteurs entendent bien moins d’appareils que d’habitude"
-},
-"{n} issues": {
-"one": "1 problème",
-"other": "{n} problèmes"
-},
+"{n} receivers haven't been heard from in over 10 minutes": {"one": "{n} récepteur n’a rien envoyé depuis plus de 10 minutes", "other": "{n} récepteurs n’ont rien envoyé depuis plus de 10 minutes"},
+"{n} receivers are hearing far fewer devices than usual": {"one": "{n} récepteur entend bien moins d’appareils que d’habitude", "other": "{n} récepteurs entendent bien moins d’appareils que d’habitude"},
+"{n} issues": {"one": "1 problème", "other": "{n} problèmes"},
 "The connection to Home Assistant was lost. Wait a moment and try again.": "La connexion à Home Assistant a été perdue. Attendez un instant et réessayez.",
 "PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan est injoignable sur le réseau. Vérifiez la connexion et réessayez.",
 "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Cette page et le PadSpan de Home Assistant ne correspondent pas. Actualisez la page ; si cela ne suffit pas, redémarrez Home Assistant.",
@@ -328,10 +313,7 @@
 "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "Un problème est survenu dans PadSpan. Réessayez ; si cela se reproduit, Santé → Open Diagnostics contient un rapport à envoyer.",
 "Something went wrong on this page. Refresh it and try again.": "Un problème est survenu sur cette page. Actualisez-la et réessayez.",
 "Only an administrator can do this.": "Seul un administrateur peut faire cela.",
-"{n} duplicates hidden (same units on {via})": {
-"one": "1 doublon masqué (même appareil dans {via})",
-"other": "{n} doublons masqués (mêmes appareils dans {via})"
-},
+"{n} duplicates hidden (same units on {via})": {"one": "1 doublon masqué (même appareil dans {via})", "other": "{n} doublons masqués (mêmes appareils dans {via})"},
 "{name} is the {via} copy of a device that is also in {twin_via}, as {twin}. PadSpan uses the {twin_via} one.": "{name} est la copie {via} d’un appareil qui est aussi dans {twin_via}, sous le nom {twin}. PadSpan utilise celui de {twin_via}.",
 "{name} is the {via} copy of {device}, which is also in {twin_via}. Pick the {twin_via} one in the list.": "{name} est la copie {via} de {device}, qui est aussi dans {twin_via}. Choisissez celui de {twin_via} dans la liste.",
 "Use the {twin_via} one": "Utiliser celui de {twin_via}",
@@ -419,5 +401,6 @@
 "Your next steps": "Vos prochaines étapes",
 "Tick any. The first ticked comes first. With the usage report on, the answers go with it as words.": "Cochez ce que vous voulez. La première cochée passe en premier. Avec le rapport d’utilisation activé, les réponses l’accompagnent sous forme de mots.",
 "Track your phone": "Suivre votre téléphone",
-"Start": "Démarrer"
+"Start": "Démarrer",
+"Energy": "Énergie"
 }

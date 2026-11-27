@@ -80,7 +80,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "rooms": ("views/rooms.js", "views/lights_follow.js"),   # Lights follow people: set up room by room
     "traceback": ("views/traceback.js", "views/insights.js", "views/busy_times.js", "views/house_activity.js", "views/share_replay.js"),
     "atlas1": ("lights_panel.js", "views/alarm_panel.js", "views/atlas_aboard.js", "views/atlas_heatmap.js", "views/atlas_screen.js", "views/atlas_heights.js", "views/scene_row.js", "views/light_codes.js", "views/iso_lights.js",
-               "views/room_controls.js"),
+               "views/room_controls.js", "views/energy_map.js"),
     "atlasmap": ("views/lights_map.js",),
     "atlasmap2": ("views/lights_map.js#atlasmap2",),
     "aboard": ("views/live_aboard.js",),
@@ -89,6 +89,8 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "furnish": ("views/live_aboard_edit.js", "views/live_aboard_furnish.js", "views/live_aboard_house.js"),
     "furnish2": ("views/live_aboard_strip.js", "views/live_aboard_runs.js", "views/live_aboard_photo.js", "views/live_aboard_import.js"),
     "furniture": ("views/live_aboard_furniture.js",),
+    # Energy, the add-on (2026-11-26): its view and its Settings card. German first, as the Atlas's groups.
+    "energy": ("views/energy.js", "views/settings.js#energy"),
 }
 SERVER = "server"
 

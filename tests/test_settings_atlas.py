@@ -59,10 +59,13 @@ def test_the_tab_bar_has_tracking_and_atlas(drawn):
 
 
 def test_the_atlas_tab_holds_exactly_the_moved_cards(drawn):
+    # Energy (the add-on, 2026-11-26) has its card after the Atlas's where the add-on is allowed (Pro here), none on free.
+    with_energy = (ATLAS_CARDS[0], "⚡ Energy", *ATLAS_CARDS[1:])
     for case in ("atlasOn", "atlasOff", "atlasFree"):
         cards = drawn[case]["cards"]
-        assert len(cards) == len(ATLAS_CARDS), (case, cards)
-        for got, want in zip(cards, ATLAS_CARDS):
+        want_cards = ATLAS_CARDS if case == "atlasFree" else with_energy
+        assert len(cards) == len(want_cards), (case, cards)
+        for got, want in zip(cards, want_cards):
             assert got.startswith(want), (case, got)
 
 

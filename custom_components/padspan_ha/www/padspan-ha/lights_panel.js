@@ -61,6 +61,10 @@ const roomAudioOf = (s, was = {}) => {
     room_audio_sources: has("room_audio_sources") ? (s.room_audio_sources || {}) : (was.room_audio_sources || {}),
     room_audio_limits: has("room_audio_limits") ? (s.room_audio_limits || {}) : (was.room_audio_limits || {}) };
 };
+// Energy on the Atlas (views/energy_map.js, the Energy add-on): a room's watts by its name, a device's by its marker,
+// a room's Energy in its sheet. Optional: without it the line is not offered and the map and sheet are as they were.
+const ENERGY = await import(`./views/energy_map.js${STAMP}`)
+  .catch(err => { console.warn("PadSpan: energy_map failed to load", err); return null; });
 // Escape, Tab and the focus for the emergency card and the page drawn again
 // (views/dialog_keys.js). Optional: without it they work as they did.
 const KEYS = await import(`./views/dialog_keys.js${STAMP}`)
@@ -488,6 +492,10 @@ class PadSpanLightsApp extends HTMLElement {
       // Settings → Atlas → Shades and Thermostats: the same, for a room sheet's shades and its thermostats (_roomParts).
       if (s.atlas_shades_enabled !== undefined) this.state._shadesOn = s.atlas_shades_enabled === true;
       if (s.atlas_thermostats_enabled !== undefined) this.state._thermostatsOn = s.atlas_thermostats_enabled === true;
+      // Energy (the add-on): on for the house (Settings → Atlas → Energy, energy_enabled), and the classic layout's own
+      // switch for the map (atlas_energy_enabled; _energyOn). A failed fetch keeps the last answer.
+      if (s.energy_enabled !== undefined) this.state._energyHouse = s.energy_enabled === true;
+      if (s.atlas_energy_enabled !== undefined) this.state._energyAtlas = s.atlas_energy_enabled === true;
       // Devices → Door Openers' marked openers: never a room sheet's shades (_roomCtl openers).
       if (Array.isArray(s.door_opener_ids)) this.state._doorOpeners = s.door_opener_ids;
       // Settings → Atlas → Atlas — Mapped Light Control → Alert pulse, normally off.
@@ -1057,6 +1065,30 @@ class PadSpanLightsApp extends HTMLElement {
     return { audio: this._roomControlsOn(), shades: on("room_shades", this.state._shadesOn),
              climate: this._addon("climate") && on("room_climate", this.state._thermostatsOn) };
   }
+  // Energy (views/energy_map.js): the house has it turned on (energy_enabled) and may use it (PadSpan Pro or the Energy
+  // add-on). Off or not allowed: no ⋯ line, no chip, no watts, no Energy in a room's card: nothing at all.
+  _energyHouse(){ return !!ENERGY && this._addon("energy") && this.state._energyHouse === true; }
+  // Energy on this screen: the ⋯ list's "Energy" (key energy), ticked per screen where the screen has the list
+  // (_screenLines); else Settings → Atlas → Energy (atlas_energy_enabled) for the whole house.
+  _energyOn(){
+    if(!this._energyHouse()) return false;
+    return this._screenLines() ? screenShowLine("atlas","energy")===true : this.state._energyAtlas === true;
+  }
+  // This page's Energy (views/energy_map.js), made once: functions only, read when used.
+  _energy(){
+    if(!ENERGY) return null;
+    if(!this._en) this._en = ENERGY.createEnergy({
+      fetch: ()=>this._ws({ type:"padspan_ha/energy_get" }),
+      hass: ()=>this._hass,
+      // The opt-in report's energy:<word> (telemetry.py ENERGY_EVENTS), only while it is on.
+      count: (word)=>{
+        if(!this.state._telemetryOn || !this._hass) return;
+        Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:"energy:" + word })).catch(()=>{});
+      },
+      redraw: ()=>this._render(),
+    });
+    return this._en;
+  }
   // The covers that open a door or a gate (Alarm & security's), never a room sheet's shades: Devices → Door Openers'
   // marked ones, a wall's linked opener, and a cover a wall follows when nothing says it is a blind or a shutter (no
   // device class, and a door's, a gate's or a garage's name). A window's shutter or blind stays a shade.
@@ -1124,6 +1156,8 @@ class PadSpanLightsApp extends HTMLElement {
       // (_roomParts); roomParts says which.
       ...(()=>{ const parts = this._roomParts();
         return { roomControls: parts.audio || parts.shades || parts.climate ? this._roomCtl() : null, roomParts: parts }; })(),
+      // Energy in the room sheet, only while it is on for this screen (_energyOn).
+      energy: this._energyOn() ? this._energy() : null,
       toggle:(eid)=>this._toggle(eid),
       openControls:(eid)=>this._openWledDetail(eid),
       openActivity:(eid)=>openActivityCalendar(this._hass, eid),
@@ -1350,7 +1384,13 @@ class PadSpanLightsApp extends HTMLElement {
       audioOn: this.state._audioOn === true,
       // The ⋯ list's lines for a room sheet's other parts (_roomParts): Shades for everyone, Thermostats with the
       // Climate map add-on.
-      roomLines: ROOMCTL ? ["room_shades", ...(this._addon("climate") ? ["room_climate"] : [])] : [],
+      roomLines: [...(ROOMCTL ? ["room_shades", ...(this._addon("climate") ? ["room_climate"] : [])] : []),
+        // Energy's line, where the house has Energy turned on and the add-on (_energyHouse).
+        ...(this._energyHouse() ? ["energy"] : [])],
+      // Energy (views/energy_map.js) where the house has it on: drawn while ticked in the ⋯ list; on the classic layout
+      // while Settings → Atlas → Energy is on (energyOn).
+      energy: this._energyHouse() ? this._energy() : null,
+      energyOn: this.state._energyAtlas === true,
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
       // The wall's own shape, as it is hung (a turned wall is tall): what its

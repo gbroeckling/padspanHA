@@ -101,6 +101,12 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     room controls on the Atlas: on, the matching card opened and saved, a
         volume up or down, mute, off, a setpoint, the shades, a Room off
         (ROOM_CONTROLS_EVENTS); never a room, a player or a level
+    Energy (the add-on, only while it is on): that it is on, how many rooms
+        and devices are metered, how many health issues it finds, whether
+        there is a whole-house figure and whether the spike timeline is on
+        (env.energy); the Energy view, a room card's Energy part, the
+        always-on list saved and the spikes opened (ENERGY_EVENTS); never
+        watts, kWh or money, which tell a household's routines
     Share a replay: its dialog opened, a clip saved by format and shape,
         the names and room choices and the mark switched off, a clip that
         failed (SHARE_REPLAY_EVENTS); never a name, a room or the clip
@@ -537,6 +543,7 @@ VIEWS: frozenset[str] = frozenset({
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
     "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers", "setup", "ai_wizard",
     "wifi",     # Wi-Fi coverage (test, 2026-11-22): only while UniFi Utopia's survey answers
+    "energy",   # Energy, the add-on (energy.py): only while it is on and allowed
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),
@@ -626,6 +633,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "robovac_findings",                             # its Find mistakes card: receivers the runs say are misplaced
     "alarm_panel",                                  # the house's alarm on the Atlas's emergency button, and in the banner
     "room_controls",                                # room controls: a room's players, shades and thermostats in its sheet, the matching card
+    "energy_map",                                   # Energy on the Atlas: a room's watts by its name, a device's, a room card's Energy
     "share_replay", "gif_encoder", "mp4_remux",     # Traceback's Share a replay: the dialog and clip, its GIF, its plain MP4
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "outdoor_space",                                # outdoor rooms by name, and an outdoor room's surface (every look)
@@ -820,7 +828,7 @@ STAIR_USE_EVENTS: frozenset[str] = frozenset(
 HOUSE3D_SHOW_ITEMS: tuple[str, ...] = (
     "lights", "glow", "strips", "fans", "scenes", "light_taps", "light_buttons", "room_switch", "motion_sensors", "motion_rooms", "motion_reach", "readouts",
     "room_climate", "doors", "windows", "covers", "locks", "room_shades", "railings", "radios", "tags", "people", "trails", "codes",
-    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "room_row", "floor_outlines", "other_floors", "edgecut", "room_controls", "glass_walls", "roof",
+    "furniture", "devices", "scan_furniture", "stairs", "room_names", "room_outlines", "room_row", "floor_outlines", "other_floors", "edgecut", "energy", "room_controls", "glass_walls", "roof",
     "rain", "theme", "forest",
 )
 HOUSE3D_SHOW_EVENTS: frozenset[str] = frozenset(
@@ -1226,7 +1234,8 @@ STARTER_HOUSE_EVENTS: frozenset[str] = frozenset(f"starter_house:{k}" for k in S
 # sent with something in it, sent saying there was nothing to report, or not sent (its target failed); and, once per
 # message, each line that had something (presence_coordinator.YESTERDAY_LINES). Counts only, never a name or a time.
 YESTERDAY_HOME_WORDS: tuple[str, ...] = ("sent", "nothing", "failed",
-                                         "line_comings", "line_guests", "line_empty_rooms", "line_lights")
+                                         "line_comings", "line_guests", "line_empty_rooms", "line_lights",
+                                         "line_energy")      # the kWh used in empty rooms (Energy, while it is on)
 YESTERDAY_HOME_EVENTS: frozenset[str] = frozenset(f"yesterday_home:{k}" for k in YESTERDAY_HOME_WORDS)
 
 
@@ -1468,6 +1477,11 @@ ROOM_CONTROLS_WORDS: tuple[str, ...] = ("on", "match_open", "match_saved", "up",
                                         "room_off", "source", "sound_mode", "play", "pause", "next", "previous", "scan",
                                         "slider", "sound", "share", "unshare", "all_off", "sources_saved", "limit_saved")
 ROOM_CONTROLS_EVENTS: frozenset[str] = frozenset(f"room_controls:{w}" for w in ROOM_CONTROLS_WORDS)
+# Energy, the add-on (energy.py, views/energy.js and energy_map.js; 2026-11-26, off by default): on once per page load
+# while an Atlas screen shows it; the Energy view opened and a room's card with its Energy part, once per page load
+# each; the always-on list saved; the spike timeline opened. Counts only, never a room, a device, watts, kWh or money.
+ENERGY_WORDS: tuple[str, ...] = ("on", "view", "sheet", "always_on", "spikes")
+ENERGY_EVENTS: frozenset[str] = frozenset(f"energy:{w}" for w in ENERGY_WORDS)
 # Lights follow people (lights_follow.py, 2026-11-24, off by default): on_today once a day while it is on with a
 # room set; lit a room's lights turned on as someone came in, sensor_entry when a room's own motion or occupancy
 # sensor let that happen before Room Change Delay; off_empty turned off once the room was empty for its delay;
@@ -1967,7 +1981,7 @@ def event_allowed(name: str) -> bool:
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
             or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS or name in LIGHTS_FOLLOW_EVENTS or name in SHARE_REPLAY_EVENTS
-            or name in ROOM_CONTROLS_EVENTS or name in ADDON_EVENTS)
+            or name in ROOM_CONTROLS_EVENTS or name in ENERGY_EVENTS or name in ADDON_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -3153,6 +3167,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         _quiet_error("telemetry:payload_vacation")
         pass
+    # Energy (energy.report): counts only, only while it is on.
+    try:
+        from .energy import report as _energy_report  # noqa: PLC0415
+        _en = _energy_report(hass, settings)
+        if _en:
+            env["energy"] = _en
+    except Exception:
+        _quiet_error("telemetry:payload_energy")
     # Power teams and the house's colour bulbs (power_teams_report), only from a house with either.
     try:
         _pt = power_teams_report(hass, settings.get("power_teams"))
@@ -3639,6 +3661,10 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
                 or (k in POWER_TEAM_WORDS and isinstance(v, dict) and all(w in POWER_TEAM_WORDS[k] and _count(n) for w, n in v.items()))
                 for k, v in pt.items()):
             raise ValueError("env.power_teams not in the vocabulary")
+    if isinstance(env, dict) and "energy" in env:
+        from .energy import report_ok as _energy_ok  # noqa: PLC0415
+        if not _energy_ok(env["energy"]):
+            raise ValueError("env.energy not in the vocabulary")
     if isinstance(env, dict) and "top_screen" in env:
         ts = env["top_screen"]
         if (not isinstance(ts, dict) or set(ts) != set(TOP_SCREEN_KEYS)

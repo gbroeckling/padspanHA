@@ -63,10 +63,7 @@
 "Act on this one instead — it's under the marker on top": "Stattdessen dieses nehmen — es liegt unter der obersten Markierung",
 "Could not save the type override: {why}": "Die Typvorgabe ließ sich nicht speichern: {why}",
 "Something went wrong. Try again.": "Etwas ist schiefgegangen. Versuch es noch einmal.",
-"{room} — opens its {n} devices": {
-"one": "{room} — öffnet sein Gerät",
-"other": "{room} — öffnet seine {n} Geräte"
-},
+"{room} — opens its {n} devices": {"one": "{room} — öffnet sein Gerät", "other": "{room} — öffnet seine {n} Geräte"},
 "Who is in which room": "Wer ist in welchem Raum",
 "Temperature": "Temperatur",
 "Humidity": "Feuchtigkeit",
@@ -248,14 +245,8 @@
 "Emergency": "Notfall",
 "Sending…": "Wird gesendet…",
 "Each one asks first, with the alarm's code when it has one.": "Jede Schaltung fragt zuerst nach, mit dem Code der Alarmanlage, wenn sie einen hat.",
-"{n} alarms: {state}": {
-"one": "Alarmanlage: {state}",
-"other": "{n} Alarmanlagen: {state}"
-},
-"Alarms": {
-"one": "Alarmanlage",
-"other": "Alarmanlagen"
-},
+"{n} alarms: {state}": {"one": "Alarmanlage: {state}", "other": "{n} Alarmanlagen: {state}"},
+"Alarms": {"one": "Alarmanlage", "other": "Alarmanlagen"},
 "Muted": "Stumm",
 "Unmute": "Ton an",
 "Mute": "Stumm",
@@ -372,5 +363,16 @@
 "Show {source}": "{source} zeigen",
 "Name for {source}": "Name für {source}",
 "Earlier in the list": "In der Liste weiter nach vorn",
-"Later in the list": "In der Liste weiter nach hinten"
+"Later in the list": "In der Liste weiter nach hinten",
+"{n} min": "{n} Min.",
+"{n} d": "{n} T.",
+"{h} h {m} min": "{h} Std. {m} Min.",
+"{n} h": "{n} Std.",
+"Energy": "Energie",
+"No recent reading": "Kein aktueller Messwert",
+"Room total": "Raum gesamt",
+"Watts now · today's kWh · today's cost": "Watt jetzt · kWh heute · Kosten heute",
+"Watts now · today's kWh": "Watt jetzt · kWh heute",
+"Empty for {for}: {w} (about {money} today)": "Leer seit {for}: {w} (etwa {money} heute)",
+"Empty for {for}: {w}": "Leer seit {for}: {w}"
 }

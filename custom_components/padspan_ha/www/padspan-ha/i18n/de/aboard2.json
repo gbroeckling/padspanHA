@@ -483,5 +483,7 @@
 "Thermostats": "Thermostate",
 "Open, Stop and Close for the room's blinds and shades in the room's panel": "Öffnen, Stopp und Schließen für die Jalousien und Rollos des Raums im Raumblatt",
 "Each thermostat in the room's panel, its mode and its setpoint with − and +, and the room's temperature and humidity": "Jedes Thermostat im Raumblatt, seine Betriebsart und sein Sollwert mit − und +, dazu Temperatur und Luftfeuchtigkeit des Raums",
-"Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, dazu „Raum aus“; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist"
+"Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, dazu „Raum aus“; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist",
+"Energy": "Energie",
+"A room's watts beside its name, a device's watts on the map, and Energy in the room's panel: watts now, kWh and cost today": "Die Watt eines Raums neben seinem Namen, die Watt eines Geräts auf der Karte und Energie im Feld des Raums: Watt jetzt, kWh und Kosten heute"
 }

@@ -579,7 +579,7 @@ _NUMBER_KEYS = (
     "vacation_mode_max_on_min", "vacation_mode_max_lights",
     "presence_poll_interval_s", "ble_reseed_interval_s", "object_history_days", "guest_retention_days",
     "forensics_retention_days", "rssi_capture_retention_days", "ble_max_age_s", "occupancy_cluster_threshold",
-    "occupancy_multiplier", "occupancy_dwell_min",
+    "occupancy_multiplier", "occupancy_dwell_min", "energy_empty_after_min",
     "heatmap_gain", "heatmap_contrast", "distortion_intensity", "heatmap_source",
 )
 
@@ -757,6 +757,12 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_audio_enabled"): bool,
         vol.Optional("atlas_shades_enabled"): bool,
         vol.Optional("atlas_thermostats_enabled"): bool,
+        # Energy, the add-on (energy.py), off by default; the always-on list and the spikes are an administrator's.
+        vol.Optional("energy_enabled"): bool,
+        vol.Optional("atlas_energy_enabled"): bool,
+        vol.Optional("energy_empty_after_min"): vol.Coerce(int),
+        vol.Optional("energy_always_on"): _LIST,               # cleaned by energy.clean_always_on
+        vol.Optional("energy_spikes_enabled"): bool,
         vol.Optional("atlas_weather_enabled"): bool,
         vol.Optional("atlas_weather_rain_entity"): vol.Any(str, None),
         vol.Optional("atlas_weather_condition_entity"): vol.Any(str, None),
@@ -1511,6 +1517,21 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload["room_audio_ha_speakers"] = bool(msg["room_audio_ha_speakers"])
             if "room_audio_matched" in msg:
                 payload["room_audio_matched"] = bool(msg["room_audio_matched"])
+        # Energy (energy.py): how long a room stays empty before it counts, clamped to 1-240 minutes; the always-on
+        # list and who was home at spikes are an administrator's (the spikes say who was home when).
+        if "energy_empty_after_min" in msg:
+            from .energy import EMPTY_MIN_MAX as _en_max  # noqa: PLC0415
+            payload["energy_empty_after_min"] = max(1, min(_en_max, int(msg["energy_empty_after_min"])))
+        if "energy_always_on" in msg or "energy_spikes_enabled" in msg:
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Energy's always-on list and spike timeline")
+                return
+            if "energy_always_on" in msg:
+                from .energy import clean_always_on as _en_always  # noqa: PLC0415
+                payload["energy_always_on"] = _en_always(msg["energy_always_on"])
+            if "energy_spikes_enabled" in msg:
+                payload["energy_spikes_enabled"] = bool(msg["energy_spikes_enabled"])
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",
@@ -1655,6 +1676,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "ha_entity_occupancy_enabled", "subzones_enabled", "screens_remote_enabled",
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
                     "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled", "atlas_audio_enabled", "atlas_shades_enabled", "atlas_thermostats_enabled",
+                    "energy_enabled", "atlas_energy_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled", "ai_plan_build_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",

@@ -278,14 +278,8 @@
 "UI render error — view: {view}": "Weergavefout — scherm: {view}",
 "A JavaScript error prevented this view from rendering. Open browser console (F12) for details.": "Een JavaScript-fout hield dit scherm tegen. Open de browserconsole (F12) voor de details.",
 "Something went wrong. Try again.": "Er ging iets mis. Probeer het opnieuw.",
-"{n} active": {
-"one": "{n} actief",
-"other": "{n} actief"
-},
-"{n} problems": {
-"one": "1 probleem",
-"other": "{n} problemen"
-},
+"{n} active": {"one": "{n} actief", "other": "{n} actief"},
+"{n} problems": {"one": "1 probleem", "other": "{n} problemen"},
 "What's new in PadSpan HA": "Nieuw in PadSpan HA",
 "Loading the release notes…": "Release-opmerkingen laden…",
 "The release notes couldn't be loaded. Refresh the page and try again.": "De release-opmerkingen konden niet worden geladen. Vernieuw de pagina en probeer het opnieuw.",
@@ -309,18 +303,9 @@
 "Something is broken": "Er is iets kapot",
 "Something needs attention": "Er vraagt iets aandacht",
 "Open Health.": "Open Gezondheid.",
-"{n} receivers haven't been heard from in over 10 minutes": {
-"one": "{n} ontvanger al meer dan 10 minuten niet gehoord",
-"other": "{n} ontvangers al meer dan 10 minuten niet gehoord"
-},
-"{n} receivers are hearing far fewer devices than usual": {
-"one": "{n} ontvanger hoort veel minder apparaten dan normaal",
-"other": "{n} ontvangers horen veel minder apparaten dan normaal"
-},
-"{n} issues": {
-"one": "1 probleem",
-"other": "{n} problemen"
-},
+"{n} receivers haven't been heard from in over 10 minutes": {"one": "{n} ontvanger al meer dan 10 minuten niet gehoord", "other": "{n} ontvangers al meer dan 10 minuten niet gehoord"},
+"{n} receivers are hearing far fewer devices than usual": {"one": "{n} ontvanger hoort veel minder apparaten dan normaal", "other": "{n} ontvangers horen veel minder apparaten dan normaal"},
+"{n} issues": {"one": "1 probleem", "other": "{n} problemen"},
 "The connection to Home Assistant was lost. Wait a moment and try again.": "De verbinding met Home Assistant is verbroken. Wacht even en probeer het opnieuw.",
 "PadSpan couldn't be reached over the network. Check the connection and try again.": "PadSpan was via het netwerk niet bereikbaar. Controleer de verbinding en probeer het opnieuw.",
 "This page and the PadSpan on Home Assistant don't match. Refresh the page; if that doesn't help, restart Home Assistant.": "Deze pagina en de PadSpan in Home Assistant passen niet bij elkaar. Vernieuw de pagina; helpt dat niet, herstart dan Home Assistant.",
@@ -328,10 +313,7 @@
 "Something went wrong in PadSpan. Try again; if it keeps happening, Health → Open Diagnostics has a report to send.": "Er ging iets mis in PadSpan. Probeer het opnieuw; blijft het gebeuren, dan staat onder Gezondheid → Open Diagnostics een rapport om te versturen.",
 "Something went wrong on this page. Refresh it and try again.": "Er ging iets mis op deze pagina. Vernieuw hem en probeer het opnieuw.",
 "Only an administrator can do this.": "Alleen een beheerder kan dit doen.",
-"{n} duplicates hidden (same units on {via})": {
-"one": "1 duplicaat verborgen (hetzelfde apparaat in {via})",
-"other": "{n} duplicaten verborgen (dezelfde apparaten in {via})"
-},
+"{n} duplicates hidden (same units on {via})": {"one": "1 duplicaat verborgen (hetzelfde apparaat in {via})", "other": "{n} duplicaten verborgen (dezelfde apparaten in {via})"},
 "{name} is the {via} copy of a device that is also in {twin_via}, as {twin}. PadSpan uses the {twin_via} one.": "{name} is de {via}-kopie van een apparaat dat ook in {twin_via} staat, als {twin}. PadSpan gebruikt die van {twin_via}.",
 "{name} is the {via} copy of {device}, which is also in {twin_via}. Pick the {twin_via} one in the list.": "{name} is de {via}-kopie van {device}, dat ook in {twin_via} staat. Kies die van {twin_via} in de lijst.",
 "Use the {twin_via} one": "Die van {twin_via} gebruiken",
@@ -419,5 +401,6 @@
 "Your next steps": "Je volgende stappen",
 "Tick any. The first ticked comes first. With the usage report on, the answers go with it as words.": "Vink aan wat je wilt. Wat je het eerst aanvinkt, komt eerst. Met het gebruiksrapport aan gaan de antwoorden mee als woorden.",
 "Track your phone": "Je telefoon volgen",
-"Start": "Start"
+"Start": "Start",
+"Energy": "Energie"
 }

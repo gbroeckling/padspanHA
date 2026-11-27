@@ -249,6 +249,8 @@ const _VIEW_PATHS = {
   installbase:  "./views/installbase.js",
   // Wi-Fi coverage (test, 2026-11-22): drawn from UniFi Utopia's survey; in the menu only while it answers.
   wifi:         "./views/wifi.js",
+  // Energy (the add-on, energy.py): in the menu only while the house has it on and may use it (_getVisibleTabs).
+  energy:       "./views/energy.js",
   // The guided Setup (plan → … → calibration): a menu tab at the top of the
   // build group until every step is done (owner's D4, 2026-11-13, _setupInMenu),
   // and always reached from the Overview's Getting started and from Mapping.
@@ -371,7 +373,7 @@ function _sampleKind(payload){
     + "room_tags rooms_overlap setup_phones setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
     + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_robot_status vacuum_status wled_backups wled_devices "
     + "wled_exact_list wled_get wled_look_get wled_teams_get power_teams_get lights_follow_get motion_reconnects vacuum_import_preview irk_validate "
-    + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
+    + "companion_discover energy_get energy_spikes").split(" ").map(t => "padspan_ha/" + t));
   for (const t of ["config/entity_registry/list", "config/entity_registry/list_for_display", "config/entity_registry/get",
                    "config/device_registry/list", "config/area_registry/list", "config/floor_registry/list",
                    "history/history_during_period"]) READS.add(t);
@@ -402,6 +404,7 @@ const MENU = [
   ["forensics","Forensics","mdi:magnify-scan"],
   ["occupancy","Occupancy","mdi:account-group-outline"],
   ["guests","Guests","mdi:account-clock-outline"],
+  ["energy","Energy","mdi:flash-outline"],
   ["health","Health","mdi:heart-pulse"],
   ["wifi","Wi-Fi coverage","mdi:wifi"],
   ["qa","QA","mdi:clipboard-check-outline"],
@@ -462,6 +465,7 @@ const MENU_COLORS = {
   purelive: "#7c3aed",
   installbase: "#38bdf8",
   wifi: "#60a5fa",
+  energy: "#fbbf24",
 };
 
 // ── 2025 skin: nav icons and groups ──────────────────────────────────────────
@@ -497,13 +501,14 @@ const MENU_ICONS = {
   sandbox:     '<path d="M10 3v6.2L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M9 3h6"/><path d="M7.4 14.5h9.2"/>',
   installbase: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16v-5M12 16V8M17 16v-3"/>',
   wifi:        '<path d="M2.5 9a14 14 0 0 1 19 0"/><path d="M6 12.5a9 9 0 0 1 12 0"/><path d="M9.3 16a4.4 4.4 0 0 1 5.4 0"/><circle cx="12" cy="19.3" r="1.2"/>',
+  energy:      '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/><path d="M3 21h18"/>',
 };
 
 // Sidebar grouping for the 2025 skin. Order here drives render order; any MENU
 // id missing from this table still renders, under a trailing "More" heading, so
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
-  ["Live",      ["overview","purelive","follow","occupancy","guests"]],
+  ["Live",      ["overview","purelive","follow","occupancy","guests","energy"]],
   ["Build",     ["setup","maps","rooms","receivers","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","wifi","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
@@ -519,6 +524,7 @@ function menuWord(english){
     Rooms: t("Rooms"), Receivers: t("Receivers"), Settings: t("Settings"), Manage: t("Manage"), Training: t("Training"),
     Calibration: t("Calibration"), Traceback: t("Traceback"), Forensics: t("Forensics"), Occupancy: t("Occupancy"),
     Guests: t("Guests"), Health: t("Health"), QA: t("QA"), Sandbox: t("Sandbox"), "Install Base": t("Install Base"), "Wi-Fi coverage": t("Wi-Fi coverage"),
+    Energy: t("Energy"),
     History: t("History"), Events: t("Events"), Debug: t("Debug"), Diagnostics: t("Diagnostics"),
     "Claude draws rooms": t("Claude draws rooms"),
     Live: t("Live"), Build: t("Build"), Diagnose: t("Diagnose"), Internals: t("Internals"), More: t("More"),
@@ -1667,7 +1673,7 @@ class PadSpanHaApp extends HTMLElement {
     const NAMES = { audio: t("Audio"), alarm: t("Alarm & security"), wifi: t("Wi-Fi coverage"), climate: t("Climate & air quality"),
       timetravel: t("Full house activity"), vacation: t("Vacation Mode & presets"), looks: t("Looks pack"),
       insights: t("Presence insights"), maps: t("Advanced map creation"), lighting: t("Advanced smart lighting"),
-      vacuum: t("Robot vacuum") };
+      vacuum: t("Robot vacuum"), energy: t("Energy") };
     const list = EDITIONS.addonSaleCardPicks(st).map(n => (NAMES[n] || n) + " " + EDITIONS.addonPrice(n)).join(", ");
     const card = el("div", { "data-sale-card": "card",
       style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px" });
@@ -3837,6 +3843,9 @@ class PadSpanHaApp extends HTMLElement {
     // Wi-Fi coverage only while UniFi Utopia's survey answers (_wifiProbe),
     // and with PadSpan Pro or the Wi-Fi coverage add-on (_addon).
     if (!this.state._wifiSurveyOn || !this._addon("wifi")) out.delete("wifi");
+    // Energy only while the house has it turned on (Settings → Atlas → Energy, off by default) and may use it
+    // (PadSpan Pro or the Energy add-on): until then nothing of it shows, not even this view.
+    if (this.state.settings?.energy_enabled !== true || !this._addon("energy")) out.delete("energy");
     if (!this._setupInMenu()) out.delete("setup");
     // The EDITION decides last: a Bright build shows its lighting surfaces
     // (and the rest only behind the reveal switch). The full edition is
@@ -3896,6 +3905,7 @@ class PadSpanHaApp extends HTMLElement {
     if (this.state.complexity !== "basic") for (const t of (s.advanced_extra_tabs || [])) out.add(t);
     out.add("forensics");
     out.add("guests");
+    out.add("energy");
     const visible = this._getVisibleTabs();
     return new Set([...out].filter(id => visible.has(id)));
   }
@@ -3928,6 +3938,7 @@ class PadSpanHaApp extends HTMLElement {
     if (view === "forensics" && settings.forensics_enabled !== true) return false;
     if (view === "guests" && settings.guest_tags_enabled !== true) return false;
     if (view === "wifi" && !this._addon("wifi")) return false;
+    if (view === "energy" && (settings.energy_enabled !== true || !this._addon("energy"))) return false;
     if (EDITIONS && EDITIONS.surfacesForEdition && !EDITIONS.surfacesForEdition([view], settings).length) return false;
     return true;
   }
@@ -4128,7 +4139,7 @@ class PadSpanHaApp extends HTMLElement {
    *  are drawn again in it. A string not translated stays English. */
   _loadPanelLanguage(){
     const req = this._panelLangReq = (this._panelLangReq || 0) + 1;
-    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "server"]) : "en").then(got => {
+    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "energy", "server"]) : "en").then(got => {
       if(req !== this._panelLangReq || got === (this._panelLangShown || "en")) return;
       this._panelLangShown = got;
       if(this.$){ this._paintShellWords(); this._paintDataModeLabel(); }
