@@ -4,16 +4,19 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // The first-run question (the owner, 2026-11-26, his words): "What do you want PadSpan for?", any of four answers, each
-// opening its own first step. Asked once, on a new install's first run only, at the top of the Overview's Getting
-// started card (panel.js), to an administrator and never on a wall screen; Skip ends it. The backend makes it due for a
-// settings store made fresh (settings_store, purpose_ask "due") and the answer or Skip makes it "done" (ws_settings), so
-// an install from before is never asked out of the blue. Settings → Appearance has the same choice for everyone, and
-// changes it later. Stored as settings.purpose: the keys ticked, the first ticked first (onboarding.PURPOSE_KEYS, the
-// same keys in the same order). Each answer's first step:
+// opening its own first step. Asked once, on a new install's first run only, at the top of the Overview (panel.js), in
+// any data mode (a new install opens on the sample house until a receiver is heard; its answers pass there, panel.js
+// _sampleKind), to an administrator and never on a wall screen; Skip ends it. The backend makes it due for a settings
+// store made fresh (settings_store, purpose_ask "due"); an answer makes it "done" and Skip "skipped" (ws_settings), so an
+// install from before is never asked out of the blue. Settings → Appearance has the same choice, for an administrator,
+// and changes it later. Stored as settings.purpose: the keys ticked, the first ticked first (onboarding.PURPOSE_KEYS,
+// the same keys in the same order). Each answer's first step:
 //   whole_house  the Atlas (the sidebar page), then the wall screen tip
-//   presence     the Receivers page, then the phone (Setup's phone step)
+//   presence     the Overview's "Who's where now" where it shows (live, no rooms drawn); else the Receivers page, with
+//                a line on why receivers come first
 //   plan         Mapping → Upload with "No floor plan?" open at the iPhone or iPad scan
-//   lights       the Atlas builder's tour (Mapping → Atlas builder); in Basic, which has no builder, the Atlas
+//   lights       the Atlas builder's tour (Mapping → Atlas builder); in Basic, which has no builder, the Atlas. With no
+//                rooms drawn there is nothing to place lights in: the plan first, the builder offered as the next step
 // Several answers: the first ticked opens, and the Getting started card offers the rest as next steps (nextSteps).
 
 const V = new URL(import.meta.url).search;
@@ -32,6 +35,8 @@ export const ATLAS_PATH = "/padspan-lights";
 export const WALL_PATH = "/padspan-lights?kiosk=1";
 
 const isAdmin = (ctx) => !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+/** Rooms drawn on a plan (the model's room outlines): what the Atlas builder places lights in. */
+const hasRooms = (state) => Object.keys((state && state.model && state.model.room_geometry_m) || {}).length > 0;
 
 /** The keys ticked, each once, in their order (the backend keeps the same). */
 export function picked(settings) {
@@ -64,57 +69,77 @@ function openAtlas(ctx) {
   goTo(ATLAS_PATH);
 }
 
+function openPlan(ctx) {
+  const st = ctx.state;
+  // Mapping → Upload, the ways to a plan open at the scan (rough_plan.js keeps its state in _roughPlan).
+  st._mapsWizard = null;
+  // rough_plan.js's own defaults first: a new install has no _roughPlan yet, and its blank floor reads across/down.
+  st._roughPlan = { across: "", down: "", busy: false, ...(st._roughPlan || {}), open: true, kind: "scan", msg: "", walk: null };
+  st.mapsTab = "upload";
+  ctx.actions.showView("maps");
+}
+
+/** The Atlas builder and its tour; in Basic, which has no builder (views/maps.js), the Atlas with its own tips. */
+function openLights(ctx) {
+  const st = ctx.state;
+  if (st.complexity === "basic") { openAtlas(ctx); return; }
+  st._mapsWizard = null;
+  st.mapsTab = "lights";
+  st._lightsTour = { step: 1 };
+  if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_opened");
+  ctx.actions.showView("maps");
+}
+
 /** Each answer's first step. */
 export function openStep(ctx, key) {
   const st = ctx.state;
   if (key === "whole_house") { openAtlas(ctx); return; }
-  if (key === "presence") { ctx.actions.showView("receivers"); return; }
-  if (key === "plan") {
-    // Mapping → Upload, the ways to a plan open at the scan (rough_plan.js keeps its state in _roughPlan).
-    st._mapsWizard = null;
-    // rough_plan.js's own defaults first: a new install has no _roughPlan yet, and its blank floor reads across/down.
-    st._roughPlan = { across: "", down: "", busy: false, ...(st._roughPlan || {}), open: true, kind: "scan", msg: "", walk: null };
-    st.mapsTab = "upload";
-    ctx.actions.showView("maps");
+  if (key === "presence") {
+    // "Who's where now" (views/whos_where.js) is the Overview's own first step for a live house with no rooms drawn.
+    if (st.dataMode === "live" && st.live && st.live.snapshot && !hasRooms(st)) {
+      ctx.actions.showView("overview");
+      ctx.toast(t("Who's where now, on the Overview, shows each receiver's room and who is in it."));
+      return;
+    }
+    ctx.actions.showView("receivers");
+    ctx.toast(t("Rooms come from your Bluetooth receivers: each one hears who is near it. Give each one its room here."));
     return;
   }
+  if (key === "plan") { openPlan(ctx); return; }
   if (key === "lights") {
-    // Basic has no Atlas builder (views/maps.js): the Atlas itself, with its own first-visit tips.
-    if (st.complexity === "basic") { openAtlas(ctx); return; }
-    st._mapsWizard = null;
-    st.mapsTab = "lights";
-    st._lightsTour = { step: 1 };
-    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("lights_tour_opened");
-    ctx.actions.showView("maps");
+    // Nothing to place lights in yet: the plan first (nextSteps offers the builder after it).
+    if (!hasRooms(st)) { openPlan(ctx); return; }
+    openLights(ctx);
   }
 }
 
-/** What comes after an answer's first step: the wall screen tip after the Atlas, the phone after the receivers. */
-const THEN = {
-  whole_house: () => ({ id: "wall", label: t("Put it on a wall screen"),
-    tip: t("Open {path} on the screen: the whole house fits it. Settings → Atlas → Wall screens sizes it for the room.", { path: WALL_PATH }) }),
-  presence: () => ({ id: "phone", label: t("Track your phone"), open: (ctx) => ctx.actions.openSetupStep("phone", null, "first_question") }),
-};
-
-/** The next steps after answering: the first answer's own next step, then each other answer's first step. */
-export function nextSteps(settings) {
+/** The next steps after answering: the first answer's own next step (the wall screen tip after the Atlas; the Atlas
+ *  builder after the plan the lights answer opened, with no rooms drawn), then each other answer's first step. The
+ *  phone is not one: Getting started lists it as its own step. */
+export function nextSteps(settings, state) {
   const keys = picked(settings);
   if (!keys.length) return [];
   const labels = LABELS();
   const out = [];
-  if (THEN[keys[0]]) out.push(THEN[keys[0]]());
-  for (const k of keys.slice(1)) out.push({ id: k, label: labels[k], open: (ctx) => openStep(ctx, k) });
+  const lightsFirstPlan = keys[0] === "lights" && !hasRooms(state);
+  if (keys[0] === "whole_house") out.push({ id: "wall", label: t("Put it on a wall screen"), link: WALL_PATH,
+    tip: t("Open {path} on the screen: the whole house fits it. Settings → Atlas → Wall screens sizes it for the room.", { path: "\u0000" }) });
+  if (lightsFirstPlan) out.push({ id: "lights", label: t("Then place your lights in the Atlas builder"), open: openLights });
+  for (const k of keys.slice(1)) {
+    if (lightsFirstPlan && k === "plan") continue;   // the plan step is already open
+    out.push({ id: k, label: labels[k], open: (ctx) => openStep(ctx, k) });
+  }
   return out;
 }
 
-/** The four answers as tick boxes, in their order. `order` is the list ticked so far (the first ticked first);
- *  onChange(order) after each tick. */
+/** The four answers as tick boxes, in their order: rows a finger can hit (36 px at least). `order` is the list ticked
+ *  so far (the first ticked first); onChange(order) after each tick. */
 function answers(ctx, order, onChange, attr) {
   const { el } = ctx.helpers;
   const labels = LABELS();
-  const box = el("div", { style: "display:flex;flex-direction:column;gap:6px;margin:6px 0 8px" });
+  const box = el("div", { style: "display:flex;flex-direction:column;gap:2px;margin:6px 0 8px" });
   for (const k of PURPOSES) {
-    const c = el("input", { type: "checkbox", [attr]: k });
+    const c = el("input", { type: "checkbox", [attr]: k, style: "width:18px;height:18px;margin:0;flex:none" });
     c.checked = order.includes(k);
     c.addEventListener("change", () => {
       const i = order.indexOf(k);
@@ -122,18 +147,19 @@ function answers(ctx, order, onChange, attr) {
       if (!c.checked && i >= 0) order.splice(i, 1);
       onChange(order);
     });
-    box.appendChild(el("label", { style: "display:flex;align-items:center;gap:8px;font-size:13px;color:#e2e8f0;cursor:pointer" }, [c, labels[k]]));
+    box.appendChild(el("label", { "data-purpose-row": k,
+      style: "display:flex;align-items:center;gap:10px;min-height:36px;padding:2px 4px;font-size:14px;color:#e2e8f0;cursor:pointer" }, [c, labels[k]]));
   }
   return box;
 }
 
-/** The question, on the Getting started card. Start saves the answers and opens the first ticked one's step; Skip
- *  ends the asking. Either way it is never asked again (the backend's purpose_ask "done"). */
+/** The question, at the top of the Overview. Start saves the answers and opens the first ticked one's step; Skip ends
+ *  the asking. Either way it is never asked again (the backend's purpose_ask "done" or "skipped"). */
 export function askCard(ctx) {
   const { el } = ctx.helpers;
   const order = [];
-  const card = el("div", { "data-first-question": "card", style: "margin:2px 0 10px;padding:10px 12px;background:#0f2a1a;border:1px solid #2d5a3d;border-radius:8px" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, QUESTION()));
+  const card = el("div", { "data-first-question": "card", style: "margin:0 0 12px;padding:12px 14px;background:#0f2a1a;border:1px solid #2d5a3d;border-radius:8px" });
+  card.appendChild(el("div", { style: "font-weight:700;font-size:15px;color:#e2e8f0" }, QUESTION()));
   card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px" },
     t("Tick any. Each opens its own first step, and Settings → Appearance changes it later.")));
   const start = el("button", { class: "btn inline primary", "data-first-question": "start" }, t("Start"));
@@ -150,20 +176,26 @@ export function askCard(ctx) {
     if (await save({ purpose: order.slice() })) openStep(ctx, first);
   });
   const skip = el("button", { class: "btn inline", "data-first-question": "skip", style: "color:#94a3b8" }, t("Skip"));
-  skip.addEventListener("click", () => { save({ purpose_ask: "done" }); });
+  skip.addEventListener("click", () => { save({ purpose_ask: "skipped" }); });
   card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [start, skip]));
   return card;
 }
 
 /** The next steps on the Getting started card, once answered: null with none. */
 export function nextCard(ctx) {
-  const steps = nextSteps(ctx.state.settings);
+  const steps = nextSteps(ctx.state.settings, ctx.state);
   if (!steps.length) return null;
   const { el } = ctx.helpers;
   const box = el("div", { "data-first-question": "next", style: "margin:0 0 8px;font-size:12px;color:#cbd5e1;line-height:1.55" });
   box.appendChild(el("div", { style: "font-weight:700;color:#52b788;margin-bottom:2px" }, t("Your next steps")));
   for (const s of steps) {
-    if (s.tip) { box.appendChild(el("div", { "data-next": s.id }, `${s.label}: ${s.tip}`)); continue; }
+    if (s.tip) {
+      // The tip's {path} as a link to the wall screen's page.
+      const [before, after = ""] = s.tip.split("\u0000");
+      box.appendChild(el("div", { "data-next": s.id }, [`${s.label}: ${before}`,
+        el("a", { href: s.link, target: "_blank", rel: "noopener", "data-next-link": s.id, style: "color:#5eead4" }, s.link), after]));
+      continue;
+    }
     const b = el("span", { "data-next": s.id, ...(ctx.helpers.asButton || {}), style: "cursor:pointer;color:#5eead4;text-decoration:underline;margin-right:12px" }, s.label);
     b.addEventListener("click", () => s.open(ctx));
     box.appendChild(b);

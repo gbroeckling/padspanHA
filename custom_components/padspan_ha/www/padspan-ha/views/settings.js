@@ -190,8 +190,6 @@ const PART = FOCUS.PARTS;
 // ── Appearance tab ─────────────────────────────────────────────────────────────
 function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, isBasic){
   const wrap = el("div",{});
-  // What you want PadSpan for: the first-run question, in every mode (only a new install is asked it).
-  if (FQ) { try { const c = FQ.settingsCard(ctx); if (c) wrap.appendChild(c); } catch (e) { console.warn("PadSpan: first-run question card", e); } }
 
   // Floors card (hidden in basic)
   if(!isBasic){
@@ -413,6 +411,8 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     ]));
   }
 
+  // What you want PadSpan for: the first-run question, in every mode, an administrator's (only a new install is asked it).
+  if (FQ) { try { const c = FQ.settingsCard(ctx); if (c) { c.style.marginTop = "12px"; wrap.appendChild(c); } } catch (e) { console.warn("PadSpan: first-run question card", e); } }
   return wrap;
 }
 

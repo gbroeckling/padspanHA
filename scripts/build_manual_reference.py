@@ -1547,7 +1547,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "onboarding": (None, "kept", "", "A new install's first steps and how long they took."),
     "telemetry_asked": (None, "kept", "", "The panel has asked about the usage report once."),
     "telemetry_heard_ask": (None, "kept", "", "Whether the where-did-you-hear question is due, or done."),
-    "purpose_ask": (None, "kept", "", "Whether the first-run question is due (a new install only), or done."),
+    "purpose_ask": (None, "kept", "", "Whether the first-run question is due (a new install only), answered (`done`) or `skipped`."),
     "telemetry_install_id": (None, "kept", "", "The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it)."),
     "telemetry_last_day": (None, "kept", "", "The day the last usage report was sent."),
     "yesterday_home_sent_day": (None, "kept", "", "The day Yesterday at home last told, so it is never told twice."),

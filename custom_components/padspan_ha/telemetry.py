@@ -16,7 +16,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         word from HEARD_WORDS, their own answer to an optional question
         asked once after the opt-in (env.heard_from)
     what the person wants PadSpan for, only if they answered: the keys
-        of onboarding.PURPOSE_KEYS they ticked (env.purpose)
+        of onboarding.PURPOSE_KEYS they ticked (env.purpose); and, only from
+        an install that was asked, how the question went: due, done or
+        skipped (env.purpose_ask)
     how many leak, smoke, gas and CO alarms are placed on the map, only
         from a house with one (env.emergency_count)
     which store keeps this copy up to date (the Marketplace, HACS, or
@@ -207,8 +209,6 @@ EVENTS: frozenset[str] = frozenset({
     # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
     # and honest): whether anyone looks, once per opening.
     "stale_receivers_listed",
-    # The first-run question (onboarding.PURPOSE_KEYS) skipped: asked and skipped, told apart from never asked.
-    "purpose_skipped",
     # Open screens (screens.py, off by default): a reload or an announcement
     # that reached at least one screen, once per call. Never the message.
     "screens_reload_sent", "screens_announce_sent", "screens_announce_test_sent",
@@ -3069,6 +3069,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _purpose = _purpose_keys(settings.get("purpose"))
     if _purpose:
         env["purpose"] = _purpose
+    # How the first-run question went (onboarding.PURPOSE_ASK_WORDS), only from an install that was asked.
+    from .onboarding import PURPOSE_ASK_WORDS as _ASK_WORDS  # noqa: PLC0415
+    if settings.get("purpose_ask") in _ASK_WORDS:
+        env["purpose_ask"] = settings["purpose_ask"]
     # Which store keeps this copy up to date, and how many automations and
     # scripts use PadSpan (report_context.py): one word and two counts.
     try:
@@ -3583,6 +3587,10 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         pp = env["purpose"]
         if not isinstance(pp, list) or not pp or _purpose_keys(pp) != pp:
             raise ValueError("env.purpose not in the vocabulary")
+    if isinstance(env, dict) and "purpose_ask" in env:
+        from .onboarding import PURPOSE_ASK_WORDS  # noqa: PLC0415
+        if env["purpose_ask"] not in PURPOSE_ASK_WORDS:
+            raise ValueError("env.purpose_ask not in the vocabulary")
     if isinstance(env, dict) and "emergency_count" in env:
         ec = env["emergency_count"]
         if isinstance(ec, bool) or not isinstance(ec, int) or ec < 1:

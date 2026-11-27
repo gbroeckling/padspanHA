@@ -4,7 +4,7 @@
 //
 // The first-run question (views/first_question.js), run for real under the DOM shim: asked only while the backend
 // says it is due, to an administrator and never on a wall; Start saves the answers (the first ticked first) and opens
-// the first one's step; Skip saves "done" and opens nothing; each answer's first step; the next steps for several
+// the first one's step; Skip saves "skipped" and opens nothing; each answer's first step; the next steps for several
 // answers; and Settings' card, which saves as it is ticked.
 //
 // Run: node tests/js/first_question.mjs <repo root>
@@ -35,9 +35,11 @@ function el(tag, attrs = {}, children = []) {
   return n;
 }
 
-function makeCtx({ settings = {}, admin = true, kiosk = false, complexity = "advanced", fail = false } = {}) {
+function makeCtx({ settings = {}, admin = true, kiosk = false, complexity = "advanced", fail = false, rooms = true,
+                   dataMode = "live", snapshot = { objects: { list: [] } } } = {}) {
   const log = [];
-  const state = { settings: { lights_panel_enabled: true, ...settings }, kioskMode: kiosk, complexity, mapsTab: "library" };
+  const state = { settings: { lights_panel_enabled: true, ...settings }, kioskMode: kiosk, complexity, mapsTab: "library", dataMode,
+    live: { snapshot }, model: { room_geometry_m: rooms ? { Kitchen: { points_m: [[0, 0], [3, 0], [3, 3]] } } : {} } };
   const ctx = {
     hass: { user: { is_admin: admin } }, state, toast: (m, bad) => log.push(["toast", m, !!bad]),
     helpers: { el, asButton: {} },
@@ -70,6 +72,8 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
     ["The whole house on one screen", "Who's in which room", "My floor plan and 3D house", "Every light in its place"]), labels);
   check("ask:start waits for a tick", card.querySelector('[data-first-question="start"]').disabled === true);
   check("ask:skippable", !!card.querySelector('[data-first-question="skip"]'));
+  const rows = card.querySelectorAll("label");
+  check("ask:rows a finger can hit (36 px at least)", rows.length === 4 && rows.every(r => /min-height:36px/.test(r.getAttribute("style") || "")), rows.map(r => r.getAttribute("style")));
 }
 
 // ── Start: saved, the first ticked opens ──
@@ -99,7 +103,7 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
   const { ctx, log } = makeCtx({ settings: { purpose_ask: "due" } });
   const card = FQ.askCard(ctx);
   card.querySelector('[data-first-question="skip"]').click(); await wait();
-  check("skip:saved as done, nothing ticked", JSON.stringify(log.filter(x => x[0] === "save")) === JSON.stringify([["save", { purpose_ask: "done" }]]), log);
+  check("skip:saved as skipped, nothing ticked", JSON.stringify(log.filter(x => x[0] === "save")) === JSON.stringify([["save", { purpose_ask: "skipped" }]]), log);
   check("skip:opens nothing", !log.some(x => x[0] === "view" || x[0] === "setup"), log);
 }
 
@@ -117,9 +121,20 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
   check("step:whole_house with the Atlas out of the sidebar: Settings → Atlas", !pushed.length && state._settingsTab === "atlas" && log.some(x => x[1] === "settings"), { pushed, log });
 }
 {
-  const { ctx, log } = makeCtx();
+  // a live house with no rooms drawn: the Overview's "Who's where now" is the first step
+  const { ctx, log } = makeCtx({ rooms: false });
   FQ.openStep(ctx, "presence");
-  check("step:presence opens the receivers", JSON.stringify(log) === JSON.stringify([["view", "receivers"]]), log);
+  check("step:presence on a live house with no rooms stays on the Overview's Who's where", log[0][0] === "view" && log[0][1] === "overview"
+    && log.some(x => x[0] === "toast" && /Who's where now/.test(x[1])), log);
+}
+{
+  // rooms drawn, or the sample house: the receivers, with the line saying why
+  for (const opts of [{}, { rooms: false, dataMode: "sample" }, { rooms: false, snapshot: null }]) {
+    const { ctx, log } = makeCtx(opts);
+    FQ.openStep(ctx, "presence");
+    check("step:presence opens the receivers, saying why (" + JSON.stringify(opts) + ")", log[0][0] === "view" && log[0][1] === "receivers"
+      && log.some(x => x[0] === "toast" && /Bluetooth receivers/.test(x[1]) && !x[2]), log);
+  }
 }
 {
   const { ctx, log, state } = makeCtx();
@@ -143,6 +158,13 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
     && log.some(x => x[0] === "event" && x[1] === "lights_tour_opened") && log.some(x => x[1] === "maps"), { log, state });
 }
 {
+  // a new house with no rooms drawn: nothing to place lights in, so the plan first
+  const { ctx, log, state } = makeCtx({ rooms: false });
+  FQ.openStep(ctx, "lights");
+  check("step:lights with no rooms drawn opens the plan step first", state.mapsTab === "upload" && state._roughPlan.kind === "scan"
+    && !state._lightsTour && !log.some(x => x[1] === "lights_tour_opened"), { log, state });
+}
+{
   pushed.length = 0;
   const { ctx, state } = makeCtx({ complexity: "basic" });
   FQ.openStep(ctx, "lights");
@@ -153,14 +175,29 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
 {
   const none = FQ.nextSteps({ purpose: [] });
   check("next:none unanswered", Array.isArray(none) && !none.length);
-  const one = FQ.nextSteps({ purpose: ["whole_house"] });
-  check("next:the Atlas, then the wall screen tip", one.length === 1 && one[0].id === "wall" && one[0].tip.includes("/padspan-lights?kiosk=1"), one);
-  const several = FQ.nextSteps({ purpose: ["presence", "plan", "lights", "junk"] });
-  check("next:the phone after the receivers, then the other answers", JSON.stringify(several.map(s => s.id)) === JSON.stringify(["phone", "plan", "lights"]), several);
+  const withRooms = makeCtx().state;
+  const one = FQ.nextSteps({ purpose: ["whole_house"] }, withRooms);
+  check("next:the Atlas, then the wall screen tip", one.length === 1 && one[0].id === "wall" && one[0].link === "/padspan-lights?kiosk=1", one);
+  const several = FQ.nextSteps({ purpose: ["presence", "plan", "lights", "junk"] }, withRooms);
+  check("next:the other answers, the phone not again (Getting started lists it)", JSON.stringify(several.map(s => s.id)) === JSON.stringify(["plan", "lights"]), several);
+  const noRooms = makeCtx({ rooms: false }).state;
+  const lightsFirst = FQ.nextSteps({ purpose: ["lights", "plan", "presence"] }, noRooms);
+  check("next:with no rooms, the Atlas builder after the plan the lights answer opened", JSON.stringify(lightsFirst.map(s => s.id)) === JSON.stringify(["lights", "presence"]), lightsFirst);
+  {
+    const { ctx, log, state } = makeCtx({ rooms: false, settings: { purpose: ["lights"], purpose_ask: "done" } });
+    FQ.nextCard(ctx).querySelector('[data-next="lights"]').click();
+    check("next:the Atlas builder offered after the plan opens its tour", state.mapsTab === "lights" && state._lightsTour.step === 1, { log, state });
+  }
+  {
+    const { ctx } = makeCtx({ settings: { purpose: ["whole_house"], purpose_ask: "done" } });
+    const card = FQ.nextCard(ctx);
+    const a = card.querySelector("a");
+    check("next:the wall screen's address is a link", !!a && a.getAttribute("href") === "/padspan-lights?kiosk=1" && a.textContent === "/padspan-lights?kiosk=1"
+      && !card.textContent.includes("\u0000") && card.textContent.includes("on the screen: the whole house fits it"), card.textContent);
+  }
   const { ctx, log, state } = makeCtx({ settings: { purpose: ["presence", "plan"], purpose_ask: "done" } });
   const card = FQ.nextCard(ctx);
-  card.querySelector('[data-next="phone"]').click();
-  check("next:the phone opens Setup's phone step", log.some(x => x[0] === "setup" && x[1] === "phone"), log);
+  check("next:no phone step here", !card.querySelector('[data-next="phone"]'));
   card.querySelector('[data-next="plan"]').click();
   check("next:another answer opens its own step", state.mapsTab === "upload", state);
   check("next:no card unanswered", FQ.nextCard(makeCtx({ settings: { purpose: [] } }).ctx) === null);

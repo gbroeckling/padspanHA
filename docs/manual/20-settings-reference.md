@@ -337,7 +337,7 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `onboarding` | empty |  | A new install's first steps and how long they took. |
 | `telemetry_asked` | off | on or off | The panel has asked about the usage report once. |
 | `telemetry_heard_ask` | empty |  | Whether the where-did-you-hear question is due, or done. |
-| `purpose_ask` | empty |  | Whether the first-run question is due (a new install only), or done. |
+| `purpose_ask` | empty |  | Whether the first-run question is due (a new install only), answered (`done`) or `skipped`. |
 | `telemetry_install_id` | empty |  | The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it). |
 | `telemetry_last_day` | empty |  | The day the last usage report was sent. |
 | `yesterday_home_sent_day` | empty |  | The day Yesterday at home last told, so it is never told twice. |

@@ -548,18 +548,26 @@ def heard_section(latest: dict[str, dict]) -> list[str]:
 
 
 # env.purpose (2026-11-26): what the person wants PadSpan for, their answer to the first-run question (or Settings):
-# any of these keys (onboarding.PURPOSE_KEYS), the first ticked first. env.emergency_count: leak, smoke, gas and CO
-# alarms placed on the map, only from a house with one.
+# any of these keys (onboarding.PURPOSE_KEYS), the first ticked first. env.purpose_ask: how the question went, only
+# from an install that was asked (onboarding.PURPOSE_ASK_WORDS). env.emergency_count: leak, smoke, gas and CO alarms
+# placed on the map, only from a house with one.
 _PURPOSE_KEYS = ("whole_house", "presence", "plan", "lights")
+_PURPOSE_ASK_WORDS = ("due", "done", "skipped")
 
 
 def purpose_section(latest: dict[str, dict]) -> list[str]:
-    """What installs want PadSpan for (each install's latest answer: ticked at all, and ticked first), and how many
-    houses have an Emergency device on the map, with the median count."""
+    """What installs want PadSpan for (each install's latest answer: ticked at all, and ticked first), out of the
+    installs that were asked (a new install's first run), and how many houses have an Emergency device on the map,
+    with the median count. An answer given in Settings by an install never asked is counted with the answers."""
+    asked = {iid: (r.get("env") or {}).get("purpose_ask") for iid, r in latest.items()}
+    asked = {iid: w for iid, w in asked.items() if w in _PURPOSE_ASK_WORDS}
     said = {iid: (r.get("env") or {}).get("purpose") for iid, r in latest.items()}
     said = {iid: [k for k in p if k in _PURPOSE_KEYS] for iid, p in said.items() if isinstance(p, list)}
     said = {iid: p for iid, p in said.items() if p}
-    out = [f"What they want PadSpan for ({len(said)} of {len(latest)} installs answered; any of four, optional)"]
+    skipped = sum(1 for w in asked.values() if w == "skipped")
+    waiting = sum(1 for w in asked.values() if w == "due")
+    out = [f"What they want PadSpan for ({len(asked)} installs asked: {len(asked) - skipped - waiting} answered, "
+           f"{skipped} skipped, {waiting} not yet; {len(said)} installs with an answer)"]
     if not said:
         out.append("  no answers yet (asked once on a new install's first run, or in Settings)")
     else:
