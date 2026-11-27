@@ -547,28 +547,32 @@
    "de": "<a class=\"btn primary\" href=\"/demo/?hl=de\">Demo-Haus öffnen</a>"
   },
   {
+   "en": "<b>Black Friday to Cyber Monday:</b> <a href=\"#pro\">PadSpan Pro for life</a> is $89 CAD until Monday, November 30. Then it's $168 until December 15, and after that there's no lifetime. <a href=\"#addons\">Every add-on</a> is at its Black Friday price until January 1.",
+   "de": "<b>Black Friday bis Cyber Monday:</b> <a href=\"#pro\">PadSpan Pro auf Lebenszeit</a> kostet 89 CAD bis Montag, 30. November. Danach 168 CAD bis 15. Dezember, und danach gibt es keine Lebenszeit-Lizenz mehr. <a href=\"#addons\">Jedes Add-on</a> gibt es bis 1. Januar zum Black-Friday-Preis."
+  },
+  {
    "en": "PadSpan Pro",
    "de": "PadSpan Pro"
   },
   {
-   "en": "PadSpan Pro adds the 3D house, exact placement and wall mode",
-   "de": "PadSpan Pro bringt das 3D-Haus, genaues Platzieren und den Wandmodus"
+   "en": "PadSpan Pro adds people in the 3D house, Furnish, the wall screen's extras and every add-on",
+   "de": "PadSpan Pro bringt Personen ins 3D-Haus, „Einrichten“, die Extras des Wanddisplays und jedes Add-on"
   },
   {
-   "en": "Pro is a key you enter in the same integration. It adds everything below, it includes every add-on, and every new PadSpan feature is included while the key runs. PadSpan gets new releases every week, and buying Pro is what keeps them coming. <a href=\"/pro/\">The PadSpan Pro page</a> goes through each feature in detail.",
-   "de": "Pro ist ein Schlüssel, den du in derselben Integration eingibst. Er bringt alles, was unten steht, er enthält jedes Add-on, und jede neue Funktion von PadSpan ist dabei, solange der Schlüssel läuft. PadSpan bekommt jede Woche neue Versionen, und wer Pro kauft, hält das am Laufen. <a href=\"/pro/de/\">Die Seite zu PadSpan Pro</a> geht jede Funktion im Detail durch."
+   "en": "<span data-until-basics>From December 1, placing each light, the plain wall screen and the 3D house are free for everyone.</span><span data-from-basics style=\"display:none\">Placing each light, the plain wall screen and the 3D house are free for everyone.</span> Pro is a key you enter in the same integration. It adds everything below, it includes every add-on, and every new PadSpan feature is included while the key runs. PadSpan gets new releases every week, and buying Pro is what keeps them coming. <a href=\"/pro/\">The PadSpan Pro page</a> goes through each feature in detail.",
+   "de": "<span data-until-basics>Ab dem 1. Dezember sind das Platzieren jedes Lichts, das einfache Wanddisplay und das 3D-Haus für alle kostenlos.</span><span data-from-basics style=\"display:none\">Das Platzieren jedes Lichts, das einfache Wanddisplay und das 3D-Haus sind für alle kostenlos.</span> Pro ist ein Schlüssel, den du in derselben Integration eingibst. Er bringt alles, was unten steht, er enthält jedes Add-on, und jede neue Funktion von PadSpan ist dabei, solange der Schlüssel läuft. PadSpan bekommt jede Woche neue Versionen, und wer Pro kauft, hält das am Laufen. <a href=\"/pro/de/\">Die Seite zu PadSpan Pro</a> geht jede Funktion im Detail durch."
   },
   {
    "en": "Only with Pro",
    "de": "Nur mit Pro"
   },
   {
-   "en": "<b>Live Aboard</b>, your house in 3D, like looking into a house in The Sims. Lights glow in their real colour, lit windows glow at night, rain and snow fall outside, and the Studio look puts the house under a sky that follows the real sun. It's experimental and off until you turn it on.",
-   "de": "<b>Live Aboard</b>, dein Haus in 3D, als würdest du in ein Haus in „Die Sims“ schauen. Lichter leuchten in ihrer echten Farbe, erleuchtete Fenster glühen nachts, draußen fallen Regen und Schnee, und der Look Studio stellt das Haus unter einen Himmel, der der echten Sonne folgt. Es ist experimentell und aus, bis du es einschaltest."
+   "en": "<b>People and tags on the Atlas and in the 3D house</b>, where PadSpan places them.",
+   "de": "<b>Personen und Tracker auf dem Atlas und im 3D-Haus</b>, dort, wo PadSpan sie verortet."
   },
   {
-   "en": "<b>Walk</b> through the 3D house at eye height. A door with a sensor opens when the real door does, and the stairs take you up and down.",
-   "de": "Mit <b>Gehen</b> läufst du auf Augenhöhe durch das 3D-Haus. Eine Tür mit Sensor öffnet sich, wenn die echte Tür aufgeht, und über die Treppe kommst du rauf und runter."
+   "en": "<b>The 3D editor</b>, to draw doors, windows and doorways in the 3D house and set each device's height.",
+   "de": "<b>Der 3D-Editor</b>, mit dem du Türen, Fenster und Durchgänge ins 3D-Haus zeichnest und die Höhe jedes Geräts festlegst."
   },
   {
    "en": "<b>The view flies to what happens.</b> On the sidebar and wall screens, the 3D house flies to a doorbell that rings, a door that opens or an alarm that goes off, with a camera's snapshot if you pick one, then goes back after 20 seconds. An administrator picks what to watch in Settings.",
@@ -579,24 +583,16 @@
    "de": "<b>Einrichten</b> möbliert einen Raum mit einem Fingertipp, oder Stück für Stück aus 33 Arten von Möbeln. Verknüpf ein Möbelstück mit einem Gerät, und eine Lampe leuchtet mit ihrem Licht, ein Fernseher leuchtet, während er läuft, und die Flügel eines Ventilators drehen sich."
   },
   {
-   "en": "<b>Exact placement</b> of every light, fan, lock and sensor, in its real shape, size and angle, with WLED's Advanced controls, Automorph and Showcase. See <a href=\"#lights\">Lights</a>.",
-   "de": "<b>Genaues Platzieren</b> jedes Lichts, Ventilators, Schlosses und Sensors, in echter Form, Größe und echtem Winkel, mit der Advanced-Steuerung von WLED, Automorph und Showcase. Siehe <a href=\"#lights\">Licht</a>."
+   "en": "<b>The wall screen's extras</b>: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake.",
+   "de": "<b>Die Extras des Wanddisplays</b>: nächtliches Dimmen, die Verschiebung gegen Einbrennen, Etagen im Wechsel und Aufwecken per Bewegung mit Fully Kiosk."
   },
   {
-   "en": "<b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and, on HTTPS, keeps the screen awake.",
-   "de": "<b>Der Wandmodus</b> passt das ganze Haus auf ein Wanddisplay ein, wählt die Schriftgröße passend zum Raum, dimmt nachts und hält über HTTPS den Bildschirm wach."
-  },
-  {
-   "en": "<b>The new Atlas layout</b>, with a ⋯ list that sets what each screen shows.",
-   "de": "<b>Das neue Atlas-Layout</b>, mit einer ⋯-Liste, die festlegt, was jeder Bildschirm zeigt."
+   "en": "<b>The new Atlas layout</b> away from a wall screen, with a ⋯ list that sets what each screen shows.",
+   "de": "<b>Das neue Atlas-Layout</b> abseits des Wanddisplays, mit einer ⋯-Liste, die festlegt, was jeder Bildschirm zeigt."
   },
   {
    "en": "<b>The Atlas as your Overview</b>, the first thing PadSpan opens.",
    "de": "<b>Der Atlas als deine Übersicht</b>, das Erste, was PadSpan öffnet."
-  },
-  {
-   "en": "<b>People and tags on the Atlas</b>, where PadSpan places them.",
-   "de": "<b>Personen und Tracker auf dem Atlas</b>, dort, wo PadSpan sie verortet."
   },
   {
    "en": "Live Aboard at night, with the lights that are on.",
@@ -823,8 +819,8 @@
    "de": "Für PadSpan HA ohne Pro · je eine Funktion"
   },
   {
-   "en": "Black Friday: every add-on is half off through January 1.",
-   "de": "Black Friday: jedes Add-on zum halben Preis bis einschließlich 1. Januar."
+   "en": "Black Friday prices on every add-on until January 1.",
+   "de": "Black-Friday-Preise für jedes Add-on bis 1. Januar."
   },
   {
    "en": "Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.",
@@ -839,8 +835,8 @@
    "de": "Audio <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">6,45 CAD · ca. 4,30 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">3,22 CAD · ca. 2,15 €</span>"
   },
   {
-   "en": "Half off through January 1 (normally $6.45)",
-   "de": "Halber Preis bis einschließlich 1. Januar (sonst 6,45 CAD)"
+   "en": "Black Friday price until January 1 (then $6.45)",
+   "de": "Black-Friday-Preis bis 1. Januar (danach 6,45 CAD)"
   },
   {
    "en": "Each room's players on the map: now playing, volume, source and sound mode, tone and surround, music shared to other rooms, and Room off",
@@ -871,16 +867,16 @@
    "de": "Klima &amp; Luftqualität <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">8,65 CAD · ca. 5,75 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">4,32 CAD · ca. 2,85 €</span>"
   },
   {
-   "en": "Half off through January 1 (normally $8.65)",
-   "de": "Halber Preis bis einschließlich 1. Januar (sonst 8,65 CAD)"
+   "en": "Black Friday price until January 1 (then $8.65)",
+   "de": "Black-Friday-Preis bis 1. Januar (danach 8,65 CAD)"
   },
   {
    "en": "The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card",
    "de": "Die ♨ Heatmap: Räume nach Temperatur, Luftfeuchtigkeit und CO₂, dazu die Thermostate jedes Raums in seiner Karte"
   },
   {
-   "en": "Half off through January 1 (normally $7.55)",
-   "de": "Halber Preis bis einschließlich 1. Januar (sonst 7,55 CAD)"
+   "en": "Black Friday price until January 1 (then $7.55)",
+   "de": "Black-Friday-Preis bis 1. Januar (danach 7,55 CAD)"
   },
   {
    "en": "The day replayed in Traceback on your Atlas map: lights, doors, sensors and who was where",
@@ -891,8 +887,8 @@
    "de": "Urlaubsmodus &amp; Voreinstellungen <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">4,25 CAD · ca. 2,80 €</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">2,12 CAD · ca. 1,40 €</span>"
   },
   {
-   "en": "Half off through January 1 (normally $4.25)",
-   "de": "Halber Preis bis einschließlich 1. Januar (sonst 4,25 CAD)"
+   "en": "Black Friday price until January 1 (then $4.25)",
+   "de": "Black-Friday-Preis bis 1. Januar (danach 4,25 CAD)"
   },
   {
    "en": "Vacation Mode and Whole house presets",
@@ -907,8 +903,8 @@
    "de": "Vier Designs fürs Panel, 20 Showcase-Looks für die Karte, darunter der West Coast Forest, und gespeicherte Look-Presets. Der Lichtschein (Automorph) gehört zur Erweiterten smarten Beleuchtung"
   },
   {
-   "en": "Half off through January 1 (normally $5.56)",
-   "de": "Halber Preis bis einschließlich 1. Januar (sonst 5,56 CAD)"
+   "en": "Black Friday price until January 1 (then $5.56)",
+   "de": "Black-Friday-Preis bis 1. Januar (danach 5,56 CAD)"
   },
   {
    "en": "Presence insights <span data-addon-price=\"normal\" style=\"color:var(--mut);font-weight:600\">$5.56 CAD</span><span data-addon-price=\"half\" style=\"display:none;color:var(--acc2);font-weight:800\">$2.78 CAD</span>",
@@ -1221,22 +1217,6 @@
   {
    "en": "<span data-until-basics>The sample house in Live Aboard, PadSpan Pro's 3D house.</span><span data-from-basics style=\"display:none\">The sample house in Live Aboard, furnished with PadSpan Pro.</span>",
    "de": "<span data-until-basics>Das Beispielhaus in Live Aboard, dem 3D-Haus von PadSpan Pro.</span><span data-from-basics style=\"display:none\">Das Beispielhaus in Live Aboard, eingerichtet mit PadSpan Pro.</span>"
-  },
-  {
-   "en": "PadSpan Pro adds Furnish, fixture shapes and the wall screen's extras",
-   "de": "PadSpan Pro bringt „Einrichten“, Leuchtenformen und die Extras des Wanddisplays"
-  },
-  {
-   "en": "<b>Live Aboard's extras.</b> The house in 3D is free. Pro adds rain and snow outside, people and tags in the house, the 3D editor and the step-by-step setup.",
-   "de": "<b>Die Extras von Live Aboard.</b> Das Haus in 3D ist kostenlos. Pro bringt Regen und Schnee draußen, Personen und Tags im Haus, den 3D-Editor und die Einrichtung Schritt für Schritt."
-  },
-  {
-   "en": "<b>Fixture shapes</b>: every light in its real shape, size and angle, with WLED's Advanced controls, Automorph and Showcase. Placing each light and device exactly is free. See <a href=\"#lights\">Lights</a>.",
-   "de": "<b>Leuchtenformen</b>: jedes Licht in echter Form, Größe und echtem Winkel, mit der Advanced-Steuerung von WLED, Automorph und Showcase. Jedes Licht und Gerät genau zu platzieren ist kostenlos. Siehe <a href=\"#lights\">Licht</a>."
-  },
-  {
-   "en": "<b>Wall mode's extras</b>: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake. The plain wall screen is free.",
-   "de": "<b>Die Extras des Wandmodus</b>: nächtliches Dimmen, die Verschiebung gegen Einbrennen, Etagen im Wechsel und Aufwecken per Bewegung mit Fully Kiosk. Das einfache Wanddisplay ist kostenlos."
   },
   {
    "en": "<b>Every add-on.</b> Audio, Alarm &amp; security, Climate &amp; air quality, Vacation Mode &amp; presets, Advanced smart lighting, Wi-Fi coverage, Looks pack, Full house activity (listed as Time travel in PadSpan 0.38.300 and 0.38.301) and Presence insights all come with Pro<span data-from-basics style=\"display:none\">, and so do Advanced map creation and Robot vacuum</span>. <a href=\"/add-ons/\">What each one does</a>",

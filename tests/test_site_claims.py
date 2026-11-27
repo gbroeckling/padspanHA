@@ -245,10 +245,7 @@ _PAID_BASICS = ("Wall mode fits the whole house to a wall screen and dims it at 
                 "Place each light exactly where it hangs, in metres", "Fans, locks and sensors placed the same way",
                 "Placement comes with PadSpan Pro at $45 a year", "PadSpan Pro for exact placement, the 3D house and wall mode",
                 "Wall mode on the Atlas page is PadSpan Pro.", "The 3D house (Pro)", "PadSpan Pro's 3D house.",
-                "PadSpan Pro adds the 3D house, exact placement and wall mode",
-                "Lights glow in their real colour, lit windows glow at night", "Walk through the 3D house at eye height",
-                "Exact placement of every light, fan, lock and sensor",
-                "Wall mode fits the whole house to a wall screen, sizes the text for the room",
+                "From December 1, placing each light, the plain wall screen and the 3D house are free for everyone.",
                 "Live Aboard, the house in 3D, and Furnish", "Light placement, shapes, WLED, Showcase",
                 "Wall mode and the Atlas as your Overview", "a PDF, a LiDAR scan or a blank floor",
                 "Light placement — that is Bright Pro", "Light placement, fixture shapes and sizes",
@@ -263,9 +260,8 @@ _FREE_BASICS = ("It dims at night and shifts against burn-in",
                 "Wall mode on the Atlas page is free; its night dimming and burn-in shift are PadSpan Pro.",
                 "and a RoomPlan app that shares USDZ, and PadSpan Pro or the Advanced map creation add-on",
                 "The sample house in Live Aboard, furnished with PadSpan Pro.",
-                "PadSpan Pro adds Furnish, fixture shapes and the wall screen's extras",
-                "Live Aboard's extras. The house in 3D is free.", "Placing each light and device exactly is free.",
-                "The plain wall screen is free.", ", and so do Advanced map creation and Robot vacuum",
+                "Placing each light, the plain wall screen and the 3D house are free for everyone.",
+                ", and so do Advanced map creation and Robot vacuum",
                 "Furnish, people and the editor in the 3D house", "Fixture shapes, WLED, Showcase",
                 "The wall screen's extras and the Atlas as your Overview",
                 "Exact light and device placement, the wall screen and the 3D house", "Exact light and device placement",
@@ -337,6 +333,29 @@ def test_the_lifetime_price_matches_the_panel_and_switches_on_the_same_date(html
     assert f'data-launch-until="{until}"' in html, "the site switches the price at a different moment than the panel"
     assert float(launch) == _SKUS["padspan-pro-lifetime"][0] == 89.0
     assert full == "168" and 'value="168.00"' in html and "$168" in html, "the page's switch to $168"
+
+
+def test_the_black_friday_line_under_the_hero_goes_when_the_launch_price_does(html: str) -> None:
+    """The owner's line under the hero's buttons (2026-11-27): Pro for life at the launch price until November 30,
+    the full price until December 15, then no lifetime, and the add-ons' sale until January 1, at editions.js's
+    prices. Without JavaScript it shows; with it, it goes by itself at PRO_LIFETIME_LAUNCH_UNTIL, the moment the
+    lifetime box switches to the full price."""
+    ed = _ED.read_text(encoding="utf-8")
+    until = re.search(r'PRO_LIFETIME_LAUNCH_UNTIL = "([^"]+)"', ed).group(1)
+    launch = re.search(r'PRO_LIFETIME_LAUNCH_PRICE = "\$(\d+) CAD"', ed).group(1)
+    full = re.search(r'PRO_LIFETIME_FULL_PRICE = "\$(\d+) CAD"', ed).group(1)
+    hero = html[html.index('<header class="hero'):html.index("</header>")]
+    line = re.search(r'<p class="sub" id="bf-top" data-launch-until="([^"]+)"[^>]*>(.*?)</p>', hero, re.S)
+    assert line and line.group(1) == until == "2026-12-01T08:00:00Z"
+    assert hero.index('<div class="cta">') < line.start(), "under the buttons"
+    assert _seen(line.group(2)).strip() == (
+        f"Black Friday to Cyber Monday: PadSpan Pro for life is ${launch} CAD until Monday, November 30. "
+        f"Then it's ${full} until December 15, and after that there's no lifetime. "
+        "Every add-on is at its Black Friday price until January 1.")
+    assert '<a href="#pro">PadSpan Pro for life</a>' in line.group(2) and '<a href="#addons">Every add-on</a>' in line.group(2)
+    assert hero[line.end():].lstrip().startswith(
+        '<script>(function(){var e=document.getElementById("bf-top");'
+        'if(e&&Date.now()>=Date.parse(e.getAttribute("data-launch-until")))e.remove();})();</script>')
 
 
 def test_every_sku_routes_to_the_tier_it_claims(html: str) -> None:
@@ -567,8 +586,9 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
     """Every add-on on sale is HALF price, rounded down to the cent, from ADDON_HALF_FROM until ADDON_HALF_UNTIL
     (editions.js; the owner, 2026-11-25). The site's #addons box switches its shown price and each PayPal form's amount
     at the same two moments by itself (the visitor's clock; the licence server checks the payment's date), and says
-    "Half off until January 1" while it runs. The panel's addonPrice is run before, during and after the sale and the
-    page's normal and half amounts must be its answers. An add-on that goes on sale during it (on_sale_from, December 1)
+    "Black Friday prices on every add-on until January 1" while it runs (the owner, 2026-11-27: a later price, never
+    a "normally"). The panel's addonPrice is run before, during and after the sale and the page's normal and half
+    amounts must be its answers. An add-on that goes on sale during it (on_sale_from, December 1)
     is half off from that moment, which is when its box shows (the free-basics switch)."""
     import json
     import shutil
@@ -582,7 +602,7 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
     box = html[html.index('<div class="ed" id="addons"'):]
     box = box[:box.index('<div class="ed">')]
     assert f'data-half-from="{start}" data-half-until="{until}"' in box, "the site switches at other moments than the panel"
-    assert "Black Friday: every add-on is half off through January 1." in box
+    assert "Black Friday prices on every add-on until January 1." in box
     assert 'input[data-half-amount]' in box and 'e.value=e.getAttribute("data-half-amount")' in box
     assert 'n<Date.parse(b.getAttribute("data-half-from"))||n>=Date.parse(b.getAttribute("data-half-until"))' in box
     node = shutil.which("node")
@@ -624,7 +644,7 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
         assert f'name="amount" value="{normal}" data-half-amount="{sale}"' in row, name
         assert f'data-addon-price="normal" style="color:var(--mut);font-weight:600">${normal} CAD</span>' in row, name
         assert f'data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">${sale} CAD</span>' in row, name
-        assert f"Half off through January 1 (normally ${normal})" in row, name
+        assert f"Black Friday price until January 1 (then ${normal})" in row, name
 
 
 def test_the_add_ons_version_note_holds_on_stable_day_and_after(html: str) -> None:

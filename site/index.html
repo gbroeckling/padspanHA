@@ -188,6 +188,11 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <a class="btn ghost" href="demo/">Try the demo house</a>
     <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA">View on GitHub</a>
   </div>
+  <!-- Black Friday to Cyber Monday (the owner, 2026-11-27): the lifetime launch price's last days. It goes by itself
+       at the lifetime price's switch (editions.js PRO_LIFETIME_LAUNCH_UNTIL, #pro-lifetime's data-launch-until);
+       visitors without JavaScript keep it until the Dec 1 tidy takes it out. -->
+  <p class="sub" id="bf-top" data-launch-until="2026-12-01T08:00:00Z" style="max-width:900px"><b>Black Friday to Cyber Monday:</b> <a href="#pro">PadSpan Pro for life</a> is $89 CAD until Monday, November 30. Then it's $168 until December 15, and after that there's no lifetime. <a href="#addons">Every add-on</a> is at its Black Friday price until January 1.</p>
+  <script>(function(){var e=document.getElementById("bf-top");if(e&&Date.now()>=Date.parse(e.getAttribute("data-launch-until")))e.remove();})();</script>
 </header>
 
 <div class="wrap">
@@ -423,24 +428,19 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
 <section class="wrap" id="pro">
   <div class="kick">PadSpan Pro</div>
-  <h2 data-until-basics>PadSpan Pro adds the 3D house, exact placement and wall mode</h2><h2 data-from-basics style="display:none">PadSpan Pro adds Furnish, fixture shapes and the wall screen's extras</h2>
-  <p class="lede">Pro is a key you enter in the same integration. It adds everything below, it includes every add-on, and every new PadSpan feature is included while the key runs. PadSpan gets new releases every week, and buying Pro is what keeps them coming. <a href="/pro/">The PadSpan Pro page</a> goes through each feature in detail.</p>
+  <h2>PadSpan Pro adds people in the 3D house, Furnish, the wall screen's extras and every add-on</h2>
+  <p class="lede"><span data-until-basics>From December 1, placing each light, the plain wall screen and the 3D house are free for everyone.</span><span data-from-basics style="display:none">Placing each light, the plain wall screen and the 3D house are free for everyone.</span> Pro is a key you enter in the same integration. It adds everything below, it includes every add-on, and every new PadSpan feature is included while the key runs. PadSpan gets new releases every week, and buying Pro is what keeps them coming. <a href="/pro/">The PadSpan Pro page</a> goes through each feature in detail.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
     <div class="feat">
       <h3>Only with Pro</h3>
       <ul class="steps">
-        <li data-until-basics><b>Live Aboard</b>, your house in 3D, like looking into a house in The Sims. Lights glow in their real colour, lit windows glow at night, rain and snow fall outside, and the Studio look puts the house under a sky that follows the real sun. It's experimental and off until you turn it on.</li>
-        <li data-from-basics style="display:none"><b>Live Aboard's extras.</b> The house in 3D is free. Pro adds rain and snow outside, people and tags in the house, the 3D editor and the step-by-step setup.</li>
-        <li data-until-basics><b>Walk</b> through the 3D house at eye height. A door with a sensor opens when the real door does, and the stairs take you up and down.</li>
-        <li><b>The view flies to what happens.</b> On the sidebar and wall screens, the 3D house flies to a doorbell that rings, a door that opens or an alarm that goes off, with a camera's snapshot if you pick one, then goes back after 20 seconds. An administrator picks what to watch in Settings.</li>
+        <li><b>People and tags on the Atlas and in the 3D house</b>, where PadSpan places them.</li>
+        <li><b>The 3D editor</b>, to draw doors, windows and doorways in the 3D house and set each device's height.</li>
         <li><b>Furnish</b> fills a room in one tap, or piece by piece from 33 kinds of furniture. Link a piece to a device and a lamp glows with its light, a TV lights up while it plays, and a fan's blades turn.</li>
-        <li data-until-basics><b>Exact placement</b> of every light, fan, lock and sensor, in its real shape, size and angle, with WLED's Advanced controls, Automorph and Showcase. See <a href="#lights">Lights</a>.</li>
-        <li data-from-basics style="display:none"><b>Fixture shapes</b>: every light in its real shape, size and angle, with WLED's Advanced controls, Automorph and Showcase. Placing each light and device exactly is free. See <a href="#lights">Lights</a>.</li>
-        <li data-until-basics><b>Wall mode</b> fits the whole house to a wall screen, sizes the text for the room, dims at night and, on HTTPS, keeps the screen awake.</li>
-        <li data-from-basics style="display:none"><b>Wall mode's extras</b>: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake. The plain wall screen is free.</li>
-        <li><b>The new Atlas layout</b>, with a ⋯ list that sets what each screen shows.</li>
+        <li><b>The view flies to what happens.</b> On the sidebar and wall screens, the 3D house flies to a doorbell that rings, a door that opens or an alarm that goes off, with a camera's snapshot if you pick one, then goes back after 20 seconds. An administrator picks what to watch in Settings.</li>
+        <li><b>The wall screen's extras</b>: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake.</li>
+        <li><b>The new Atlas layout</b> away from a wall screen, with a ⋯ list that sets what each screen shows.</li>
         <li><b>The Atlas as your Overview</b>, the first thing PadSpan opens.</li>
-        <li><b>People and tags on the Atlas</b>, where PadSpan places them.</li>
       </ul>
       <img src="images/live-aboard-3d-house.jpg" width="1600" height="944" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line);margin-top:14px">
       <p class="caption">Live Aboard at night, with the lights that are on.</p>
@@ -589,14 +589,14 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <div class="ed" id="addons" data-half-from="2026-11-27T08:00:00Z" data-half-until="2027-01-02T08:00:00Z" style="grid-column:1/-1;scroll-margin-top:88px">
       <h3>Add-ons</h3>
       <div class="sub">For PadSpan HA without Pro · one feature each</div>
-      <p data-addon-price="half" style="display:none;font-size:15px;color:var(--acc2);font-weight:800;margin:0 0 8px">Black Friday: every add-on is half off through January 1.</p>
+      <p data-addon-price="half" style="display:none;font-size:15px;color:var(--acc2);font-weight:800;margin:0 0 8px">Black Friday prices on every add-on until January 1.</p>
       <p style="font-size:14px;color:#c4d6c9;margin:0 0 12px">Each add-on is one payment that covers 2 years, no subscription. Up to 3 homes, updates included, keeps working offline. Enter the key in Settings → Features → PadSpan licence; buy another with the same email and it joins that key. PadSpan Pro includes them all.</p>
       <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px">Add-ons need the latest PadSpan.</p>
       <p style="font-size:13px;color:#c4d6c9;margin:-6px 0 12px"><a href="/add-ons/">The add-ons page</a> has the details of each one.</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
         <div id="audio" data-addon="audio" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Audio <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $6.45)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Each room's players on the map: now playing, volume, source and sound mode, tone and surround, music shared to other rooms, and Room off</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -613,7 +613,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="alarm" data-addon="alarm" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Alarm &amp; security <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $6.45)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Arm and disarm, open and close garage doors and gates in their card, and test the emergency lights. A triggered alarm, locks, shades and Alert pulse stay free</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -630,7 +630,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="wifi" data-addon="wifi" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Wi-Fi coverage <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $6.45)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The UniFi Wi-Fi coverage map</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -647,7 +647,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="climate" data-addon="climate" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Climate &amp; air quality <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $8.65)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $8.65)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The ♨ Heatmap: rooms by temperature, humidity and CO₂, and each room's thermostats in its card</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -664,7 +664,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="activity" data-addon="timetravel" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Full house activity <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$7.55 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.77 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $7.55)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $7.55)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">The day replayed in Traceback on your Atlas map: lights, doors, sensors and who was where</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -681,7 +681,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="vacation" data-addon="vacation" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Vacation Mode &amp; presets <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $4.25)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $4.25)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Vacation Mode and Whole house presets</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -698,7 +698,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="looks" data-addon="looks" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Looks pack <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$4.25 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.12 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $4.25)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $4.25)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Four panel themes, 20 Showcase looks for the map including the West Coast Forest, and saved look presets. The light glow (Automorph) is Advanced smart lighting's</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -715,7 +715,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div id="insights" data-addon="insights" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Presence insights <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$5.56 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$2.78 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $5.56)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $5.56)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Locate walks you to a lost tag room by room; Busy Times shows each room's busy hours; Forensics shows which Bluetooth devices were near a receiver in any time window</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -732,7 +732,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div data-from-basics style="display:none"><div id="maps" data-addon="maps" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;height:100%">
           <div style="font-weight:800">Advanced map creation <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $8.65)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $8.65)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">AI plan reading, a LiDAR scan's doors, windows, furniture and stairs in the 3D house, Furniture from scans, and floor plans from a LiDAR scan</div>
           <div style="font-size:12px;color:var(--acc2);margin:-4px 0 10px">30% off ($6.05 CAD) if you already own Robot vacuum: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
@@ -750,7 +750,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div></div>
         <div id="lighting" data-addon="lighting" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column">
           <div style="font-weight:800">Advanced smart lighting <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$8.65 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$4.32 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $8.65)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $8.65)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Smart bulbs behind a wall switch work as one light that follows the day, dims for sleep and wakes you; WLED's Advanced controls; a glow from each light into its room; fixture shapes with their size and angle, the type override, Hide untouched and Showcase's Classic theme</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">
             <input type="hidden" name="cmd" value="_xclick">
@@ -767,7 +767,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         </div>
         <div data-from-basics style="display:none"><div id="vacuum" data-addon="vacuum" style="scroll-margin-top:88px;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;height:100%">
           <div style="font-weight:800">Robot vacuum <span data-addon-price="normal" style="color:var(--mut);font-weight:600">$6.45 CAD</span><span data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">$3.22 CAD</span></div>
-          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Half off through January 1 (normally $6.45)</div>
+          <div data-addon-price="half" style="display:none;font-size:12px;color:var(--acc2);font-weight:700;margin-top:2px">Black Friday price until January 1 (then $6.45)</div>
           <div style="font-size:13px;color:var(--mut);margin:4px 0 10px">Your robot vacuum's map as a floor plan, the robot on the Atlas map and in 3D, room location runs, the mistake finder, and Wi-Fi while it cleans (with Wi-Fi coverage)</div>
           <div style="font-size:12px;color:var(--acc2);margin:-4px 0 10px">30% off ($4.51 CAD) if you already own Advanced map creation: buy it from PadSpan's licence card (Settings → Features → PadSpan licence), with the email your key was sent to. The better of this and any sale applies, never both.</div>
           <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" style="margin-top:auto">

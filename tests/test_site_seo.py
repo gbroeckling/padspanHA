@@ -3,10 +3,11 @@
 * /pro/ sells Pro for life itself: the home page's own lifetime box, its $89 -> $168 script and the two-year box
   that takes its place from December 16, copied, never retyped, and held to the home page here (the German page
   to the German home page that scripts/build_site_de.py makes). Its description quotes both lifetime prices.
-* /add-ons/ says the sale and its days in its title (60 characters at most, " | PadSpan HA" included),
-  description and og: lines, in words true before it starts and while it runs, and never implies Advanced map
-  creation or Robot vacuum are half off before they go on sale. Each add-on's heading shows its price, and half of
-  it in the sale, switched the way the home page's #addons box switches its prices (the owner, 2026-11-26).
+* /add-ons/ says the sale and its last day in its title (60 characters at most, " | PadSpan HA" included),
+  description and og: lines, as a Black Friday price with the price after it, never a "normally" (the owner,
+  2026-11-27), and never names Advanced map creation or Robot vacuum before they go on sale. Each add-on's heading
+  shows its price, and half of it in the sale, switched the way the home page's #addons box switches its prices
+  (the owner, 2026-11-26).
 * Structured data only on the home page (PadSpan HA, free) and /pro/ (Pro for life's two prices). /add-ons/
   marks up no price: its prices switch in the browser.
 * Every date and price said here comes from the panel's one source, views/editions.js. Its moments are midnight
@@ -204,7 +205,7 @@ _FROM_DEC1 = {"en": ("Advanced map creation", "Robot vacuum"), "de": ("Erweitert
 
 @pytest.mark.parametrize("lang", ["en", "de"])
 def test_the_add_ons_page_says_the_sale_in_its_title_and_description(lang: str) -> None:
-    """With its first and last day, so it is true before the sale starts as well as while it runs."""
+    """With its last day, in words true while it runs: a Black Friday price, never a claim of a normal one."""
     page = _read(_ADDONS[lang])
     title = re.search(r"<title>([^<]+)</title>", page).group(1)
     desc = _meta(page, "name", "description")
@@ -215,16 +216,15 @@ def test_the_add_ons_page_says_the_sale_in_its_title_and_description(lang: str) 
     nov27, jan1 = _first_day("ADDON_HALF_FROM"), _last_day("ADDON_HALF_UNTIL")
     assert (nov27, jan1) == (date(2026, 11, 27), date(2027, 1, 1))
     term = re.search(r'export const ADDON_TERM = "(\d+) years";', _read(_ED)).group(1)
-    short = {d: f"{d.day}. {_MONTHS_DE[d.month][:3]}." for d in (nov27, jan1)}     # "27. Nov.": the title's 60
-    said = {"en": (f"half off from {_en(nov27)} to {_en(jan1)} |",
-                   f"Every add-on on sale is half off from {_en(nov27)} to {_en(jan1)}.",
+    said = {"en": (f"Black Friday prices until {_en(jan1)} |",
+                   f"Black Friday prices on every add-on until {_en(jan1)}.",
                    "One feature each", f"one payment for {term} years on up to 3 homes", "PadSpan Pro includes them all."),
-            "de": (f"{short[nov27]} bis {short[jan1]} zum halben Preis |",
-                   f"Jedes erhältliche Add-on vom {_de(nov27)} bis {_de(jan1)} zum halben Preis.",
+            "de": (f"Black-Friday-Preise bis {_de(jan1)} |",
+                   f"Black-Friday-Preise für jedes Add-on bis {_de(jan1)}.",
                    "Je eine Funktion", f"eine Zahlung für {term} Jahre auf bis zu 3 Zuhause", "Pro enthält sie alle.")}[lang]
     assert said[0] in title and all(words in desc for words in said[1:]), (title, desc)
     # They go on sale after the sale starts, so nothing seen before a click names them: nothing implies they are
-    # half off before December 1.
+    # at a sale price before December 1.
     assert _first_day("FREE_BASICS_FROM") > _first_day("ADDON_HALF_FROM")
     for name in _FROM_DEC1[lang]:
         assert name not in title + desc, name
@@ -276,7 +276,7 @@ def _behind_december_1(page: str, anchor: str) -> bool:
 def test_the_add_ons_page_shows_each_price_and_half_of_it_in_the_sale_as_the_home_page_does(homes: dict, lang: str) -> None:
     """Each add-on on sale shows its editions.js price in its heading, in the markup the live page had (a
     span.price), and from ADDON_HALF_FROM until ADDON_HALF_UNTIL half of it, rounded down to the cent, with the home
-    page's own words under it, "Half off through January 1 (normally $6.45)", in German as the German home page
+    page's own words under it, "Black Friday price until January 1 (then $6.45)", in German as the German home page
     says it. The switch is the home page's #addons script on the same two moments, so without JavaScript the
     normal price shows. Advanced map creation and Robot vacuum sit behind the December 1 switch (FREE_BASICS_FROM):
     they show only once they are on sale, already at their sale price."""
@@ -296,7 +296,7 @@ def test_the_add_ons_page_shows_each_price_and_half_of_it_in_the_sale_as_the_hom
     assert set(sections) == set(want) and len(want) == 11
     for anchor, a in want.items():
         normal, half = _amount(a["price"]), _half(a["price"])
-        words = f"Half off through January 1 (normally ${normal})"
+        words = f"Black Friday price until January 1 (then ${normal})"
         assert words in homes["en"], "the home page's own words"
         note = words if lang == "en" else units[words]
         heading = re.match(r"<h3>([^<]+) (<span.*?)</h3>\n", sections[anchor])
