@@ -13,7 +13,7 @@
 ### Changed
 - **Room off also quiets players that can't turn off.** A playing Sonos is paused (or stopped, or muted) with the rest of the room, and counted in the button.
 - **An off player shows only On,** plus its sources where picking one starts it. Mute, volume and Sound come back once it is on.
-- **Shades: a row for each shade,** with how far it is open and its own Open, Stop and Close, plus an All row for two or more. Dampers, windows and garage or door openers are never listed as shades, named or not.
-- **A thermostat that holds a range** (heat to and cool to) gets − and + for each, instead of a row with nothing to press. The room's card no longer repeats the room's temperature under Thermostats or in the list.
+- **Shades: a row for each shade,** with how far it is open and its own Open, Stop and Close, plus an All row for two or more. Dampers, windows and garage or door openers are never listed as shades; a cover named as a door but also as a blind or shade ("Patio door blind") still is one.
+- **A thermostat that holds a range** (heat to and cool to) gets − and + for each, instead of a row with nothing to press. The two are kept at least 1 °C (2 °F) apart, as thermostats that need a gap expect. The room's card no longer repeats the room's temperature under Thermostats or in the list.
 - **Match rooms moved to Audio's Set up ›** in the ⋯ list, so a room's card is shorter. It is not offered on a wall screen, where the room's card is also larger.
 - **The volume slider keeps its 0 to 100 scale** when a player has a limit: the part past the limit is marked, and the knob stops there.

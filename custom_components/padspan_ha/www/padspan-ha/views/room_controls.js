@@ -78,8 +78,28 @@ const COVER_OPEN = 1, COVER_CLOSE = 2, COVER_STOP = 8;
 // A cover that is a garage door, a gate or a door is an opener (its door's card, Alarm & security's), never a shade
 // here: by its device class, or linked as a door's opener (o.openers).
 const NOT_SHADES = new Set(["garage", "gate", "door", "damper", "window"]);
-// A cover with no device class named as a door, a gate or a garage is an opener too ("Garage side door opener").
+// A cover with no device class named as a door, a gate or a garage is an opener too ("Garage side door opener"),
+// unless its name says it is a shade as well ("Patio Door Blind", "Back door shade", "Terrassentür Rollladen").
 const DOORISH = /\b(door|gate|garage)\b/i;
+const SHADE_WORDS = /\b(blinds?|shades?|curtains?|shutters?|awnings?|drapes?|drapery|draperies|screens?|rollers?|louvres?|louvers?)\b|rollo|roll?laden|jalousie|vorh(a|ä)ng/i;
+/** Does a cover's name (its friendly name, its entity id, and a linked wall's name) say it opens a door, a gate or a
+ *  garage: a door word and no shade word. The one name rule of isShade and openersOf. */
+export const openerNamed = (text) => { const s = String(text || "").replace(/_/g, " "); return DOORISH.test(s) && !SHADE_WORDS.test(s); };
+/** The covers that open a door or a gate, never a shade: the ones marked (Devices → Door Openers' ids), each wall's
+ *  linked opener on the map, and a cover linked to a wall that has no device class and is named as an opener
+ *  (openerNamed, with the wall's name). lights_panel.js and the Shades tip both ask this. */
+export function openersOf(model, states, marked){
+  const out = new Set((Array.isArray(marked) ? marked : []).filter(e => typeof e === "string"));
+  const st = states || {};
+  for (const b of (model && model.rf_barriers_m) || []) {
+    if (b && typeof b.linked_opener_entity_id === "string") out.add(b.linked_opener_entity_id);
+    const e = b && b.linked_entity_id;
+    if (typeof e !== "string" || !e.startsWith("cover.")) continue;
+    const a = (Object.prototype.hasOwnProperty.call(st, e) && st[e] && st[e].attributes) || {};
+    if (!a.device_class && openerNamed(`${b.name || ""} ${a.friendly_name || ""} ${e}`)) out.add(e);
+  }
+  return out;
+}
 const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
 // A player making sound now, and the states of a player that has media at all (Any audio in house off).
 const SOUNDING = new Set(["playing", "buffering"]), MEDIA_STATES = new Set(["playing", "paused", "idle", "buffering"]);
@@ -116,7 +136,7 @@ export function isShade(hass, eid, openers = null){
   if (!s) return false;
   const a = s.attributes || {}, dc = String(a.device_class || "");
   if (NOT_SHADES.has(dc) || (openers && typeof openers.has === "function" && openers.has(eid))) return false;
-  return !(!dc && DOORISH.test(`${a.friendly_name || ""} ${eid}`.replace(/_/g, " ")));
+  return !(!dc && openerNamed(`${a.friendly_name || ""} ${eid}`));
 }
 /** Is a player on (playing, paused, idle, on): anything but off, standby, unavailable, unknown. platform: a Control4
  *  room (Home Assistant core's control4) says idle while it is off, never off: idle is off there. */
@@ -972,7 +992,8 @@ export function createRoomControls(o){
       for (const c of shareCandidates(p)) {
         const row = mk("div", S.row + ";flex-wrap:nowrap;border-bottom:1px solid rgba(120,190,155,.08)");
         row.setAttribute("data-eid", c.eid);
-        const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 0;min-width:0;cursor:pointer;font-size:13px");
+        // The tick and about 90 px of the room's name, whatever the slider beside it takes (a phone cut it to "Up…").
+        const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 0;min-width:122px;cursor:pointer;font-size:13px");
         const cb = mk("input", "width:22px;height:22px;margin:0;flex:0 0 auto;accent-color:#52b788");
         cb.type = "checkbox"; cb.checked = inGroup(c.eid);
         cb.setAttribute("aria-label", t("Play in {room}", { room: c.room }));
@@ -1073,7 +1094,8 @@ export function createRoomControls(o){
     if (!all) {
       const pos = Number(a.current_position), known = a.current_position !== null && a.current_position !== undefined && Number.isFinite(pos);
       const open = known ? pos > 0 : ["open", "opening"].includes(s.state);
-      row.appendChild(mk("span", S.chip(open), known ? t("{pct} % open", { pct: Math.round(pos) }) : SHADE_STATE[s.state] ? SHADE_STATE[s.state]() : String(s.state)));
+      const word = known ? t("{pct} % open", { pct: Math.round(pos) }) : SHADE_STATE[s.state] ? SHADE_STATE[s.state]() : String(s.state);
+      row.appendChild(mk("span", S.chip(open), word.charAt(0).toLocaleUpperCase() + word.slice(1)));   // "Closed", "Zu"
     }
     const ctl = mk("span", S.ctl);
     for (const [bit, service, text] of [[COVER_OPEN, "open_cover", t("Open")], [COVER_STOP, "stop_cover", t("Stop")], [COVER_CLOSE, "close_cover", t("Close")]]) {
@@ -1125,13 +1147,16 @@ export function createRoomControls(o){
         call("climate", "set_temperature", { entity_id: eid, temperature: v }, "climate", name, () => opt.delete(eid));
       }, "target"));
     } else if (has(s, CLIMATE_RANGE) && low !== null && high !== null) {
-      // Heat to never passes cool to, nor cool to heat to.
+      // Heat to and cool to stay at least 1 °C (2 °F) apart, or the thermostat's own step where that is more: a
+      // thermostat that needs a gap refuses less with an error. A press that would close it sends nothing.
+      const gap = Math.max(/F/i.test(unit) ? 2 : 1, step);
       const send = (l, h) => {
+        if (h - l < gap - 1e-9) return;
         opt.set(eid, { low: l, high: h, until: Date.now() + OPTIMISTIC_MS });
         call("climate", "set_temperature", { entity_id: eid, target_temp_low: l, target_temp_high: h }, "climate", name, () => opt.delete(eid));
       };
-      row.appendChild(pair(t("Heat to"), low, t("{name}: heat to, down", { name }), t("{name}: heat to, up", { name }), (dir) => send(clamp(low + dir * step, lo, high), high), "low"));
-      row.appendChild(pair(t("Cool to"), high, t("{name}: cool to, down", { name }), t("{name}: cool to, up", { name }), (dir) => send(low, clamp(high + dir * step, low, hi)), "high"));
+      row.appendChild(pair(t("Heat to"), low, t("{name}: heat to, down", { name }), t("{name}: heat to, up", { name }), (dir) => send(clamp(low + dir * step, lo, hi), high), "low"));
+      row.appendChild(pair(t("Cool to"), high, t("{name}: cool to, down", { name }), t("{name}: cool to, up", { name }), (dir) => send(low, clamp(high + dir * step, lo, hi)), "high"));
     }
     return row;
   }

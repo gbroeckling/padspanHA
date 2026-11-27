@@ -1604,7 +1604,8 @@ export function openAggregateSheet(api, spec, o = {}){
   if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", into ? _S.inPanel : _S.sheet + (desktop ? ";border-radius:16px" : ""));
   // On a wall (api.kiosk) the card is read from across the room: larger, every part of it alike.
-  if (!into && api && api.kiosk) sheet.style.zoom = "1.35";
+  // Its height cap is zoomed too: divided back, so the card's top and bottom stay on the screen (it ran off a 1080p wall).
+  if (!into && api && api.kiosk) { sheet.style.zoom = "1.35"; sheet.style.setProperty("max-height", "calc(78vh / 1.35)"); }
   const greyed = ";opacity:.45;cursor:default";
   let drawn = null;
   // before / after (room controls, room_controls.js, only while a screen has them on): {sig, draw()} parts drawn

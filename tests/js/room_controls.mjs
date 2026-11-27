@@ -481,7 +481,7 @@ await tryCase("covers", async () => {
   delete h.hass.states["cover.great_room_right"];
   h.hass.states["cover.great_room_left"] = ST("cover.great_room_left", "closed", { friendly_name: "Left blind", supported_features: 1 | 2 });
   const one = r.rc.sheet("Great Room", { parts: { audio: false, shades: true, climate: false } }).after.draw();
-  check("covers", all(one).map(n => n._text).filter(Boolean).join("|") === "Shades|Left blind|closed|Open|Close", all(one).map(n => n._text).filter(Boolean));
+  check("covers", all(one).map(n => n._text).filter(Boolean).join("|") === "Shades|Left blind|Closed|Open|Close", all(one).map(n => n._text).filter(Boolean));
   s.close(); reset();
   // The garage: its door is no shade, so the sheet has none.
   const g = LM.openRoomSheet(apiOf(h, r.rc), lightsOf(h), "Garage");
@@ -1446,6 +1446,17 @@ await tryCase("shade-rule", async () => {
   check("shade-rule", is("cover.great_room_left") && is("cover.great_room_curtain") && !is("cover.great_room_damper") && !is("cover.great_room_window")
     && !is("cover.great_room_side_door_opener") && !is("cover.garage_door") && !is("light.great_room_pots") && !is("cover.nothing_here"), "isShade");
   check("shade-rule", !is("cover.great_room_left", new Set(["cover.great_room_left"])), "a linked opener is a shade");
+  // The door name rule gives way to a shade word: a blind on a patio door is a blind.
+  const named = (name, eid = "cover.x") => RC.isShade({ states: { [eid]: ST(eid, "closed", { friendly_name: name, supported_features: 3 }) } }, eid);
+  check("shade-rule", named("Patio Door Blind") && named("Back door shade") && named("Living blind") && named("Terrassentür Rollladen") && named("Garage window shutter")
+    && !named("Garage side door opener") && !named("Gate") && !named("Front door", "cover.front_door"), ["Patio Door Blind", "Back door shade", "Living blind", "Garage side door opener", "Gate"].map(n => named(n)));
+  check("shade-rule", !named("Anything", "cover.garage_door") && named("Anything", "cover.patio_door_blind"), "by the entity id");
+  // One rule for the openers too: a blind linked to a patio door on the map stays a shade; an opener named so is one.
+  const states = { "cover.patio_blind": ST("cover.patio_blind", "open", { friendly_name: "Patio blind" }), "cover.side": ST("cover.side", "closed", { friendly_name: "Side opener" }),
+    "cover.awning": ST("cover.awning", "open", { friendly_name: "Awning", device_class: "awning" }) };
+  const ops = RC.openersOf({ rf_barriers_m: [{ name: "Patio door", linked_entity_id: "cover.patio_blind" }, { name: "Garage side door", linked_entity_id: "cover.side" },
+    { name: "Deck door", linked_entity_id: "cover.awning" }, { linked_opener_entity_id: "cover.gate_motor" }] }, states, ["cover.marked", 3]);
+  check("shade-rule", [...ops].sort().join() === "cover.gate_motor,cover.marked,cover.side", [...ops]);
   const r = controls(h, { matches: {} });
   const sec = r.rc.sheet("Great Room", { parts: { audio: false, shades: true, climate: false } }).after.draw();
   const rows = all(sec).filter(n => n.attributes && n.attributes["data-eid"]).map(n => n.attributes["data-eid"]);
@@ -1486,6 +1497,21 @@ await tryCase("range", async () => {
   const r2 = controls(house({ "climate.great_room": ST("climate.great_room", "heat_cool", { friendly_name: "Tight", target_temp_low: 22, target_temp_high: 22, supported_features: 2 }) }), { matches: {} });
   const row2 = rowOf(r2.rc.sheet("Great Room", { parts: { audio: false, shades: false, climate: true } }).after.draw(), "climate.great_room");
   check("range", texts(row2).includes("22°") && byAria(row2, "Tight: heat to, up"), texts(row2));
+  // Heat to and cool to stay 1 °C apart (2 °F, or the thermostat's step where that is more): a press that would close
+  // the gap sends nothing; one that keeps it goes.
+  const gapOf = (unit, low, high, step) => {
+    const hg = house({ "climate.great_room": ST("climate.great_room", "heat_cool", { friendly_name: "G", target_temp_low: low, target_temp_high: high, target_temp_step: step, supported_features: 2 }) });
+    hg.hass.config.unit_system.temperature = unit;
+    return { hg, rg: controls(hg, { matches: {} }) };
+  };
+  const pressIn = async (o, aria) => { const rw = rowOf(o.rg.rc.sheet("Great Room", { parts: { audio: false, shades: false, climate: true } }).after.draw(), "climate.great_room");
+    const k = o.hg.calls.length; await press(byAria(rw, aria)); return o.hg.calls.slice(k).map(c => `${c.target_temp_low}-${c.target_temp_high}`).join(); };
+  const c1 = gapOf("°C", 21, 22, 0.5);
+  check("range", await pressIn(c1, "G: heat to, up") === "" && await pressIn(c1, "G: cool to, down") === "" && await pressIn(c1, "G: heat to, down") === "20.5-22", "°C gap");
+  const f1 = gapOf("°F", 70, 73, 1);
+  check("range", await pressIn(f1, "G: heat to, up") === "71-73" && await pressIn(f1, "G: heat to, up") === "", "°F gap");
+  const s1 = gapOf("°C", 20, 22, 2);
+  check("range", await pressIn(s1, "G: heat to, up") === "" && await pressIn(s1, "G: cool to, up") === "20-24", "the step is the gap");
   // Its own current temperature only without the card's status line (no temperature sensor in the room).
   const h3 = house({ "climate.great_room": ST("climate.great_room", "heat", { friendly_name: "T", current_temperature: 20.4, temperature: 21, supported_features: 1 }) });
   for (const e of Object.keys(h3.hass.states)) if (e.startsWith("sensor.")) delete h3.hass.states[e];
@@ -1520,7 +1546,8 @@ await tryCase("sheet-tidy", async () => {
   check("sheet-tidy", /great room temperature/.test(all(sheetNow()).map(n => n._text).join("|")), "the sensors' rows went without room controls");
   plain.close(); reset();
   const wall = LM.openRoomSheet({ ...apiOf(h, r.rc), kiosk: true }, lights, "Great Room");
-  check("sheet-tidy", /zoom:1\.35/.test(sheetNow().children[0].style.cssText), sheetNow().children[0].style.cssText);
+  // Zoomed, its height cap is divided back so the card stays on the screen.
+  check("sheet-tidy", /zoom:1\.35/.test(sheetNow().children[0].style.cssText) && /max-height:calc\(78vh \/ 1\.35\)/.test(sheetNow().children[0].style.cssText), sheetNow().children[0].style.cssText);
   wall.close(); reset();
   check("sheet-tidy", !/zoom/.test((() => { const x = LM.openRoomSheet(apiOf(h, r.rc), lights, "Great Room"); const c = sheetNow().children[0].style.cssText; x.close(); reset(); return c; })()), "zoom off a wall");
 });

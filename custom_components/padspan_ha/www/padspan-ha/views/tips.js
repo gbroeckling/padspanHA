@@ -290,20 +290,16 @@ export const tipById = (id) => BY_ID.get(id) || null;
  * states and entity registry, PadSpan's model, floor plans, receivers and settings.
  * Counts only.
  */
-/** The covers that open a door or a gate, as far as the model and the settings say (Devices → Door Openers' marked ones,
- *  a wall's opener on the map): never a shade. lights_panel.js _doorOpeners knows more (names), and hands its own. */
-export function openersFrom(model, settings) {
-  const out = new Set(Array.isArray(settings && settings.door_opener_ids) ? settings.door_opener_ids.filter((e) => typeof e === "string") : []);
-  for (const b of (model && model.rf_barriers_m) || []) {
-    if (b && typeof b.linked_opener_entity_id === "string") out.add(b.linked_opener_entity_id);
-    if (b && typeof b.linked_entity_id === "string" && b.linked_entity_id.startsWith("cover.")) out.add(b.linked_entity_id);
-  }
-  return out;
+/** The covers that open a door or a gate, by the room card's own rule (room_controls.js openersOf, as lights_panel.js
+ *  _doorOpeners asks it): Devices → Door Openers' marked ones, a wall's opener on the map, and a cover linked to a wall
+ *  and named as an opener. Never a shade. */
+export function openersFrom(model, settings, states) {
+  return RC ? RC.openersOf(model, states, settings && settings.door_opener_ids) : new Set();
 }
 export function factsFrom(src) {
   const o = src || {};
   const states = o.states || {}, ents = o.entities || {}, model = o.model || {}, s = o.settings || {};
-  const openers = o.openers instanceof Set ? o.openers : openersFrom(model, s);
+  const openers = o.openers instanceof Set ? o.openers : openersFrom(model, s, states);
   const f = { plans: 0, rooms: 0, lights: 0, placedLights: 0, receivers: 0, tracked: 0, climate: 0, airSensors: 0,
     shades: 0, garage: 0, openings: 0, media: 0, audioMatched: 0, alarmPanels: 0, wled: 0, vacuums: 0, aiTasks: 0,
     house3d: s.atlas_3d_enabled === true, wifiSurvey: !!o.wifiSurvey };

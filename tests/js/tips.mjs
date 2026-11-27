@@ -593,9 +593,15 @@ attempt("shades rule", () => {
   // One blind: the tip fits. Linked as a door's opener (the model's barrier, or the host's own list): not a shade.
   const b = shadesTip({ ...notShades, "cover.kitchen_blind": cover("blind", "Kitchen blind") });
   check("shades rule: one blind gets the Shades tip", b.n === 1 && b.fit > 0);
-  const c = shadesTip({ "cover.kitchen_blind": cover(null, "Kitchen blind") }, { model: { ...model, rf_barriers_m: [{ linked_entity_id: "cover.kitchen_blind" }] } });
+  // The room card's one rule (room_controls.js openersOf): a blind linked to a patio door stays a blind; a cover linked
+  // to a wall and named as an opener is one.
+  const c = shadesTip({ "cover.kitchen_blind": cover(null, "Kitchen blind"), "cover.side": cover(null, "Side") },
+    { model: { ...model, rf_barriers_m: [{ name: "Patio door", linked_entity_id: "cover.kitchen_blind" }, { name: "Garage side door", linked_entity_id: "cover.side" }] } });
+  const named = (n) => shadesTip({ "cover.x": cover(null, n) }).n;
+  check("shades rule: a blind on a patio door is a shade, as in the room's card", c.n === 1
+    && named("Patio Door Blind") === 1 && named("Back door shade") === 1 && named("Living blind") === 1 && named("Garage side door opener") === 0 && named("Gate") === 0);
   const d = shadesTip({ "cover.kitchen_blind": cover(null, "Kitchen blind") }, { openers: new Set(["cover.kitchen_blind"]) });
-  check("shades rule: a cover linked as a door's opener is never a shade", c.n === 0 && d.n === 0);
+  check("shades rule: a cover the host marks as an opener is never a shade", d.n === 0);
   check("shades rule: the openers the model and settings name", [...T.openersFrom({ rf_barriers_m: [{ linked_opener_entity_id: "cover.a" }, { linked_entity_id: "light.x" }] },
     { door_opener_ids: ["cover.b", 3] })].sort().join() === "cover.a,cover.b");
 });

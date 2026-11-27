@@ -1095,17 +1095,11 @@ class PadSpanLightsApp extends HTMLElement {
   // The covers that open a door or a gate (Alarm & security's), never a room sheet's shades: Devices → Door Openers'
   // marked ones, a wall's linked opener, and a cover a wall follows when nothing says it is a blind or a shutter (no
   // device class, and a door's, a gate's or a garage's name). A window's shutter or blind stays a shade.
+  // The one rule (room_controls.js openersOf, the Shades tip's too); without that module no room card lists shades,
+  // so the marked ones are enough.
   _doorOpeners(){
-    const out = new Set((this.state._doorOpeners || []).filter(e => typeof e === "string"));
-    const doorish = /\b(door|gate|garage)\b/i, states = (this._hass && this._hass.states) || {};
-    for (const b of (this.state.model && this.state.model.rf_barriers_m) || []) {
-      if (b && typeof b.linked_opener_entity_id === "string") out.add(b.linked_opener_entity_id);
-      const e = b && b.linked_entity_id;
-      if (typeof e !== "string" || !e.startsWith("cover.")) continue;
-      const a = (states[e] && states[e].attributes) || {};
-      if (!a.device_class && doorish.test(`${b.name || ""} ${a.friendly_name || ""} ${e}`.replace(/_/g, " "))) out.add(e);
-    }
-    return out;
+    const marked = (this.state._doorOpeners || []).filter(e => typeof e === "string");
+    return ROOMCTL ? ROOMCTL.openersOf(this.state.model, this._hass && this._hass.states, marked) : new Set(marked);
   }
   // This page's room controls (views/room_controls.js), made once: functions only, read when used.
   _roomCtl(){
