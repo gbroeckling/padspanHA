@@ -37,7 +37,6 @@ import os
 import pathlib
 import re
 import secrets
-import shlex
 import subprocess
 import sys
 import urllib.error
@@ -381,16 +380,23 @@ def sitemap_urls() -> list[str]:
     return re.findall(r"<loc>([^<]+)</loc>", (SRC.parent / "sitemap.xml").read_text(encoding="utf-8"))
 
 
+_PLAIN_NAME = re.compile(r"[A-Za-z0-9._/-]+")
+
+
 def changed_pages(pages: dict[str, bytes]) -> list[str] | None:
     """Which of these pages (path under REMOTE_DIR -> the bytes about to go up) differ from the server's copy, or
     aren't on the server yet. Asked before anything is uploaded, in one read-only sha256sum on the server (as root,
-    like the rest of the deploy, or as the login if sudo won't run it). None when it can't be asked or gives no
-    answer: then nobody knows what changed."""
+    like the rest of the deploy, or as the login if sudo won't run it). The names go over stdin, once, and only
+    plain relative paths are asked about (letters, digits and ._/-, no "..", nothing to quote); any other counts
+    as changed. None when it can't be asked or gives no answer: then nobody knows what changed."""
     names = sorted(pages)
-    files = " ".join(map(shlex.quote, names))
-    r = subprocess.run(f'{SSH} {HOST} "cd {REMOTE_DIR} && (sudo -n sha256sum -- {files} || sha256sum -- {files})"',
-                       shell=True, capture_output=True, text=True)
-    there = {name: digest for digest, name in re.findall(r"(?m)^([0-9a-f]{64}) [ *](\S+)$", r.stdout or "")}
+    asked = [n for n in names if _PLAIN_NAME.fullmatch(n) and not n.startswith("/") and ".." not in n.split("/")]
+    if not asked:
+        return None
+    r = subprocess.run(f"{SSH} {HOST} 'cd {REMOTE_DIR} && f=$(cat) && {{ sudo -n sha256sum -- $f || sha256sum -- $f; }}'",
+                       shell=True, input="\n".join(asked).encode("utf-8"), capture_output=True)
+    out = r.stdout.decode("utf-8", errors="replace") if isinstance(r.stdout, bytes) else (r.stdout or "")
+    there = {name: digest for digest, name in re.findall(r"(?m)^([0-9a-f]{64}) [ *](\S+)$", out)}
     if not there:
         return None
     return [n for n in names if there.get(n) not in _same_page(pages[n])]

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import pathlib
-import re
 import sys
 import urllib.error
 from importlib.util import module_from_spec, spec_from_file_location
@@ -52,26 +51,22 @@ def _uploads(mod, version: str = "9.9.9") -> dict[str, bytes]:
             **{g: (mod.SRC.parent / g).read_bytes() for g in mod.GUIDES}}
 
 
-def _asked(cmd: str) -> list[str]:
-    """The files the server is asked about: sudo's sha256sum, then the same list again for the login's own."""
-    first, again = re.fullmatch(r'.*"cd \S+ && \(sudo -n sha256sum -- (.*) \|\| sha256sum -- (.*)\)"', cmd).groups()
-    assert first == again
-    return first.split()
-
-
-def _server(mod, monkeypatch, uploads: dict[str, bytes], differ=(), missing=(), down=False) -> list:
+def _server(mod, monkeypatch, uploads: dict[str, bytes], differ=(), missing=(), down=False, asked=None) -> list:
     """A stand-in for the server: sha256sum answers for the pages it has (`differ` with other bytes, `missing` not
-    there at all; `down`, no answer), and every other command succeeds. Returns the commands, in order."""
+    there at all; `down`, no answer), and every other command succeeds. Returns the commands, in order; the names
+    the server was asked about, read from stdin as the server reads them, go into `asked`."""
     calls: list = []
 
     def fake_run(cmd, shell=True, input=None, capture_output=False, check=False, text=False):
         calls.append(cmd)
         out, code = "", 0
         if "sha256sum" in cmd:
+            names = input.decode("utf-8").split("\n")
+            if asked is not None:
+                asked.extend(names)
             if down:
                 code = 255
             else:
-                names = _asked(cmd)
                 out = "".join(f"{hashlib.sha256(b'old' if n in differ else uploads[n]).hexdigest()}  {n}\n"
                               for n in names if n not in missing)
                 code = 1 if missing else 0
@@ -87,15 +82,18 @@ def _server(mod, monkeypatch, uploads: dict[str, bytes], differ=(), missing=(), 
 def test_a_full_deploy_tells_indexnow_the_pages_it_changed(monkeypatch, sent, capsys) -> None:
     mod = _deploy_site()
     up = _uploads(mod)
-    calls = _server(mod, monkeypatch, up, differ={"index.html", "pro/index.html"}, missing={"add-ons/de/index.html"})
+    asked: list = []
+    calls = _server(mod, monkeypatch, up, differ={"index.html", "pro/index.html"}, missing={"add-ons/de/index.html"},
+                    asked=asked)
     mod.main()
     assert sent == [["https://padspan.traks.ca/", "https://padspan.traks.ca/pro/", "https://padspan.traks.ca/add-ons/de/"]]
     assert "OK   IndexNow: 202 Accepted for 3 changed page(s)" in capsys.readouterr().out
-    # Asked before anything went up, and only asked: nothing written, moved or removed by that command.
+    # Asked before anything went up, and only asked: nothing written, moved or removed by that command. The names
+    # go over stdin, once, so none is in the command itself.
     ask = next(i for i, c in enumerate(calls) if "sha256sum" in c)
     assert ask < next(i for i, c in enumerate(calls) if "tee " in c)
     assert not any(w in calls[ask] for w in ("tee", ">", " rm ", " mv ", " cp ", "mkdir", "chown"))
-    assert sorted(_asked(calls[ask])) == sorted(up)
+    assert sorted(asked) == sorted(up) and "index.html" not in calls[ask]
 
 
 def test_every_page_it_can_send_is_one_the_sitemap_lists(monkeypatch, sent) -> None:
@@ -114,7 +112,7 @@ def test_when_the_server_cant_be_asked_every_sitemap_page_goes(monkeypatch, sent
     mod = _deploy_site()
     _server(mod, monkeypatch, _uploads(mod), down=True)
     mod.main()
-    assert sent == [mod.sitemap_urls()] and len(sent[0]) >= 100
+    assert sent == [mod.sitemap_urls()] and sent[0]
     out = capsys.readouterr().out
     assert "pages this deploy changes: unknown" in out and "(what changed is unknown)" in out
 
@@ -153,7 +151,8 @@ def test_indexnow_is_told_only_once_the_deploy_is_verified(monkeypatch, sent) ->
     assert sent == []
 
 
-def test_a_dry_run_asks_no_server_and_tells_no_one(monkeypatch, sent) -> None:
+def test_a_dry_run_uploads_nothing_runs_no_ssh_and_tells_indexnow_nothing(monkeypatch, sent) -> None:
+    """It still reads the live version.php to stamp the page unless --version is given, as it always has."""
     mod = _deploy_site()
     calls = _server(mod, monkeypatch, _uploads(mod))
     monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--dry-run", "--version", "9.9.9"])
@@ -209,3 +208,26 @@ def test_a_page_that_differs_only_in_line_endings_is_not_a_change(monkeypatch, s
     _server(mod, monkeypatch, crlf)
     mod.main()
     assert sent == [["https://padspan.traks.ca/pro/"]]
+
+
+def test_only_plain_names_are_asked_about_and_any_other_counts_as_changed(monkeypatch) -> None:
+    """Names reach the server's shell as they are, so only plain relative paths are asked about (letters, digits
+    and ._/-, no ".." and nothing absolute), never quoted. A page with any other name can't be compared: it counts
+    as changed."""
+    mod = _deploy_site()
+    pages = {"index.html": b"same", "guides/a b/index.html": b"x", "../up/index.html": b"y", "/etc/passwd": b"z",
+             "pro/$(reboot)/index.html": b"w"}
+    asked: list = []
+    _server(mod, monkeypatch, {"index.html": b"same"}, asked=asked)
+    assert mod.changed_pages(pages) == ["../up/index.html", "/etc/passwd", "guides/a b/index.html",
+                                        "pro/$(reboot)/index.html"]
+    assert asked == ["index.html"]
+    assert mod.changed_pages({"a b.html": b"x"}) is None and asked == ["index.html"], "nothing plain to ask: unknown"
+
+
+def test_the_servers_answer_is_read_whatever_bytes_it_holds(monkeypatch) -> None:
+    mod = _deploy_site()
+    body = b"<p>same</p>\n"
+    answer = f"{hashlib.sha256(body).hexdigest()}  index.html\n".encode() + b"\xff\xfe not UTF-8\n"
+    monkeypatch.setattr(mod.subprocess, "run", lambda cmd, **k: SimpleNamespace(returncode=1, stdout=answer, stderr=b""))
+    assert mod.changed_pages({"index.html": body, "pro/index.html": b"new"}) == ["pro/index.html"]
