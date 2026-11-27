@@ -1,4 +1,4 @@
-"""Drawing rooms in Mapping → Edit and Layout (2026-11-18, from the NeonPlan 3D comparison).
+"""Drawing rooms in Mapping → Edit and Layout (2026-11-18).
 
 tests/js/mapping_aids.mjs runs views/room_snap.js and both editors in views/maps.js: a corner lands on another room's
 corner, else its edge, else a 5 cm grid, Alt places it freely and a scanned wall end still comes first; Straighten

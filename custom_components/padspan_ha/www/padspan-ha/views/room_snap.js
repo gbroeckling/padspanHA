@@ -77,7 +77,7 @@ export function floorDirection(outlines, { minLen = STRAIGHT_MIN_M } = {}) {
 
 /** Every edge of the outlines given ({room: [[x, y], ...]}, metres) that is less than STRAIGHT_M off level or upright,
  *  over STRAIGHT_MIN_M or more the other way, made straight; `angle` (radians, floorDirection's): off that direction
- *  and the one square to it instead. Of its two ends the one on the line more corners already use stays (NeonPlan's
+ *  and the one square to it instead. Of its two ends the one on the line more corners already use stays (the
  *  rule: a wall's corners line up with the walls beside it); the other moves, and so does every corner at the same
  *  point, in any room. Edges a move bends are looked at again, a few rounds at most. Corners that did not move come
  *  back exactly as given. { rooms: {room: new outline} (all of them, copies), fixed: how many edges were made straight } */

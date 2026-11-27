@@ -18,9 +18,9 @@
 // If it can't load, the page goes on as it always was (the guide reads as off).
 const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, serviceHow, fillHowKnown } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 // renderCaptureSteps: the IRK Capture ESP32's steps in the phone wizard.
-const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps } =
+const { iphoneGuideOn, isApplePhone, renderIphonePath, renderCaptureSteps, phoneConsent } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
-    .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {}, renderCaptureSteps: () => {} }));
+    .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {}, renderCaptureSteps: () => {}, phoneConsent: () => "" }));
 // The panel's words in its language (views/i18n.js; English is the key). So far
 // the phone wizard ("Track your phone"), one of the first-run screens.
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
@@ -2714,7 +2714,7 @@ function renderIrkPanel(ctx, snap) {
     const wizCard = el("div", { class: "bt-panel", style: "margin-bottom:12px", "data-focus-part": "phone_wizard" });
     wizCard.appendChild(el("div", { class: "bt-panel-head" }, [
       el("div", { class: "bt-panel-title" }, t("Track your phone")),
-      el("div", { class: "bt-panel-sub" }, t("Three ways in, depending on what you have.")),
+      el("div", { class: "bt-panel-sub" }, (t("Three ways in, depending on what you have.") + " " + phoneConsent()).trim()),
       el("span", { class: "bt-chip ok" }, t("wizard")),
     ]));
 

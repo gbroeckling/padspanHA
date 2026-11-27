@@ -1287,7 +1287,8 @@ def _default_words(key: str) -> str:
 
 # The panel's text, for checking a label is really there.
 PLACE_FILES = {
-    "Settings": ("views/settings.js", "views/wall_card.js", "views/screens_card.js", "views/power_teams.js", "views/lights_follow.js"),
+    "Settings": ("views/settings.js", "views/wall_card.js", "views/screens_card.js", "views/power_teams.js", "views/lights_follow.js",
+                 "views/first_question.js"),
     "Manage": ("views/manage.js",),
     "Mapping": ("views/maps.js", "views/lights_map.js", "views/iso_lights.js"),
     "Atlas": ("lights_panel.js", "views/lights_map.js", "views/iso_lights.js", "views/room_controls.js"),
@@ -1331,6 +1332,7 @@ def label_on_screen(place: str, label: str) -> bool:
 T = "Settings → Tracking → "
 SETTINGS_ENTRIES: dict[str, tuple] = {
     # Settings → Appearance
+    "purpose": ("Settings → Appearance", "What do you want PadSpan for?", "", "Your answer to the first-run question: any of `whole_house` (the whole house on one screen), `presence` (who's in which room), `plan` (your floor plan and 3D house) and `lights` (every light in its place), the first ticked first. Sent with the usage report as these words, only when one is ticked."),
     "ui_skin": ("Settings → Appearance", "Panel Style", "", "`2025` restyles the panel's frame (grouped menu with icons); `classic` is the original."),
     "theme_palette": ("Settings → Appearance", "Theme", "", "The colours: empty is Night (dark green), or Graphite, Ocean, Dusk or High contrast (`contrast`). Graphite, Ocean and Dusk come with Pro or the Looks pack add-on."),
     "light_theme": ("Settings → Appearance", "Theme", "Light (inverted)", "The panel's colours turned light (inverted)."),
@@ -1545,6 +1547,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "onboarding": (None, "kept", "", "A new install's first steps and how long they took."),
     "telemetry_asked": (None, "kept", "", "The panel has asked about the usage report once."),
     "telemetry_heard_ask": (None, "kept", "", "Whether the where-did-you-hear question is due, or done."),
+    "purpose_ask": (None, "kept", "", "Whether the first-run question is due (a new install only), or done."),
     "telemetry_install_id": (None, "kept", "", "The usage report's random install id (Settings → Tracking → Privacy, updates and feedback → Help improve PadSpan replaces it)."),
     "telemetry_last_day": (None, "kept", "", "The day the last usage report was sent."),
     "yesterday_home_sent_day": (None, "kept", "", "The day Yesterday at home last told, so it is never told twice."),

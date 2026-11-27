@@ -83,7 +83,7 @@ export function proLifetimeWords(now = Date.now()) {
 // Lifetime is on sale until PRO_PASS_FROM, then never again.
 export function proLifetimeOpen(now = Date.now()) { return !proPassOpen(now); }
 // PadSpan add-ons (the owner, 2026-11-25): one feature each, for an install
-// without Pro, structured like NeonPlan's Sound & Cinema add-on: one payment
+// without Pro: one payment
 // covers ADDON_TERM, no subscription, up to three homes, the key entered in the
 // licence card. A buyer's add-ons share one key (tier "free", each add-on with
 // its own end); PadSpan Pro includes them all. One entry per add-on: its name

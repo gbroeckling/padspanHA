@@ -476,7 +476,7 @@ export const STARTER_SET = [
 
 // ── room sets ────────────────────────────────────────────────────────────────
 // One tap in Furnish's Build ▾ furnishes the room in the middle of the view
-// (item 28, after NeonPlan's room packages): rows of pieces along its walls,
+// (item 28): rows of pieces along its walls,
 // and pieces about the room or beside one of the set. live_aboard_pieces.js
 // layoutSet lays them out (inside the room, backs to the walls, past doors
 // and windows); this is only what goes in. Plain data: every piece a recipe

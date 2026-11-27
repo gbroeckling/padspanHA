@@ -94,15 +94,16 @@ def test_licence_card_offers_the_trial_with_no_card_language() -> None:
     assert '"PadSpan Pro free for 90 days, no card"' in offer, "the trial CTA must say no payment info is needed"
 
 
-def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None:
+def test_the_free_version_claim_still_holds_and_the_trial_is_disclosed() -> None:
     """The tiers wizard used to say "nothing free is a trial of anything" —
     true of the free tier, but flatly wrong once a real trial exists. It must
-    still promise the free tier is not time-limited, and now also disclose
-    the trial rather than contradict it."""
+    still say the free version does not run out (the owner's line, 2026-11-26,
+    with no "forever"), and disclose the trial rather than contradict it."""
     s = _read(_VIEWS / "settings.js")
-    i = s.index("The free tier above is not a trial of anything")
-    para = s[i:i + 700]
-    assert "not a trial" in para or "stays free" in para, "the free-forever promise was dropped, not reworded"
+    assert "The free version needs no key and doesn't run out." in s
+    i = s.index("function _tiersWizardFree(")
+    para = s[i:s.index("function _tiersWizardLadder(")]
+    assert "FREE_LINE()" in para, "the free-version line was dropped from the tiers wizard"
     assert "90-day" in para, "the tiers wizard does not disclose the trial that contradicts its old claim"
 
 

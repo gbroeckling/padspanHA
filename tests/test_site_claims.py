@@ -187,8 +187,6 @@ def test_the_add_ons_are_sold_as_the_panel_says(html: str) -> None:
         assert desc.replace("&", "&amp;") in row, name
         assert f'name="item_number" value="padspan-addon-{name}"' in row and f'name="amount" value="{price}"' in row, name
         assert float(price) == _SKUS[f"padspan-addon-{name}"][0], name
-    # The owner's price for Audio: 30% under NeonPlan's EUR 5.90 at the Bank of Canada's 1.5679 for 2026-11-24.
-    assert 6.45 <= 5.90 * 1.5679 * 0.70
 
 
 # December 1, 2026, 00:00 Pacific (the owner, 2026-11-25): the free basics. One script, after every block it touches,

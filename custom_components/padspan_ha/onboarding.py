@@ -46,6 +46,23 @@ BUCKETS: tuple[tuple[float, str], ...] = (
 BUCKET_WORDS: tuple[str, ...] = tuple(w for _, w in BUCKETS) + ("gt7d",)
 STEPS: tuple[str, ...] = ("first_room", "first_calib")
 
+# The first-run question (the owner, 2026-11-26): "What do you want PadSpan for?", any of four answers, each opening its
+# own first step (views/first_question.js, the same keys in the same order). Asked once, on a new install's first run
+# only: settings_store makes settings["purpose_ask"] "due" for a store made fresh, and the answer or Skip makes it
+# "done"; an install from before keeps "" and is never asked, though Settings → Appearance has the same choice for
+# everyone. Stored as settings["purpose"], the keys ticked in the order they were ticked; the opt-in report carries
+# them as env.purpose, only when one is.
+PURPOSE_KEYS: tuple[str, ...] = ("whole_house", "presence", "plan", "lights")
+
+
+def purpose_keys(value: Any) -> list[str]:
+    """The PURPOSE_KEYS in `value`, each once, in its order; anything else dropped."""
+    out: list[str] = []
+    for k in value if isinstance(value, (list, tuple)) else []:
+        if isinstance(k, str) and k in PURPOSE_KEYS and k not in out:
+            out.append(k)
+    return out
+
 
 def bucket(seconds: float) -> str:
     for edge, word in BUCKETS:

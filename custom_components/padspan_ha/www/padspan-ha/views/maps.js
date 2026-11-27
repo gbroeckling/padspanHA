@@ -12103,7 +12103,7 @@ function _lightsTab(ctx, maps, active) {
   return wrap;
 }
 
-// Rooms drawn over each other, by name (2026-11-18; NeonPlan: "Rooms overlap – walls there are incomplete"): the
+// Rooms drawn over each other, by name (2026-11-18): the
 // report counted them and nobody was told which. Edit and Layout ask the server's one check (padspan_ha/rooms_overlap,
 // setup_checks.overlapping_pairs) about the outlines on screen, drafts included ({room: [[x, y], ...]}, metres, one
 // floor); asked again only when they change, the lines filled in when it answers. Empty while there is nothing to say.

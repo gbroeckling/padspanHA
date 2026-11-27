@@ -12,7 +12,7 @@ Guest tags are off until you turn them on. Off, nothing is tracked or kept and t
 
 A guest tag is a device PadSpan already knows by a name you gave it. Name a spare tag first (**Follow** or **Devices → Rename**), for example "Guest tag 1". Then in **Guests**, pick it under **Use as a guest tag** and press **Add**.
 
-What works best is a tag with a steady identity: an iBeacon, a Find My tag, or a phone set up with Private BLE Device. A cheap tag whose address changes can still work once PadSpan has tied its addresses together.
+What works best is a beacon with a fixed address (iBeacon or Eddystone), or a phone set up with Private BLE Device. Find My, Tile and similar tracker tags change their Bluetooth address, so PadSpan won't follow them reliably: don't lend one as a guest tag.
 
 The tag keeps its own name. The guest's name belongs to the stay, so `device_tracker.guest_tag_1` stays the same entity from one guest to the next, and your automations keep working.
 

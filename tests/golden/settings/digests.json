@@ -1,11 +1,11 @@
 {
  "settings_set": {
-  "sha256": "7c121e6884dfb048ef8ae02ce2a2dff02c48d019fc7549ed291f6a3ba1c13c3e",
-  "records": 1424,
-  "keys": 210,
-  "cases": 1424,
-  "refused_by_schema": 267,
-  "errors_sent": 297,
+  "sha256": "444faca55033f504de3a16302d0fa61c41b86cb7a53a0e60b428bbea2468442a",
+  "records": 1439,
+  "keys": 212,
+  "cases": 1439,
+  "refused_by_schema": 269,
+  "errors_sent": 301,
   "raised": 0
  }
 }

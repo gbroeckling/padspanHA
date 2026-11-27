@@ -941,8 +941,10 @@ def test_the_panel_asks_in_both_places_and_only_until_answered():
     assert ": { telemetry_asked: true }" in panel
     # the person can see the report before deciding
     assert 'this._callWS({ type: "padspan_ha/telemetry_preview" })' in panel
-    # and the pitch says what it is, plainly
-    assert "bleeding edge" in panel and "Never addresses, keys, names, coordinates or timestamps" in panel
+    # and the pitch says what it is, plainly: what PadSpan does first, then why the report helps (2026-11-26: no
+    # "bleeding edge" alarm as a new install's first words)
+    assert "PadSpan shows your whole house on one screen" in panel and "It gets better with every release." in panel
+    assert "bleeding edge" not in panel and "Never addresses, keys, names, coordinates or timestamps" in panel
 
 
 # ── the install-base dashboard ───────────────────────────────────────────────

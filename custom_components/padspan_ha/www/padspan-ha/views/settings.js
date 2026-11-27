@@ -30,6 +30,8 @@ const WALLCARD = await import(`./wall_card.js${new URL(import.meta.url).search}`
 const SCREENSCARD = await import(`./screens_card.js${new URL(import.meta.url).search}`).catch(() => null);
 // Basic's focused views: a link opens one card of a tab (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+// The first-run question's answers, changed later here (views/first_question.js). Optional like the cards above.
+const FQ = await import(`./first_question.js${new URL(import.meta.url).search}`).catch(() => null);
 // Optional: why Build from plans isn't offered, in the rooms helper's words (Settings → AI).
 const AIWO = await import(`./ai_wizard_offer.js${new URL(import.meta.url).search}`).catch(() => null);
 // Optional too: the tester sign-up must not take the Settings tab with it.
@@ -188,6 +190,8 @@ const PART = FOCUS.PARTS;
 // ── Appearance tab ─────────────────────────────────────────────────────────────
 function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, isBasic){
   const wrap = el("div",{});
+  // What you want PadSpan for: the first-run question, in every mode (only a new install is asked it).
+  if (FQ) { try { const c = FQ.settingsCard(ctx); if (c) wrap.appendChild(c); } catch (e) { console.warn("PadSpan: first-run question card", e); } }
 
   // Floors card (hidden in basic)
   if(!isBasic){
@@ -988,7 +992,7 @@ function _settingsPresence(ctx, el){
       ]),
       el("div",{style:rowStyle},[ gToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, t("Use tags as guest tags")) ]),
       el("div",{class:"muted",style:"font-size:12px;margin:4px 0 8px;line-height:1.5"},
-        t("Lend a tag PadSpan already knows (a beacon, a Find My tag, a spare phone) to a guest. While they have it, the Guests tab shows where they are, when they arrived and left, and how long they spent in each room, and you can be told when they arrive, leave, or go into a room you set as off-limits. A house-sitter can count as someone home for Vacation Mode. Off: nothing is tracked or kept, and the Guests tab is hidden.")),
+        t("Lend a tag PadSpan already knows (a beacon with a fixed address, a spare phone) to a guest. While they have it, the Guests tab shows where they are, when they arrived and left, and how long they spent in each room, and you can be told when they arrive, leave, or go into a room you set as off-limits. A house-sitter can count as someone home for Vacation Mode. Off: nothing is tracked or kept, and the Guests tab is hidden.")),
       el("div",{style:rowStyle},[ el("span",{style:"font-size:12px;color:#94a3b8"},t("Keep a finished stay's report (name, times, rooms) for")), keep ]),
       el("div",{class:"muted",style:"font-size:11px"},
         t("Guests' names stay in this Home Assistant: never in the usage report, never in a backup. Only an administrator can lend a tag or end a stay.")),
@@ -1573,7 +1577,7 @@ function _settingsPresence(ctx, el){
   put("privacy", el("div", { class: "card", "data-focus-part": "usage_report" }, [
     el("div", { class: "h2" }, t("Help improve PadSpan")),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
-      t("Opt in to send the developer an anonymous usage report at most once a day: which version and Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; how your power teams are set up and how many colour bulbs of each brand you have, such as Hue or IKEA (words from a fixed list, never a name); the licence it runs on and the add-ons a key carries (roughly how long each has left), which add-ons got used, and what the house has that an add-on is for (counts such as alarm panels or audio players by system, never which); which feature switches are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), and with two screens or more, a few words per screen (first five); how many minutes the busiest single screen showed PadSpan, all day and from 7 am to 11 pm (never which screen); with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the code logged. Counts, versions and flags only — never addresses, keys, device or room names, coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. If you delete PadSpan while this is on, one last report says it was removed, and nothing else.")
+      t("Opt in to send the developer an anonymous usage report at most once a day: which version and Home Assistant; the country and language set in Home Assistant (never looked up from your address); where you heard about PadSpan, if you chose to say; what you want PadSpan for, if you answered; which store keeps PadSpan up to date (the Marketplace, HACS or neither); how many automations and scripts use it (two counts, never which); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, IRKs, irk-capture ESP32s and objects you have and which related integrations are installed; how your power teams are set up and how many colour bulbs of each brand you have, such as Hue or IKEA (words from a fixed list, never a name); the licence it runs on and the add-ons a key carries (roughly how long each has left), which add-ons got used, and what the house has that an add-on is for (counts such as alarm panels or audio players by system, never which); which feature switches are on; which screen the Overview shows and any Overview settings changed from their defaults (as words, never numbers or names), and with two screens or more, a few words per screen (first five); how many minutes the busiest single screen showed PadSpan, all day and from 7 am to 11 pm (never which screen); with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the code logged. Counts, versions and flags only — never addresses, keys, device or room names, coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; this is how features that only exist in yours (an iPhone with an IRK, a Bermuda install, twelve floors) get seen at all. If you delete PadSpan while this is on, one last report says it was removed, and nothing else.")
     ),
     el("div", { class: "muted", style: "font-size:11px;margin-bottom:12px" },
       t("The report carries a random ID so installs can be counted rather than pings; you can replace it any time. Preview shows the exact JSON — what you see is what goes, and anything identifier-shaped is refused before it leaves. The developer may invite an install that reports to something, like a free year of Pro: the invite comes back with the report's reply and shows on Overview and under PadSpan licence. Nothing about you is sent unless you accept it.")),
@@ -2110,7 +2114,7 @@ function _settingsPresence(ctx, el){
 
     // Brief help
     irkCard.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:12px;line-height:1.6" },
-      t("Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.")
+      t("Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.") + " " + t("Only add the phones of people who've agreed.")
     ));
 
     // Detailed guide toggle
@@ -3290,6 +3294,9 @@ function _tiersWizardFooter(ctx, w, opts){
   return bar;
 }
 
+// What the free version is (the owner's words, 2026-11-26): the tiers wizard and the licence card say it the same way.
+const FREE_LINE = () => t("The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on.");
+
 function _tiersWizardFree(ctx, w, isBright){
   const { el } = ctx.helpers;
   const wrap = el("div",{});
@@ -3298,15 +3305,15 @@ function _tiersWizardFree(ctx, w, isBright){
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     isBright
       ? (fb ? t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light placed exactly where it hangs on a map and switched on or off from here is free, no key, and so are the plain wall screen and the 3D house. Each light's shape, size and looks need a key — see below.")
-            : t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."))
-      : t("This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, no key, forever.")));
+            : t("This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key. Placing each one exactly where it hangs needs a key — see below."))
+      : t("This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration and mapping are free, with no key.")));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
     (isBright
       ? (fb ? t("A PadSpan Pro key adds the paid features: the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish, the wall screen's night dimming and burn-in protection, and more.")
             : t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more."))
       : (fb ? t("A PadSpan Pro key adds the paid features: the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D editor, Furnish and people in 3D, the wall screen's night dimming and burn-in protection, Locate, Busy Times and more.")
             : t("A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more.")))
-    + " " + t("The free tier above is not a trial of anything — it stays free whether or not you ever add a key. To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.")));
+    + " " + FREE_LINE() + " " + t("To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.")));
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
 }
@@ -3634,11 +3641,12 @@ function _settingsLicence(ctx, el){
   if (!hasKey) {
     line = fb
       ? (edition === "PadSpan Bright"
-        ? t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. The lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish are locked. Everything else is free and stays free.")
-        : t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. The paid features are locked, among them the lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics, the 3D editor, Furnish, people in 3D, Locate and Busy Times. Everything else is free and stays free."))
+        ? t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. Fixture shapes with their size and angle, WLED's Advanced controls and Fit room need Pro or the Advanced smart lighting add-on, Showcase needs Pro or the Looks pack, and the 3D editor and Furnish need Pro.")
+        : t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. Fixture shapes with their size and angle, WLED's Advanced controls and Fit room need Pro or the Advanced smart lighting add-on, and Showcase needs Pro or the Looks pack. Forensics, Locate and Busy Times need Pro or Presence insights; the 3D editor, Furnish and people in 3D need Pro."))
       : edition === "PadSpan Bright"
-      ? t("No licence key on this install. Light placement, the 3D house and the wall screen are locked. Everything else is free and stays free.")
-      : t("No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. Everything else is free and stays free.");
+      ? t("No licence key on this install. Light placement, the 3D house and the wall screen are locked.")
+      : t("No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times.");
+    line += " " + FREE_LINE();
     colour = "#94a3b8";
   } else if (isAddons) {
     if (lapsed) {

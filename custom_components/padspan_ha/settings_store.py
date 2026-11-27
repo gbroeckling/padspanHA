@@ -75,6 +75,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "telemetry_asked": False,      # the panel asked once, and got an answer either way
     "telemetry_heard": "",         # where they heard about PadSpan (telemetry.HEARD_WORDS), their own answer; "" = not said
     "telemetry_heard_ask": "",     # that question, once per install: "" never due, "due", "done" (telemetry.heard_ask_due)
+    # The first-run question, "What do you want PadSpan for?" (onboarding.PURPOSE_KEYS): the keys ticked, first ticked
+    # first; and whether it is asked: "" never (an install from before), "due" (a new install, async_load), "done".
+    "purpose": [],
+    "purpose_ask": "",
     # The version the what's-new card last reported. Seeded silently the first
     # time the panel sees it, so a FRESH install is never told it "updated".
     "whatsnew_seen_version": "",
@@ -653,6 +657,9 @@ class SettingsStore:
             # open on, so its mode is left as it always was.
             if EDITION != "bright":
                 self.data["onboarding"]["live_first"] = "pending"
+                # The first-run question (onboarding.PURPOSE_KEYS), once, here only: an install from before is
+                # never asked out of the blue. Bright has no presence or plan to offer, so it is not asked.
+                self.data["purpose_ask"] = "due"
         # Normalize followed_addrs: uppercase + dedup (order preserved).
         # Every comparison in the system (frontend followedHas, backend
         # settings_set, tag_integration) is uppercase; historic entries were

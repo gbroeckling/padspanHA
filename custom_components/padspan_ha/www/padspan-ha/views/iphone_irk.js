@@ -26,6 +26,9 @@
 // panel's language then (views/i18n.js; English is the key).
 const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 
+/** Consent (the owner, 2026-11-26): said wherever a phone is added for tracking. */
+export const phoneConsent = () => t("Only add the phones of people who've agreed.");
+
 export function iphoneGuideOn(settings) {
   return !!settings && settings.iphone_irk_guide === true;
 }
@@ -54,7 +57,7 @@ export function iphoneIrkSteps() {
 /** The text the Overview's Setup button shows for an iPhone. */
 export function iphoneSetupAlert() {
   return t("To track this iPhone:") + "\n\n" +
-    iphoneIrkSteps().map((s, i) => `${i + 1}. ${s}`).join("\n\n");
+    iphoneIrkSteps().map((s, i) => `${i + 1}. ${s}`).join("\n\n") + "\n\n" + phoneConsent();
 }
 
 export const iphoneMeta = () => t("iPhone · tracked by its IRK, press Setup");
@@ -220,6 +223,7 @@ export function renderCaptureSteps(ctx, pathEl, save) {
 
   // 1. Its name, and whose it is.
   pathEl.appendChild(step(1, t("Its name, and whose it is")));
+  pathEl.appendChild(el("div", { style: small + ";margin-bottom:5px", "data-capture": "consent" }, phoneConsent()));
   const who = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" });
   const nameInp = el("input", { class: "input", type: "text", "data-capture": "name", placeholder: t("Name, e.g. Sam's iPhone"), style: "flex:1;min-width:160px" });
   nameInp.value = S.name;

@@ -547,6 +547,34 @@ def heard_section(latest: dict[str, dict]) -> list[str]:
     return out
 
 
+# env.purpose (2026-11-26): what the person wants PadSpan for, their answer to the first-run question (or Settings):
+# any of these keys (onboarding.PURPOSE_KEYS), the first ticked first. env.emergency_count: leak, smoke, gas and CO
+# alarms placed on the map, only from a house with one.
+_PURPOSE_KEYS = ("whole_house", "presence", "plan", "lights")
+
+
+def purpose_section(latest: dict[str, dict]) -> list[str]:
+    """What installs want PadSpan for (each install's latest answer: ticked at all, and ticked first), and how many
+    houses have an Emergency device on the map, with the median count."""
+    said = {iid: (r.get("env") or {}).get("purpose") for iid, r in latest.items()}
+    said = {iid: [k for k in p if k in _PURPOSE_KEYS] for iid, p in said.items() if isinstance(p, list)}
+    said = {iid: p for iid, p in said.items() if p}
+    out = [f"What they want PadSpan for ({len(said)} of {len(latest)} installs answered; any of four, optional)"]
+    if not said:
+        out.append("  no answers yet (asked once on a new install's first run, or in Settings)")
+    else:
+        out.append("  answer         ticked   first")
+        for k in _PURPOSE_KEYS:
+            ticked = sum(1 for p in said.values() if k in p)
+            first = sum(1 for p in said.values() if p[0] == k)
+            out.append(f"  {k:<13}  {ticked:>6}   {first:>5}")
+    counts = sorted(c for c in ((r.get("env") or {}).get("emergency_count") for r in latest.values())
+                    if isinstance(c, int) and not isinstance(c, bool) and c > 0)
+    out.append(f"  leak, smoke, gas or CO alarms on the map: {len(counts)} of {len(latest)} installs"
+               + (f" (median {counts[len(counts) // 2]})" if counts else ""))
+    return out
+
+
 # env.store: which store keeps the install up to date. env.used_in: how many
 # automations and scripts use a PadSpan entity or device. usage.integration_removed:
 # the last report of an install deleted with its report on.
@@ -1129,6 +1157,9 @@ def main() -> int:
         print(line)
     print()
     for line in heard_section(latest):
+        print(line)
+    print()
+    for line in purpose_section(latest):
         print(line)
     print()
     for line in context_section(latest, removed):
