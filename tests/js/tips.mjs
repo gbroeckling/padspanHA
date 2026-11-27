@@ -89,7 +89,7 @@ attempt("licence", () => {
     for (const x of fits) {
       const need = x.tip.need;
       const ok = need === "free" ? true : need === "pro" ? E.currentTier(s) === "pro" : need === "house3d" ? E.tierAtLeast(E.currentTier(s), E.house3dTier(s))
-        : need === "vacuum" ? E.vacuumAllowed(s) : E.addonAllowed(s, need);
+        : E.addonAllowed(s, need);
       check(`licence: ${name}: ${x.tip.id} is its licence's`, ok);
     }
   }
@@ -440,10 +440,10 @@ attempt("review", () => {
   T.goCtx({ state: {}, actions: {} }, alarm.target);
   globalThis.location = loc;
   check("review: goCtx takes the alarm's Show me to the Atlas page's card", went === "/padspan-lights?card=emergency", went);
-  // The robot vacuum goes by vacuumAllowed: a Bright key has had its features all along.
-  const brightVac = { ...base, tier: "bright", addons_licensed: [] };
-  check("review: robot vacuum by vacuumAllowed", T.licensed(T.tipById("robot_vacuum"), brightVac) === E.vacuumAllowed(brightVac)
-    && !T.licensed(T.tipById("robot_vacuum"), { ...base, tier: "free", addons_licensed: [] }));
+  // The robot vacuum by the add-on itself: never for a free install whose robot features lock on December 1.
+  const notYet = { ...base, tier: "free", addons_licensed: [], addons_on_sale: ALL_ADDONS.filter(n => n !== "vacuum") };
+  check("review: robot vacuum strictly by its add-on, not before it is on sale either", E.vacuumAllowed(notYet)
+    && !T.licensed(T.tipById("robot_vacuum"), notYet) && T.licensed(T.tipById("robot_vacuum"), { ...notYet, addons_licensed: ["vacuum"] }));
   // Each its own "used"; none of the four counts its own Show me landing.
   for (const id of ["locate", "busy_times", "wled_controls"])
     check(`review: ${id} has its own use, no shared word`, T.tipById(id).used.uses === true && !(T.tipById(id).used.events || []).length);

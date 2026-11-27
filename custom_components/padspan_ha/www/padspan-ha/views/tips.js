@@ -342,7 +342,8 @@ export function licensed(tip, settings) {
   if (need === "free") return true;
   if (need === "pro") return E.currentTier(s) === "pro";
   if (need === "house3d") return E.tierAtLeast(E.currentTier(s), E.house3dTier(s));
-  if (need === "vacuum") return E.vacuumAllowed(s);    // the robot's features as the rest of the panel gates them
+  // The add-on itself, strictly (as ai_plans's): never a tip for a feature free today that locks on December 1, which
+  // the robot's looser gate (addonGate) would still allow until then.
   return E.addonAllowed(s, need);
 }
 /** Whether this build shows the screen the tip is about (a Bright build hides the presence ones). */

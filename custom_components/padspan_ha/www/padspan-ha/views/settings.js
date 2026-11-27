@@ -177,12 +177,27 @@ export function render(ctx){
   root.appendChild(tabBar);
 
   root.appendChild(_tabBody(activeTab));
-  // A link that named a card (?part=, Live Aboard's ⋯ list): scrolled to once, on this draw.
+  // A link that named a card (?part=, Live Aboard's ⋯ list, a tip's Show me): scrolled to once. The panel may draw
+  // Settings again right after a link opens it (Show me from another screen), and this draw's card is then gone; so the
+  // card is found again, on the draw that is on the page, just before the scroll, retried for up to 3 s.
   const wantPart = ctx.state._settingsPart;
   if (wantPart) {
     ctx.state._settingsPart = null;
-    const n = FOCUS.pickPart(root, wantPart);
-    if (n) setTimeout(() => { try { n.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (_) { /* gone */ } }, 80);
+    ctx.state._settingsScrollTo = { part: wantPart, until: Date.now() + 3000 };
+  }
+  const scrollTo = ctx.state._settingsScrollTo;
+  if (scrollTo) {
+    const tryScroll = (left) => {
+      if (ctx.state._settingsScrollTo !== scrollTo || Date.now() > scrollTo.until) return;   // done, or too late
+      const n = root.isConnected !== false ? FOCUS.pickPart(root, scrollTo.part) : null;      // this draw, if on the page
+      if (n) {
+        ctx.state._settingsScrollTo = null;
+        try { n.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (_) { /* gone */ }
+        return;
+      }
+      if (left > 0) setTimeout(() => tryScroll(left - 1), 150);
+    };
+    setTimeout(() => tryScroll(12), 80);
   }
   return root;
 }

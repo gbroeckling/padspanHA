@@ -1170,13 +1170,24 @@ class PadSpanLightsApp extends HTMLElement {
   }
   // ?card=emergency (a feature tip's Show me, views/tips.js): the emergency button's card, once, where the page has
   // the button (an alarm or emergency lights) and is no wall.
-  _cardLink(){
-    if(this._cardLinked) return;
-    this._cardLinked = true;
+  // The button may be drawn a moment after the house loads: a few tries over about 2 s, then nothing, quietly. Used or
+  // given up, the parameter leaves the address, so a reload never opens the card again.
+  _cardLink(tries = 0){
+    if(!tries){ if(this._cardLinked) return; this._cardLinked = true; }
     let want = "";
     try { want = new URLSearchParams(location.search).get("card") || ""; } catch(_) {}
-    if(want === "emergency" && !this.hasAttribute("data-wall") && !this._kiosk() && this.shadowRoot && this.shadowRoot.querySelector(".lv-emerg-ring, .lv-emerg-btn"))
-      this._openEmergencyCard();
+    if(want !== "emergency") return;
+    const btn = !this.hasAttribute("data-wall") && !this._kiosk() && this.shadowRoot && this.shadowRoot.querySelector(".lv-emerg-ring, .lv-emerg-btn");
+    if(!btn && tries < 8 && !this.hasAttribute("data-wall") && !this._kiosk()){ setTimeout(()=>this._cardLink(tries + 1), 250); return; }
+    this._dropCardParam();
+    if(btn) this._openEmergencyCard();
+  }
+  _dropCardParam(){
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete("card");
+      history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    } catch(_) { /* the address stays; the card opened once on this page */ }
   }
   // A word that says a feature was used (Audio's, the alarm's, a ⋯ line ticked): its tip is done with, report or not.
   _tipNote(name){
