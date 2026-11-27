@@ -482,6 +482,6 @@
 "Shades": "Beschattung",
 "Thermostats": "Thermostate",
 "Open, Stop and Close for the room's blinds and shades in the room's panel": "Öffnen, Stopp und Schließen für die Jalousien und Rollos des Raums im Raumblatt",
-"Each thermostat in the room's panel, its mode and its setpoint with − and +, and the room's temperature and humidity": "Jedes Thermostat im Raumblatt, seine Betriebsart und sein Sollwert mit − und +, dazu Temperatur und Luftfeuchtigkeit des Raums",
-"Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on": "Lautstärke, Stumm und Aus für die Player jedes Raums im Raumblatt, dazu „Raum aus“; ein Lautsprecher neben dem Raumnamen, solange dort ein Player an ist"
+"Each thermostat in the room's panel with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity": "Jeder Thermostat im Raumpanel mit − und + für seinen Sollwert (oder „Heizen auf“ und „Kühlen auf“) und Temperatur und Luftfeuchtigkeit des Raums",
+"Each room's players in its panel: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off; a speaker beside a room's name while one plays": "Die Player jedes Raums in seinem Panel: an und aus, Lautstärke, stumm, Quelle, Klangmodus und Klang, Abspielen, Pause und Springen, Teilen mit anderen Räumen und Raum aus; ein Lautsprecher neben dem Namen eines Raums, solange einer spielt"
 }

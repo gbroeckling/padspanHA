@@ -47,6 +47,9 @@ def run():
                                   # only what sounds, the group's leader, odd source names, the picture, the selects, the Sources card, one read
                                   "c4-core", "no-level", "held", "limit-gaps", "all-off-quiet", "share-leader", "odd-sources", "picture", "selects",
                                   "sources-card", "memo", "drag-then-step", "doc-pointer",
+                                  # the whole-beta inspection: Room off quiets what it can't turn off, one shade rule, idle, a
+                                  # thermostat's range, what the card's parts show, the sheet's repeats and a wall's size
+                                  "room-off-quiet", "shade-rule", "idle", "range", "shown-in", "sheet-tidy",
                                   "german"])
 def test_room_controls(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
@@ -127,6 +130,24 @@ def test_the_classic_layout_has_one_switch_for_audio_in_3d_too():
     la = _src("views/live_aboard.js")
     body = la[la.index("function syncAudio(p){"):][:700]
     assert "(!p.audio || (showOn && showOn.room_controls === true))" in body
+
+
+def test_the_card_gives_way_and_says_what_it_does():
+    """The ⋯ list open: the alarm's shield gives way (it sat on the list's rows on a phone). Match rooms only in the ⋯
+    list's Set up ›, never on a wall. The 3D panel's "More devices of the area" leaves out what the card's parts show.
+    The ⋯ line and Settings say what the Audio card does now."""
+    css = _src("styles.css")
+    assert ".lv-mapcard:has([data-la3d-show]) .lv-emerg{display:none}" in css
+    lm = _src("views/lights_map.js")
+    assert "const audioSetup = () => (host.roomControls && !host.wall ? {" in lm
+    la = _src("views/live_aboard.js")
+    body = la[la.index("function paintRoomMore(api){"):][:900]
+    assert "api.roomControls.shownIn(room, api.roomParts)" in body and "...parts]" in body
+    show = _src("views/live_aboard_show.js")
+    assert "Volume, mute and off" not in show and "sharing with other rooms, and Room off" in show
+    assert "its mode and its setpoint" not in show
+    assert "volume, mute and off, and Match rooms" not in _src("views/settings.js")
+    assert "export function isShade(hass, eid, openers = null)" in _src("views/room_controls.js")
 
 
 def test_the_matching_card_goes_with_the_panel():

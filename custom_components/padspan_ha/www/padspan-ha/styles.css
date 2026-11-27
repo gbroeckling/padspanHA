@@ -1462,6 +1462,8 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 /* While a drawer is open, the running test's label and Force off stack
    under the dial, in that same clear strip, rather than over the chips. */
 .lv-mapcard:has(.lv-drawer.open) .lv-emerg{flex-direction:column;align-items:flex-end}
+/* The ⋯ list open (live_aboard_show.js, the flat Map's and the 3D look's): the shield gives way, never over its rows. */
+.lv-mapcard:has([data-la3d-show]) .lv-emerg{display:none}
 /* ...and the running label is its 32px icon at every width, so the stacked
    column stays inside the drawer's clear strip on the right (re-review). */
 .lv-mapcard:has(.lv-drawer.open) .lv-emerg-label.on{max-width:32px;width:32px;padding:0;justify-content:center}

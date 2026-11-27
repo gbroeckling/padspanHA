@@ -78,7 +78,7 @@ export const SHOW_ITEMS = [
   { key: "readouts", group: "motion", get words() { return t("Temperature and air"); }, get hint() { return t("The chips under room names: temperature, humidity, air"); }, link: "place" },
   // Thermostats in a room's sheet or panel (room_controls.js; the owner, 2026-11-26: "Thermostats in climate and air
   // quality"): the Climate map add-on's, offered only where the host has it (roomLines). Per screen, off unless ticked.
-  { key: "room_climate", group: "motion", get words() { return t("Thermostats"); }, get hint() { return t("Each thermostat in the room's panel, its mode and its setpoint with − and +, and the room's temperature and humidity"); }, flat: true, dflt: false },
+  { key: "room_climate", group: "motion", get words() { return t("Thermostats"); }, get hint() { return t("Each thermostat in the room's panel with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity"); }, flat: true, dflt: false },
   { key: "alarms", group: "motion", get words() { return t("Leak, smoke, CO and gas alarms"); }, get hint() { return t("Always shown, with their ring and pill"); }, always: true, link: "place" },
   { key: "doors", group: "openings", get words() { return t("Doors"); }, get hint() { return t("Every door leaf; the doorway stays open"); }, link: "walls" },
   { key: "windows", group: "openings", get words() { return t("Windows"); }, get hint() { return t("Every pane; the opening stays"); }, link: "walls" },
@@ -120,7 +120,7 @@ export const SHOW_ITEMS = [
   // and the report go on): on the flat Map a speaker beside the name of a room whose player is on, and the room's
   // sheet or panel gains its audio (its shades and thermostats are lines of their own: room_shades, room_climate). Per screen, off unless ticked. Its Set up › opens the
   // matching card over the map, ticked or not (audio_setup, an administrator's).
-  { key: "room_controls", group: "house", get words() { return t("Audio"); }, get hint() { return t("Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on"); }, link: "audio_setup", flat: true, dflt: false },
+  { key: "room_controls", group: "house", get words() { return t("Audio"); }, get hint() { return t("Each room's players in its panel: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off; a speaker beside a room's name while one plays"); }, link: "audio_setup", flat: true, dflt: false },
   // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
   // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).
   { key: "glass_walls", group: "house", get words() { return t("Glass walls"); }, get hint() { return t("The walls between you and the rooms show as see-through glass instead of being cut away (Walls: Glass)"); }, dflt: false },

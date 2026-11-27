@@ -5007,7 +5007,10 @@ function createSlot(slotKey){
   function paintRoomMore(api){
     if (!roomPanel || !roomPanel.isOpen || !api) return;
     const room = roomPanel.room;
-    roomPanel.more(ROOMS.areaExtras(api.hass, room, roomAggregate(lightsOf(api), room).all.map(l => l.entity_id), lastP && lastP.settings3d));
+    // Not what the card's parts show either (room_controls.js shownIn: its players and their Sound entities, its shades,
+    // its thermostats, its status line's sensors).
+    const parts = api.roomControls && typeof api.roomControls.shownIn === "function" ? api.roomControls.shownIn(room, api.roomParts) : [];
+    roomPanel.more(ROOMS.areaExtras(api.hass, room, [...roomAggregate(lightsOf(api), room).all.map(l => l.entity_id), ...parts], lastP && lastP.settings3d));
   }
   /** The card's data came in: the panel's sheet and list as the house is now; gone once its room no longer shows. */
   function syncRoomPanel(){

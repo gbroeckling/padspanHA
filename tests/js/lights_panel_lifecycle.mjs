@@ -851,7 +851,8 @@ if (Cls) {
     const up2 = a2 && a2._all().find(n => n.localName === "button" && n.attributes["aria-label"] === "Kitchen volume up");
     if (up2) { up2.click(); await flush(); }
     const mb = a2 && a2._all().find(n => n.localName === "button" && n.attributes["data-room-match"] !== undefined);
-    roomCtl.nonAdmin = { svc: p.svc.slice(), matchDisabled: !!(mb && mb.disabled) };
+    // Match rooms is never in the card (the ⋯ list's Set up ›, an administrator's).
+    roomCtl.nonAdmin = { svc: p.svc.slice(), matchShown: !!mb };
     p.done();
     // Audio is decided in one place (_audioAllowed, Pro today): below it, ticked or not, no speaker, no Audio in the
     // sheet, and the map is handed no Audio at all (so the ⋯ list offers neither the line nor its Set up ›).

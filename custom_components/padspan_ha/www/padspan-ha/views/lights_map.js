@@ -1559,12 +1559,14 @@ const _S = {
     + "border-radius:18px 18px 0 0;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;box-shadow:0 -12px 50px rgba(0,0,0,.6)",
   // In Live Aboard's room panel (openAggregateSheet's o.into): the panel is the card round it.
   inPanel: "padding:12px 14px 6px;box-sizing:border-box;color:#e2e8f0;font-family:Inter,system-ui,sans-serif",
+  // The lights' heading beside room controls' parts (room_controls.js S.head).
+  listHead: "font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:2px 0 2px;padding:6px 2px 0",
   head: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px",
   title: "font-weight:800;font-size:16px;letter-spacing:-.01em",
   sub: "font-size:12px;color:#94a3b8;margin-top:2px",
-  act: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
+  act: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:36px;"
     + "background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);color:rgba(226,240,232,.75)",
-  actPrimary: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
+  actPrimary: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:36px;"
     + "color:#e2e8f0;background:#2d6a4f;border:1px solid #52b788",
   actions: "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px",
   row: "display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(120,190,155,.08)",
@@ -1601,6 +1603,8 @@ export function openAggregateSheet(api, spec, o = {}){
     if (o && typeof o.onClose === "function") o.onClose(); };
   if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", into ? _S.inPanel : _S.sheet + (desktop ? ";border-radius:16px" : ""));
+  // On a wall (api.kiosk) the card is read from across the room: larger, every part of it alike.
+  if (!into && api && api.kiosk) sheet.style.zoom = "1.35";
   const greyed = ";opacity:.45;cursor:default";
   let drawn = null;
   // before / after (room controls, room_controls.js, only while a screen has them on): {sig, draw()} parts drawn
@@ -1634,6 +1638,8 @@ export function openAggregateSheet(api, spec, o = {}){
       sheet.appendChild(row);
     }
     if (before) { const n = before.draw(); if (n) sheet.appendChild(n); }
+    // With room controls' parts round it, the room's own list gets its heading as they have theirs.
+    if ((before || after) && items.length) { const lh = mk("div", _S.listHead, t("Lights")); lh.setAttribute("data-room-lights", ""); sheet.appendChild(lh); }
     for (const l of items) {
       const row = mk("div", _S.row);
       const col = classBorder(l, "#52b788");
@@ -1804,7 +1810,9 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
     }
   }
   const whoLine = only || api.peopleShown !== true ? null : who;
-  if (rc) return { title: room, sub: parts.join(" · "), who: [rc.status, whoLine].filter(Boolean).join(" · ") || null, items, actions, before: rc.before, after: rc.after };
+  // The room's temperature and humidity are the status line's: their sensors' own rows would say it again.
+  if (rc) return { title: room, sub: parts.join(" · "), who: [rc.status, whoLine].filter(Boolean).join(" · ") || null,
+    items: rc.status ? items.filter(l => !l.isTemp && !l.isHumidity) : items, actions, before: rc.before, after: rc.after };
   return { title: only ? t("Unplaced in {room}", { room }) : room, sub: parts.join(" · "), who: whoLine, items, actions };
 }
 /** The room sheet. Returns its handle: the host hands every newer api and
@@ -4321,7 +4329,8 @@ export function buildLightsMapCard(hostIn){
   const roomControlsOn = () => !!host.roomControls && (DISPLAY ? flatShow("room_controls") === true : host.audioOn === true);
   // The ⋯ list's Audio line, offered where the host hands Audio: its Set up › opens the matching card over the map
   // (live_aboard_show.js goShow "audio_setup"), for an administrator (setup null for anyone else: no link).
-  const audioSetup = () => (host.roomControls ? { setup: host.roomControls.canMatch() ? () => host.roomControls.openMatch() : null } : null);
+  // Never on a wall: nobody sets up from across the room (the owner's wall screens show what is set up).
+  const audioSetup = () => (host.roomControls && !host.wall ? { setup: host.roomControls.canMatch() ? () => host.roomControls.openMatch() : null } : null);
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard

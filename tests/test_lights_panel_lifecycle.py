@@ -303,7 +303,7 @@ def test_room_controls_through_the_panel(result) -> None:
     assert r["onIcon"] and r["onAudio"], r
     assert r["onSvc"] == ["media_player.volume_up:media_player.c4_kitchen"], r
     assert r["onSent"] == ["room_controls:on", "room_controls:up"], r
-    assert r["nonAdmin"] == {"svc": ["media_player.volume_up:media_player.c4_kitchen"], "matchDisabled": True}, r
+    assert r["nonAdmin"] == {"svc": ["media_player.volume_up:media_player.c4_kitchen"], "matchShown": False}, r
     # Audio is allowed in one place (lights_panel.js _audioAllowed: PadSpan Pro or the Audio add-on); without it
     # nothing of it shows.
     assert r["pro"] == {"allowed": True} and r["belowPro"] == {"allowed": False, "icon": False, "audio": False}, r
