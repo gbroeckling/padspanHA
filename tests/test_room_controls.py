@@ -46,7 +46,7 @@ def run():
                                   # the review's fixes: Home Assistant core's Control4 room, no level, a held slider, the limit's gaps,
                                   # only what sounds, the group's leader, odd source names, the picture, the selects, the Sources card, one read
                                   "c4-core", "no-level", "held", "limit-gaps", "all-off-quiet", "share-leader", "odd-sources", "picture", "selects",
-                                  "sources-card", "memo",
+                                  "sources-card", "memo", "drag-then-step", "doc-pointer",
                                   "german"])
 def test_room_controls(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]

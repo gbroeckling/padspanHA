@@ -104,8 +104,9 @@ const features = (st) => Number((st && st.attributes && st.attributes.supported_
 const has = (st, bit) => (features(st) & bit) === bit;
 const nameOf = (st, eid) => String((st && st.attributes && st.attributes.friendly_name) || eid.split(".")[1] || eid);
 const pretty = (platform) => String(platform || "").split(/[_-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
-/** Is a player on (playing, paused, idle, on): anything but off, standby, unavailable, unknown. */
-export const playerOn = (st) => !!st && !OFF_STATES.has(String(st.state));
+/** Is a player on (playing, paused, idle, on): anything but off, standby, unavailable, unknown. platform: a Control4
+ *  room (Home Assistant core's control4) says idle while it is off, never off: idle is off there. */
+export const playerOn = (st, platform) => !!st && !OFF_STATES.has(String(st.state)) && !(platform === "control4" && st.state === "idle");
 
 /** The area an entity is in: its own, else its device's (as roomScenes reads it). */
 export function areaOf(hass, eid){
@@ -402,6 +403,8 @@ export function createRoomControls(o){
   const offeredPlayers = () => once("players", () => audioPlayers(H(), haOn()));
   const offeredMap = () => once("playerMap", () => new Map(offeredPlayers().map(p => [p.eid, p])));
   const rooms = () => once("rooms", () => mapRooms(o.model()));
+  // Is a player on, by its platform too (a Control4 room's idle is off): what every part of the card goes by.
+  const isOn = (eid) => { const e = own(H().entities, eid) ? H().entities[eid] : null; return playerOn(st(eid), e && e.platform ? String(e.platform) : ""); };
   const soundOf = (eid) => once(`sound:${eid}`, () => soundControls(H(), eid, memo ? once("devices", () => devicesIndex(H())) : null));
   // Set up: the card has kept its picks once (or, from before that was written down, some are kept). Only a house
   // never set up gets the card's guesses, the card opening by itself and the prominent button in every room.
@@ -461,7 +464,7 @@ export function createRoomControls(o){
     for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, letGo, true);
   };
   function levelNow(eid){
-    if (!playerOn(st(eid))) return reported(eid);   // off: no level of its own, nor one just pressed or dragged to
+    if (!isOn(eid)) return reported(eid);   // off: no level of its own, nor one just pressed or dragged to
     if (dragging(eid)) return drag.get(eid).level;
     const r = reported(eid), v = vol.get(eid);
     if (!v || Date.now() >= v.until) return r;
@@ -484,6 +487,13 @@ export function createRoomControls(o){
   /** One − / + press: the number moves one step at once (presses add up), then Home Assistant is asked. Never up past
    *  the player's limit. */
   function nudgeLevel(p, dir, step){
+    // A slider let go of a moment ago: its window ends here, its level is where the presses start (they add up from it,
+    // and the limit is held from it), until Home Assistant says.
+    const d = drag.get(p.eid);
+    if (d && !d.active) {
+      if (Date.now() < d.until) { const w = vol.get(p.eid); if (w) clearTimeout(w.timer); vol.set(p.eid, { from: reported(p.eid), level: d.level, until: Date.now() + OPTIMISTIC_MS, timer: 0 }); }
+      d.until = 0;
+    }
     const r = reported(p.eid), shown = levelNow(p.eid), v = vol.get(p.eid);
     if (dir > 0 && upBlocked(p.eid, shown, step)) return;
     if (shown !== null) {
@@ -506,10 +516,10 @@ export function createRoomControls(o){
     const out = {};
     for (const r of rooms()) {
       const ps = playersIn(r.name);
-      if (!ps.some(p => playerOn(st(p.eid)))) continue;
+      if (!ps.some(p => isOn(p.eid))) continue;
       const first = st(ps[0].eid), op = optOf(ps[0].eid);
       const muted = op && typeof op.muted === "boolean" ? op.muted : !!(first && first.attributes && first.attributes.is_volume_muted === true);
-      out[r.name] = playerOn(first) && muted ? "muted" : "on";
+      out[r.name] = isOn(ps[0].eid) && muted ? "muted" : "on";
     }
     return out;
   }
@@ -524,7 +534,7 @@ export function createRoomControls(o){
   };
   function audioRow(p){
     const s = st(p.eid), a = (s && s.attributes) || {}, op = optOf(p.eid) || {};
-    const na = !s || s.state === "unavailable", on = playerOn(s);
+    const na = !s || s.state === "unavailable", on = isOn(p.eid);
     const muted = typeof op.muted === "boolean" ? op.muted : a.is_volume_muted === true;
     const lvl = levelNow(p.eid);
     const row = mk("div", S.row);
@@ -580,9 +590,9 @@ export function createRoomControls(o){
   function audioLines(p){
     const s = st(p.eid), out = [];
     if (!s || s.state === "unavailable") return out;
-    const a = s.attributes || {}, on = playerOn(s);
+    const a = s.attributes || {}, on = isOn(p.eid);
     const pic = typeof a.entity_picture === "string" ? a.entity_picture : "";
-    const picOK = (pic.startsWith("/") && !pic.startsWith("//")) || pic.startsWith("https://");
+    const picOK = pictureOK(pic);
     const showNow = (s.state === "playing" || s.state === "paused") && !!(a.media_title || a.media_artist || picOK);
     const tr = on ? transport(p, s) : null;
     if (showNow || tr) {
@@ -651,6 +661,15 @@ export function createRoomControls(o){
     }
     return out;
   }
+  /** A picture of Home Assistant's own (this page's origin) or over https, read as the browser reads it. */
+  function pictureOK(pic){
+    if (!pic) return false;
+    try {
+      const base = (typeof location !== "undefined" && location && location.origin && location.origin !== "null") ? location.origin : "http://padspan.invalid";
+      const u = new URL(pic, base);
+      return u.origin === new URL(base).origin || u.protocol === "https:";
+    } catch (_) { return false; }
+  }
   const sourceLabel = (eid, raw) => { if (!raw) return ""; const c = sourcesOf(eid); return (c && own(c.names, raw) && c.names[raw]) || String(raw); };
 
   /** The transport, only what the player supports: ⏮, a Control4 room's ⏪ (control4.media_scan, where the Control4
@@ -663,7 +682,7 @@ export function createRoomControls(o){
     const add = (text, aria, domain, service, word, extra) => g.appendChild(button(text, aria, () => call(domain, service, { entity_id: p.eid, ...(extra || {}) }, word, p.name)));
     const c4 = p.platform === "control4", P = has(s, PLAY), Z = has(s, PAUSE), now = s.state;
     // ⏪ ⏩: a Control4 room that plays (play or pause), on, where the Control4 integration has control4.media_scan.
-    const scan = c4 && (P || Z) && playerOn(s) && scanOK();
+    const scan = c4 && (P || Z) && isOn(p.eid) && scanOK();
     if (has(s, PREVIOUS_TRACK)) add(glyph("⏮"), t("{name} previous", n), "media_player", "media_previous_track", "previous");
     if (scan) add(glyph("⏪"), t("{name} rewind", n), "control4", "media_scan", "scan", { direction: "back" });
     if (P && Z && (now === "playing" || now === "paused")) {
@@ -770,7 +789,7 @@ export function createRoomControls(o){
     const a = s.attributes || {};
     if (!has(s, SELECT_SOURCE)) return null;
     // Off, only where a source starts it: a Control4 room, or a player that turns on.
-    if (!playerOn(s) && p.platform !== "control4" && !has(s, TURN_ON)) return null;
+    if (!isOn(p.eid) && p.platform !== "control4" && !has(s, TURN_ON)) return null;
     const items = tidySources(a.source_list, sourcesOf(p.eid)).map(x => ({ value: x.raw, label: x.label }));
     if (!items.length) return null;
     const op = optOf(p.eid) || {}, cur = typeof op.source === "string" ? op.source : a.source;
@@ -957,7 +976,7 @@ export function createRoomControls(o){
       const q = offered.get(e), s = st(e);
       if (!q || !s) continue;
       const playing = SOUNDING.has(String(s.state));
-      if (!playing && !(playerOn(s) && !MEDIA_STATES.has(String(s.state)) && has(s, TURN_OFF))) continue;
+      if (!playing && !(isOn(e) && !MEDIA_STATES.has(String(s.state)) && has(s, TURN_OFF))) continue;
       if (has(s, TURN_OFF)) out.push([q, "turn_off"]);
       else if (playing && has(s, PAUSE)) out.push([q, "media_pause"]);
       else if (has(s, STOP)) out.push([q, "media_stop"]);
@@ -1084,7 +1103,7 @@ export function createRoomControls(o){
     const mt = median(temps), mh = median(hums);
     const status = [mt === null ? null : `${one(mt)}°`, mh === null ? null : `${Math.round(mh)} %`].filter(Boolean).join(" · ") || null;
     const players = want.audio ? playersIn(room) : [];
-    const onPlayers = players.filter(p => playerOn(st(p.eid)) && has(st(p.eid), TURN_OFF));
+    const onPlayers = players.filter(p => isOn(p.eid) && has(st(p.eid), TURN_OFF));
     // Room off is Audio's: without the players it would be All lights off again.
     const n = lightsOn.length + onPlayers.length;
     const roomOff = want.audio && n ? { label: t("Room off ({n})", { n }), run: () => {
@@ -1419,6 +1438,12 @@ export function createRoomControls(o){
   // close(): every card this made (the panel went away).
   // held(): a slider in a sheet is held now (or was let go of a moment ago): the host draws its sheet again only after
   // (lights_map.js openAggregateSheet). letGo(): the sheet closed; any held slider is let go of.
-  return { looks, sheet, switched, openMatch, canMatch: () => !!o.admin(), close: () => { for (const d of [...dialogs]) d.close(); },
-    held: () => [...drag.keys()].some(dragging), letGo };
+  // close() also lets go of the document (hookLetGo). held(): a finger (or the mouse) is down on a slider now; the
+  // moment after it is let go of, the Audio part's own frozen signature covers.
+  return { looks, sheet, switched, openMatch, canMatch: () => !!o.admin(),
+    close: () => {
+      for (const d of [...dialogs]) d.close();
+      if (letGoHooked) { letGoHooked = false; for (const ev of ["pointerup", "pointercancel"]) document.removeEventListener(ev, letGo, true); }
+    },
+    held: () => [...drag.values()].some(d => d.active && Date.now() - d.at < DRAG_IDLE_MS), letGo };
 }

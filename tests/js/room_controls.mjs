@@ -1089,7 +1089,7 @@ await tryCase("tidy", async () => {
 // ── the review's fixes (2026-11-26) ──
 // Home Assistant core's own Control4 room: play, pause, stop, mute, set, step, on, off, source (1288 is one owner's
 // override of it, the C4 fixture above).
-const C4_CORE = F.PLAY | F.PAUSE | F.STOP | F.MUTE | F.SET | F.STEP | F.ON | F.OFF | F.SRC;
+const C4_CORE = F.PLAY | F.PAUSE | F.STOP | F.MUTE | F.SET | F.STEP | F.OFF | F.SRC;   // no turn_on
 await tryCase("c4-core", async () => {
   const h = house();
   Object.assign(h.hass.states["media_player.c4_great_room"].attributes, { supported_features: C4_CORE, source_list: ["Apple TV", "Sonos"], source: "Sonos" });
@@ -1101,12 +1101,19 @@ await tryCase("c4-core", async () => {
   const n = h.calls.length;
   await press(byAria(row, "Great Room volume up"));
   check("c4-core", h.calls.slice(n).map(c => c.service).join() === "volume_up", h.calls.slice(n));
-  // Off: no transport, no slider, no On (its turn_on can start a TV); its sources still (one starts the room).
+  check("c4-core", JSON.stringify(r.rc.looks()) === JSON.stringify({ "Great Room": "on" }), r.rc.looks());
+  // Off, which Home Assistant core's Control4 says as "idle" (never "off"): off everywhere. No transport, no slider,
+  // ⏻ greyed, no On; no speaker on the map; not in Room off; never in Any audio in house off. Its sources still: one
+  // starts the room.
   const s = h.hass.states["media_player.c4_great_room"];
-  s.state = "off"; delete s.attributes.volume_level; delete s.attributes.source;
+  s.state = "idle"; delete s.attributes.volume_level; delete s.attributes.source;
   sec = drawAudio(r); row = rowOf(sec, "media_player.c4_great_room");
-  check("c4-core", !q(sec, "data-audio-transport") && !q(sec, "data-slider") && !q(sec, "data-audio-now") && !byText(row, "On"), words(sec));
+  check("c4-core", row.children[1].textContent === "Off" && byText(row, "⏻").disabled === true && !byText(row, "On"), words(row));
+  check("c4-core", !q(sec, "data-audio-transport") && !q(sec, "data-slider") && !q(sec, "data-audio-now") && !q(sec, "data-audio-all-off"), words(sec));
   check("c4-core", words(q(sec, "data-audio-source")).join() === "Apple TV,Sonos", words(sec));
+  check("c4-core", JSON.stringify(r.rc.looks()) === "{}" && r.rc.sheet("Great Room", { lightsOn: [], parts: AUDIO_ONLY }).roomOff === null, r.rc.looks());
+  // Another platform's idle player is on, as before (a Sonos or a Cast speaker sits idle while on).
+  check("c4-core", RC.playerOn({ state: "idle" }, "sonos") === true && RC.playerOn({ state: "idle" }, "control4") === false && RC.playerOn({ state: "on" }, "control4") === true, "idle");
   // Another player off with sources: only one that turns on offers them (a source starts it); else not until it is on.
   addPlayer(h, "media_player.tv_great", "samsungtv", "off", { friendly_name: "TV", supported_features: F.SRC | F.SET, source_list: ["HDMI 1", "HDMI 2"] });
   const r2 = controls(h, { matches: { great_room: ["media_player.tv_great"] }, ha: true });
@@ -1160,9 +1167,7 @@ await tryCase("held", async () => {
     sl1.value = "42"; await fire(sl1, "input");                          // held back (under 250 ms)
     s.close(); reset();
     await tick();
-    check("held", r.rc.held() === true && h.calls.slice(n).map(c => c.volume_level).join() === "0.42", h.calls.slice(n));
-    clk += 3500;
-    check("held", r.rc.held() === false, "still held after its sheet closed");
+    check("held", r.rc.held() === false && h.calls.slice(n).map(c => c.volume_level).join() === "0.42", h.calls.slice(n));
     // A slider let go of off it (no pointerup heard, no change): over after a few seconds with no input.
     const sec2 = drawAudio(r), sl2 = q(sec2, "data-slider");
     await fire(sl2, "pointerdown");
@@ -1262,7 +1267,8 @@ await tryCase("picture", async () => {
   addPlayer(h, "media_player.sonos_great", "sonos", "playing", { friendly_name: "Arc", supported_features: F.PLAY | F.PAUSE | F.SET, media_title: "Song" });
   const r = controls(h, { matches: { great_room: ["media_player.sonos_great"] }, ha: true });
   const img = (pic) => { h.hass.states["media_player.sonos_great"].attributes.entity_picture = pic; return all(drawAudio(r)).find(x => x.localName === "img"); };
-  for (const bad of ["//evil.example/a.png", "http://cover.example/a.png", "javascript:alert(1)", "data:image/png;base64,AAAA"]) check("picture", !img(bad), bad);
+  const back = "/" + String.fromCharCode(92) + "evil.example/a.png";      // a browser reads it as //evil.example
+  for (const bad of ["//evil.example/a.png", back, "http://cover.example/a.png", "javascript:alert(1)", "data:image/png;base64,AAAA"]) check("picture", !img(bad), bad);
   const a = img("/api/media_player_proxy/media_player.sonos_great?token=t"), b = img("https://i.scdn.co/image/abc");
   check("picture", a && b && b.src === "https://i.scdn.co/image/abc" && a.referrerPolicy === "no-referrer" && b.referrerPolicy === "no-referrer", [a && a.src, b && b.referrerPolicy]);
 });
@@ -1316,6 +1322,20 @@ await tryCase("sources-card", async () => {
   await tick(); await tick();
   check("sources-card", JSON.stringify(r.saved[r.saved.length - 1]) === JSON.stringify({ room_audio_sources: { "media_player.denon_zone_2": { names: { TV: "Telly" }, hidden: [], order: [] } } }), r.saved);
   reset();
+  // Kept after a pause in typing (RENAME_MS), and at once on leaving the field; never twice for the same name.
+  r.rc.openMatch(); await tick();
+  await press(btn(dlg("data-room-match-card"), x => x.attributes["data-audio-sources"] === "media_player.denon_zone_2"));
+  const field = (raw) => all(all(dlg("data-audio-sources-card")).find(x => x.attributes && x.attributes["data-source"] === raw)).find(x => x.localName === "input" && x.type === "text");
+  const n0 = r.saved.length;
+  field("In 0").value = "Turntable"; await fire(field("In 0"), "input");
+  check("sources-card", r.saved.length === n0, "saved before the pause");
+  await flush(4, 700); await tick(); await tick();
+  check("sources-card", r.saved.length === n0 + 1 && r.saved[n0].room_audio_sources["media_player.denon_zone_2"].names["In 0"] === "Turntable", r.saved.slice(n0));
+  field("In 1").value = "Radio"; await fire(field("In 1"), "change"); await tick(); await tick();
+  check("sources-card", r.saved.length === n0 + 2 && r.saved[n0 + 1].room_audio_sources["media_player.denon_zone_2"].names["In 1"] === "Radio", r.saved.slice(n0));
+  await fire(field("In 1"), "change"); await tick();
+  check("sources-card", r.saved.length === n0 + 2, "the same name saved twice");
+  r.rc.close(); reset();
 });
 
 // ── one sheet reads Home Assistant's entities once, not once per player ──
@@ -1330,6 +1350,49 @@ await tryCase("memo", async () => {
   sh.before.draw();
   check("memo", keys === 1, keys);
   h.hass.entities = ents;
+});
+
+// ── − and + right after a slider was let go of: they start from the dragged level, add up, and the limit holds ──
+await tryCase("drag-then-step", async () => {
+  const realNow = Date.now;
+  let clk = 0;
+  Date.now = () => realNow() + clk;
+  try {
+    const h = house();
+    const r = controls(h, { matches: { great_room: ["media_player.denon_zone_2"] }, limits: { "media_player.denon_zone_2": 0.5 } });
+    const sec = drawAudio(r), sl = q(sec, "data-slider"), row = rowOf(sec, "media_player.denon_zone_2");
+    const num = all(row).find(x => x.attributes["data-level"] !== undefined), plus = byAria(row, "Zone 2 volume up");
+    await fire(sl, "pointerdown"); sl.value = "47"; await fire(sl, "input"); await fire(sl, "change"); await fire(sl, "pointerup");
+    check("drag-then-step", num.textContent === "47", num.textContent);
+    const n = h.calls.length;
+    for (let i = 0; i < 4; i++) { clk += 300; await press(plus); }
+    // 48, 49, 50, then the limit: three calls, never a fourth; Home Assistant still says 0.5 from before the drag.
+    check("drag-then-step", num.textContent === "50" && h.calls.slice(n).filter(c => c.service === "volume_up").length === 3 && plus.disabled === true,
+      [num.textContent, h.calls.slice(n).map(c => c.service), plus.disabled]);
+  } finally { Date.now = realNow; }
+});
+
+// ── the document's pointer: let go anywhere ends a drag; the panel gone, its listeners go too ──
+await tryCase("doc-pointer", async () => {
+  const realAdd = document.addEventListener, realRemove = document.removeEventListener, heard = new Map();
+  document.addEventListener = (type, fn, capture) => { if (!heard.has(type)) heard.set(type, []); heard.get(type).push([fn, capture]); };
+  document.removeEventListener = (type, fn, capture) => { heard.set(type, (heard.get(type) || []).filter(([f, c]) => !(f === fn && c === capture))); };
+  try {
+    const h = house();
+    const r = controls(h, { matches: { great_room: ["media_player.denon_zone_2"] } });
+    const sl = q(drawAudio(r), "data-slider");
+    check("doc-pointer", (heard.get("pointerup") || []).length === 1 && (heard.get("pointercancel") || []).length === 1 && heard.get("pointerup")[0][1] === true, [...heard.keys()]);
+    q(drawAudio(r), "data-slider");                                         // a second slider: still one listener
+    check("doc-pointer", heard.get("pointerup").length === 1, heard.get("pointerup").length);
+    await fire(sl, "pointerdown"); sl.value = "62"; await fire(sl, "input");
+    check("doc-pointer", r.rc.held() === true, "not held");
+    const n = h.calls.length;
+    for (const [fn] of heard.get("pointerup")) fn({ type: "pointerup" });   // let go off the slider: only the document hears
+    await tick(); await tick();
+    check("doc-pointer", r.rc.held() === false && r.counts.filter(w => w === "slider").length === 1 && h.calls.slice(n).length === 0, [r.rc.held(), h.calls.slice(n)]);
+    r.rc.close();
+    check("doc-pointer", heard.get("pointerup").length === 0 && heard.get("pointercancel").length === 0, "the panel went, its listeners stayed");
+  } finally { document.addEventListener = realAdd; document.removeEventListener = realRemove; }
 });
 
 // ── German ──
