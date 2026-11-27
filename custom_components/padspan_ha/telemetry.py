@@ -111,6 +111,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         sources); and the funnel in `usage` (ADDON_EVENTS): offers seen by
         place, the site opened, keys entered and how they went, add-ons
         gained and when against the sale, the sale card
+    feature tips (views/tips.js): each tip shown, its Show me, Not now
+        and dismiss, "No more tips", and its feature used within 7 days
+        of it showing (FEATURE_TIP_EVENTS); tip ids only, never a room
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -162,6 +165,7 @@ from .const import (
 )
 from .onboarding import BUCKET_WORDS as _ONB_BUCKETS, STEPS as _ONB_STEPS
 from . import addon_report as _addon_report
+from . import tips as _tips
 from .licence import ADDONS as _ADDONS
 from . import quiet_errors as _quiet_errors
 from .quiet_errors import note as _quiet_error
@@ -635,6 +639,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "i18n",                                         # the panel's translations helper (t / tn)
     "status_dot",                                   # the top bar's status dot (what is wrong, from the live poll)
     "dialog_keys",                                  # Escape, Tab and the focus for the panel's cards, sheets and dialogs
+    "tips",                                         # feature tips: the Overview's card, the Atlas's line, Settings' Tips
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 # 0.38.177: beside each, the kind of error (views/ui_error.js UI_ERROR_KINDS)
@@ -1137,6 +1142,12 @@ def rooms_band(n: int) -> str:
 TIP_IDS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale", "plan_shape")
 TIP_EVENTS: frozenset[str] = frozenset(
     {f"tip_{a}:{t}" for a in ("shown", "opened", "hidden") for t in TIP_IDS} | {"tip_hidden:all"})
+# Feature tips (views/tips.js, 2026-11-26; their ids are tips.IDS, none of them an accuracy tip's): a tip shown (once,
+# ever), its Show me, its Not now, its ✕ (dismissed), "No more tips" (tips_off), and its feature used within 7 days of
+# it being shown (tip_used_after). Whether tips lead anyone to a feature they had and didn't use. Counts only.
+FEATURE_TIP_WORDS: tuple[str, ...] = ("shown", "go", "not_now", "dismiss", "used_after")
+FEATURE_TIP_EVENTS: frozenset[str] = frozenset(
+    {f"tip_{w}:{t}" for w in FEATURE_TIP_WORDS for t in _tips.IDS} | {"tips_off"})
 # Calibration → Results (views/calibration_results.js, 2026-10-30): each
 # opening of the tab, and which button was used: the next best thing to do
 # (by its kind) or Guided calibration. Whether opening on results gets
@@ -1950,7 +1961,7 @@ def event_allowed(name: str) -> bool:
             or name in WIZARD_DRAW_EVENTS or name in ROUGH_PLAN_EVENTS or name in PLAN_CARRY_EVENTS or name in FIT_SUGGEST_EVENTS
             or name in TEAM_CARD_EVENTS or name in ROBOT_RUN_EVENTS or name in ALARM_BUTTON_EVENTS or name in ROBOT_WIFI_EVENTS
             or name in STARTER_HOUSE_EVENTS or name in YESTERDAY_HOME_EVENTS or name in LIGHTS_FOLLOW_EVENTS or name in SHARE_REPLAY_EVENTS
-            or name in ROOM_CONTROLS_EVENTS or name in ADDON_EVENTS)
+            or name in ROOM_CONTROLS_EVENTS or name in ADDON_EVENTS or name in FEATURE_TIP_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

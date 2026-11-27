@@ -94,6 +94,8 @@ const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.met
 // The panel's words in its language (views/i18n.js; English is the key). So far
 // the Setup Wizard's own frame: its steps, their words, Back / Skip / Next, Finish.
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// Feature tips (views/tips.js): a tip's quiet line on the Atlas builder, where the Atlas is adjusted. Optional.
+const TIPS = await import(`./tips.js${new URL(import.meta.url).search}`).catch(() => null);
 
 // ── Maps View ────────────────────────────────────────────────────────────────
 //
@@ -10339,6 +10341,11 @@ function _lightsTab(ctx, maps, active) {
   const mapState = ctx.state.maps;
   const wrap = el("div", {});
   if (!mapState._lightsDraftM) mapState._lightsDraftM = {};
+  // A feature tip, where the Atlas is adjusted (views/tips.js adjustLine): one a day at most; not in Furnish.
+  if (TIPS && !furnish) {
+    try { const tipLine = TIPS.adjustLine(TIPS.hostFromCtx(ctx), "atlas_builder"); if (tipLine) wrap.appendChild(tipLine); }
+    catch (e) { /* a tip is never the error */ }
+  }
 
   // Identical map = identical inputs: the same hidden-maps filter the
   // sidebar applies (init from the same persisted setting if the 3D Stack

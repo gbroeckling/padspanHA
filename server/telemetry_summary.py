@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn the telemetry JSONL files into the answers the reports exist for.
 
-    python telemetry_summary.py /path/to/telemetry [--days 30] [--exclude-install-id ID]
+    python telemetry_summary.py /path/to/telemetry [--days 30] [--exclude-install-id ID] [--tips-out FILE]
 
 Prints: installs by version / edition / tier / HA; environment distributions
 (scanners, floors, rooms, lights, IRKs, integrations); which features are on
@@ -9,7 +9,9 @@ in how many installs; which tabs and tools are used and how much; how well
 the Apple Find My (AirTag) tools follow tags, where they run; power teams and
 every house's colour bulbs by brand (Hue and the rest); the add-ons (licences,
 keys and their time left, offers to purchases, use, who could buy each); how many houses keep
-one screen on PadSpan 90% of the day or more; load and
+one screen on PadSpan 90% of the day or more; the feature tips (each shown, followed,
+put off, dismissed, its feature used after, tips turned off; and each tip's feature in use among the installs that
+have it, the ranking --tips-out writes for server/version.php); load and
 hardware (installs by board / CPUs / RAM, and per class how hard Home
 Assistant works and how many installs max out — Raspberry Pi classes
 first); health signals (crypto ok, callback alive, IRKs resolving anywhere,
@@ -1047,6 +1049,123 @@ def addons_section(latest: dict[str, dict], reports: list[dict], now: float | No
     return out
 
 
+# Feature tips (views/tips.js, 2026-11-26). Their ids are the integration's tips.IDS (tests/test_tips.py holds this
+# table to them). Each: what it needs (free, pro or an add-on's name), and how a report says its feature is in use:
+#   ("feature", key)            features[key] is true          ("feature_in", key, words)  features[key] is one of them
+#   ("feature_has", key, word)  word is in the list features[key]
+#   ("env", key[, sub])         env[key] (or env[key][sub]) above 0
+#   ("usage", word)             a usage event over the window (a word ending ":" is a prefix)
+#   ("used", add-on)            the add-on is in the addons section's used
+_TIP_SIGNALS: dict[str, tuple[str, tuple[tuple, ...]]] = {
+    "house_3d": ("free", (("feature", "atlas_3d_enabled"),)),
+    "alert_pulse": ("free", (("feature", "alert_pulse"),)),
+    "shades": ("free", (("usage", "room_controls:cover"), ("usage", "house3d_show:show:room_shades"))),
+    "edgecut": ("free", (("usage", "house3d_show:show:edgecut"),)),
+    "room_switch": ("free", (("usage", "house3d_show:show:room_switch"), ("usage", "house3d_show:room_tap:"))),
+    "lights_follow": ("free", (("feature", "lights_follow"),)),
+    "yesterday_home": ("free", (("feature", "yesterday_home"),)),
+    "guest_tags": ("free", (("feature", "guest_tags"),)),
+    "phone_tracking": ("free", (("env", "irks"),)),
+    "people_3d": ("pro", (("feature_has", "ov_3d", "people"),)),
+    "atlas_overview": ("pro", (("feature", "overview_atlas"),)),
+    "audio": ("audio", (("used", "audio"),)),
+    "alarm_arm": ("alarm", (("usage", "alarm_button:arm"), ("usage", "alarm_button:disarm"))),
+    "door_openers": ("alarm", (("used", "alarm"),)),
+    "wifi_coverage": ("wifi", (("usage", "tab:wifi"), ("used", "wifi"))),
+    "heatmap": ("climate", (("feature", "heatmap"),)),
+    "thermostats": ("climate", (("usage", "room_controls:climate"), ("usage", "house3d_show:show:room_climate"))),
+    "day_replay": ("timetravel", (("used", "timetravel"),)),
+    "vacation_mode": ("vacation", (("used", "vacation"),)),
+    "house_presets": ("vacation", (("used", "vacation"),)),
+    "themes": ("looks", (("feature_in", "theme_palette", ("graphite", "ocean", "dusk")), ("feature", "day_theme"))),
+    "showcase": ("looks", (("feature", "lights_showcase"),)),
+    "locate": ("insights", (("used", "insights"),)),
+    "busy_times": ("insights", (("used", "insights"),)),
+    "forensics": ("insights", (("feature", "forensics_enabled"),)),
+    "power_teams": ("lighting", (("env", "power_teams", "n"),)),
+    "wled_controls": ("lighting", (("used", "lighting"),)),
+    "light_glow": ("lighting", (("feature", "lights_automorph_enabled"),)),
+    "ai_plans": ("maps", (("feature", "ai_plans"),)),
+    "robot_vacuum": ("vacuum", (("used", "vacuum"),)),
+}
+_TIP_WORDS = ("shown", "go", "not_now", "dismiss", "used_after")
+
+
+def _tip_owns(r: dict, need: str) -> bool:
+    """The install's latest report says it has the feature: everyone has a free one; Pro's on Pro; an add-on's on Pro or
+    with an add-on key carrying it."""
+    if need == "free":
+        return True
+    a = _addons(r)
+    pro = _on_pro(a) if a else str(r.get("tier") or "") == "pro"
+    return pro if need == "pro" else (pro or (bool(a) and _holds(a, need)))
+
+
+def _tip_hit(sig: tuple, r: dict, usage: dict) -> bool:
+    kind, key = sig[0], sig[1]
+    feats, env = _dict(r.get("features")), _dict(r.get("env"))
+    if kind == "feature":
+        return feats.get(key) is True
+    if kind == "feature_in":
+        return feats.get(key) in sig[2]
+    if kind == "feature_has":
+        return sig[2] in _words(feats.get(key))
+    if kind == "env":
+        v = env.get(key)
+        v = _dict(v).get(sig[2]) if len(sig) > 2 else v
+        return (_num(v) or 0) > 0
+    if kind == "usage":
+        return any((k.startswith(key) if key.endswith(":") else k == key) and (_num(v) or 0) > 0 for k, v in usage.items())
+    if kind == "used":
+        return key in _words(_addons(r).get("used"))
+    return False
+
+
+def tips_adoption(latest: dict[str, dict], reports: list[dict]) -> dict[str, tuple[int, int]]:
+    """Each tip: (installs that have its feature, of them the ones whose reports say it is in use)."""
+    usage: dict[str, Counter] = defaultdict(Counter)
+    for r in reports:
+        for k, v in (r.get("usage") or {}).items():
+            if _num(v):
+                usage[r.get("install_id")][str(k)] += int(_num(v))
+    out: dict[str, tuple[int, int]] = {}
+    for tip, (need, sigs) in _TIP_SIGNALS.items():
+        owners = [iid for iid, r in latest.items() if _tip_owns(r, need)]
+        users = sum(1 for iid in owners if any(_tip_hit(s, latest[iid], usage[iid]) for s in sigs))
+        out[tip] = (len(owners), users)
+    return out
+
+
+def tips_rank(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+    """Every tip, the one whose feature is in use in the largest share of the installs that have it first; a tip no
+    install has goes after those some do (in the table's order). Only a tie-break on the installs: they rank by fit to
+    their own house first (views/tips.js rankTips)."""
+    ad = tips_adoption(latest, reports)
+    order = list(_TIP_SIGNALS)
+    return sorted(order, key=lambda t: (ad[t][0] == 0, -(ad[t][1] / ad[t][0]) if ad[t][0] else 0, -ad[t][0], order.index(t)))
+
+
+def tips_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+    use: Counter = Counter()
+    users: dict[str, set] = defaultdict(set)
+    for r in reports:
+        for k, v in (r.get("usage") or {}).items():
+            if (str(k).startswith("tip_") or k == "tips_off") and _num(v):
+                use[k] += int(_num(v))
+                users[k].add(r.get("install_id"))
+    ad = tips_adoption(latest, reports)
+    out = ["Feature tips (usage events over the window (installs); in use: latest report per install, of those that have it)",
+           f"  tips turned off (No more tips, or the switch): {use['tips_off']} ({len(users['tips_off'])} installs)",
+           f"    {'tip':<16}" + "".join(f"{w:>12}" for w in _TIP_WORDS) + f"{'in use':>14}"]
+    for tip in tips_rank(latest, reports):
+        cells = "".join(f"{(str(use[f'tip_{w}:{tip}']) + ' (' + str(len(users[f'tip_{w}:{tip}'])) + ')') if use[f'tip_{w}:{tip}'] else '-':>12}"
+                        for w in _TIP_WORDS)
+        has, used = ad[tip]
+        out.append(f"    {tip:<16}{cells}{(f'{used} of {has}' if has else '-'):>14}")
+    out.append("  (listed in the ranking order --tips-out writes)")
+    return out
+
+
 # One screen up all day (2026-11-22, the owner: "get it so people want it up on one screen all the time"; one display at
 # 90% or better is a dashboard adopted fully). env.top_screen of each install's latest report: the busiest single
 # screen's minutes against the report's window, all hours and 07:00-23:00 in the house's time zone. A window under
@@ -1105,6 +1224,8 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--exclude-install-id", action="append", default=[], metavar="ID",
                     help="leave this install out of the one-screen line (the owner's own house); may be repeated")
+    ap.add_argument("--tips-out", metavar="FILE",
+                    help="also write the feature tips' ranking here, as {\"tips\": [ids]} (server/version.php merges it)")
     a = ap.parse_args()
     rows, reports = load(Path(a.dir), a.days)
     if not rows:
@@ -1146,6 +1267,15 @@ def main() -> int:
     for line in addons_section(latest, reports):
         print(line)
     print()
+    for line in tips_section(latest, reports):
+        print(line)
+    print()
+    if a.tips_out:
+        # Tip ids only: nothing about any install goes into the file the update check hands out.
+        tips_file = Path(a.tips_out)
+        tmp = tips_file.with_name(tips_file.name + ".tmp")
+        tmp.write_text(json.dumps({"tips": tips_rank(latest, reports)}) + "\n", encoding="utf-8")
+        tmp.replace(tips_file)
     for line in screen_up_section(latest, set(a.exclude_install_id)):
         print(line)
     print()

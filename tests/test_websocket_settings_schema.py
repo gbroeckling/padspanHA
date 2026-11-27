@@ -38,6 +38,7 @@ _BACKEND_ONLY = {
     "telemetry_last_day",          # stamped by telemetry.py on an accepted send
     "tester_signup",               # padspan_ha/tester_signup / tester_withdraw (tester.py) — never settings_set
     "server_offers",               # update_check._keep_offers, from the update check's answer — never settings_set
+    "server_tips_rank",            # update_check._keep_tips, from the update check's answer — never settings_set
     "pro_invite",                  # the report's reply + padspan_ha/pro_invite_claim / _decline (pro_invite.py) — never settings_set
     "flood_latches",               # flood_latch.py's state-change listener + padspan_ha/flood_reset
     "atlas_weather_rain_wet_since",  # rain_wet.py's state-change listener; settings_set restarts it when the rain sensor changes

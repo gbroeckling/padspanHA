@@ -89,6 +89,9 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "furnish": ("views/live_aboard_edit.js", "views/live_aboard_furnish.js", "views/live_aboard_house.js"),
     "furnish2": ("views/live_aboard_strip.js", "views/live_aboard_runs.js", "views/live_aboard_photo.js", "views/live_aboard_import.js"),
     "furniture": ("views/live_aboard_furniture.js",),
+    # Feature tips (2026-11-26): the catalogue, the Overview's card, the Atlas's line and Settings' Tips card. German
+    # first, like the groups above.
+    "tips": ("views/tips.js",),
 }
 SERVER = "server"
 

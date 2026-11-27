@@ -76,7 +76,24 @@ echo "$(ts) OK files=$files lines=$lines installs=$installs corrupt=$bad" >>"$LO
 # --- Refresh the human-readable summary beside the data, so the answer to
 # "what do other people's installs look like" is a file, not a command. ---
 if [ -x "$SUMMARISER" ] || [ -f "$SUMMARISER" ]; then
-    python3 "$SUMMARISER" "$DEST" --days 30 >"$SUMMARY" 2>>"$LOG" || true
+    python3 "$SUMMARISER" "$DEST" --days 30 --tips-out "$DEST/padspan-tips.json" >"$SUMMARY" 2>>"$LOG" || true
+fi
+
+# --- The feature tips' ranking (telemetry_summary.py --tips-out, just above): tip ids only, the most used among the
+# reporting installs that have each feature first. Up to the colo's private/, where server/version.php merges it into
+# the daily update check's answer as "tips" (installs send nothing for it). Only when the summary wrote one; a failed
+# upload keeps yesterday's ranking there, said in the log and once on Telegram. ---
+TIPS_FILE="$DEST/padspan-tips.json"
+TIPS_DEST="/var/www/clients/client1/web10/private/padspan-tips.json"
+if [ -s "$TIPS_FILE" ] && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d.get("tips"), list)' "$TIPS_FILE" 2>>"$LOG"; then
+    if rsync -a --chmod=F644 --rsync-path="sudo rsync" \
+            -e "ssh -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new" \
+            "$TIPS_FILE" "$SRC_HOST:$TIPS_DEST" >>"$LOG" 2>&1; then
+        echo "$(ts) tips: ranking uploaded" >>"$LOG"
+    else
+        echo "$(ts) WARN: tips ranking upload failed - the colo keeps the last one" >>"$LOG"
+        tg "[WARN] PadSpan tips $(ts): the tips ranking did not reach the colo - see $LOG" || true
+    fi
 fi
 
 # --- "Become a tester" sign-ups (server/tester.php). NOT usage reports: the

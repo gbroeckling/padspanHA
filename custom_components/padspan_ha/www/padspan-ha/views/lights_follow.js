@@ -53,7 +53,7 @@ export function savedRooms(rooms){
 
 export function lightsFollowSection(ctx, el){
   const settings = ctx.state.settings || {};
-  const card = el("div", { class: "card" });
+  const card = el("div", { class: "card", "data-focus-part": "lights_follow" });   // a feature tip's Show me lands here (views/tips.js)
   let info = null;                                   // padspan_ha/lights_follow_get
   let rooms = JSON.parse(JSON.stringify(settings.lights_follow_rooms || {}));
   let people = Object.assign({}, settings.lights_follow_people || {});

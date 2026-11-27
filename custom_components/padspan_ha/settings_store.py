@@ -98,6 +98,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "addon_sale_card_done": False,  # the Overview "Half off every add-on through January 1" card was shown; never again (panel.js _addonSaleCard)
     "house3d_free_card_done": False,  # the Overview "The 3D house is now free" card was shown; never again (panel.js _freeHouseCard)
     "c4local_offer_done": False,      # No thanks on the Overview's OS 2 Local for Control4 card: this install's (views/c4local.js)
+    # Feature tips (views/tips.js, tips.py): on unless "No more tips" or Settings → Appearance → Tips turns them off;
+    # what was shown, dismissed or is in use (tips.clean_state); the update check's ranking (update_check._keep_tips).
+    "tips_enabled": True,
+    "tips_state": {},
+    "server_tips_rank": [],
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the

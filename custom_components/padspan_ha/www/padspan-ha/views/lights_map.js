@@ -4464,6 +4464,8 @@ export function buildLightsMapCard(hostIn){
           // The ⋯ list's links and "Set it up" (live_aboard_show.js LINK_WORDS):
           // the host's way to that part of Settings or Mapping, or none.
           goTo: typeof h3.goTo === "function" ? h3.goTo : null, kiosk: h3.kiosk === true,
+          // A feature tip in the ⋯ list while it is open (views/tips.js menuTip): the host's, none on a wall.
+          tip: typeof h3.tip === "function" && h3.kiosk !== true ? h3.tip : null,
           // The scene row on its bottom bar (scene_row.js): the same tiles and taps as under the flat map.
           scenes: scenesNow(),
           // Audio's line in this view's ⋯ list, and its Set up › (the matching card over the map), where the host hands Audio
@@ -5830,6 +5832,8 @@ export function buildLightsMapCard(hostIn){
         const canGo = (where) => (where === "scene_new" || where === "audio_setup" || hp.admin === true) && M.canGoTo(where, hp.goTo, sc(), audioSetup());
         const tapLights = () => Object.keys((host.model && host.model.light_positions_m) || {}).some(eid => isTapLight(eid, (host.lightsByEid || {})[eid]));
         return M.createShowMenu({ root: mapCard, button: more, guard: (fn) => fn,
+          // The same feature tip as the 3D look's list (views/tips.js menuTip), the host's: none on a wall.
+          tip: typeof hp.tip === "function" && hp.kiosk !== true ? hp.tip : null,
           onOpen: () => { if (view.drawer) setDrawer(view.drawer); mapCard.setAttribute("data-la3d-flatmenu", ""); },
           onClose: () => mapCard.removeAttribute("data-la3d-flatmenu"),
           ...M.flatMenu({ prefs: _laPrefs, slot: flatSlot,

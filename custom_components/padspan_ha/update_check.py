@@ -83,6 +83,25 @@ async def _keep_offers(hass: HomeAssistant, manifest: dict) -> None:
             _LOGGER.debug("Offer switches not kept: %s", err)
 
 
+# The feature tips' ranking, from the same answer (2026-11-26): "tips", tip ids with the most used first among the
+# opt-in reports' installs that have each feature (server/version.php merges private/padspan-tips.json, which
+# server/telemetry_summary.py writes). Nothing new is sent to get it. Only views/tips.js's ids, each once; anything
+# else, or nothing, keeps the last answer, and with none the panel ranks by its own order (tips.clean_rank).
+async def _keep_tips(hass: HomeAssistant, manifest: dict) -> None:
+    raw = manifest.get("tips")
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not isinstance(raw, list) or not st:
+        return
+    from .tips import RANK_KEY, clean_rank  # noqa: PLC0415
+    rank = clean_rank(raw)
+    if rank and st.data.get(RANK_KEY) != rank:
+        try:
+            await st.async_set(**{RANK_KEY: rank})
+        except Exception as err:  # never at the cost of the update notice
+            _quiet_error("update_check:keep_tips")
+            _LOGGER.debug("Tip ranking not kept: %s", err)
+
+
 def offer_on(settings: dict | None, name: str) -> bool:
     """An offer is on unless the server's last answer switched it off."""
     return ((settings or {}).get("server_offers") or {}).get(name, True) is not False
@@ -153,6 +172,7 @@ async def _check(hass: HomeAssistant) -> None:
         return
     hass.data.setdefault(DOMAIN, {})[_DATA_MANIFEST] = manifest
     await _keep_offers(hass, manifest)
+    await _keep_tips(hass, manifest)
 
     latest = _parse_version(manifest.get("latest_stable"))
     current = _parse_version(VERSION)
