@@ -5,9 +5,10 @@
   to the German home page that scripts/build_site_de.py makes). Its description quotes both lifetime prices.
 * /add-ons/ says the sale and its days in its title (60 characters at most, " | PadSpan HA" included),
   description and og: lines, in words true before it starts and while it runs, and never implies Advanced map
-  creation or Robot vacuum are half off before they go on sale.
-* Structured data only where the page shows what it marks up: the home page (PadSpan HA, free) and /pro/ (Pro for
-  life's two prices). /add-ons/ shows no prices, so it marks none up.
+  creation or Robot vacuum are half off before they go on sale. Each add-on's heading shows its price, and half of
+  it in the sale, switched the way the home page's #addons box switches its prices (the owner, 2026-11-26).
+* Structured data only on the home page (PadSpan HA, free) and /pro/ (Pro for life's two prices). /add-ons/
+  marks up no price: its prices switch in the browser.
 * Every date and price said here comes from the panel's one source, views/editions.js. Its moments are midnight
   Pacific (PST, UTC-8), the day boundary the site's dates are said in: a price valid "until November 30" ends at
   PRO_LIFETIME_LAUNCH_UNTIL, 2026-12-01T08:00:00Z.
@@ -229,6 +230,124 @@ def test_the_add_ons_page_says_the_sale_in_its_title_and_description(lang: str) 
         assert name not in title + desc, name
 
 
+# --------------------------------------------------------------------- /add-ons/ shows each add-on's price
+
+def _on_sale() -> list[dict]:
+    """editions.js ADDONS that are sold and in the sale: not part of another (on_sale: false with no moment), not a
+    specialty. Each with its name, words, price and on_sale_from ("" or the constant it names)."""
+    out = []
+    for row in re.findall(r'\{ name: "\w+",.*?desc: "[^"]+" \}', _read(_ED), re.S):
+        get = {m.group(1): m.group(2) if m.group(2) is not None else m.group(3)
+               for m in re.finditer(r'(\w+): (?:"([^"]*)"|(\w+))', row)}
+        if get.get("category") == "specialty" or (get.get("on_sale") == "false" and not get.get("on_sale_from")):
+            continue
+        out.append(get)
+    return out
+
+
+def _cents(price: str) -> int:
+    return round(float(re.sub(r"[^0-9.]", "", price)) * 100)
+
+
+def _amount(price: str) -> str:
+    """"$6.45 CAD" -> "6.45"."""
+    return f"{_cents(price) / 100:.2f}"
+
+
+def _half(price: str) -> str:
+    """editions.js halfPrice: half the price, rounded down to the cent ("$6.45 CAD" -> "3.22")."""
+    return f"{_cents(price) // 2 / 100:.2f}"
+
+
+def _addons_switch(page: str) -> str:
+    return re.search(r'<script>\(function\(\)\{var b=document\.getElementById\("addons"\);.*?</script>', page, re.S).group(0)
+
+
+def _behind_december_1(page: str, anchor: str) -> bool:
+    """Whether the add-on's section sits in a block the December 1 switch shows (hidden until then)."""
+    at = page.index(f'<section class="addon" id="{anchor}">')
+    for m in re.finditer(r'<div data-from-basics style="display:none">', page):
+        if m.start() < at < m.start() + len(_element(page[m.start():], '<div data-from-basics style="display:none">')):
+            return True
+    return False
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_the_add_ons_page_shows_each_price_and_half_of_it_in_the_sale_as_the_home_page_does(homes: dict, lang: str) -> None:
+    """Each add-on on sale shows its editions.js price in its heading, in the markup the live page had (a
+    span.price), and from ADDON_HALF_FROM until ADDON_HALF_UNTIL half of it, rounded down to the cent, with the home
+    page's own words under it, "Half off through January 1 (normally $6.45)", in German as the German home page
+    says it. The switch is the home page's #addons script on the same two moments, so without JavaScript the
+    normal price shows. Advanced map creation and Robot vacuum sit behind the December 1 switch (FREE_BASICS_FROM):
+    they show only once they are on sale, already at their sale price."""
+    import html as htmllib
+    import json
+    page = _read(_ADDONS[lang])
+    units = {u["en"]: u["de"] for u in json.loads(_read(_SITE / "i18n" / "de.json"))["units"]}
+    assert re.search(r"<main\b[^>]*>", page).group(0) == (
+        f'<main id="addons" data-half-from="{_const("ADDON_HALF_FROM")}" data-half-until="{_const("ADDON_HALF_UNTIL")}">')
+    assert _flat(_addons_switch(page)) == _flat(_addons_switch(homes["en"])) == _flat(_addons_switch(homes[lang]))
+    assert page.index(_addons_switch(page)) > max(m.start() for m in re.finditer(r"\sdata-addon-price=", page)), \
+        "the switch runs before a price it touches is on the page"
+    assert ".links{font-weight:700}\nh3 .price{color:var(--mut);font-weight:600;font-size:15px;margin-left:6px}\n" in page
+    shown = (lambda a: f"${a} CAD") if lang == "en" else (lambda a: f"{a.replace('.', ',')} CAD")
+    sections = dict(re.findall(r'<section class="addon" id="([\w-]+)">\n(.*?)</section>', page, re.S))
+    want = {("activity" if a["name"] == "timetravel" else a["name"]): a for a in _on_sale()}
+    assert set(sections) == set(want) and len(want) == 11
+    for anchor, a in want.items():
+        normal, half = _amount(a["price"]), _half(a["price"])
+        words = f"Half off through January 1 (normally ${normal})"
+        assert words in homes["en"], "the home page's own words"
+        note = words if lang == "en" else units[words]
+        heading = re.match(r"<h3>([^<]+) (<span.*?)</h3>\n", sections[anchor])
+        assert heading, anchor
+        assert heading.group(2) == (
+            f'<span class="price" data-addon-price="normal">{shown(normal)}</span>'
+            f'<span class="price" data-addon-price="half" style="display:none;color:var(--acc2);font-weight:800">'
+            f'{shown(half)}</span>'), anchor
+        assert sections[anchor][heading.end():].startswith(
+            f'<p class="aka" data-addon-price="half" style="display:none;color:var(--acc2);font-weight:700">'
+            f'{htmllib.escape(note, quote=False)}</p>\n'), anchor
+        assert _behind_december_1(page, anchor) == (a.get("on_sale_from") == "FREE_BASICS_FROM"), anchor
+    # Without JavaScript only the normal prices show.
+    tags = re.findall(r'<[a-z]+\b[^>]*\bdata-addon-price="(?:normal|half)"[^>]*>', page)
+    assert len(tags) == 3 * 11
+    for tag in tags:
+        assert ('data-addon-price="half" style="display:none;' in tag) == ('data-addon-price="half"' in tag), tag
+        assert "display:none" not in tag or 'data-addon-price="half"' in tag, tag
+
+
+def test_the_add_ons_pages_prices_are_what_the_panel_charges_before_during_and_after_the_sale() -> None:
+    """The panel's own addonPrice, run before each add-on's sale price starts (ADDON_HALF_FROM, or its on-sale
+    moment if later), on its first and last moment, and after ADDON_HALF_UNTIL: the page's normal, half and normal
+    prices. Advanced map creation and Robot vacuum aren't sold before December 1, so not half off then either."""
+    import json
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    run = ("const E = await import(" + json.dumps(_ED.as_uri()) + ");"
+           "const out = {}; for (const a of E.ADDONS) { const from = Math.max(Date.parse(E.ADDON_HALF_FROM),"
+           " a.on_sale_from ? Date.parse(a.on_sale_from) : 0), until = Date.parse(E.ADDON_HALF_UNTIL);"
+           " out[a.name] = [E.addonPrice(a.name, from - 1), E.addonPrice(a.name, from), E.addonPrice(a.name, until - 1),"
+           " E.addonPrice(a.name, until), E.addonPriceParts(a.name, from - 1).half, E.addonOnSale(a.name, from - 1)]; }"
+           "console.log(JSON.stringify(out));")
+    r = subprocess.run([node, "--input-type=module", "-e", run], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr
+    panel = json.loads(r.stdout.strip().splitlines()[-1])
+    page = _read(_ADDONS["en"])
+    anchors = re.findall(r'<section class="addon" id="([\w-]+)">\n<h3>[^<]+ <span', page)
+    assert len(anchors) == 11
+    for anchor in anchors:
+        before, first, last, after, half_before, sold_before = panel["timetravel" if anchor == "activity" else anchor]
+        spans = dict(re.findall(r'data-addon-price="(normal|half)"[^>]*>([^<]+)</span>',
+                                re.search(rf'<section class="addon" id="{anchor}">\n<h3>.*?</h3>', page).group(0)))
+        assert before == after == spans["normal"] and first == last == spans["half"], anchor
+        assert not half_before, anchor
+        assert sold_before == (anchor not in ("maps", "vacuum")), anchor
+
+
 # --------------------------------------------------------------------- structured data
 
 def _jsonld(page: str) -> list:
@@ -301,8 +420,8 @@ _PRICE_KEYS = {"offers", "price", "lowPrice", "highPrice", "priceCurrency", "pri
 
 def test_only_the_pages_that_show_a_price_mark_one_up() -> None:
     """Structured data must say what the page shows. The home page shows PadSpan HA is free and /pro/ shows Pro for
-    life's prices; no other page shows one (tests/test_site_guides.py), so no other page's structured data has one.
-    /add-ons/ in particular: its prices are the home page's #addons box's."""
+    life's prices. No other page marks a price up: /add-ons/ shows its prices but switches them in the browser,
+    and no other page shows one (tests/test_site_guides.py)."""
     may = {_HOME, *_PRO.values()}
     for page in sorted(_SITE.rglob("*.html")):
         if page in may:
