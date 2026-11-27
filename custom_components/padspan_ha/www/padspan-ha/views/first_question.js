@@ -17,6 +17,9 @@
 //   plan         Mapping → Upload with "No floor plan?" open at the iPhone or iPad scan
 //   lights       the Atlas builder's tour (Mapping → Atlas builder); in Basic, which has no builder, the Atlas. With no
 //                rooms drawn there is nothing to place lights in: the plan first, the builder offered as the next step
+// On the sample house (where a new install opens) the plan and lights steps are blocked: those two answers stay on the
+// Overview with one line saying so and the way to the house ("Back to my house", then the step; sampleLine). Never a
+// switch of data mode by itself.
 // Several answers: the first ticked opens, and the Getting started card offers the rest as next steps (nextSteps).
 
 const V = new URL(import.meta.url).search;
@@ -105,6 +108,11 @@ export function openStep(ctx, key) {
     ctx.toast(t("Rooms come from your Bluetooth receivers: each one hears who is near it. Give each one its room here."));
     return;
   }
+  if ((key === "plan" || key === "lights") && st.dataMode === "sample") {
+    st._fqSampleStep = key;            // sampleLine, on the Overview
+    ctx.actions.showView("overview");
+    return;
+  }
   if (key === "plan") { openPlan(ctx); return; }
   if (key === "lights") {
     // Nothing to place lights in yet: the plan first (nextSteps offers the builder after it).
@@ -130,6 +138,32 @@ export function nextSteps(settings, state) {
     out.push({ id: k, label: labels[k], open: (ctx) => openStep(ctx, k) });
   }
   return out;
+}
+
+/** On the sample house, in place of a plan or lights step it blocks: one line and the way to the house. The button
+ *  does what the sample banner's "Back to my house" does (ctx.actions.setDataMode), then opens the step chosen; a
+ *  switch refused or unanswered leaves the line (setDataMode says why). null with nothing waiting, or once live. */
+export function sampleLine(ctx) {
+  const st = ctx.state;
+  const key = st._fqSampleStep;
+  if (key !== "plan" && key !== "lights") return null;
+  if (st.dataMode !== "sample") { st._fqSampleStep = null; return null; }
+  const { el } = ctx.helpers;
+  const box = el("div", { "data-first-question": "sample", style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:#0f2a1a;border:1px solid #2d5a3d;border-radius:8px" });
+  box.appendChild(el("span", { style: "font-size:13px;color:#e2e8f0;flex:1;min-width:12em" }, key === "plan"
+    ? t("This is the sample house. Switch to your house to start your plan.")
+    : t("This is the sample house. Switch to your house to place your lights.")));
+  const go = el("button", { class: "btn inline primary", "data-first-question": "sample-go" }, t("Back to my house"));
+  go.addEventListener("click", async () => {
+    go.disabled = true;
+    await ctx.actions.setDataMode("live");
+    go.disabled = false;
+    if (st.dataMode !== "live") return;
+    st._fqSampleStep = null;
+    openStep(ctx, key);
+  });
+  box.appendChild(go);
+  return box;
 }
 
 /** The four answers as tick boxes, in their order: rows a finger can hit (36 px at least). `order` is the list ticked

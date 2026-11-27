@@ -242,7 +242,7 @@ def run() -> dict:
 
 
 @pytest.mark.parametrize("prefix,least", [("due:", 5), ("ask:", 5), ("start:", 5), ("skip:", 2), ("step:", 12),
-                                          ("next:", 9), ("settings:", 4)])
+                                          ("next:", 9), ("settings:", 4), ("sample:", 13)])
 def test_the_question_in_the_panel(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
@@ -264,6 +264,7 @@ def test_the_overview_asks_it_first_and_settings_has_it():
     ask = panel[panel.index("let _fqDue = false;"):panel.index("// ── Onboarding wizard")]
     assert 'if (v === "overview" && FQ) {' in ask and "dataMode" not in ask
     assert "if (_fqDue) { frag.appendChild(FQ.askCard(this._ctx())); this._overviewCardShown = true; }" in ask
+    assert "const _fs = FQ.sampleLine(this._ctx()); if (_fs) frag.appendChild(_fs);" in ask
     assert panel.index("let _fqDue = false;") < panel.index("node = mod.render(this._ctx());")
     card = panel[panel.index("// ── Onboarding wizard"):panel.index("// Last line: the 90-day trial")]
     assert '!this.state._onboardingDismissed && this.state.view === "overview" && !_fqDue) {' in card
@@ -276,6 +277,17 @@ def test_the_overview_asks_it_first_and_settings_has_it():
     appearance = settings[settings.index("function _settingsAppearance("):settings.index("function _scannerMap(")]
     # at the end of Appearance, not the top
     assert "FQ.settingsCard(ctx)" not in appearance[:600] and "FQ.settingsCard(ctx)" in appearance[-700:]
+
+
+def test_the_usage_reports_description_says_the_answer_or_the_skip():
+    settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    assert "what you want PadSpan for, or that you skipped the question;" in settings
+    assert "what you want PadSpan for, if you answered" not in settings
+    for lang, words in (("de", "oder dass du die Frage übersprungen hast;"), ("fr", "ou que vous avez passé la question"),
+                        ("nl", "of dat je de vraag hebt overgeslagen;")):
+        data = json.loads((_WWW / "i18n" / lang / "tracking.json").read_text(encoding="utf-8"))
+        hits = [v for k, v in data.items() if "or that you skipped the question;" in k]
+        assert len(hits) == 1 and words in hits[0], lang
 
 
 def test_the_lend_dialog_tells_the_guest_once_and_is_translated():

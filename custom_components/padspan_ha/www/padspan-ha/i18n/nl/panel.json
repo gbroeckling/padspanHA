@@ -444,5 +444,7 @@
 "Save": "Opslaan",
 "Start the stay": "Verblijf starten",
 "{name}'s stay": "Verblijf van {name}",
-"Lend {tag}": "{tag} uitlenen"
+"Lend {tag}": "{tag} uitlenen",
+"This is the sample house. Switch to your house to start your plan.": "Dit is het voorbeeldhuis. Schakel over naar je eigen huis om met je plattegrond te beginnen.",
+"This is the sample house. Switch to your house to place your lights.": "Dit is het voorbeeldhuis. Schakel over naar je eigen huis om je lampen te plaatsen."
 }

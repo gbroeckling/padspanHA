@@ -5676,6 +5676,8 @@ class PadSpanHaApp extends HTMLElement {
       try {
         _fqDue = FQ.due(this._ctx());
         if (_fqDue) { frag.appendChild(FQ.askCard(this._ctx())); this._overviewCardShown = true; }
+        // A plan or lights answer on the sample house: the line in place of the step it blocks.
+        else { const _fs = FQ.sampleLine(this._ctx()); if (_fs) frag.appendChild(_fs); }
       } catch(e) { console.warn("PadSpan: first-run question failed", e); _fqDue = false; }
     }
 

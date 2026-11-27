@@ -47,6 +47,8 @@ function makeCtx({ settings = {}, admin = true, kiosk = false, complexity = "adv
       settingsSet: async (p) => { log.push(["save", p]); if (fail) throw new Error("no"); state.settings = { ...state.settings, ...p }; },
       showView: (id) => { log.push(["view", id]); state.view = id; },
       openSetupStep: (id, mapId, door) => log.push(["setup", id, door]),
+      // as the panel's: the mode changes only once the server took it (refuse: an admin-only refusal, nothing changes)
+      setDataMode: async (mode) => { log.push(["mode", mode]); if (!ctx._refuseMode) state.dataMode = mode; },
       telemetryEvent: (n) => log.push(["event", n]),
     },
   };
@@ -169,6 +171,39 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
   const { ctx, state } = makeCtx({ complexity: "basic" });
   FQ.openStep(ctx, "lights");
   check("step:lights in Basic (no Atlas builder) opens the Atlas", JSON.stringify(pushed) === JSON.stringify(["/padspan-lights"]) && !state._lightsTour, { pushed });
+}
+
+// ── the sample house: the plan and lights steps it blocks ──
+for (const key of ["plan", "lights"]) {
+  const { ctx, log, state } = makeCtx({ dataMode: "sample", rooms: false });
+  FQ.openStep(ctx, key);
+  check(`sample:${key} stays on the Overview, no step opened`, JSON.stringify(log) === JSON.stringify([["view", "overview"]])
+    && state.mapsTab === "library" && !state._roughPlan && !state._lightsTour, { log, state });
+  check(`sample:${key} never switches the mode by itself`, state.dataMode === "sample" && !log.some(x => x[0] === "mode"), log);
+  const line = FQ.sampleLine(ctx);
+  const words = key === "plan" ? "Switch to your house to start your plan." : "Switch to your house to place your lights.";
+  check(`sample:${key} says so, one line`, !!line && line.textContent.includes("This is the sample house. " + words), line && line.textContent);
+  ctx._refuseMode = true;
+  line.querySelector('[data-first-question="sample-go"]').click(); await wait();
+  check(`sample:${key} a refused switch opens nothing and keeps the line`, state.dataMode === "sample" && state.mapsTab === "library"
+    && !!FQ.sampleLine(ctx), log);
+  ctx._refuseMode = false;
+  FQ.sampleLine(ctx).querySelector('[data-first-question="sample-go"]').click(); await wait();
+  const opened = key === "plan" ? state.mapsTab === "upload" && state._roughPlan.kind === "scan"
+    : state.mapsTab === "upload";          // the lights answer with no rooms: the plan first, as on the house
+  check(`sample:${key} Back to my house, then the step chosen`, log.filter(x => x[0] === "mode").every(x => x[1] === "live")
+    && state.dataMode === "live" && opened && !FQ.sampleLine(ctx), { log, state });
+}
+{
+  const { ctx, log } = makeCtx({ dataMode: "sample" });
+  FQ.openStep(ctx, "whole_house");
+  FQ.openStep(ctx, "presence");
+  check("sample:the whole house and who's where are not held back", log.some(x => x[1] === "receivers") && !FQ.sampleLine(ctx), log);
+  check("sample:no line with nothing waiting", FQ.sampleLine(makeCtx({ dataMode: "sample" }).ctx) === null);
+  const moved = makeCtx({ dataMode: "sample" });
+  FQ.openStep(moved.ctx, "plan");
+  moved.state.dataMode = "live";            // switched by the banner's own button meanwhile
+  check("sample:the line goes once the house is live", FQ.sampleLine(moved.ctx) === null && moved.state._fqSampleStep === null);
 }
 
 // ── the next steps ──
