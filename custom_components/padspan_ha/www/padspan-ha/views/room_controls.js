@@ -80,11 +80,16 @@ const COVER_OPEN = 1, COVER_CLOSE = 2, COVER_STOP = 8;
 const NOT_SHADES = new Set(["garage", "gate", "door", "damper", "window"]);
 // A cover with no device class named as a door, a gate or a garage is an opener too ("Garage side door opener"),
 // unless its name says it is a shade as well ("Patio Door Blind", "Back door shade", "Terrassentür Rollladen").
+// A garage or a gate word gives way only to a plain shade or window word: "Garage Roller Door" and "Garage roller
+// shutter" open the garage (roller and shutter are garage door words too), "Garage window shutter" is a shade.
 const DOORISH = /\b(door|gate|garage)\b/i;
+const GARAGEISH = /\b(gate|garage)\b/i;
+const PLAIN_SHADE = /\b(blinds?|shades?|curtains?|awnings?|drapes?|drapery|draperies|screens?|louvres?|louvers?|windows?)\b|rollo|jalousie|vorh(a|ä)ng/i;
 const SHADE_WORDS = /\b(blinds?|shades?|curtains?|shutters?|awnings?|drapes?|drapery|draperies|screens?|rollers?|louvres?|louvers?)\b|rollo|roll?laden|jalousie|vorh(a|ä)ng/i;
 /** Does a cover's name (its friendly name, its entity id, and a linked wall's name) say it opens a door, a gate or a
  *  garage: a door word and no shade word. The one name rule of isShade and openersOf. */
-export const openerNamed = (text) => { const s = String(text || "").replace(/_/g, " "); return DOORISH.test(s) && !SHADE_WORDS.test(s); };
+export const openerNamed = (text) => { const s = String(text || "").replace(/_/g, " ");
+  return (GARAGEISH.test(s) && !PLAIN_SHADE.test(s)) || (DOORISH.test(s) && !SHADE_WORDS.test(s)); };
 /** The covers that open a door or a gate, never a shade: the ones marked (Devices → Door Openers' ids), each wall's
  *  linked opener on the map, and a cover linked to a wall that has no device class and is named as an opener
  *  (openerNamed, with the wall's name). lights_panel.js and the Shades tip both ask this. */

@@ -1449,6 +1449,7 @@ await tryCase("shade-rule", async () => {
   // The door name rule gives way to a shade word: a blind on a patio door is a blind.
   const named = (name, eid = "cover.x") => RC.isShade({ states: { [eid]: ST(eid, "closed", { friendly_name: name, supported_features: 3 }) } }, eid);
   check("shade-rule", named("Patio Door Blind") && named("Back door shade") && named("Living blind") && named("Terrassentür Rollladen") && named("Garage window shutter")
+    && named("Garage blind") && !named("Garage Roller Door") && !named("Garage roller shutter", "cover.garage_roller")
     && !named("Garage side door opener") && !named("Gate") && !named("Front door", "cover.front_door"), ["Patio Door Blind", "Back door shade", "Living blind", "Garage side door opener", "Gate"].map(n => named(n)));
   check("shade-rule", !named("Anything", "cover.garage_door") && named("Anything", "cover.patio_door_blind"), "by the entity id");
   // One rule for the openers too: a blind linked to a patio door on the map stays a shade; an opener named so is one.

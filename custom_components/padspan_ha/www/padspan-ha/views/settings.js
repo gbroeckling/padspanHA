@@ -188,7 +188,8 @@ export function render(ctx){
   const scrollTo = ctx.state._settingsScrollTo;
   if (scrollTo) {
     const tryScroll = (left) => {
-      if (ctx.state._settingsScrollTo !== scrollTo || Date.now() > scrollTo.until) return;   // done, or too late
+      if (ctx.state._settingsScrollTo !== scrollTo) return;                                   // done
+      if (Date.now() > scrollTo.until) { ctx.state._settingsScrollTo = null; return; }        // too late: let it go
       const n = root.isConnected !== false ? FOCUS.pickPart(root, scrollTo.part) : null;      // this draw, if on the page
       if (n) {
         ctx.state._settingsScrollTo = null;
