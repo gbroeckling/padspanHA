@@ -759,10 +759,11 @@ async def _async_trace(hass: Any, now: float) -> tuple[dict[str, list[tuple[floa
     tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
     async with mem.setdefault("trace_lock", asyncio.Lock()):
         got = mem.get("trace")
-        if not got or now - got["at"] >= OCCUPANCY_EVERY_S:
+        if not got or now - max(got["at"], got.get("tried", 0.0)) >= OCCUPANCY_EVERY_S:
             start = now - LOOKBACK_S
             frm = max(start, got["at"]) if got else start
             spans = {k: [sp for sp in v if sp[1] >= start] for k, v in (got["spans"] if got else {}).items()}
+            read = True
             if tb is not None:
                 try:
                     summ = await tb.async_day_summary(frm, now)
@@ -770,7 +771,11 @@ async def _async_trace(hass: Any, now: float) -> tuple[dict[str, list[tuple[floa
                         spans.setdefault(_key(room), []).extend((float(a), float(b)) for a, b in sp)
                 except Exception:  # noqa: BLE001 — Traceback not readable now: what was read before stands
                     _quiet_error("energy:trace")
-            got = mem["trace"] = {"at": now, "spans": {k: v for k, v in spans.items() if v}}
+                    read = False
+            # A failed read keeps its cursor, so that window is read again next time (after OCCUPANCY_EVERY_S): never
+            # passed over as a window nobody was in.
+            got = mem["trace"] = {"at": now if read else (got["at"] if got else start), "tried": now,
+                                  "spans": {k: v for k, v in spans.items() if v}}
     # Between those reads, who is in which room now from Traceback's last minutes in memory (recorded every poll).
     return with_recent(got["spans"] or None, getattr(tb, "frames", None) or [], got["at"]), now - LOOKBACK_S
 

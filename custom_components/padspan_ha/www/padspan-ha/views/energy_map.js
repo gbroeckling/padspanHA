@@ -54,7 +54,7 @@ export function fmtKwh(k){
 export function fmtMoney(v, currency){
   const n = Number(v);
   if (!Number.isFinite(n) || !currency) return "";
-  try { return new Intl.NumberFormat(locale(), { style: "currency", currency }).format(n); }
+  try { return new Intl.NumberFormat(locale(), { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(n); }
   catch (_) { return `${n.toFixed(2)} ${currency}`; }
 }
 /** A stretch of time: "40 min", "2 h", "2 h 10 min", "3 d". */

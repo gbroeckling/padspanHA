@@ -1011,6 +1011,11 @@ if (Cls) {
     p = await open({ ticked: true, tier: "free", addons: ["audio"], more: { energy_enabled: true, atlas_layout_v2: false, atlas_energy_enabled: true } });
     energy.notAllowed = await seen(p);
     p.done();
+    // A Pro trial with Energy on (a restored backup): held back from trials, the backend leaves it out of addons_licensed,
+    // and the Atlas goes by that: no line, no chip, never asked.
+    p = await open({ ticked: true, addons: ["audio"], more: { energy_enabled: true, license_is_trial: true } });
+    energy.trial = await seen(p);
+    p.done();
     // An Energy key on the classic layout (no ⋯ list): Settings → Atlas → Energy decides, house-wide.
     p = await open({ tier: "free", addons: ["energy"], more: { energy_enabled: true, atlas_layout_v2: false, atlas_energy_enabled: true } });
     energy.classicOn = await seen(p);

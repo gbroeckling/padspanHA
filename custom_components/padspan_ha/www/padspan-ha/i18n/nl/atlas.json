@@ -147,6 +147,6 @@
 "A speaker beside a room's name while one of its players plays, and its players: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off.": "Een luidspreker naast de naam van een kamer zolang een van haar spelers speelt, en haar spelers: aan en uit, volume, dempen, bron, geluidsmodus en klank, afspelen, pauzeren en overslaan, delen met andere kamers, en Kamer uit.",
 "Open, Stop and Close for each of the room's blinds and shades.": "Openen, Stoppen en Sluiten voor elke zonwering van de kamer.",
 "Each thermostat with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity.": "Elke thermostaat met − en + voor zijn instelwaarde (of verwarmen tot en koelen tot), en de temperatuur en luchtvochtigheid van de kamer.",
-"Energy on the map": "Energie op de kaart",
-"A room's watts beside its name, a device's watts by it, and its metered devices: watts now, kWh and cost today.": "De watt van een kamer naast haar naam, die van een apparaat ernaast, en haar gemeten apparaten: watt nu, kWh en kosten vandaag."
+"Energy": "Energie",
+"On the map, a room's watts beside its name and a device's by it; in the card, its metered devices: watts now, kWh and cost today.": "Op de kaart de watt van een kamer naast de naam en die van een apparaat ernaast; in de kaart de gemeten apparaten: watt nu, kWh en kosten vandaag."
 }

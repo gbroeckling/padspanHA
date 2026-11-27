@@ -60,5 +60,7 @@
 "No recent power reading: it is left out of the watts now": "Seit einer Weile kein Leistungswert: Er fehlt in den Watt jetzt",
 "{w}, about {money} a year at your price": "{w}, etwa {money} im Jahr zu deinem Preis",
 "{w}, about {kwh} a year": "{w}, etwa {kwh} im Jahr",
-"All metered devices": "Alle gemessenen Geräte"
+"All metered devices": "Alle gemessenen Geräte",
+"Energy needs PadSpan Pro.": "Energie braucht PadSpan Pro.",
+"Only an administrator can change this": "Nur ein Administrator kann das ändern"
 }

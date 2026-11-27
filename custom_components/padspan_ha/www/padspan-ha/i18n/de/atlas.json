@@ -147,6 +147,6 @@
 "A speaker beside a room's name while one of its players plays, and its players: on and off, volume, mute, source, sound mode and tone, play, pause and skip, sharing with other rooms, and Room off.": "Ein Lautsprecher neben dem Namen eines Raums, solange einer seiner Player spielt, und seine Player: an und aus, Lautstärke, stumm, Quelle, Klangmodus und Klang, Abspielen, Pause und Springen, Teilen mit anderen Räumen und Raum aus.",
 "Open, Stop and Close for each of the room's blinds and shades.": "Öffnen, Stopp und Schließen für jedes Rollo und jede Jalousie des Raums.",
 "Each thermostat with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity.": "Jeder Thermostat mit − und + für seinen Sollwert (oder „Heizen auf“ und „Kühlen auf“) und Temperatur und Luftfeuchtigkeit des Raums.",
-"Energy on the map": "Energie auf der Karte",
-"A room's watts beside its name, a device's watts by it, and its metered devices: watts now, kWh and cost today.": "Die Watt eines Raums neben seinem Namen, die Watt eines Geräts daneben und seine gemessenen Geräte: Watt jetzt, kWh und Kosten heute."
+"Energy": "Energie",
+"On the map, a room's watts beside its name and a device's by it; in the card, its metered devices: watts now, kWh and cost today.": "Auf der Karte die Watt eines Raums neben seinem Namen und die eines Geräts daneben; in der Karte des Raums seine gemessenen Geräte: Watt jetzt, kWh und Kosten heute."
 }

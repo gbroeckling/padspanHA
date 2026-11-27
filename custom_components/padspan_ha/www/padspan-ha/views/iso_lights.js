@@ -6894,10 +6894,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     for(const st of stacks) s+=stackChipSvg(...st);
     for(const t of namesOver) s+=t;
     // Energy: a placed device's watts by its marker (deviceWatts), over the markers, on the first spot round it clear of
-    // names, badges, chips, readouts and other fixtures (its own marker aside); none clear, none drawn. Never for a
-    // marker that isn't drawn (a perimeter light's trace, a glyph its glow stands in for).
+    // names, badges, chips, readouts and other fixtures (its own marker aside); none clear, none drawn. A glyph its
+    // glow stands in for (Automorph) is still at that point and gets its watts; a perimeter light (a trace) does not.
     if(DEVICE_W) for(const j of jobs){
-      const w=j[3] && j[0] && j[0].shape!=="perimeter" && !j[7] && DEVICE_W[j[0].entity_id];
+      const w=j[3] && j[0] && j[0].shape!=="perimeter" && DEVICE_W[j[0].entity_id];
       if(!w) continue;
       const [,hx,hy]=j, fs=Math.max(5, HEX_R*0.9), label=`\u26A1\uFE0E ${w}`, hw=(label.length-1)*fs*0.3, hh=fs*0.6, r0=HEX_R*1.2;
       const own=avoidC.filter(o=>Math.hypot((o[0]+o[2])/2-hx, (o[1]+o[3])/2-hy)>0.5);
