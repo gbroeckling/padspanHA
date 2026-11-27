@@ -174,7 +174,10 @@ def test_htaccess_language_rules_in_the_order_they_need() -> None:
     picked_de = ht.index("RewriteCond %{HTTP_COOKIE} (^|;\\s*)padspan_lang=de(;|$)")
     country = ht.index("RewriteCond %{HTTP:CF-IPCountry} ^(DE|AT|CH|LI)$")
     guessed = ht.index("RewriteRule ^(pricing|plans|buy|purchase)")
-    # The choice is recorded before any redirect, and the language comes before the guessed URLs.
+    https = ht.index("RewriteCond %{HTTP:X-Forwarded-Proto} =http")
+    # http goes to https first, so the choice is recorded over https; the choice is recorded before any language
+    # redirect, and the language comes before the guessed URLs.
+    assert ht.index("RewriteEngine On") < https < cookie_en
     assert cookie_en < picked_de and cookie_de < picked_de < country < guessed
     block = ht[cookie_de:guessed]
     # ?lang= (either value) and ?hl=en are never sent on; the Deutsch link goes straight to /de/.
@@ -183,6 +186,57 @@ def test_htaccess_language_rules_in_the_order_they_need() -> None:
     assert "RewriteCond %{QUERY_STRING} (^|&)lang=de(&|$)\n  RewriteRule ^(index\\.html)?$" in block
     assert "RewriteCond %{HTTP:Accept-Language} !^(fr|it)\\b [NC]" in block
     assert block.count("RewriteRule ^(index\\.html)?$ https://padspan.traks.ca/de/ [R=302,L]") == 3
+
+
+
+def test_htaccess_sends_http_to_https_but_never_the_api_or_a_request_that_doesnt_say_its_scheme() -> None:
+    """http pages answered 200 and were indexed that way (the owner, 2026-11-26). Behind Cloudflare the origin may
+    see plain http for everyone, so the visitor's scheme is Cloudflare's X-Forwarded-Proto: one 301 to the same
+    path and ?query on https. A request without the header (deploy_site.py's checks on the server) is left alone,
+    and so is /api/, which installs call."""
+    ht = _HTACCESS.read_text(encoding="utf-8")
+    rule = ("  RewriteCond %{HTTP:X-Forwarded-Proto} =http\n"
+            "  RewriteCond %{REQUEST_URI} !^/api/\n"
+            "  RewriteRule ^ https://padspan.traks.ca%{REQUEST_URI} [R=301,L]\n")
+    assert ht.count(rule) == 1
+    # The only rule that looks at the scheme, and it keeps the query string (no QSD, no ? of its own).
+    assert ht.count("%{HTTP:X-Forwarded-Proto}") == 1
+    assert "QSD" not in ht and "%{REQUEST_URI}?" not in ht
+    # Every origin check deploy_site.py makes sends no X-Forwarded-Proto, so this rule never answers one.
+    import inspect
+    assert "X-Forwarded-Proto" not in inspect.getsource(_load("deploy_site").origin)
+
+
+def test_the_live_checks_ask_for_the_https_redirect_and_fail_only_on_a_loop_or_a_redirected_api() -> None:
+    from contextlib import nullcontext
+    import urllib.error
+
+    mod = _load("deploy_site")
+    assert [(u, w) for u, w, _ in mod.SCHEME_CASES] == [
+        ("http://padspan.traks.ca/pro/", "https://padspan.traks.ca/pro/"),
+        ("http://padspan.traks.ca/?lang=de", "https://padspan.traks.ca/?lang=de"),
+        ("http://padspan.traks.ca/api/version.php", None),
+        ("https://padspan.traks.ca/?hl=en", None)]
+
+    def site(answers: dict):
+        def open_(req, timeout=None):
+            code, where = answers[req.full_url]
+            if 300 <= code < 400:
+                raise urllib.error.HTTPError(req.full_url, code, "Moved", {"Location": where}, None)
+            return nullcontext(SimpleNamespace(status=code))
+        return open_
+
+    after = {"http://padspan.traks.ca/pro/": (301, "https://padspan.traks.ca/pro/"),
+             "http://padspan.traks.ca/?lang=de": (301, "https://padspan.traks.ca/?lang=de"),
+             "http://padspan.traks.ca/api/version.php": (200, ""), "https://padspan.traks.ca/?hl=en": (200, "")}
+    assert mod.check_schemes(site(after)) is True
+    # Before the redirect is live (or if Cloudflare sent no scheme): http still works, so only a warning.
+    before = {**after, "http://padspan.traks.ca/pro/": (200, ""),
+              "http://padspan.traks.ca/?lang=de": (302, "https://padspan.traks.ca/de/?lang=de")}
+    assert mod.check_schemes(site(before)) is True
+    # https sent on (a loop), or the API sent on: broken, so the deploy fails its checks.
+    assert mod.check_schemes(site({**after, "https://padspan.traks.ca/?hl=en": (301, "https://padspan.traks.ca/?hl=en")})) is False
+    assert mod.check_schemes(site({**after, "http://padspan.traks.ca/api/version.php": (301, "https://padspan.traks.ca/api/version.php")})) is False
 
 
 # ------------------------------------------------------------- deploy order
@@ -200,6 +254,7 @@ def deploy(monkeypatch, b):
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
     monkeypatch.setattr(mod, "preflight_htaccess", lambda: [])
     monkeypatch.setattr(mod, "verify_live", lambda version: True)
+    monkeypatch.setattr(mod, "tell_indexnow", lambda urls, what: calls.append(f"indexnow {len(urls)}"))   # no network
     monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--version", "9.9.9"])
     return mod, calls
 
@@ -244,6 +299,7 @@ def test_the_htaccess_is_tried_before_anything_is_uploaded(monkeypatch, b) -> No
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
     monkeypatch.setattr(mod, "origin", fake_origin)
     monkeypatch.setattr(mod, "verify_live", lambda version: True)
+    monkeypatch.setattr(mod, "tell_indexnow", lambda urls, what: None)   # no network
     monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--version", "9.9.9"])
     mod.main()
     scratch = next(i for i, c in enumerate(calls) if "mkdir -p" in c and "_deploy_check_" in c)

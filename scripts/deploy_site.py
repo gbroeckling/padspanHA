@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Deploy padspan.traks.ca from the repo.
 
-    python scripts/deploy_site.py            # stamp version, upload, verify
+    python scripts/deploy_site.py            # stamp version, upload, verify, tell IndexNow what changed
     python scripts/deploy_site.py --dry-run  # stamp and verify locally, upload nothing
     python scripts/deploy_site.py --guides-only  # site/guides/ and sitemap.xml only
 
@@ -31,6 +31,7 @@ kept the first time each day.
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import os
 import pathlib
@@ -184,6 +185,43 @@ LANGUAGE_CASES = (
 )
 
 
+# http -> https (site/.htaccess), asked of the live site, through Cloudflare, which tells the origin the visitor's
+# scheme in X-Forwarded-Proto (the origin checks above send none, so they never see this redirect). Each: the
+# address, where it must send the visitor in one 301 (None: no redirect at all), and whether a wrong answer fails
+# the deploy. An http page not sent on still works; the API sent on, or an https page sent anywhere (a loop), does not.
+SCHEME_CASES = (
+    ("http://padspan.traks.ca/pro/", "https://padspan.traks.ca/pro/", False),
+    ("http://padspan.traks.ca/?lang=de", "https://padspan.traks.ca/?lang=de", False),
+    ("http://padspan.traks.ca/api/version.php", None, True),
+    ("https://padspan.traks.ca/?hl=en", None, True),
+)
+
+
+class _NoFollow(urllib.request.HTTPRedirectHandler):
+    """A redirect is the answer to look at, not a page to go on to."""
+
+    def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, msg, hdrs, None)
+
+
+def check_schemes(open_=None) -> bool:
+    """Each of SCHEME_CASES answers as it must. False only for a wrong answer that fails the deploy."""
+    open_ = open_ or urllib.request.build_opener(_NoFollow).open
+    ok = True
+    for url, want, fatal in SCHEME_CASES:
+        try:
+            with open_(urllib.request.Request(url, headers={"User-Agent": "padspan-deploy"}), timeout=15) as resp:
+                code, where = resp.status, ""
+        except urllib.error.HTTPError as e:
+            code, where = e.code, (e.headers.get("Location", "") if e.headers else "")
+        except Exception as e:  # noqa: BLE001
+            code, where = 0, str(e)
+        good = (code == 301 and where == want) if want else code == 200
+        print(f"    {'OK  ' if good else 'FAIL' if fatal else 'WARN'} {url} -> {code} {where}".rstrip())
+        ok = ok and (good or not fatal)
+    return ok
+
+
 def preflight_htaccess() -> list[str]:
     """Try site/.htaccess in a scratch folder on the server before it replaces the
     live one. A broken .htaccess answers every request on the site with a 500,
@@ -300,6 +338,7 @@ def verify_live(version: str) -> bool:
         except Exception as e:  # noqa: BLE001
             print(f"    WARN /{path} check failed: {e}")
 
+    ok = check_schemes() and ok
     ok = verify_guides() and ok
     return ok
 
@@ -370,6 +409,60 @@ def sitemap_with_dates() -> bytes:
         return plain
 
 
+def page_url(name: str) -> str:
+    """The address of an uploaded page: index.html -> /, guides/x/index.html -> /guides/x/."""
+    return URL + (name[:-len("index.html")] if name == "index.html" or name.endswith("/index.html") else name)
+
+
+def sitemap_urls() -> list[str]:
+    return re.findall(r"<loc>([^<]+)</loc>", (SRC.parent / "sitemap.xml").read_text(encoding="utf-8"))
+
+
+_PLAIN_NAME = re.compile(r"[A-Za-z0-9._/-]+")
+
+
+def changed_pages(pages: dict[str, bytes]) -> list[str] | None:
+    """Which of these pages (path under REMOTE_DIR -> the bytes about to go up) differ from the server's copy, or
+    aren't on the server yet. Asked before anything is uploaded, in one read-only sha256sum on the server (as root,
+    like the rest of the deploy, or as the login if sudo won't run it). The names go over stdin, once, and only
+    plain relative paths are asked about (letters, digits and ._/-, no "..", nothing to quote); any other counts
+    as changed. None when it can't be asked or gives no answer: then nobody knows what changed."""
+    names = sorted(pages)
+    asked = [n for n in names if _PLAIN_NAME.fullmatch(n) and not n.startswith("/") and ".." not in n.split("/")]
+    if not asked:
+        return None
+    r = subprocess.run(f"{SSH} {HOST} 'cd {REMOTE_DIR} && f=$(cat) && {{ sudo -n sha256sum -- $f || sha256sum -- $f; }}'",
+                       shell=True, input="\n".join(asked).encode("utf-8"), capture_output=True)
+    out = r.stdout.decode("utf-8", errors="replace") if isinstance(r.stdout, bytes) else (r.stdout or "")
+    there = {name: digest for digest, name in re.findall(r"(?m)^([0-9a-f]{64}) [ *](\S+)$", out)}
+    if not there:
+        return None
+    return [n for n in names if there.get(n) not in _same_page(pages[n])]
+
+
+def _same_page(body: bytes) -> set[str]:
+    """The sha256 of a page as it is and with LF or CRLF line endings. The Windows PC's checkout has CRLF and
+    this one LF, so the same page deployed from each differs only in them, which no reader sees."""
+    lf = body.replace(b"\r\n", b"\n")
+    return {hashlib.sha256(b).hexdigest() for b in (body, lf, lf.replace(b"\n", b"\r\n"))}
+
+
+def tell_indexnow(urls: list[str], what: str) -> None:
+    """Hand the IndexNow engines (scripts/indexnow.py) the pages a deploy put up, and say how it went. Never stops
+    a deploy: the pages are live either way, and search engines find them from the sitemap in the end."""
+    if not urls:
+        print(f"  IndexNow: no {what}, nothing sent")
+        return
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import indexnow  # noqa: E402
+
+        status, reason = indexnow.submit(urls)
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        status, reason = 0, f"not sent ({e})"
+    print(f"  {'OK  ' if status in (200, 202) else 'WARN'} IndexNow: {status} {reason} for {len(urls)} {what}")
+
+
 def guides_only() -> None:
     """Put the guides, the sitemap that lists them and the IndexNow key live, and
     nothing else, then tell the IndexNow engines about the guides.
@@ -394,11 +487,7 @@ def guides_only() -> None:
     # Not fatal: the pages are up either way, and search engines find them
     # from the sitemap in the end.
     if INDEXNOW_KEYS:
-        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-        import indexnow  # noqa: E402
-
-        status, reason = indexnow.submit([URL + g.rsplit("/", 1)[0] + "/" for g in GUIDES])
-        print(f"  {'OK  ' if status in (200, 202) else 'WARN'} IndexNow: {status} {reason}")
+        tell_indexnow([page_url(g) for g in GUIDES], "guide(s)")
     print("\n=== guides live; the home page was not touched ===\n")
 
 
@@ -440,6 +529,13 @@ def main() -> None:
         raise SystemExit("site/.htaccess failed its check in a scratch folder, so nothing was uploaded:\n  - "
                          + "\n  - ".join(problems))
     print("  site/.htaccess checked in a scratch folder on the server")
+
+    # Which pages this deploy changes, asked of the server before anything goes up: once the deploy is verified,
+    # IndexNow is told about those. A version stamp is a change: the page says something new.
+    pages = {"index.html": stamped.encode("utf-8"), "de/index.html": de_html.encode("utf-8"),
+             **{name: (SRC.parent / name).read_bytes() for name in GUIDES}}
+    changed = changed_pages(pages)
+    print(f"  pages this deploy changes: {'unknown (the server could not be asked)' if changed is None else len(changed)}")
 
     # German first: once the new .htaccess is up, visitors from Germany, Austria
     # and Switzerland are sent to /de/, so it has to be there already.
@@ -487,6 +583,20 @@ def main() -> None:
     print("\nVerifying the live page...")
     if not verify_live(version):
         raise SystemExit("the deployed page failed verification — look at it before leaving it")
+    # Only pages the sitemap lists, the ones search engines are asked to index. When nobody knows what changed,
+    # all of them.
+    if INDEXNOW_KEYS:
+        listed = sitemap_urls()
+        if changed is None:
+            tell_indexnow(listed, "page(s) in the sitemap (what changed is unknown)")
+        else:
+            urls = {page_url(name) for name in changed}
+            sent = [u for u in listed if u in urls]
+            for u in sent[:15]:
+                print(f"    {u}")
+            if len(sent) > 15:
+                print(f"    ... and {len(sent) - 15} more")
+            tell_indexnow(sent, "changed page(s)")
     print(f"\n=== {URL} is live on v{version} ===\n")
 
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PadSpan Pro for Home Assistant: every light in its real shape and your house in 3D, furnished | PadSpan HA</title>
-<meta name="description" content="What PadSpan Pro adds to the free PadSpan HA: fixture shapes, Furnish and people in the 3D house, the wall screen's extras, people on the map and every add-on. Until December 1, 2026, exact placement, the 3D house and wall mode too. Try all of Pro free for 90 days, no card.">
+<meta name="description" content="PadSpan Pro for life: $89 CAD until November 30, 2026, then $168 until December 15. After that there's no lifetime. Lifetime keys already sold stay lifetime.">
 <link rel="canonical" href="https://padspan.traks.ca/pro/">
 <link rel="alternate" hreflang="en" href="https://padspan.traks.ca/pro/">
 <link rel="alternate" hreflang="de" href="https://padspan.traks.ca/pro/de/">
@@ -17,6 +17,42 @@
 <meta property="og:image" content="https://padspan.traks.ca/demo/media/estate-3d-three-floors.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/images/icon.png">
+<!-- Pro for life's two prices for search engines, from editions.js (tests/test_site_seo.py pins them). The Dec 16
+     tidy: from 2026-12-16T08:00:00Z (PRO_PASS_FROM) lifetime is no longer sold, so take this block out with the
+     lifetime box (#pro-lifetime) and its script, take the lifetime prices out of the description, and let the
+     two-year box (#pro-pass) show without JavaScript. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "PadSpan Pro",
+  "brand": {
+    "@type": "Brand",
+    "name": "PadSpan"
+  },
+  "image": "https://padspan.traks.ca/demo/media/estate-3d-three-floors.jpg",
+  "url": "https://padspan.traks.ca/pro/",
+  "offers": [
+    {
+      "@type": "Offer",
+      "name": "PadSpan Pro for life, launch price",
+      "price": "89.00",
+      "priceCurrency": "CAD",
+      "priceValidUntil": "2026-11-30",
+      "url": "https://padspan.traks.ca/pro/"
+    },
+    {
+      "@type": "Offer",
+      "name": "PadSpan Pro for life",
+      "price": "168.00",
+      "priceCurrency": "CAD",
+      "validFrom": "2026-12-01",
+      "priceValidUntil": "2026-12-15",
+      "url": "https://padspan.traks.ca/pro/"
+    }
+  ]
+}
+</script>
 <style>
 :root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -36,7 +72,7 @@ p{margin:10px 0}
 ul,ol{margin:10px 0 10px 22px}
 li{margin:6px 0}
 .cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
-.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px;font-family:inherit}
 .btn.primary{background:var(--acc);color:#04160c}
 .btn.ghost{border:1px solid var(--line);color:var(--fg)}
 .btn:hover{text-decoration:none;filter:brightness(1.08)}
@@ -75,6 +111,43 @@ footer p{margin:4px 0}
   <a class="btn ghost" href="https://padspan.traks.ca/#pro">See prices</a>
 </div>
 <p class="how">To start the trial, install PadSpan, then press <b>Start 90-day free trial</b> in <b>Settings → Features → PadSpan licence</b>. You get all of Pro for 90 days, every add-on included, with no card. The <a href="/demo/">demo</a> shows PadSpan Pro on a sample house in your browser, with nothing to install.</p>
+<div id="pro-lifetime" data-until-pass data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+  <div id="pl-kick" style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch price · until November 30, 2026</div>
+  <div style="font-size:30px;font-weight:900;margin:4px 0"><span id="pl-price">$89</span> <small style="font-size:14px;font-weight:600">CAD, once</small></div>
+  <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. <span id="pl-later">$89 until November 30, 2026, then $168 until December 15. After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.</span> Lifetime keys already sold stay lifetime. Already have a PadSpan key? Pay with the same email and that key becomes lifetime.</p>
+  <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+    <input type="hidden" name="cmd" value="_xclick">
+    <input type="hidden" name="business" value="garry@bcmail.net">
+    <input type="hidden" name="item_name" value="PadSpan Pro — lifetime">
+    <input type="hidden" name="item_number" value="padspan-pro-lifetime">
+    <input type="hidden" name="amount" value="89.00" id="pl-amount">
+    <input type="hidden" name="currency_code" value="CAD">
+    <input type="hidden" name="no_shipping" value="1">
+    <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+    <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+    <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro for life with PayPal</button>
+  </form>
+</div>
+<script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
+  document.getElementById("pl-kick").textContent="PadSpan Pro for life · until December 15";document.getElementById("pl-price").textContent="$168";
+  document.getElementById("pl-later").textContent="After December 15 there's no lifetime: PadSpan gets new releases every week, and a one-off price doesn't keep that going, so Pro becomes $85 for two years, or $49 a year. Every new PadSpan feature is included while it runs.";document.getElementById("pl-amount").value="168.00";})();</script>
+<div id="pro-pass" data-from-pass style="display:none;margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+  <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">PadSpan Pro · two years</div>
+  <div style="font-size:30px;font-weight:900;margin:4px 0">$85 <small style="font-size:14px;font-weight:600">CAD, two years</small></div>
+  <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">Two years of PadSpan Pro, paid once. There's no lifetime any more: PadSpan gets new releases every week, and a one-off price doesn't keep that going. Every new PadSpan feature is included while it runs. Already have a PadSpan key? Pay with the same email and the two years are added to it.</p>
+  <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+    <input type="hidden" name="cmd" value="_xclick">
+    <input type="hidden" name="business" value="garry@bcmail.net">
+    <input type="hidden" name="item_name" value="PadSpan Pro — 2 years">
+    <input type="hidden" name="item_number" value="padspan-pro-2year">
+    <input type="hidden" name="amount" value="85.00">
+    <input type="hidden" name="currency_code" value="CAD">
+    <input type="hidden" name="no_shipping" value="1">
+    <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
+    <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
+    <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy two years of PadSpan Pro with PayPal</button>
+  </form>
+</div>
 <p>I built PadSpan for my own house, which has three floors, 5,000 sq ft and a 4K screen on the wall. This page goes through what Pro adds to the free version, one feature at a time.</p>
 
 <h2 id="you-can">What PadSpan Pro adds</h2>
@@ -248,5 +321,12 @@ footer p{margin:4px 0}
 <script>(function(){var from="2026-12-01T08:00:00Z";if(Date.now()<Date.parse(from))return;
   document.querySelectorAll("[data-until-basics]").forEach(function(e){e.remove();});
   document.querySelectorAll("[data-from-basics]").forEach(function(e){e.style.display="";});})();</script>
+<!-- From the end of December 15, 2026 (editions.js PRO_PASS_FROM): no lifetime, and the two-year box (#pro-pass)
+     takes its place. The home page's own switch. Visitors without JavaScript keep seeing the lifetime box until
+     the Dec 16 tidy (the note in <head>). -->
+<script>(function(){if(Date.now()<Date.parse("2026-12-16T08:00:00Z"))return;
+  document.querySelectorAll("[data-until-pass]").forEach(function(e){e.remove();});
+  document.querySelectorAll("[data-from-pass]").forEach(function(e){e.style.display="";});
+  var a=document.getElementById("pro-year-amount");if(a)a.value="49.00";})();</script>
 </body>
 </html>

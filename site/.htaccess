@@ -10,6 +10,16 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # http -> https, in one 301 that keeps the path and the ?query. http pages
+  # answered 200 and got indexed that way (Brave, 2026-11-26: 140 of 147 PadSpan
+  # results under http). Behind Cloudflare the origin may see plain http for
+  # everyone, so the visitor's own scheme is the X-Forwarded-Proto Cloudflare
+  # sends. A request without it is left alone (deploy_site.py's checks on the
+  # server send none), and so is /api/, which installs call.
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteRule ^ https://padspan.traks.ca%{REQUEST_URI} [R=301,L]
+
   # Language. padspan.traks.ca/de/ is the German page, built from this one by
   # scripts/build_site_de.py. Visitors in Germany, Austria, Switzerland or
   # Liechtenstein get it at the front page unless they have picked a language,

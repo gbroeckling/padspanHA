@@ -6,7 +6,13 @@ address is a page nobody finds, or one a search engine files under the wrong
 URL. Prices stay on the main page: they change (the launch price ends on
 November 30), and a guide that quoted one would go stale without anyone noticing.
 The Pro page (/pro/) and the add-ons page (/add-ons/) sell, so they link to the
-main page's prices for the same reason, and each has a German twin.
+main page's prices for the same reason, and each has a German twin. Two
+exceptions (the owner, 2026-11-26), each held to the panel by
+tests/test_site_seo.py: Pro for life on /pro/, the home page's own lifetime and
+two-year boxes and the description that quotes them; and each add-on's price in
+its heading on /add-ons/, which switches to half in the sale the way the home
+page's #addons box does. /pro/'s structured data quotes prices too, pinned by
+the same file; no other page's may.
 """
 from __future__ import annotations
 
@@ -71,9 +77,29 @@ def test_each_sales_page_is_there_in_english_and_german(folder: str) -> None:
         assert f"<loc>{_url(page)}</loc>" in sitemap, page
 
 
+def _without_pinned_prices(page: pathlib.Path) -> str:
+    """The page with what may quote a price because tests/test_site_seo.py pins it left out: on /pro/ (EN, DE) the
+    lifetime and two-year boxes, the description, and the scripts (its structured data among them); on /add-ons/
+    (EN, DE) each add-on's price in its heading and its sale line (data-addon-price). Nothing anywhere else."""
+    from tests.test_pricing_dec16 import _without
+
+    html = page.read_text(encoding="utf-8")
+    section = page.parent.relative_to(_SITE).parts[0]
+    if section == "pro":
+        html = _without(_without(html, "data-until-pass"), "data-from-pass")
+        html = re.sub(r'<meta name="description" content="[^"]*">', "", html)
+    elif section == "add-ons":
+        html = _without(html, "data-addon-price")
+    return html
+
+
+# A price in words or figures, or in structured data ("price": "3.22", "priceCurrency": "CAD").
+_PRICE = re.compile(r'\$\s?\d|\d\s?(CAD|USD|EUR|€)|"(?:price|lowPrice|highPrice|priceCurrency)"\s*:')
+
+
 def test_no_guide_quotes_a_price() -> None:
     for page in _GUIDES:
-        assert not re.search(r"\$\s?\d|\d\s?(CAD|USD|EUR|€)", page.read_text(encoding="utf-8")), page
+        assert not _PRICE.search(_without_pinned_prices(page)), page
 
 
 def test_links_into_the_site_are_absolute() -> None:
