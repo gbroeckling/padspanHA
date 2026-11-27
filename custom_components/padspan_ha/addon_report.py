@@ -183,6 +183,9 @@ def used_words(settings: dict[str, Any], usage: dict[str, Any], key_active: bool
         got.add("vacuum")
     if any(isinstance(t, dict) and t.get("adaptive") is True for t in settings.get("power_teams") or []):
         got.add("lighting")
+    # Energy: its view, a room card's Energy part, the always-on list or the spikes (telemetry.ENERGY_EVENTS).
+    if _count(usage, "energy:view", "energy:sheet", "energy:always_on", "energy:spikes"):
+        got.add("energy")
     if c4_local:
         got.add("c4local")
     bright = key_active and key_tier(settings) == "bright"

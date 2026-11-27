@@ -3501,6 +3501,7 @@ const ADDON_WORDS = {
   climate: () => t("Climate & air quality"), timetravel: () => t("Full house activity"), vacation: () => t("Vacation Mode & presets"),
   looks: () => t("Looks pack"), forensics: () => t("Forensics"), insights: () => t("Presence insights"),
   maps: () => t("Advanced map creation"), lighting: () => t("Advanced smart lighting"), vacuum: () => t("Robot vacuum"),
+  energy: () => t("Energy"),
 };   // c4local (OS 2 Local for Control4) is a product's name, the same in every language: addonWords gives a.words
 const addonWords = (a) => (ADDON_WORDS[a.name] ? ADDON_WORDS[a.name]() : a.words);
 // What a feature here needs, said one way: "PadSpan Pro or the Looks pack add-on ($4.25 CAD)", the add-on in the
@@ -5440,6 +5441,9 @@ function _settingsAtlas(ctx, el){
   // all, and whatever is stored is kept for when a key comes back.
   if (tierAtLeast(currentTier(settings), house3dTier(settings))) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));
   wrap.appendChild(lightsCard);
+  // ⚡ Energy (the add-on, off by default): PadSpan Pro's and the Energy add-on's. Without either, no card at all (it is
+  // not offered: not sold until the owner publishes it), and whatever is stored is kept for when a key comes back.
+  if (addonAllowed(settings, "energy")) wrap.appendChild(_atlasEnergySection(ctx, el, settings));
   // 📺 Wall screens: how big a ?kiosk=1 wall draws, for its room. Not on a
   // Bright install that can't unlock it (wall mode is PadSpan Pro's, or its
   // plain mode everyone's where it has moved down the ladder: wallTier).
@@ -5488,4 +5492,66 @@ function _settingsAtlas(ctx, el){
   if (ovShown) wrap.appendChild(ovCard);
 
   return wrap;
+}
+
+// i18n part: energy
+// Settings → Atlas → Energy (energy.py, views/energy.js, views/energy_map.js): the house's switch, off by default (off:
+// no Energy view, no ⋯ line, nothing read or sampled); then, while on, the classic layout's map switch, how long a room
+// stays empty before it counts, and an administrator's "Who was home at spikes" with what it tells. Each saves as it
+// changes. The always-on list is in the Energy view, beside the devices it lists.
+function _atlasEnergySection(ctx, el, settings){
+  const card = el("div",{class:"card","data-focus-part":"energy",style:"padding:16px;margin-top:20px"});
+  card.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#fbbf24;margin-bottom:6px"},t("⚡ Energy")));
+  card.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
+    t("Each room's power on the Atlas and in its card, the watts in rooms nobody is in, and standby while everyone is out, from Home Assistant's own Energy setup. It works without Bluetooth receivers. Off by default.")));
+  const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  const save = async (key, want, cb, noteEl) => {
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      if (noteEl) noteEl.textContent = t("Saved — the Atlas changes at its next refresh.");
+      if (key === "energy_enabled") { if (ctx.actions.renderNav) ctx.actions.renderNav(); ctx.actions.renderRooms(); }
+    } catch (e) {
+      if (cb) cb.checked = !want;
+      ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
+    }
+  };
+  const row = (key, words, note, attr) => {
+    const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":attr});
+    const cb = el("input",{type:"checkbox"});
+    cb.checked = settings[key] === true;
+    r.appendChild(cb);
+    r.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, words));
+    card.appendChild(r);
+    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, note);
+    card.appendChild(noteEl);
+    cb.addEventListener("change", ()=>save(key, cb.checked, cb, noteEl));
+  };
+  row("energy_enabled", t("Energy"),
+    t("Adds the Energy view to the menu and offers Energy in the Atlas's ⋯ list. Off: nothing of it shows anywhere, and nothing is read or measured."), "energy");
+  if (settings.energy_enabled !== true) return card;
+  row("atlas_energy_enabled", t("Energy on the map (classic layout)"),
+    t("A room's watts beside its name, a device's watts by it, and Energy in the room's card: watts now, kWh and cost today. For the whole house on the classic layout; on the new layout (▦ New layout) and on a wall screen, each screen ticks Energy in its ⋯ list instead. Off: none."), "atlas-energy");
+  const emptyRow = el("label",{style:"display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:#e2e8f0","data-settings":"energy-empty"});
+  const mins = el("input",{type:"number",min:"1",max:"240",step:"1",style:"width:70px"});
+  mins.value = String(Number.isInteger(settings.energy_empty_after_min) ? settings.energy_empty_after_min : 15);
+  emptyRow.appendChild(el("span",{}, t("A room counts as empty after")));
+  emptyRow.appendChild(mins);
+  emptyRow.appendChild(el("span",{}, t("minutes with nobody in it")));
+  card.appendChild(emptyRow);
+  mins.addEventListener("change", ()=>{
+    const n = Math.round(Number(mins.value));
+    if (!Number.isFinite(n) || n < 1 || n > 240) { mins.value = String(settings.energy_empty_after_min || 15); return; }
+    save("energy_empty_after_min", n, null, null);
+  });
+  if (admin) {
+    row("energy_spikes_enabled", t("Who was home at spikes"),
+      t("Lists the biggest jumps in the house's power over the last 7 days with who PadSpan saw at home and where. Energy data shows a household's routines: this stays on this house, and only administrators see it. Off by default."), "energy-spikes");
+  }
+  const go = el("button",{class:"btn inline",style:"margin-top:12px","data-goto":"energy"}, t("Open the Energy view"));
+  go.addEventListener("click", ()=>{ if (ctx.actions.showView) ctx.actions.showView("energy"); });
+  card.appendChild(go);
+  card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin-top:6px"},
+    t("The devices you expect to run all the time are picked in the Energy view.")));
+  return card;
 }

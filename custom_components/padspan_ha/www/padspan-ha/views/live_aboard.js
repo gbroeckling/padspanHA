@@ -6570,7 +6570,8 @@ function createSlot(slotKey){
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "room_controls" || !!(houseP && houseP.audio));
     // A room sheet's Shades and Thermostats only where the host offers them (roomLines: the Atlas tab; Thermostats with
     // the Climate map add-on), as on the flat Map.
-    for (const g of groups) g.rows = g.rows.filter(r => (r.key !== "room_shades" && r.key !== "room_climate")
+    // Energy the same way (roomLines: the Atlas tab, where the house has Energy on and the add-on).
+    for (const g of groups) g.rows = g.rows.filter(r => (r.key !== "room_shades" && r.key !== "room_climate" && r.key !== "energy")
       || !!(houseP && Array.isArray(houseP.roomLines) && houseP.roomLines.includes(r.key)));
     // Edgecut on a display screen only (the Atlas tab and its walls), as on the flat Map: the builder edits the whole house.
     for (const g of groups) g.rows = g.rows.filter(r => r.key !== "edgecut" || mapOnly);

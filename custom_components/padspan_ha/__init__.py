@@ -785,6 +785,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _quiet_error("setup:entry_vacation")
         _LOGGER.debug("Vacation mode setup failed: %s", err)
 
+    # Energy's sampler (energy.py): away standby, every 5 minutes; a no-op per tick while Energy is off.
+    try:
+        from .energy import async_setup_energy
+        async_setup_energy(hass)
+    except Exception as err:
+        _quiet_error("setup:entry_energy")
+        _LOGGER.debug("Energy setup failed: %s", err)
+
     # WLED exact looks: hold the look when something else turns a light on,
     # a PadSpan team follows, a power cut puts the last command back
     # (wled_exact.py) — a no-op until a device is switched to PadSpan.
@@ -997,6 +1005,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _quiet_error("setup:unload_vacation")
         _LOGGER.debug("Vacation mode teardown error: %s", err)
+
+    # Stop Energy's sampler
+    try:
+        from .energy import async_stop_energy
+        async_stop_energy(hass)
+    except Exception as err:
+        _quiet_error("setup:unload_energy")
+        _LOGGER.debug("Energy teardown error: %s", err)
 
     # Stop the WLED exact-look listener and late checks
     try:

@@ -58,7 +58,7 @@ _RANK = {t: i for i, t in enumerate(TIERS)}
 # The add-ons this PadSpan knows. Sent with every validate (licence_homes.home_params);
 # views/editions.js ADDONS has their words and prices.
 ADDONS: tuple[str, ...] = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics",
-                           "insights", "maps", "lighting", "vacuum", "c4local")
+                           "insights", "maps", "lighting", "vacuum", "energy", "c4local")
 # The plan the licence server names an add-on key's answers with. Stored with the key (license_plan) at activation
 # and on every check, so a key whose add-ons this PadSpan doesn't know yet still reads as an add-on key, never Pro.
 ADDON_PLAN = "addons"
@@ -76,7 +76,10 @@ ADDON_ON_SALE_FROM: dict[str, int] = {"maps": FREE_BASICS_FROM_TS, "vacuum": FRE
 # of running add-ons decides), never in a sale, PadSpan Pro includes it; not on sale until the product is published
 # (views/editions.js on_sale: false says the same). Nothing free moves into it, so its gate is Pro or the add-on
 # (hass_addon_allowed) whether or not it is on sale.
-NOT_ON_SALE: tuple[str, ...] = ("c4local", "forensics")
+# Energy (the owner, 2026-11-26): a regular add-on (energy.py), PadSpan Pro includes it; not sold until the owner
+# publishes it (views/editions.js on_sale: false says the same), so nothing offers it. Pro installs and keys holding it
+# use it meanwhile.
+NOT_ON_SALE: tuple[str, ...] = ("c4local", "forensics", "energy")
 # An add-on sold as part of another (the owner, 2026-11-26: Forensics merged into Presence insights, "insights"): no
 # longer sold on its own (NOT_ON_SALE), and a key holding either has both, so a Forensics bought before the merge
 # keeps working and gets the rest. The licence server answers the same way (license/index.php ps_addons).

@@ -918,11 +918,13 @@ def _span_words(seconds: float) -> str:
 
 def yesterday_message(day_label: str, summary: dict[str, Any], rooms: list[str], lights: list[tuple[str, str, float]],
                       lines: list[str], start: float, end: float, clock: Any, link: str,
-                      covered: bool = True) -> tuple[str, str, list[str]]:
+                      covered: bool = True, energy: str | None = None) -> tuple[str, str, list[str]]:
     """(title, message, the lines that had something). clock(ts) -> "HH:MM".
     rooms: the rooms PadSpan can see someone in; covered: Traceback was
     recording before the day began, so a room with no one in it was empty
-    (without that, the empty rooms and lights lines say nothing)."""
+    (without that, the empty rooms and lights lines say nothing). energy:
+    the kWh and cost used in empty rooms (energy.yesterday_words), said only
+    while Energy is on."""
     from .traceback_store import empty_spans  # noqa: PLC0415
     parts: list[str] = []
     said: list[str] = []
@@ -966,6 +968,9 @@ def yesterday_message(day_label: str, summary: dict[str, Any], rooms: list[str],
             bits.append(f"{len(lights) - LIGHTS_SHOWN} more")
         parts.append("Lights on with nobody there: " + "; ".join(bits) + ".")
         said.append("lights")
+    if energy and covered:
+        parts.append(energy)
+        said.append("energy")
     if not parts:
         parts.append("Nothing to report.")
     parts.append(f"Traceback for the day: {link}")
@@ -1041,13 +1046,21 @@ async def async_send_yesterday_home(hass: HomeAssistant, day: str, rooms: list[s
                 lights = lights_left_on(hist or {}, light_rooms, empty, start, end)
         except Exception:  # noqa: BLE001 — the lights line is left out
             _quiet_error("presence:yesterday_lights")
+    # Energy (the add-on, while it is on): the kWh and cost used in rooms nobody had been in for its empty time.
+    energy_line = None
+    if covered and room_list:
+        try:
+            from .energy import async_yesterday, yesterday_words  # noqa: PLC0415
+            energy_line = yesterday_words(await async_yesterday(hass, start, end, {r: occ.get(r) or [] for r in room_list}))
+        except Exception:  # noqa: BLE001 — the energy line is left out
+            _quiet_error("presence:yesterday_energy")
     tz = _house_tz(hass)
 
     def clock(ts: float) -> str:
         return datetime.fromtimestamp(ts, tz).strftime("%H:%M")
     label = datetime.fromtimestamp(start, tz).strftime("%a %d %b")
     title, message, said = yesterday_message(label, summary, room_list, lights, lines, start, end, clock,
-                                             yesterday_link(hass, start, end), covered)
+                                             yesterday_link(hass, start, end), covered, energy_line)
     target = str(data.get("yesterday_home_target") or "").strip()
     try:
         if target:

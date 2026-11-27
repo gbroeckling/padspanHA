@@ -405,5 +405,6 @@
 "Turn it on": "Einschalten",
 "Live Aboard is on: the Atlas shows the 3D house at its next refresh.": "Live Aboard ist an: Der Atlas zeigt das 3D-Haus bei seiner nächsten Aktualisierung.",
 "Could not save: {why}": "Nicht gespeichert: {why}",
-"A local Control4 integration is installed (not OS 2 Local for Control4).": "Eine lokale Control4-Integration ist installiert (nicht OS 2 Local for Control4)."
+"A local Control4 integration is installed (not OS 2 Local for Control4).": "Eine lokale Control4-Integration ist installiert (nicht OS 2 Local for Control4).",
+"Energy": "Energie"
 }

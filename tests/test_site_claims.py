@@ -443,8 +443,9 @@ def _real_menu_count() -> int:
     block = _bracket_extract(panel, "const MENU = [")
     import re
     # Setup (2026-11-13, owner's D4) is listed only until the house is set up, and was a view before it was listed:
-    # it is not one more dedicated view.
-    return len([i for i in re.findall(r'^\s*\["([a-z0-9_]+)",', block, re.M) if i != "setup"])
+    # it is not one more dedicated view. Energy (2026-11-26) is an add-on's view, listed only while a house has it on and
+    # not yet sold: not one more for everyone either.
+    return len([i for i in re.findall(r'^\s*\["([a-z0-9_]+)",', block, re.M) if i not in ("setup", "energy")])
 
 
 def _real_walkthrough_count() -> int:
@@ -610,6 +611,11 @@ def test_the_black_friday_half_price_is_the_panels_before_during_and_after(html:
         if name == "forensics":
             # Part of Presence insights since 2026-11-26 (editions.js part_of): no box, never sold on its own.
             assert row is None, "Forensics has no box of its own"
+            continue
+        if name == "energy":
+            # Energy (2026-11-26): not on sale until the owner publishes it (editions.js on_sale: false): no box, and
+            # never half off while it isn't sold.
+            assert row is None and got["first"][name] == got["last"][name] == price, "Energy has no box yet"
             continue
         row = row.group(0)
         # Half off from the sale's start; one not sold yet is never half off until it is (its box shows then).

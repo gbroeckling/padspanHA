@@ -239,5 +239,6 @@
 "Specialty": "Spécialité",
 "Your PadSpan add-on key is active.": "Votre clé de module PadSpan est active.",
 "This key is on {count} PadSpan homes.": "Cette clé est sur {count} maisons PadSpan.",
-"This key is used on {count} PadSpan homes. With more than 2, every PadSpan home must keep the report on.": "Cette clé est utilisée dans {count} maisons PadSpan. Au-delà de 2, chaque maison PadSpan doit garder le rapport activé."
+"This key is used on {count} PadSpan homes. With more than 2, every PadSpan home must keep the report on.": "Cette clé est utilisée dans {count} maisons PadSpan. Au-delà de 2, chaque maison PadSpan doit garder le rapport activé.",
+"Energy": "Énergie"
 }

@@ -180,6 +180,10 @@ folding heading on that tab.
 | Atlas — Mapped Light Control: Audio | off | on or off | On the classic layout, for the whole house: a speaker beside a room's name while one of its players is on, and Audio in the room's card. Pro or the Audio add-on; on the new layout each screen's ⋯ list has it instead. | `atlas_audio_enabled` |
 | Atlas — Mapped Light Control: Shades | off | on or off | On the classic layout, for the whole house: Open, Stop and Close for the room's blinds and shades in the room's card. Free; on the new layout each screen's ⋯ list has it instead. | `atlas_shades_enabled` |
 | Atlas — Mapped Light Control: Thermostats | off | on or off | On the classic layout, for the whole house: each thermostat in the room's card with its setpoint, and the room's temperature and humidity. Pro or the Climate & air quality add-on; on the new layout and on a wall screen, each screen's ⋯ list has it instead. | `atlas_thermostats_enabled` |
+| Energy | off | on or off | Energy for this house: the Energy view in the menu, Energy in the Atlas's ⋯ list, and standby measured while everyone is out, all from Home Assistant's own Energy setup. Off: nothing of it shows and nothing is read. Pro or the Energy add-on. | `energy_enabled` |
+| Energy: Energy on the map (classic layout) | off | on or off | On the classic layout, for the whole house: a room's watts beside its name, a device's watts by it, and Energy in the room's card. On the new layout and on a wall screen, each screen's ⋯ list has it instead. | `atlas_energy_enabled` |
+| Energy: A room counts as empty after | 15 | 1 to 240 | How long nobody has been in a room before its watts count as used in an empty room (1 to 240 minutes). | `energy_empty_after_min` |
+| Energy: Who was home at spikes | off | on or off | The biggest jumps in the house's power over the last 7 days, with who PadSpan saw at home and where, in the Energy view. Energy data shows routines: it stays on the house, and only administrators see it. | `energy_spikes_enabled` |
 | Power teams | empty |  | Each wall dimmer or switch and the smart bulbs it feeds, as one light ([chapter 14](14-home-assistant-reference.md)). Made and changed, and following the day, with Pro, Bright Pro or the Advanced smart lighting add-on. | `power_teams` |
 | Outdoor weather: Show rain and snow on the Atlas | on | on or off | Rain or snow around the house while it really rains or snows. | `atlas_weather_enabled` |
 | Outdoor weather: Rain sensor | empty | an entity: `binary_sensor.*` or `sensor.*`, or empty | A rain sensor that says when it is wet. Empty: the weather entity decides. | `atlas_weather_rain_entity` |
@@ -222,6 +226,7 @@ Settings PadSpan keeps for a control on another screen. Each is saved when you u
 <!-- generated:elsewhere (scripts/build_manual_reference.py) -->
 | Where | Card: control | Default | Range or choices | What it does | Key |
 |---|---|---|---|---|---|
+| Energy | Expected always on | empty |  | The metered devices expected to run all the time (a fridge, network gear), left out of the empty rooms' watts. An administrator's. | `energy_always_on` |
 | Overview | Preview a finished house | `sample` | `sample`, `live` | `live`: your own house. `sample`: the sample house (**Back to my house** returns). A new install switches to live as soon as a receiver is heard. | `data_mode` |
 | Overview | Walls | off | on or off | Draws the signal walls over the map. | `overview_show_walls` |
 | Overview | Trails | off | on or off | A fading trail behind each device. | `overview_show_trails` |

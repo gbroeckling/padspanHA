@@ -188,8 +188,9 @@ await tryCase("button: ⋯ beside the compass, clear of it, and the list opens g
   const keys = qa(".la3d-srow").map(r => r.getAttribute("data-show"));
   const alarm = tick("alarms");
   // This host hands in no scenes (Mapping's, say): no Scene row line (tests/js/scene_row.mjs has the sidebar's); nor
-  // Audio, so no Audio line (its own case below); nor a room sheet's Shades and Thermostats (their own case too).
-  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && !["scenes", "room_controls", "room_shades", "room_climate"].includes(it.key)).map(it => it.key);
+  // Audio, so no Audio line (its own case below); nor a room sheet's Shades and Thermostats (their own case too); nor
+  // Energy (offered through roomLines, as Shades and Thermostats are).
+  const want = SHOW.SHOW_ITEMS.filter(it => !it.later && !["scenes", "room_controls", "room_shades", "room_climate", "energy"].includes(it.key)).map(it => it.key);
   check("button: ⋯ beside the compass, clear of it, and the list opens grouped with the alarms ticked and greyed",
     b && compass && b.parentNode === compass.parentNode && b.textContent === "⋯" && b.getAttribute("aria-expanded") === "true"
     && S().show.menu.open && groups.length === SHOW.SHOW_GROUPS.length && want.every(k => keys.includes(k)) && !keys.includes("scenes")
@@ -606,6 +607,23 @@ await tryCase("setup: Shades and Thermostats are listed only where the host hand
   store.delete("show_show-a"); H.roomLines = []; poll(); await settle();
   check(name, none && shadesOnly && JSON.stringify(both) === JSON.stringify(["Doors, windows and locks", "Motion and sensors", "Shades", "Thermostats", false, false]) && kept,
     { none, shadesOnly, both, kept });
+});
+
+// ── Energy (the add-on, the owner, 2026-11-26): listed only where the host hands its line (the house has Energy on and
+// the add-on), with the house's lines, off until ticked ──
+await tryCase("setup: Energy is listed only where the host hands it, with the house's lines, off until ticked", async () => {
+  const name = "setup: Energy is listed only where the host hands it, with the house's lines, off until ticked";
+  const listOpen = async () => { if (S().show.menu.open) { click(more()); await settle(); } click(more()); await settle(); };
+  const groupOf = (k) => { const r = row(k), g = r && r.closest(".la3d-sgrp"); return g && g.getAttribute("aria-label"); };
+  H.roomLines = ["room_shades"]; poll(); await settle(); await listOpen();
+  const none = !row("energy");
+  H.roomLines = ["room_shades", "energy"]; poll(); await settle(); await listOpen();
+  const said = [groupOf("energy"), row("energy") && row("energy").querySelector(".la3d-sname").textContent, ticked("energy")];
+  await toggle("energy");
+  const kept = JSON.parse(store.get("show_show-a") || "{}").energy === true;
+  if (S().show.menu.open) { click(more()); await settle(); }
+  store.delete("show_show-a"); H.roomLines = []; poll(); await settle();
+  check(name, none && JSON.stringify(said) === JSON.stringify(["The house", "Energy", false]) && kept, { none, said, kept });
 });
 
 // ── Audio's speakers in 3D (the owner, 2026-11-25: "Yes, add them in 3D") ──────────────────────────────────────────

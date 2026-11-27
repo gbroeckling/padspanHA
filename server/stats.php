@@ -479,14 +479,14 @@ foreach ($tabs as $t => $n) { $tabs_out[$t] = array('count' => $n, 'installs' =>
 // is in `usage` with every other event; `refused` sets the offers where a
 // feature refused an add-on against each install's latest report.
 $ADDON_NAMES = array('audio', 'alarm', 'wifi', 'climate', 'timetravel', 'vacation', 'looks', 'forensics', 'insights', 'maps', 'lighting',
-                     'vacuum', 'c4local');
+                     'vacuum', 'energy', 'c4local');
 // Not sold before these moments (licence.ADDON_ON_SALE_FROM): everyone's until then. The moment is read against now
 // (PADSPAN_STATS_NOW, a Unix time, when the includer defines one: the tests).
 $ADDON_ON_SALE_FROM = array('maps' => '2026-12-01T08:00:00Z', 'vacuum' => '2026-12-01T08:00:00Z');
 $ADDON_NOW = defined('PADSPAN_STATS_NOW') ? (int)PADSPAN_STATS_NOW : time();
 // Not on sale, no moment yet (licence.NOT_ON_SALE): OS 2 Local for Control4, the specialty. Nothing free moved into
 // it, so it is never everyone's: on it is a key carrying it, or Pro.
-$ADDON_NOT_ON_SALE = array('c4local', 'forensics');   // forensics: part of Presence insights since 2026-11-26
+$ADDON_NOT_ON_SALE = array('c4local', 'forensics', 'energy');   // forensics: part of Presence insights since 2026-11-26; energy: until published
 $ADDON_LICENCES = array('free', 'trial', 'pro_year', 'pro_pass', 'pro_life', 'pro_tester', 'bright', 'addon',
                         'lapsed_trial', 'lapsed_pro', 'lapsed_bright', 'lapsed_addon');
 $ADDON_REFUSAL = array('busy_times' => array('insights'), 'locate' => array('insights'), 'door_openers' => array('alarm'),

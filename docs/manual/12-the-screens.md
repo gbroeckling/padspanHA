@@ -46,6 +46,7 @@ style, the menu has no headings. A PadSpan Bright install shows only its lightin
 | **Follow** | One person or thing: its room now, its movements, Locate (Pro or Presence insights) and alerts when it moves. | Always | Main list | Main list | Live |
 | **Occupancy** | How many people are in the building, and how the number was reached. | Always | More tools | Main list | Live |
 | **Guests** | Guest tags: who is staying now, the tags you lend, and past stays. | While guest tags are on (Settings → Tracking → Phones and guest tags) | Main list | Main list | Live |
+| **Energy** | The house's power from Home Assistant's Energy setup: now, standby while everyone is out, the watts in empty rooms, today's rooms and devices with their cost, and the sensors' health. | While Energy is on (Settings → Atlas → Energy), with Pro or the Energy add-on | Main list | Main list | Live |
 | **Setup** | The steps from a floor plan to a calibrated map, in order. | Until every step is done, or setup is skipped | Main list | Main list | Build |
 | **Mapping** | Floor plans, their scale, rooms, receivers, floors, and the Atlas builder. | Always | Main list | Main list | Build |
 | **Rooms** | Every room's settings in one place: colour, outline, ceiling height, receivers, who is in it. | Always | Main list | Main list | Build |

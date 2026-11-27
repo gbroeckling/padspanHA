@@ -811,12 +811,12 @@ def power_teams_section(latest: dict[str, dict], reports: list[dict]) -> list[st
 # market and the moved cohort are each install's latest report; the funnel is summed over every report; use and licence
 # changes read each install's reports over the window. tests/test_addon_dashboards.py holds these lists to the sender's.
 _ADDONS = ("audio", "alarm", "wifi", "climate", "timetravel", "vacation", "looks", "forensics", "insights", "maps", "lighting",
-           "vacuum", "c4local")
+           "vacuum", "energy", "c4local")
 # Not sold before these moments (licence.ADDON_ON_SALE_FROM): everyone's until then, so "on it" is every install.
 _ADDON_ON_SALE_FROM = {"maps": "2026-12-01T08:00:00Z", "vacuum": "2026-12-01T08:00:00Z"}
 # Not on sale, no moment yet (licence.NOT_ON_SALE): OS 2 Local for Control4, the specialty. Nothing free moved into it,
 # so it is never everyone's: "on it" is a key carrying it, or Pro, which includes it.
-_ADDON_NOT_ON_SALE = ("c4local", "forensics")   # forensics: part of Presence insights since 2026-11-26
+_ADDON_NOT_ON_SALE = ("c4local", "forensics", "energy")   # forensics: part of Presence insights since 2026-11-26; energy: until published
 _ADDON_LICENCES = ("free", "trial", "pro_year", "pro_pass", "pro_life", "pro_tester", "bright", "addon",
                    "lapsed_trial", "lapsed_pro", "lapsed_bright", "lapsed_addon")
 _ADDON_DAYS = ("gt365", "91_365", "30_90", "lt30", "grace", "ended", "unknown")

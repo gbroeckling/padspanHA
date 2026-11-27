@@ -249,5 +249,7 @@
 "The files couldn't be written; nothing was changed.": "De bestanden konden niet worden geschreven; er is niets veranderd.",
 "The files couldn't be moved; check Home Assistant's control4 folder.": "De bestanden konden niet worden verplaatst; controleer de control4-map van Home Assistant.",
 "OS 2 Local for Control4 is not published yet.": "OS 2 Local for Control4 is nog niet gepubliceerd.",
-"A local Control4 integration is installed (not OS 2 Local for Control4), so PadSpan does not install over it.": "Er is een lokale Control4-integratie geïnstalleerd (niet OS 2 Local for Control4), dus PadSpan installeert er niet overheen."
+"A local Control4 integration is installed (not OS 2 Local for Control4), so PadSpan does not install over it.": "Er is een lokale Control4-integratie geïnstalleerd (niet OS 2 Local for Control4), dus PadSpan installeert er niet overheen.",
+"Only an administrator can see who was home at spikes": "Alleen een beheerder kan zien wie er thuis was bij pieken",
+"Only an administrator can change Energy's always-on list and spike timeline": "Alleen een beheerder kan de lijst met altijd-aan-apparaten en de pieken van Energie wijzigen"
 }

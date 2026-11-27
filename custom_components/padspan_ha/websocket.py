@@ -434,6 +434,11 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .c4local_install import WS_COMMANDS as _c4local_commands
     for _cmd in _c4local_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Energy, the add-on (energy.py, off by default): the rooms' and devices' power from Home Assistant's Energy setup
+    # (any logged-in user), and who was home at spikes (an administrator's).
+    from .energy import WS_COMMANDS as _energy_commands
+    for _cmd in _energy_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # "Use the Zigbee2MQTT one": the kept copy of a Zigbee device in two integrations takes its duplicate's place (zigbee_twins.py).
     from .zigbee_twins import WS_COMMANDS as _twin_commands

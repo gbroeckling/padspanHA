@@ -1796,6 +1796,16 @@ function _roomSheetSpec(api, lights, room, onlyEids, who){
     }
   }
   const whoLine = only || api.peopleShown !== true ? null : who;
+  // Energy (energy_map.js; api.energy only while this screen has it on): the room's metered devices below the rest.
+  // Never on the unplaced chip's sheet; a room with no metering gains nothing.
+  const en = !only && api.energy ? api.energy.sheet(room) : null;
+  if (en) {
+    const prev = rc ? rc.after : null;
+    const after = { sig: JSON.stringify([prev ? prev.sig : null, en.sig]),
+      draw: () => { const frag = document.createElement("div"); const a = prev ? prev.draw() : null; if (a) frag.appendChild(a); frag.appendChild(en.draw()); return frag; } };
+    return { title: room, sub: parts.join(" · "), who: [rc && rc.status, whoLine].filter(Boolean).join(" · ") || null, items, actions,
+             before: rc ? rc.before : null, after };
+  }
   if (rc) return { title: room, sub: parts.join(" · "), who: [rc.status, whoLine].filter(Boolean).join(" · ") || null, items, actions, before: rc.before, after: rc.after };
   return { title: only ? t("Unplaced in {room}", { room }) : room, sub: parts.join(" · "), who: whoLine, items, actions };
 }
@@ -4314,6 +4324,10 @@ export function buildLightsMapCard(hostIn){
   // The ⋯ list's Audio line, offered where the host hands Audio: its Set up › opens the matching card over the map
   // (live_aboard_show.js goShow "audio_setup"), for an administrator (setup null for anyone else: no link).
   const audioSetup = () => (host.roomControls ? { setup: host.roomControls.canMatch() ? () => host.roomControls.openMatch() : null } : null);
+  // Energy (energy_map.js through host.energy, handed only where the house has Energy on and the add-on): the ⋯ list's
+  // Energy line, per screen, off unless ticked; the classic layout has no ⋯ list: there the host's energyOn (Settings →
+  // Atlas → Energy, house-wide) says it.
+  const energyOn = () => !!host.energy && (DISPLAY ? flatShow("energy") === true : host.energyOn === true);
   const sceneFlatHidden = () => flatShow("scenes") === false;
   const scenesFlat = () => { sceneRow.hide(sceneFlatHidden()); return scenesNow(); };
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
@@ -4873,7 +4887,9 @@ export function buildLightsMapCard(hostIn){
         // Unless this screen's ⋯ list has "Other floors, faded" ticked.
         focusAlone: DISPLAY && flatShow("other_floors") !== true,
         // Room controls on: {room: "on" | "muted"}, a speaker beside those rooms' names (nothing passed: none).
-        ...(roomControlsOn() ? { roomAudio: host.roomControls.looks() } : {}) };
+        ...(roomControlsOn() ? { roomAudio: host.roomControls.looks() } : {}),
+        // Energy on: {room: "120 W"} by those rooms' names, {entity id: "45 W"} by placed devices (nothing passed: none).
+        ...(energyOn() ? { roomEnergy: host.energy.chips(), deviceWatts: host.energy.deviceWatts() } : {}) };
     const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors, isoOpts);
     abNames = isoOpts.labelSpots;
@@ -4886,7 +4902,8 @@ export function buildLightsMapCard(hostIn){
         getFocusZ(view.focusIdx), view.floorGap, view.horizGap, view.zoom, V2, WALL, o.showcase, o.showcaseTheme, o.liveColours,
         o.fitRooms, o.isolux, o.sceneField, o.codeChip, o.hideCodes, o.classFilter, o.hitHalo, o.collapseUnplaced, o.dropMarker,
         o.labelScale, o.heatmap, o.barrierHit, o.automorph, o.automorphRoomPct, o.automorphHardness, o.automorphStyle,
-        o.automorphSubtlety, o.underlay ? o.underlay.length : 0, o.focusAlone]) + (o.roomAudio ? JSON.stringify(o.roomAudio) : "") }).full;
+        o.automorphSubtlety, o.underlay ? o.underlay.length : 0, o.focusAlone]) + (o.roomAudio ? JSON.stringify(o.roomAudio) : "")
+        + (o.roomEnergy ? JSON.stringify([o.roomEnergy, o.deviceWatts]) : "") }).full;
     } else { isoDiv.innerHTML = svgStr; drawnWhole = true; }
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).

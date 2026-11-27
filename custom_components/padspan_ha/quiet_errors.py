@@ -214,6 +214,18 @@ capture_store:retention_days
 device_tracker:guest_attrs
 dwell_analytics:compute_dwell_stats
 emergency_test:automations_since
+energy:areas
+energy:get
+energy:load
+energy:map_rooms
+energy:prefs
+energy:save
+energy:spike_who
+energy:states
+energy:stats
+energy:stop
+energy:tick
+energy:trace
 entity_identity:kept_device_info
 entity_identity:pick_uid_key
 espresense_mqtt:on_device_message
@@ -350,6 +362,7 @@ presence:smooth_path_loss_settings
 presence:suspend_databases
 presence:unsuspend_databases
 presence:usual_move
+presence:yesterday_energy
 presence:yesterday_guests
 presence:yesterday_home
 presence:yesterday_lights
@@ -392,6 +405,7 @@ setup:entry_area_rename
 setup:entry_emergency_test
 setup:entry_first_fetch
 setup:entry_flood_latch
+setup:entry_energy
 setup:entry_forensics
 setup:entry_house3d_people
 setup:entry_rain_wet
@@ -426,6 +440,7 @@ setup:unload_tags
 setup:unload_tasmota
 setup:unload_traceback
 setup:unload_update_check
+setup:unload_energy
 setup:unload_vacation
 setup:unload_vacuum
 setup:unload_wled_exact
@@ -515,6 +530,7 @@ telemetry:give_back_perf
 telemetry:give_back_resolvers
 telemetry:history_days
 telemetry:len
+telemetry:payload_energy
 telemetry:payload_ai_mapping
 telemetry:payload_ai_task
 telemetry:payload_cal_phantom_rooms

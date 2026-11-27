@@ -239,5 +239,6 @@
 "Specialty": "Specialiteit",
 "Your PadSpan add-on key is active.": "Je PadSpan-add-onsleutel is actief.",
 "This key is on {count} PadSpan homes.": "Deze sleutel staat op {count} PadSpan-huizen.",
-"This key is used on {count} PadSpan homes. With more than 2, every PadSpan home must keep the report on.": "Deze sleutel wordt in {count} PadSpan-huizen gebruikt. Bij meer dan 2 moet elk PadSpan-huis het rapport aan laten staan."
+"This key is used on {count} PadSpan homes. With more than 2, every PadSpan home must keep the report on.": "Deze sleutel wordt in {count} PadSpan-huizen gebruikt. Bij meer dan 2 moet elk PadSpan-huis het rapport aan laten staan.",
+"Energy": "Energie"
 }

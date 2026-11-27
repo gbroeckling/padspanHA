@@ -239,6 +239,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_audio_enabled": False,         # Atlas, the classic layout: Audio (views/room_controls.js) house-wide, as the ⋯ list's Audio line does per screen on Pro's display layout: a speaker beside a playing room's name, the room sheet's Audio; off: none (Settings → Atlas → Atlas — Mapped Light Control)
     "atlas_shades_enabled": False,        # Atlas, the classic layout: Shades in a room's card (room_controls.js), as the ⋯ list's Shades line does
     "atlas_thermostats_enabled": False,   # Atlas, the classic layout: Thermostats in a room's card (the Climate map add-on's), as its ⋯ line does
+    # Energy, the add-on (energy.py; PadSpan Pro or an "energy" key), off by default: off, nothing reads Home
+    # Assistant's Energy setup, nothing is sampled, and no Energy view, line, chip or card shows anywhere.
+    "energy_enabled": False,              # Settings → Atlas → Energy: Energy on for this house (the Energy view, the ⋯ line's offer, away standby)
+    "atlas_energy_enabled": False,        # Atlas, the classic layout: Energy on the map (a room's ⚡ watts, a device's watts) and in a room's card, as the ⋯ list's Energy line does per screen
+    "energy_empty_after_min": 15,         # a room nobody has been in this long counts as empty (1-240)
+    "energy_always_on": [],               # an administrator's: metered devices expected always on (a fridge, network gear), left out of the empty rooms' watts
+    "energy_spikes_enabled": False,       # an administrator's: who was home at spikes (energy data shows routines)
     "atlas_alert_pulse": False,           # Atlas: ring a room's flagged opening (a door, window, gate or cover left open over 6 h, a window or cover open in the rain or snow); a wall names the worst alert (Settings → Atlas → Atlas — Mapped Light Control)
     # Atlas outdoor weather (docs/IDEA_ATLAS_WEATHER.md, views/atlas_weather.js) — rain or snow outside the floor
     # plates while it is actually raining or snowing. On by default in both editions (Pro animates, free is still).

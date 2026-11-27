@@ -937,4 +937,84 @@ if (Cls) {
   } catch (e) { fail("room controls", "lifecycle", e); }
 }
 
-process.stdout.write(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor, alarm, roomCtl }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)
+// Energy (views/energy_map.js, the Energy add-on), through the panel itself (the owner, 2026-11-26): off by default
+// means nothing at all (the drawing and a room's sheet are the panel's without the module, and energy_get is never
+// asked); the house's switch alone draws nothing until a screen ticks its ⋯ line (or, on the classic layout, Settings →
+// Atlas → Energy is on); ticked, the room's chip and its sheet's Energy, and the report hears energy:on and :sheet; and
+// only where the add-on is allowed.
+const energy = {};
+if (Cls) {
+  const LMOD = await import(pathToFileURL(join(WWW, "views", "lights_map.js")).href);
+  const tree = (n) => (n ? { tag: n.localName, style: n.style ? n.style.cssText : "", text: n._text || "", a: n.attributes, kids: (n.children || []).map(tree) } : null);
+  const ANSWER = { on: true, allowed: true, set_up: true, currency: "CAD", price: 0.1, quiet_w: 1,
+    house: { w: 900, source: "home", stale: false, metered_w: 120, rest_w: 780 },
+    rooms: [{ room: "Kitchen", on_map: true, metered: 1, w: 120, kwh: 1.5, cost: 0.15, devices: ["sensor.kettle_energy"], empty: null }],
+    devices: [{ id: "sensor.kettle_energy", rate: "sensor.kettle_power", name: "Kettle", room: "Kitchen", device_id: null, w: 120, own_w: 120,
+      kwh: 1.5, own_kwh: 1.5, cost: 0.15, stale: false, always_on: false }],
+    empty: { w: 0, rooms: [], after_min: 15, source: "padspan" }, standby: null, issues: [] };
+  const settings = { ...BASE, atlas_layout_v2: true, telemetry_enabled: true, pro_has_key: true };
+  const open = async ({ ticked = false, without = false, tier = "pro", addons = null, more = {} } = {}) => {
+    if (ticked) localStorage.setItem("padspan_la3d_show_atlas", JSON.stringify({ energy: true })); else localStorage.removeItem("padspan_la3d_show_atlas");
+    const hass = makeHass({ settings: { ...settings, tier, ...(addons ? { addons_licensed: addons } : {}), ...more } });
+    hass.entities = Object.fromEntries(ENTITY_REG.map(e => [e.entity_id, e]));
+    hass.areas = Object.fromEntries(AREAS.map(a => [a.area_id, a]));
+    const real = hass.callWS, sent = [], asked = [];
+    hass.callWS = async (m) => {
+      if (m.type === "padspan_ha/telemetry_event") sent.push(m.event);
+      if (m.type === "padspan_ha/energy_get") { asked.push(m.type); return ANSWER; }
+      return real(m);
+    };
+    const el = new Cls();
+    if (without) { el._energy = () => null; el._energyHouse = () => false; }     // as if energy_map.js had not loaded
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush(); await flush();
+    el._render(); await flush(); await flush(); await flush();
+    const svg = () => el.shadowRoot.querySelector("#content")._all().map(n => n.innerHTML).find(h => typeof h === "string" && h.includes("<svg")) || "";
+    const lights = LMOD.gatherLights(hass.states, Object.fromEntries(ENTITY_REG.filter(e => e.area_id).map(e => [e.entity_id, AREAS.find(a => a.area_id === e.area_id).name])), {}, "pro");
+    const sheet = () => {
+      document.body.children.length = 0;
+      el._useApi(Object.fromEntries(lights.map(l => [l.entity_id, l])), lights).openRoom("Kitchen");
+      return document.body.children[document.body.children.length - 1];
+    };
+    const hasPart = () => !!sheet()._all().find(n => n.attributes && n.attributes["data-room-controls"] === "energy");
+    return { el, sent, asked, svg, sheet, hasPart, done: () => { el.disconnectedCallback(); document.body.children.length = 0; } };
+  };
+  const seen = async (q) => { const s = q.svg(); const part = q.hasPart(); await flush(); await flush();
+    return { house: q.el._energyHouse(), on: q.el._energyOn(), chip: s.includes("lroom-energy"), chipWords: s.includes("⚡ 120 W"), part,
+             asked: q.asked.length, sent: q.sent.filter(e => e.startsWith("energy:")) }; };
+  try {
+    let p = await open({ without: true });
+    const bareSvg = p.svg(), bareSheet = JSON.stringify(tree(p.sheet()));
+    p.done();
+    // Off by default: the same drawing, the same sheet, never asked, nothing counted, ticked or not.
+    p = await open();
+    energy.off = { svgSame: p.svg() === bareSvg && bareSvg.length > 0, sheetSame: JSON.stringify(tree(p.sheet())) === bareSheet, ...(await seen(p)) };
+    p.done();
+    p = await open({ ticked: true });
+    energy.offTicked = { svgSame: p.svg() === bareSvg, sheetSame: JSON.stringify(tree(p.sheet())) === bareSheet, ...(await seen(p)) };
+    p.done();
+    // On for the house, not ticked on this screen: the line is offered, nothing drawn, nothing asked.
+    p = await open({ more: { energy_enabled: true } });
+    energy.houseOnly = { svgSame: p.svg() === bareSvg, sheetSame: JSON.stringify(tree(p.sheet())) === bareSheet, ...(await seen(p)) };
+    p.done();
+    // Ticked: the chip by the Kitchen's name, its sheet's Energy, counted.
+    p = await open({ ticked: true, more: { energy_enabled: true } });
+    energy.ticked = await seen(p);
+    p.done();
+    // Not allowed (no Pro, no Energy key): nothing, ticked and on.
+    p = await open({ ticked: true, tier: "free", addons: ["audio"], more: { energy_enabled: true, atlas_layout_v2: false, atlas_energy_enabled: true } });
+    energy.notAllowed = await seen(p);
+    p.done();
+    // An Energy key on the classic layout (no ⋯ list): Settings → Atlas → Energy decides, house-wide.
+    p = await open({ tier: "free", addons: ["energy"], more: { energy_enabled: true, atlas_layout_v2: false, atlas_energy_enabled: true } });
+    energy.classicOn = await seen(p);
+    p.done();
+    p = await open({ ticked: true, tier: "free", addons: ["energy"], more: { energy_enabled: true, atlas_layout_v2: false, atlas_energy_enabled: false } });
+    energy.classicOff = await seen(p);
+    p.done();
+    localStorage.removeItem("padspan_la3d_show_atlas");
+  } catch (e) { fail("energy", "lifecycle", e); }
+}
+
+process.stdout.write(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor, alarm, roomCtl, energy }) + "\n", () => process.exit(failures.length ? 1 : 0));   // exit only once the result is written (a pipe holds 64 KiB)

@@ -133,7 +133,7 @@ def test_the_menu_map_is_the_panels_menu() -> None:
     code = B.menu_in_code()
     ids = [i for i, _ in code["menu"]]
     assert set(ids) == set(B.SCREENS) and len(ids) == len(set(ids))
-    assert set(code["gated"]) == set(B.SHOWN_WHEN) == {"forensics", "guests", "setup", "wifi"}
+    assert set(code["gated"]) == set(B.SHOWN_WHEN) == {"forensics", "guests", "setup", "wifi", "energy"}
     assert {"follow", "overview", "calibration"} <= set(code["basic"]) and "purelive" not in code["basic"]
     assert {"purelive", "traceback", "health"} <= set(code["advanced"]) and "devices" not in code["advanced"]
     assert {"forensics", "guests"} <= set(code["every_mode"])
