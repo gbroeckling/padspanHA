@@ -130,8 +130,8 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
     && log.some(x => x[0] === "toast" && /Who's where now/.test(x[1])), log);
 }
 {
-  // rooms drawn, or the sample house: the receivers, with the line saying why
-  for (const opts of [{}, { rooms: false, dataMode: "sample" }, { rooms: false, snapshot: null }]) {
+  // rooms drawn, or no live snapshot yet: the receivers, with the line saying why
+  for (const opts of [{}, { rooms: false, snapshot: null }]) {
     const { ctx, log } = makeCtx(opts);
     FQ.openStep(ctx, "presence");
     check("step:presence opens the receivers, saying why (" + JSON.stringify(opts) + ")", log[0][0] === "view" && log[0][1] === "receivers"
@@ -173,15 +173,16 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
   check("step:lights in Basic (no Atlas builder) opens the Atlas", JSON.stringify(pushed) === JSON.stringify(["/padspan-lights"]) && !state._lightsTour, { pushed });
 }
 
-// ── the sample house: the plan and lights steps it blocks ──
-for (const key of ["plan", "lights"]) {
+// ── the sample house: the presence, plan and lights steps it blocks ──
+for (const key of ["presence", "plan", "lights"]) {
   const { ctx, log, state } = makeCtx({ dataMode: "sample", rooms: false });
   FQ.openStep(ctx, key);
   check(`sample:${key} stays on the Overview, no step opened`, JSON.stringify(log) === JSON.stringify([["view", "overview"]])
-    && state.mapsTab === "library" && !state._roughPlan && !state._lightsTour, { log, state });
+    && state.mapsTab === "library" && !state._roughPlan && !state._lightsTour && FQ.sampleLineShown(state), { log, state });
   check(`sample:${key} never switches the mode by itself`, state.dataMode === "sample" && !log.some(x => x[0] === "mode"), log);
   const line = FQ.sampleLine(ctx);
-  const words = key === "plan" ? "Switch to your house to start your plan." : "Switch to your house to place your lights.";
+  const words = { presence: "Switch to your house to set up your receivers.", plan: "Switch to your house to start your plan.",
+                  lights: "Switch to your house to place your lights." }[key];
   check(`sample:${key} says so, one line`, !!line && line.textContent.includes("This is the sample house. " + words), line && line.textContent);
   ctx._refuseMode = true;
   line.querySelector('[data-first-question="sample-go"]').click(); await wait();
@@ -189,16 +190,18 @@ for (const key of ["plan", "lights"]) {
     && !!FQ.sampleLine(ctx), log);
   ctx._refuseMode = false;
   FQ.sampleLine(ctx).querySelector('[data-first-question="sample-go"]').click(); await wait();
-  const opened = key === "plan" ? state.mapsTab === "upload" && state._roughPlan.kind === "scan"
-    : state.mapsTab === "upload";          // the lights answer with no rooms: the plan first, as on the house
+  // presence on a live house with no rooms drawn: the Overview's Who's where; the lights answer with no rooms: the plan
+  // first, as on the house
+  const opened = key === "presence" ? state.view === "overview" && log.some(x => x[0] === "toast" && /Who's where now/.test(x[1]))
+    : key === "plan" ? state.mapsTab === "upload" && state._roughPlan.kind === "scan" : state.mapsTab === "upload";
   check(`sample:${key} Back to my house, then the step chosen`, log.filter(x => x[0] === "mode").every(x => x[1] === "live")
-    && state.dataMode === "live" && opened && !FQ.sampleLine(ctx), { log, state });
+    && state.dataMode === "live" && opened && !FQ.sampleLine(ctx) && !FQ.sampleLineShown(state), { log, state });
 }
 {
+  pushed.length = 0;
   const { ctx, log } = makeCtx({ dataMode: "sample" });
   FQ.openStep(ctx, "whole_house");
-  FQ.openStep(ctx, "presence");
-  check("sample:the whole house and who's where are not held back", log.some(x => x[1] === "receivers") && !FQ.sampleLine(ctx), log);
+  check("sample:the whole house is not held back", JSON.stringify(pushed) === JSON.stringify(["/padspan-lights"]) && !FQ.sampleLine(ctx), { log, pushed });
   check("sample:no line with nothing waiting", FQ.sampleLine(makeCtx({ dataMode: "sample" }).ctx) === null);
   const moved = makeCtx({ dataMode: "sample" });
   FQ.openStep(moved.ctx, "plan");

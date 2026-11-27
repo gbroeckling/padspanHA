@@ -15,8 +15,8 @@
 
 // Basic's focused views (views/focus.js).
 const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
-// The panel's words in its language (views/i18n.js; English is the key). So far the add row and the lend dialog.
-const { t } = await import(`./i18n.js${new URL(import.meta.url).search}`);
+// The panel's words in its language (views/i18n.js; English is the key): the whole page and the lend dialog.
+const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
 const REFRESH_MS = 10000;
 const AMBER = "#fbbf24";
 
@@ -28,12 +28,12 @@ function _when(ts) {
 }
 function _dur(s) {
   s = Math.max(0, Math.round(s || 0));
-  if (s < 60) return `${s}s`;
+  if (s < 60) return t("{n} s", { n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min`;
+  if (m < 60) return t("{n} min", { n: m });
   const h = Math.floor(m / 60), mm = m % 60;
-  if (h < 48) return mm ? `${h} h ${mm} min` : `${h} h`;
-  return `${Math.floor(h / 24)} d ${h % 24} h`;
+  if (h < 48) return mm ? t("{h} h {m} min", { h, m: mm }) : t("{n} h", { n: h });
+  return t("{d} d {h} h", { d: Math.floor(h / 24), h: h % 24 });
 }
 const _localInput = (ts) => { const d = new Date(ts * 1000); return `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`; };
 
@@ -43,17 +43,17 @@ export function render(ctx) {
   root.appendChild(el("div", { style: "margin-bottom:14px" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
       el("div", { style: "font-size:24px" }, "🧳"),
-      el("div", { style: `font-weight:700;font-size:16px;color:${AMBER}` }, "Guests"),
+      el("div", { style: `font-weight:700;font-size:16px;color:${AMBER}` }, t("Guests")),
       ctx.helpers.helpBtn ? ctx.helpers.helpBtn("guest_tags") : null,
     ].filter(Boolean)),
     el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px" },
-      "Lend a tag to a guest: see where they are, when they came and went, and be told when they go somewhere they shouldn't."),
+      t("Lend a tag to a guest: see where they are, when they came and went, and be told when they go somewhere they shouldn't.")),
   ]));
   const content = el("div", {});
   root.appendChild(content);
   const gs = ctx.state._guests || (ctx.state._guests = { data: null, ts: 0 });
   if (gs.data) _draw(ctx, el, content, gs.data);
-  else content.appendChild(el("div", { style: "text-align:center;color:#94a3b8;padding:20px" }, "Loading…"));
+  else content.appendChild(el("div", { style: "text-align:center;color:#94a3b8;padding:20px" }, t("Loading…")));
   if (!gs.data || Date.now() - gs.ts > REFRESH_MS) _load(ctx);
   return root;
 }
@@ -97,37 +97,37 @@ const _chip = (el, text, color) => el("span", { style: `display:inline-block;fon
 function _draw(ctx, el, content, data) {
   content.innerHTML = "";
   if (!data.enabled) {
-    content.appendChild(_card(el, "Guest tags are off", [
-      el("div", { class: "muted", style: "font-size:13px;margin-bottom:10px" }, "Turn them on in Settings → Tracking → Guest tags."),
+    content.appendChild(_card(el, t("Guest tags are off"), [
+      el("div", { class: "muted", style: "font-size:13px;margin-bottom:10px" }, t("Turn them on in Settings → Tracking → Guest tags.")),
       // Settings → Tracking; in Basic only the Guest tags card (views/focus.js).
-      el("button", { class: "btn", onclick: () => { ctx.state._presenceReveal = "phones"; FOCUS.openFocus(ctx, FOCUS.part("guestTags")); } }, "Open Settings"),
+      el("button", { class: "btn", onclick: () => { ctx.state._presenceReveal = "phones"; FOCUS.openFocus(ctx, FOCUS.part("guestTags")); } }, t("Open Settings")),
     ]));
     return;
   }
-  if (data.error) content.appendChild(el("div", { style: "color:#f87171;font-size:12px;margin-bottom:8px" }, "Could not load: " + data.error));
+  if (data.error) content.appendChild(el("div", { style: "color:#f87171;font-size:12px;margin-bottom:8px" }, t("Could not load: {why}", { why: data.error })));
   const isAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   const running = (data.sessions || []).filter(s => !s.ended);
   const done = (data.sessions || []).filter(s => s.ended);
 
   // ── Stays running now ─────────────────────────────────────────────────
   if (running.length) {
-    content.appendChild(_card(el, `Staying now (${running.length})`, running.map(s => _runningRow(ctx, el, s, isAdmin)), AMBER));
+    content.appendChild(_card(el, t("Staying now ({n})", { n: running.length }), running.map(s => _runningRow(ctx, el, s, isAdmin)), AMBER));
   }
 
   // ── The tags ──────────────────────────────────────────────────────────
-  const tagRows = (data.tags || []).map(t => {
-    const lent = !!t.session;
+  const tagRows = (data.tags || []).map(g => {
+    const lent = !!g.session;
     return el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid #1b3526" }, [
       el("div", { style: "flex:1;min-width:180px" }, [
-        el("span", { style: "font-weight:600;color:#e2e8f0" }, t.label),
-        lent ? _chip(el, `with ${t.guest}`, AMBER) : _chip(el, "in the drawer", "#94a3b8"),
+        el("span", { style: "font-weight:600;color:#e2e8f0" }, g.label),
+        lent ? _chip(el, t("with {name}", { name: g.guest }), AMBER) : _chip(el, t("in the drawer"), "#94a3b8"),
         el("div", { class: "muted", style: "font-size:11px;margin-top:2px" },
-          (t.present ? `Heard now${t.room ? " · " + t.room : ""}` : "Not heard now") + ` · ${t.kind}`),
+          (g.present ? (g.room ? t("Heard now · {room}", { room: g.room }) : t("Heard now")) : t("Not heard now")) + ` · ${g.kind}`),
       ]),
-      isAdmin && !lent ? el("button", { class: "btn inline primary", onclick: () => _lendModal(ctx, el, t) }, "Lend to a guest") : null,
+      isAdmin && !lent ? el("button", { class: "btn inline primary", onclick: () => _lendModal(ctx, el, g) }, t("Lend to a guest")) : null,
       isAdmin && !lent ? el("button", { class: "btn inline", onclick: async () => {
-        if (confirm(`Stop using ${t.label} as a guest tag? Its name and history stay; finished stays' reports are kept.`)) await _call(ctx, { type: "padspan_ha/guest_tag_unmark", pid: t.pid }, "Removed from guest tags");
-      } }, "Not a guest tag") : null,
+        if (confirm(t("Stop using {tag} as a guest tag? Its name and history stay; finished stays' reports are kept.", { tag: g.label }))) await _call(ctx, { type: "padspan_ha/guest_tag_unmark", pid: g.pid }, t("Removed from guest tags"));
+      } }, t("Not a guest tag")) : null,
     ]);
   });
   const addRow = [];
@@ -145,15 +145,18 @@ function _draw(ctx, el, content, data) {
       t("A guest tag is a device you have already named (Follow or Devices → Rename), so give a spare tag a name like \"Guest tag 1\" first.") + " " +
       t("A beacon with a fixed address (iBeacon or Eddystone) works best, or a phone with Private BLE. Find My, Tile and similar tracker tags change their address, so they won't be followed reliably.")));
   }
-  content.appendChild(_card(el, "Guest tags", [
-    ...(tagRows.length ? tagRows : [el("div", { class: "muted", style: "font-size:13px" }, "No guest tags yet.")]),
+  content.appendChild(_card(el, t("Guest tags"), [
+    ...(tagRows.length ? tagRows : [el("div", { class: "muted", style: "font-size:13px" }, t("No guest tags yet."))]),
     ...addRow,
   ]));
 
   // ── Finished stays: their reports ─────────────────────────────────────
-  content.appendChild(_card(el, `Past stays (${done.length})`, done.length
+  content.appendChild(_card(el, t("Past stays ({n})", { n: done.length }), done.length
     ? done.map(s => _report(ctx, el, s, isAdmin))
-    : [el("div", { class: "muted", style: "font-size:13px" }, `None kept. Finished stays are kept ${data.retention_days ? data.retention_days + " days" : "not at all"} (Settings → Tracking → Guest tags).`)]));
+    : [el("div", { class: "muted", style: "font-size:13px" }, data.retention_days
+      ? tn(data.retention_days, "None kept. Finished stays are kept {n} day (Settings → Tracking → Guest tags).",
+           "None kept. Finished stays are kept {n} days (Settings → Tracking → Guest tags).")
+      : t("None kept. Finished stays are not kept (Settings → Tracking → Guest tags)."))]));
 }
 
 function _runningRow(ctx, el, s, isAdmin) {
@@ -162,21 +165,21 @@ function _runningRow(ctx, el, s, isAdmin) {
   return el("div", { style: "padding:8px 0;border-top:1px solid #1b3526" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
       el("span", { style: "font-weight:700;color:#e2e8f0;font-size:14px" }, s.name),
-      _chip(el, s.tag || "tag", AMBER),
-      s.present ? _chip(el, s.room ? `in the ${s.room}` : "here", "#52b788") : _chip(el, "not heard now", "#94a3b8"),
-      s.room && off.includes(s.room) ? _chip(el, "off-limits room", "#f87171") : null,
+      _chip(el, s.tag || t("tag"), AMBER),
+      s.present ? _chip(el, s.room ? t("in the {room}", { room: s.room }) : t("here"), "#52b788") : _chip(el, t("not heard now"), "#94a3b8"),
+      s.room && off.includes(s.room) ? _chip(el, t("off-limits room"), "#f87171") : null,
     ]),
     el("div", { class: "muted", style: "font-size:12px;margin-top:4px;line-height:1.5" },
-      `Since ${_when(s.start)}` + (s.end_planned ? ` · until ${_when(s.end_planned)}` : " · no end set") +
-      ` · ${_dur(sum.length_s)} so far` + (off.length ? ` · off-limits: ${off.join(", ")}` : "") +
-      (sum.notices ? ` · ${sum.notices} notice${sum.notices === 1 ? "" : "s"}` : "")),
+      t("Since {when}", { when: _when(s.start) }) + " · " + (s.end_planned ? t("until {when}", { when: _when(s.end_planned) }) : t("no end set")) +
+      " · " + t("{time} so far", { time: _dur(sum.length_s) }) + (off.length ? " · " + t("off-limits: {rooms}", { rooms: off.join(", ") }) : "") +
+      (sum.notices ? " · " + tn(sum.notices, "{n} notice", "{n} notices") : "")),
     _roomsLine(el, sum),
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:6px" }, [
       isAdmin ? el("button", { class: "btn inline primary", onclick: async () => {
-        if (confirm(`${s.name}'s tag is back? This ends the stay and keeps its report.`)) await _call(ctx, { type: "padspan_ha/guest_session_end", session: s.id }, "Stay ended — tag back in the drawer");
-      } }, "Tag returned") : null,
-      isAdmin ? el("button", { class: "btn inline", onclick: () => _lendModal(ctx, el, { pid: s.pid, label: s.tag }, s) }, "Change") : null,
-      el("button", { class: "btn inline", onclick: () => _toTraceback(ctx, s) }, "Traceback"),
+        if (confirm(t("{name}'s tag is back? This ends the stay and keeps its report.", { name: s.name }))) await _call(ctx, { type: "padspan_ha/guest_session_end", session: s.id }, t("Stay ended — tag back in the drawer"));
+      } }, t("Tag returned")) : null,
+      isAdmin ? el("button", { class: "btn inline", onclick: () => _lendModal(ctx, el, { pid: s.pid, label: s.tag }, s) }, t("Change")) : null,
+      el("button", { class: "btn inline", onclick: () => _toTraceback(ctx, s) }, t("Traceback")),
     ]),
   ]);
 }
@@ -185,28 +188,29 @@ function _roomsLine(el, sum) {
   const rooms = Object.entries(sum.rooms || {}).sort((a, b) => b[1] - a[1]);
   if (!rooms.length) return null;
   return el("div", { style: "font-size:12px;color:#b0c4b1;margin-top:4px" },
-    "Time in rooms: " + rooms.slice(0, 8).map(([r, s]) => `${r} ${_dur(s)}`).join(" · ") + (rooms.length > 8 ? ` · +${rooms.length - 8}` : ""));
+    t("Time in rooms:") + " " + rooms.slice(0, 8).map(([r, s]) => `${r} ${_dur(s)}`).join(" · ") + (rooms.length > 8 ? ` · +${rooms.length - 8}` : ""));
 }
 
 function _report(ctx, el, s, isAdmin) {
   const sum = s.summary || {};
-  const how = { manual: "tag returned", scheduled: "ended at its planned time", stale: "ended after a week unheard" }[s.end_how] || "ended";
+  const how = { manual: t("tag returned"), scheduled: t("ended at its planned time"), stale: t("ended after a week unheard") }[s.end_how] || t("ended");
   const offs = sum.off_limits || [];
   return el("details", { style: "padding:6px 0;border-top:1px solid #1b3526" }, [
     el("summary", { style: "cursor:pointer;font-size:13px;color:#e2e8f0" }, [
       el("span", { style: "font-weight:600" }, s.name), " ", el("span", { class: "muted", style: "font-size:12px" },
-        `· ${s.tag || "tag"} · ${_when(s.start)} – ${_when(s.ended)} · ${_dur(sum.length_s)}`),
+        `· ${s.tag || t("tag")} · ${_when(s.start)} – ${_when(s.ended)} · ${_dur(sum.length_s)}`),
     ]),
     el("div", { style: "font-size:12px;color:#b0c4b1;line-height:1.6;margin:6px 0 0 14px" }, [
-      el("div", {}, `First in ${_when(sum.first_in)} · last out ${_when(sum.last_out)} · ${sum.arrivals || 0} return${sum.arrivals === 1 ? "" : "s"} · ${sum.departures || 0} time${sum.departures === 1 ? "" : "s"} out · ${how}`),
+      el("div", {}, [t("First in {when}", { when: _when(sum.first_in) }), t("last out {when}", { when: _when(sum.last_out) }),
+        tn(sum.arrivals || 0, "{n} return", "{n} returns"), tn(sum.departures || 0, "{n} time out", "{n} times out"), how].join(" · ")),
       _roomsLine(el, sum),
-      offs.length ? el("div", { style: "color:#fca5a5" }, "Off-limits visits: " + offs.map(([t, r]) => `${r} (${_when(t)})`).join(", ")) : null,
-      el("div", { class: "muted" }, `${sum.notices || 0} notice${sum.notices === 1 ? "" : "s"} sent`),
+      offs.length ? el("div", { style: "color:#fca5a5" }, t("Off-limits visits:") + " " + offs.map(([ts, r]) => `${r} (${_when(ts)})`).join(", ")) : null,
+      el("div", { class: "muted" }, tn(sum.notices || 0, "{n} notice sent", "{n} notices sent")),
       el("div", { style: "display:flex;gap:8px;margin-top:6px" }, [
-        el("button", { class: "btn inline", onclick: () => _toTraceback(ctx, s) }, "Traceback"),
+        el("button", { class: "btn inline", onclick: () => _toTraceback(ctx, s) }, t("Traceback")),
         isAdmin ? el("button", { class: "btn inline", onclick: async () => {
-          if (confirm(`Delete ${s.name}'s stay now, name and report?`)) await _call(ctx, { type: "padspan_ha/guest_session_forget", session: s.id }, "Stay deleted");
-        } }, "Forget") : null,
+          if (confirm(t("Delete {name}'s stay now, name and report?", { name: s.name }))) await _call(ctx, { type: "padspan_ha/guest_session_forget", session: s.id }, t("Stay deleted"));
+        } }, t("Forget")) : null,
       ]),
     ]),
   ]);

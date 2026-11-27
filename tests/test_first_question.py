@@ -241,8 +241,8 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("due:", 5), ("ask:", 5), ("start:", 5), ("skip:", 2), ("step:", 12),
-                                          ("next:", 9), ("settings:", 4), ("sample:", 13)])
+@pytest.mark.parametrize("prefix,least", [("due:", 5), ("ask:", 5), ("start:", 5), ("skip:", 2), ("step:", 11),
+                                          ("next:", 9), ("settings:", 4), ("sample:", 18)])
 def test_the_question_in_the_panel(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
@@ -264,7 +264,13 @@ def test_the_overview_asks_it_first_and_settings_has_it():
     ask = panel[panel.index("let _fqDue = false;"):panel.index("// ── Onboarding wizard")]
     assert 'if (v === "overview" && FQ) {' in ask and "dataMode" not in ask
     assert "if (_fqDue) { frag.appendChild(FQ.askCard(this._ctx())); this._overviewCardShown = true; }" in ask
-    assert "const _fs = FQ.sampleLine(this._ctx()); if (_fs) frag.appendChild(_fs);" in ask
+    assert "if (_fs) { frag.appendChild(_fs); this.state._fqSampleLineShown = true; }" in ask
+    # one thing at a time: no usage report ask beside the question or its sample line, and one "Back to my house"
+    tel = panel[panel.index("  _telemetryAskCard(compact){"):panel.index("    const cardStyle = compact")]
+    assert "if (FQ && (FQ.due(this._ctx()) || FQ.sampleLineShown(this.state))) return null;" in tel
+    ov = (_WWW / "views" / "overview.js").read_text(encoding="utf-8")
+    banner = ov[ov.index("const sampleBanner = "):ov.index('helpBtn("data_mode"),')]
+    assert "ctx.state._fqSampleLineShown ? null : (() => {" in banner
     assert panel.index("let _fqDue = false;") < panel.index("node = mod.render(this._ctx());")
     card = panel[panel.index("// ── Onboarding wizard"):panel.index("// Last line: the 90-day trial")]
     assert '!this.state._onboardingDismissed && this.state.view === "overview" && !_fqDue) {' in card
@@ -277,6 +283,37 @@ def test_the_overview_asks_it_first_and_settings_has_it():
     appearance = settings[settings.index("function _settingsAppearance("):settings.index("function _scannerMap(")]
     # at the end of Appearance, not the top
     assert "FQ.settingsCard(ctx)" not in appearance[:600] and "FQ.settingsCard(ctx)" in appearance[-700:]
+
+
+def test_a_factory_reset_keeps_the_outcome_and_the_answer(monkeypatch):
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    from tests.test_conversion import _FakeStore, _run
+    for live, want in (({"purpose_ask": "done", "purpose": ["lights", "garage"]}, ("done", ["lights"])),
+                       ({"purpose_ask": "skipped", "purpose": []}, ("skipped", [])),
+                       ({"purpose_ask": "due"}, ("due", [])),
+                       ({"purpose_ask": "", "purpose": ["plan"]}, ("", ["plan"])),       # answered in Settings, never asked
+                       ({"purpose_ask": "junk"}, ("", []))):
+        _FakeStore.saved = {}
+        monkeypatch.setattr(_hs, "Store", _FakeStore)
+        h = _report_hass()
+        h.data[DOMAIN][DATA_SETTINGS].data.update({**live, "quiet_mode": True})
+        _run(ws_factory_reset(h, MagicMock(), {"id": 1, "confirm": "FACTORY RESET"}))
+        after = h.data[DOMAIN][DATA_SETTINGS].data
+        assert after["quiet_mode"] is False, "the reset did not run"
+        assert (after["purpose_ask"], after["purpose"]) == want, (live, after["purpose_ask"], after["purpose"])
+        saved = _FakeStore.saved[SETTINGS_STORE_KEY]
+        assert (saved["purpose_ask"], saved["purpose"]) == want, live
+
+
+def test_the_guests_page_speaks_the_panels_language():
+    src = (_WWW / "views" / "guests.js").read_text(encoding="utf-8")
+    for words in ('t("Guests")', 't("Guest tags")', 't("in the drawer")', 't("Lend to a guest")', 't("Past stays ({n})"',
+                  't("Staying now ({n})"', 't("Tag returned")', 't("Forget")', 't("Not a guest tag")'):
+        assert words in src, words
+    # the tag rows' own variable is g, so t stays the panel's words in them
+    assert ".map(g => {" in src and ".map(t => {" not in src
 
 
 def test_the_usage_reports_description_says_the_answer_or_the_skip():

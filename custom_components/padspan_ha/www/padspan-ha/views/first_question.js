@@ -17,9 +17,9 @@
 //   plan         Mapping → Upload with "No floor plan?" open at the iPhone or iPad scan
 //   lights       the Atlas builder's tour (Mapping → Atlas builder); in Basic, which has no builder, the Atlas. With no
 //                rooms drawn there is nothing to place lights in: the plan first, the builder offered as the next step
-// On the sample house (where a new install opens) the plan and lights steps are blocked: those two answers stay on the
-// Overview with one line saying so and the way to the house ("Back to my house", then the step; sampleLine). Never a
-// switch of data mode by itself.
+// On the sample house (where a new install opens) the presence, plan and lights steps are blocked (its receivers and
+// plans are read-only): those answers stay on the Overview with one line saying so and the way to the house ("Back to
+// my house", then the step; sampleLine). Never a switch of data mode by itself.
 // Several answers: the first ticked opens, and the Getting started card offers the rest as next steps (nextSteps).
 
 const V = new URL(import.meta.url).search;
@@ -93,10 +93,26 @@ function openLights(ctx) {
   ctx.actions.showView("maps");
 }
 
+/** The answers whose step the sample house blocks (sampleLine), and its line for each. */
+const SAMPLE_BLOCKED = Object.freeze(["presence", "plan", "lights"]);
+const SAMPLE_WORDS = () => ({
+  presence: t("This is the sample house. Switch to your house to set up your receivers."),
+  plan: t("This is the sample house. Switch to your house to start your plan."),
+  lights: t("This is the sample house. Switch to your house to place your lights."),
+});
+
+/** Showing now: the sample line (panel.js holds the usage report's ask and the sample banner's own button meanwhile). */
+export const sampleLineShown = (state) => SAMPLE_BLOCKED.includes(state._fqSampleStep) && state.dataMode === "sample";
+
 /** Each answer's first step. */
 export function openStep(ctx, key) {
   const st = ctx.state;
   if (key === "whole_house") { openAtlas(ctx); return; }
+  if (SAMPLE_BLOCKED.includes(key) && st.dataMode === "sample") {
+    st._fqSampleStep = key;            // sampleLine, on the Overview
+    ctx.actions.showView("overview");
+    return;
+  }
   if (key === "presence") {
     // "Who's where now" (views/whos_where.js) is the Overview's own first step for a live house with no rooms drawn.
     if (st.dataMode === "live" && st.live && st.live.snapshot && !hasRooms(st)) {
@@ -106,11 +122,6 @@ export function openStep(ctx, key) {
     }
     ctx.actions.showView("receivers");
     ctx.toast(t("Rooms come from your Bluetooth receivers: each one hears who is near it. Give each one its room here."));
-    return;
-  }
-  if ((key === "plan" || key === "lights") && st.dataMode === "sample") {
-    st._fqSampleStep = key;            // sampleLine, on the Overview
-    ctx.actions.showView("overview");
     return;
   }
   if (key === "plan") { openPlan(ctx); return; }
@@ -140,19 +151,17 @@ export function nextSteps(settings, state) {
   return out;
 }
 
-/** On the sample house, in place of a plan or lights step it blocks: one line and the way to the house. The button
+/** On the sample house, in place of a presence, plan or lights step it blocks: one line and the way to the house. The button
  *  does what the sample banner's "Back to my house" does (ctx.actions.setDataMode), then opens the step chosen; a
  *  switch refused or unanswered leaves the line (setDataMode says why). null with nothing waiting, or once live. */
 export function sampleLine(ctx) {
   const st = ctx.state;
   const key = st._fqSampleStep;
-  if (key !== "plan" && key !== "lights") return null;
+  if (!SAMPLE_BLOCKED.includes(key)) return null;
   if (st.dataMode !== "sample") { st._fqSampleStep = null; return null; }
   const { el } = ctx.helpers;
   const box = el("div", { "data-first-question": "sample", style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:#0f2a1a;border:1px solid #2d5a3d;border-radius:8px" });
-  box.appendChild(el("span", { style: "font-size:13px;color:#e2e8f0;flex:1;min-width:12em" }, key === "plan"
-    ? t("This is the sample house. Switch to your house to start your plan.")
-    : t("This is the sample house. Switch to your house to place your lights.")));
+  box.appendChild(el("span", { style: "font-size:13px;color:#e2e8f0;flex:1;min-width:12em" }, SAMPLE_WORDS()[key]));
   const go = el("button", { class: "btn inline primary", "data-first-question": "sample-go" }, t("Back to my house"));
   go.addEventListener("click", async () => {
     go.disabled = true;
