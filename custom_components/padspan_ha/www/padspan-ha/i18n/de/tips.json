@@ -22,7 +22,6 @@
 "Open on the Atlas": "Mit dem Atlas starten",
 "Overview can show the Atlas, your lights and rooms, instead of the classic map.": "Die Übersicht kann den Atlas mit deinen Lichtern und Räumen zeigen statt der klassischen Karte.",
 "Room audio on the Atlas": "Raum-Audio auf dem Atlas",
-"Volume, mute and off for each room's players in the room's panel, and a speaker beside the room's name while one plays.": "Lautstärke, Stummschalten und Aus für die Player jedes Raums im Raumfenster, und ein Lautsprecher neben dem Raumnamen, solange einer spielt.",
 "Arm the alarm from the Atlas": "Die Alarmanlage vom Atlas aus scharf schalten",
 "Press the shield on the Atlas's emergency button to arm or disarm your alarm, with its code if it asks for one.": "Drück auf das Schild in der Notfalltaste des Atlas, um deine Alarmanlage scharf oder unscharf zu schalten, mit ihrem Code, wenn sie einen verlangt.",
 "Open the garage from the map": "Die Garage von der Karte aus öffnen",
@@ -61,7 +60,6 @@
 "Use your robot vacuum's map as a floor plan, and see the robot on the Atlas as it cleans.": "Nutze die Karte deines Saugroboters als Grundriss und sieh den Roboter auf dem Atlas, während er putzt.",
 "Tips are off. Settings → Appearance → Tips brings them back.": "Tipps sind aus. Einstellungen → Darstellung → Tipps holt sie zurück.",
 "Show me": "Zeig es mir",
-"Not now": "Nicht jetzt",
 "No more tips": "Keine Tipps mehr",
 "Hide this tip": "Diesen Tipp ausblenden",
 "Tip": "Tipp",
@@ -70,5 +68,10 @@
 "At most one a day, about something this house already has and doesn't use yet: on the Overview, or where you adjust the Atlas. Never on a wall screen, and never one you've seen before.": "Höchstens einer am Tag, über etwas, das dieses Haus schon hat und noch nicht nutzt: auf der Übersicht oder dort, wo du den Atlas einstellst. Nie auf einem Wandbildschirm und nie einer, den du schon gesehen hast.",
 "Tips are off.": "Tipps sind aus.",
 "Bring tips back": "Tipps zurückholen",
-"Every tip for this house ({n})": "Alle Tipps für dieses Haus ({n})"
+"Every tip for this house ({n})": "Alle Tipps für dieses Haus ({n})",
+"Got it": "Verstanden",
+"Each room's players in its panel on the Atlas: on and off, volume, source and sound, play and skip, sharing with other rooms, and Room off.": "Die Player jedes Raums in seinem Fenster auf dem Atlas: Ein und Aus, Lautstärke, Quelle und Klang, Abspielen und Überspringen, Teilen mit anderen Räumen und Raum aus.",
+"Tips are off on this browser. Settings → Appearance → Tips brings them back.": "Tipps sind in diesem Browser aus. Einstellungen → Darstellung → Tipps holt sie zurück.",
+"An administrator turned tips off for the whole house.": "Ein Administrator hat die Tipps für das ganze Haus ausgeschaltet.",
+"This switch is for this browser only.": "Dieser Schalter gilt nur für diesen Browser."
 }

@@ -35,6 +35,7 @@ let _latest = null;     // the update check's answer: { latest, newer }
 let _busy = "";         // "install" | "undo" | "check" | "restart" while one runs
 let _note = null;       // { ok, text } after a press
 let _declined = false;  // No thanks pressed on this page (saved as settings.c4local_offer_done)
+let _answered = false;  // the status's answer came back (or failed): the Overview's card knows whether it shows
 
 const _admin = (ctx) => !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
 const _call = (ctx, type, data) => (ctx.actions.wsCall ? ctx.actions.wsCall(type, data || {}) : ctx.actions.callWS({ type, ...(data || {}) }));
@@ -49,12 +50,12 @@ export function load(ctx, force = false) {
   if (!_admin(ctx) || (_asked && !force)) return;
   _asked = true;
   _call(ctx, "padspan_ha/c4local_status")
-    .then(r => { _status = r || null; _rerender(ctx); })
-    .catch(() => { _status = null; });
+    .then(r => { _status = r || null; _answered = true; _rerender(ctx); })
+    .catch(() => { _status = null; _answered = true; });
 }
 
 /** For the tests and a fresh page: forget what was read. */
-export function _reset(status = null) { _status = status; _asked = status !== null; _latest = null; _busy = ""; _note = null; _declined = false; }
+export function _reset(status = null) { _status = status; _asked = status !== null; _answered = status !== null; _latest = null; _busy = ""; _note = null; _declined = false; }
 
 /** Whether OS 2 Local for Control4 is published. Its one switch is its on-sale flag: the backend's word
  *  (settings.addons_on_sale, from licence.NOT_ON_SALE / ADDON_ON_SALE_FROM, by which Install and the update check
@@ -268,6 +269,18 @@ export function settingsCard(ctx, el, now = Date.now()) {
 /** The Overview's card: the product published, a Control4 entry failed to set up or a controller runs OS 2,
  *  no local login here (neither the product nor the house's own), No thanks never pressed on this install, and an
  *  administrator can get it (Pro or the add-on) or buy it (on sale). Never on a wall. Null otherwise. */
+/** Whether the Overview's card may still show and waits for the status (asked, not back): the Overview's feature tip,
+ *  after it in line, waits too. Asks for it, as the card does. */
+export function overviewPending(ctx, now = Date.now()) {
+  const settings = (ctx.state && ctx.state.settings) || {};
+  if (!_admin(ctx) || (ctx.state && ctx.state.kioskMode) || !published(settings, now)) return false;
+  if (_declined || settings.c4local_offer_done === true) return false;
+  const comps = (ctx.hass && ctx.hass.config && ctx.hass.config.components) || [];
+  if (!_status && !comps.includes("control4")) return false;
+  load(ctx);
+  return !_answered;
+}
+
 export function overviewCard(ctx, now = Date.now()) {
   const settings = (ctx.state && ctx.state.settings) || {};
   if (!_admin(ctx) || (ctx.state && ctx.state.kioskMode) || !published(settings, now)) return null;

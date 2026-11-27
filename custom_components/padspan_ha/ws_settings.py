@@ -668,7 +668,7 @@ def _companion_url(value: Any) -> str | None:
 # does for the whole home.
 _EVERYONE_KEYS = frozenset({
     "whatsnew_seen_version", "telemetry_asked", "trial_nudge_done", "tester_nudge_done", "launch_card_done", "lifetime_card_done",
-    "addon_sale_card_done", "house3d_free_card_done", "c4local_offer_done", "tips_enabled", "tips_state",
+    "addon_sale_card_done", "house3d_free_card_done", "c4local_offer_done", "tips_state",
     "onboarding_completed", "setup_progress", "health_reminder_last_ts", "locate_self_key", "followed_addrs",
     "hidden_map_ids", "lights_hidden", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
     "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
@@ -715,7 +715,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("addon_sale_card_done"): bool,           # the Overview "Half off every add-on" card was shown; never again
         vol.Optional("house3d_free_card_done"): bool,         # the Overview "The 3D house is now free" card was shown; never again
         vol.Optional("c4local_offer_done"): bool,             # No thanks on the Overview's OS 2 Local for Control4 card
-        vol.Optional("tips_enabled"): bool,                   # feature tips (views/tips.js): "No more tips" or Settings → Appearance → Tips
+        vol.Optional("tips_enabled"): bool,                   # admin only; feature tips (views/tips.js) for the whole house
         vol.Optional("tips_state"): _MAP,                     # feature tips shown, dismissed, in use (tips.clean_state)
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
@@ -1761,10 +1761,18 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .setup_checks import clean_setup_progress  # noqa: PLC0415
             payload["setup_progress"] = clean_setup_progress(msg["setup_progress"])
         if "tips_enabled" in msg:
+            # The whole house's tips: an administrator's call. Anyone else's "No more tips" is their own browser's
+            # (views/tips.js localOff); their dismissals still go in tips_state, which only grows.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can turn tips on or off for the whole house")
+                return
             payload["tips_enabled"] = bool(msg["tips_enabled"])
         if "tips_state" in msg:
-            from .tips import clean_state as _clean_tips  # noqa: PLC0415
-            payload["tips_state"] = _clean_tips(msg["tips_state"])
+            # Added to what is kept, never in place of it (tips.merge_state): a browser's stale copy, another
+            # device's or an empty {} can't bring a seen tip back.
+            from .tips import merge_state as _merge_tips  # noqa: PLC0415
+            payload["tips_state"] = _merge_tips(st.data.get("tips_state"), msg["tips_state"])
         if "espresense_companion_url" in msg:
             # Admin-only (Phase 2i security audit, 2026-09-19): this URL is
             # later fetched server-side, verbatim, by the admin-only

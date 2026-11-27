@@ -557,6 +557,15 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
                            "addon_sale_card_done": bool(a.get("addon_sale_card_done") or b.get("addon_sale_card_done")),
                            "house3d_free_card_done": bool(a.get("house3d_free_card_done") or b.get("house3d_free_card_done")),
                            "c4local_offer_done": bool(a.get("c4local_offer_done") or b.get("c4local_offer_done"))}
+    # Feature tips (tips.py): what was shown, dismissed or used is this install's history, merged from both sides
+    # (merge_state), so a restore or a reset never brings a seen tip back; and "No more tips" stays: the live switch
+    # (this install's choice now) wins, the other side's only where the live settings never had one.
+    if a.get("tips_state") or b.get("tips_state"):
+        from .tips import merge_state as _merge_tips  # noqa: PLC0415
+        out["tips_state"] = _merge_tips(a.get("tips_state"), b.get("tips_state"))
+    _tips_on = a.get("tips_enabled") if isinstance(a.get("tips_enabled"), bool) else b.get("tips_enabled")
+    if isinstance(_tips_on, bool):
+        out["tips_enabled"] = _tips_on
     # The usage report's add-on facts (addon_report.py) are this install's, like its first sighting: kept.
     _ars = next((v for v in (a.get("addon_report_seen"), b.get("addon_report_seen")) if isinstance(v, dict) and v), None)
     if _ars is not None:

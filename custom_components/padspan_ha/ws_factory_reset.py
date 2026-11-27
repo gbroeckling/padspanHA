@@ -169,6 +169,9 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         # until the next update check (or ever, with it turned off).
         if isinstance(_live, dict) and _live.get("server_offers"):
             _reset["server_offers"] = _live["server_offers"]
+        # The feature tips' ranking likewise (update_check._keep_tips): the server's, not the house's.
+        if isinstance(_live, dict) and _live.get("server_tips_rank"):
+            _reset["server_tips_rank"] = _live["server_tips_rank"]
         # A free licence that holds the usage report on keeps it on through a
         # reset (settings_store.report_locked_until).
         from .settings_store import report_locked_until as _locked_until

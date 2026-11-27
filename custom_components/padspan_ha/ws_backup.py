@@ -586,6 +586,8 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # a backup taken on a new install's first day must not ask an older one.
                             from .settings_store import purpose_ask_kept
                             data["purpose_ask"] = purpose_ask_kept(store_obj.data or {}, data)
+                            # And the feature tips' ranking is today's too (update_check._keep_tips).
+                            data["server_tips_rank"] = (store_obj.data or {}).get("server_tips_rank") or []
                             # Nor bring back the trial milestone card, or restart
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import live_first_kept, trial_state_kept

@@ -20,7 +20,7 @@ const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
         classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-const { tierAtLeast, addonAllowed, addonGate, addonPrice, addonOfferSeen, ADDONS_URL, vacuumAllowed, placementTier, house3dTier } =
+const { tierAtLeast, addonAllowed, addonGate, addonPrice, addonOfferSeen, ADDONS_URL, vacuumAllowed, placementTier, house3dTier, tipUsed } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key); loaded on its own (tests copy this file
 // alone), the English with its {placeholders} filled.
@@ -2632,6 +2632,7 @@ export function openControlCard(hass, eid, api){
       box.style.overflow = adv ? "auto" : "";
       if (adv && !mounted) {
         mounted = true;
+        tipUsed("wled_controls");   // its feature tip (views/tips.js) is done with: a real device's own workbench
         try {
           const mod = await import(`./wled_advanced.js${new URL(import.meta.url).search}`);
           // A switch made in there changes how the Atlas turns lights on.

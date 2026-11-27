@@ -302,7 +302,7 @@ class PadSpanLightsApp extends HTMLElement {
     await Promise.allSettled([ this._loadSettings() ]);
     this._settingsTs = Date.now();
     this._render();
-    this._loadEmergency().then(()=>this._render());
+    this._loadEmergency().then(()=>{ this._render(); this._cardLink(); });
     // The saved floor comes into view once, on the card the new model makes
     // (lights_map.js). A failed read makes none: the request goes with it, or
     // some later card would move the page.
@@ -1147,7 +1147,11 @@ class PadSpanLightsApp extends HTMLElement {
     const wall = !!kiosk || this.hasAttribute("data-wall");
     const admin = !!this._hass?.user?.is_admin;
     const basic = this._basicMode();
-    const go = admin && !wall && !basic ? (t)=>{
+    // The PadSpan panel's places: an administrator's, not in Basic. The emergency button's card is this page's own.
+    const panel = admin && !wall && !basic;
+    const go = !wall ? (t)=>{
+      if (t.atlas === "emergency") { this._openEmergencyCard(); return; }
+      if (!panel) return;
       const q = new URLSearchParams({ view: String(t.view) });
       if (t.tab) q.set("tab", String(t.tab));
       if (t.part) q.set("part", String(t.part));
@@ -1160,9 +1164,19 @@ class PadSpanLightsApp extends HTMLElement {
       send: (w)=>{ if(this.state._telemetryOn && this._hass) Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(w) })).catch(()=>{}); },
       go,
       // Only a place the panel's ?view=&tab=&part= opens, and only with a way there.
-      canGo: (t)=>!!go && !!t && (t.view === "settings" || t.view === "maps"),
+      canGo: (t)=>!!go && !!t && (t.atlas === "emergency" || (panel && (t.view === "settings" || t.view === "maps"))),
       toast: (m)=>this._toast(m),
     };
+  }
+  // ?card=emergency (a feature tip's Show me, views/tips.js): the emergency button's card, once, where the page has
+  // the button (an alarm or emergency lights) and is no wall.
+  _cardLink(){
+    if(this._cardLinked) return;
+    this._cardLinked = true;
+    let want = "";
+    try { want = new URLSearchParams(location.search).get("card") || ""; } catch(_) {}
+    if(want === "emergency" && !this.hasAttribute("data-wall") && !this._kiosk() && this.shadowRoot && this.shadowRoot.querySelector(".lv-emerg-ring, .lv-emerg-btn"))
+      this._openEmergencyCard();
   }
   // A word that says a feature was used (Audio's, the alarm's, a ⋯ line ticked): its tip is done with, report or not.
   _tipNote(name){

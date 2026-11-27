@@ -281,6 +281,16 @@ export function addonOfferSeen(send, place, name) {
   _offersSeen.add(k);
   try { send("addon_offer:" + k); } catch (_) { /* the report is a courtesy */ }
 }
+// A feature tip's feature used (views/tips.js noteUse), said to the page as an event so a view need import nothing
+// more: Locate, Busy Times, WLED's Advanced tab. Only on the house's own data (live), never the sample house's.
+// Nothing is sent anywhere; the panel or the Atlas page writes it down with the tips' state.
+export function tipUsed(id, live = true) {
+  if (!live) return;
+  try {
+    if (typeof globalThis.dispatchEvent === "function" && typeof CustomEvent === "function")
+      globalThis.dispatchEvent(new CustomEvent("padspan-tip-used", { detail: String(id) }));
+  } catch (_) { /* a tip is never the error */ }
+}
 export function addonUsedSeen(send, name) {
   const k = "used:" + name;
   if (typeof send !== "function" || _offersSeen.has(k)) return;

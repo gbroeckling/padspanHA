@@ -1149,10 +1149,19 @@ def _tip_hit(sig: tuple, r: dict, usage: dict) -> bool:
     return False
 
 
-def tips_adoption(latest: dict[str, dict], reports: list[dict]) -> dict[str, tuple[int, int]]:
-    """Each tip: (installs that have its feature, of them the ones whose reports say it is in use)."""
+# A tip is ranked from this many reporting installs that have its feature; fewer, and it goes after the ranked ones in
+# the table's order (one or two houses say nothing about other houses).
+_TIP_MIN_INSTALLS = 5
+
+
+def tips_adoption(latest: dict[str, dict], reports: list[dict], exclude: set[str] | frozenset[str] = frozenset()) -> dict[str, tuple[int, int]]:
+    """Each tip: (installs that have its feature, of them the ones whose reports say it is in use). `exclude`: installs
+    left out (--exclude-install-id: the owner's own house)."""
+    latest = {iid: r for iid, r in latest.items() if iid not in exclude}
     usage: dict[str, Counter] = defaultdict(Counter)
     for r in reports:
+        if r.get("install_id") in exclude:
+            continue
         for k, v in (r.get("usage") or {}).items():
             if _num(v):
                 usage[r.get("install_id")][str(k)] += int(_num(v))
@@ -1164,28 +1173,37 @@ def tips_adoption(latest: dict[str, dict], reports: list[dict]) -> dict[str, tup
     return out
 
 
-def tips_rank(latest: dict[str, dict], reports: list[dict]) -> list[str]:
-    """Every tip, the one whose feature is in use in the largest share of the installs that have it first; a tip no
-    install has goes after those some do (in the table's order). Only a tie-break on the installs: they rank by fit to
-    their own house first (views/tips.js rankTips)."""
-    ad = tips_adoption(latest, reports)
+def tips_share(has: int, used: int) -> float:
+    """The share in use, smoothed ((used + 1) / (has + 2)): one house of one is not 100%."""
+    return (used + 1) / (has + 2)
+
+
+def tips_rank(latest: dict[str, dict], reports: list[dict], exclude: set[str] | frozenset[str] = frozenset()) -> list[str]:
+    """Every tip: first those with at least _TIP_MIN_INSTALLS installs that have the feature, the largest smoothed share
+    in use first (tips_share); then the rest, in the table's order. Only a tie-break on the installs: they rank by fit
+    to their own house first (views/tips.js rankTips)."""
+    ad = tips_adoption(latest, reports, exclude)
     order = list(_TIP_SIGNALS)
-    return sorted(order, key=lambda t: (ad[t][0] == 0, -(ad[t][1] / ad[t][0]) if ad[t][0] else 0, -ad[t][0], order.index(t)))
+    ranked = lambda t: ad[t][0] >= _TIP_MIN_INSTALLS  # noqa: E731
+    return sorted(order, key=lambda t: (not ranked(t), -tips_share(*ad[t]) if ranked(t) else 0, -ad[t][0] if ranked(t) else 0, order.index(t)))
 
 
-def tips_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+def tips_section(latest: dict[str, dict], reports: list[dict], exclude: set[str] | frozenset[str] = frozenset()) -> list[str]:
     use: Counter = Counter()
     users: dict[str, set] = defaultdict(set)
     for r in reports:
+        if r.get("install_id") in exclude:
+            continue
         for k, v in (r.get("usage") or {}).items():
             if (str(k).startswith("tip_") or k == "tips_off") and _num(v):
                 use[k] += int(_num(v))
                 users[k].add(r.get("install_id"))
-    ad = tips_adoption(latest, reports)
-    out = ["Feature tips (usage events over the window (installs); in use: latest report per install, of those that have it)",
+    ad = tips_adoption(latest, reports, exclude)
+    out = ["Feature tips (usage events over the window (installs); in use: latest report per install, of those that have it;"
+           f" ranked from {_TIP_MIN_INSTALLS} installs, by (used + 1) / (have + 2); --exclude-install-id left out)",
            f"  tips turned off (No more tips, or the switch): {use['tips_off']} ({len(users['tips_off'])} installs)",
            f"    {'tip':<16}" + "".join(f"{w:>12}" for w in _TIP_WORDS) + f"{'in use':>14}"]
-    for tip in tips_rank(latest, reports):
+    for tip in tips_rank(latest, reports, exclude):
         cells = "".join(f"{(str(use[f'tip_{w}:{tip}']) + ' (' + str(len(users[f'tip_{w}:{tip}'])) + ')') if use[f'tip_{w}:{tip}'] else '-':>12}"
                         for w in _TIP_WORDS)
         has, used = ad[tip]
@@ -1251,7 +1269,7 @@ def main() -> int:
     ap.add_argument("dir")
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--exclude-install-id", action="append", default=[], metavar="ID",
-                    help="leave this install out of the one-screen line (the owner's own house); may be repeated")
+                    help="leave this install out of the one-screen line and the tips' ranking (the owner's own house); may be repeated")
     ap.add_argument("--tips-out", metavar="FILE",
                     help="also write the feature tips' ranking here, as {\"tips\": [ids]} (server/version.php merges it)")
     a = ap.parse_args()
@@ -1298,14 +1316,14 @@ def main() -> int:
     for line in addons_section(latest, reports):
         print(line)
     print()
-    for line in tips_section(latest, reports):
+    for line in tips_section(latest, reports, set(a.exclude_install_id)):
         print(line)
     print()
     if a.tips_out:
         # Tip ids only: nothing about any install goes into the file the update check hands out.
         tips_file = Path(a.tips_out)
         tmp = tips_file.with_name(tips_file.name + ".tmp")
-        tmp.write_text(json.dumps({"tips": tips_rank(latest, reports)}) + "\n", encoding="utf-8")
+        tmp.write_text(json.dumps({"tips": tips_rank(latest, reports, set(a.exclude_install_id))}) + "\n", encoding="utf-8")
         tmp.replace(tips_file)
     for line in screen_up_section(latest, set(a.exclude_install_id)):
         print(line)

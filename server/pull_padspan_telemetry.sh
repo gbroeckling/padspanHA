@@ -13,6 +13,11 @@
 #
 # It also brings home the "Become a tester" sign-ups (server/tester.php) — a
 # separate file WITH contact details, kept in its own folder; see that block.
+#
+# DEPLOYING: copy telemetry_summary.py to 5810 ($SUMMARISER) BEFORE this script.
+# An older summariser does not know --tips-out; this script asks it first
+# (--help) and then runs it without, so the nightly summary never goes blank,
+# but no tips ranking is made until the new summariser is there.
 set -euo pipefail
 
 # An ssh Host name defined in this machine's ~/.ssh/config, so the address is not in the repo.
@@ -76,13 +81,18 @@ echo "$(ts) OK files=$files lines=$lines installs=$installs corrupt=$bad" >>"$LO
 # --- Refresh the human-readable summary beside the data, so the answer to
 # "what do other people's installs look like" is a file, not a command. ---
 if [ -x "$SUMMARISER" ] || [ -f "$SUMMARISER" ]; then
-    python3 "$SUMMARISER" "$DEST" --days 30 --tips-out "$DEST/padspan-tips.json" >"$SUMMARY" 2>>"$LOG" || true
+    if python3 "$SUMMARISER" --help 2>/dev/null | grep -q -- "--tips-out"; then
+        python3 "$SUMMARISER" "$DEST" --days 30 --tips-out "$DEST/padspan-tips.json" >"$SUMMARY" 2>>"$LOG" || true
+    else
+        echo "$(ts) tips: the summariser here has no --tips-out (deploy the new telemetry_summary.py) - no ranking tonight" >>"$LOG"
+        python3 "$SUMMARISER" "$DEST" --days 30 >"$SUMMARY" 2>>"$LOG" || true
+    fi
 fi
 
 # --- The feature tips' ranking (telemetry_summary.py --tips-out, just above): tip ids only, the most used among the
 # reporting installs that have each feature first. Up to the colo's private/, where server/version.php merges it into
 # the daily update check's answer as "tips" (installs send nothing for it). Only when the summary wrote one; a failed
-# upload keeps yesterday's ranking there, said in the log and once on Telegram. ---
+# upload keeps yesterday's ranking there, said in the log and on Telegram each night it fails. ---
 TIPS_FILE="$DEST/padspan-tips.json"
 TIPS_DEST="/var/www/clients/client1/web10/private/padspan-tips.json"
 if [ -s "$TIPS_FILE" ] && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d.get("tips"), list)' "$TIPS_FILE" 2>>"$LOG"; then

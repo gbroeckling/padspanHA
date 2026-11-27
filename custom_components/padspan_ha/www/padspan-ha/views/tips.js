@@ -51,6 +51,10 @@ const OVERVIEW = Object.freeze(["overview"]);
 const ATLAS = Object.freeze(["atlas_adjust"]);
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+// Audio used: the room card's words (room_controls:<word>), the same list as the usage report's addon_report.AUDIO_USED
+// (tests/test_tips.py holds the two equal).
+export const AUDIO_USED = Object.freeze(["up", "down", "mute", "off", "match_saved", "source", "sound_mode", "play", "pause", "next",
+  "previous", "scan", "slider", "sound", "share", "unshare", "all_off", "sources_saved", "limit_saved"]);
 /** A setting that is on: true, a non-empty list, map or text. */
 export function isOn(v) {
   if (v === true) return true;
@@ -65,10 +69,13 @@ export function isOn(v) {
  *   need    "free", "pro", "house3d" (Live Aboard's rung, editions.js house3dTier) or an add-on's name
  *   fit     (facts, settings) → 0 (doesn't fit this house) or more (fits better)
  *   used    settings: on means in use; events: a word the panel already counts (exact, or a
- *           prefix ending ":"); check(settings): its own rule
- *   where   the places it may show (PLACES)
+ *           prefix ending ":"); check(settings): its own rule; uses: its feature says so itself
+ *           (editions.js tipUsed). A word or a use right after the tip's own Show me (GO_QUIET_S) is
+ *           the Show me, not a use, and is not counted
  *   target  "Show me": { view, tab, part (Settings' data-focus-part), focus (focus.js PARTS,
- *           for Basic), locate, mode }; null where only a ⋯ line shows it
+ *           for Basic), reveal (the Tracking section to open), locate, mode }, or { atlas: "emergency" }
+ *           (the Atlas page's emergency button card); null where only a ⋯ line shows it
+ *   where   the places it may show (PLACES)
  *   line    the ⋯ list's line that switches it (live_aboard_show.js SHOW_ITEMS), if it has one
  *   admin   only an administrator can act on it, so only an administrator sees it
  *   surface the screen whose edition decides it (editions.js SURFACE_CLASS), if not target.view
@@ -110,19 +117,19 @@ export const TIPS = Object.freeze([
     get body() { return t("Lights follow people turns a room's lights on as someone walks in, and off once the room is empty."); },
     fit: (f) => (f.tracked && f.placedLights ? 2 : 0),
     used: { settings: ["lights_follow_enabled"] },
-    target: { view: "settings", tab: "presence", part: "lights_follow" } },
+    target: { view: "settings", tab: "presence", part: "lights_follow", reveal: "integrations" } },
   { id: "yesterday_home", need: "free", where: OVERVIEW, admin: true,
     get title() { return t("A morning note about yesterday"); },
     get body() { return t("Yesterday at home sends one short message each morning: who came and went, and lights left on in empty rooms."); },
     fit: (f) => (f.tracked ? 1 : 0),
     used: { settings: ["yesterday_home_enabled"] },
-    target: { view: "settings", tab: "presence", part: "yesterday_home" } },
+    target: { view: "settings", tab: "presence", part: "yesterday_home", reveal: "phones" } },
   { id: "guest_tags", need: "free", where: OVERVIEW, admin: true,
     get title() { return t("Lend a tag to a guest"); },
     get body() { return t("Guest tags follow a tag you lend to a house-sitter or visitor, room by room, only while they have it."); },
     fit: (f) => (f.receivers >= 2 && f.rooms ? 1 : 0),
     used: { settings: ["guest_tags_enabled"] },
-    target: { view: "settings", tab: "presence", part: "guest_tags", focus: "guestTags" } },
+    target: { view: "settings", tab: "presence", part: "guest_tags", focus: "guestTags", reveal: "phones" } },
   { id: "phone_tracking", need: "free", where: OVERVIEW, admin: true,
     get title() { return t("Follow your phone or watch"); },
     get body() { return t("PadSpan can follow your phone or watch from room to room once it knows it. The phone wizard walks you through it."); },
@@ -145,9 +152,10 @@ export const TIPS = Object.freeze([
   // ── Audio ──
   { id: "audio", need: "audio", where: BOTH, admin: true,
     get title() { return t("Room audio on the Atlas"); },
-    get body() { return t("Volume, mute and off for each room's players in the room's panel, and a speaker beside the room's name while one plays."); },
+    get body() { return t("Each room's players in its panel on the Atlas: on and off, volume, source and sound, play and skip, sharing with other rooms, and Room off."); },
     fit: (f) => (f.audioMatched ? 3 : f.media && f.rooms ? 1 : 0),
-    used: { settings: ["atlas_audio_enabled"], events: ["room_controls:on", "room_controls:up", "room_controls:down", "room_controls:mute", "room_controls:off", "room_controls:room_off"] },
+    used: { settings: ["atlas_audio_enabled"],
+      events: ["house3d_show:show:room_controls", ...AUDIO_USED.map((w) => `room_controls:${w}`)] },
     target: { view: "settings", tab: "atlas", part: "atlas_audio" }, line: "room_controls" },
   // ── Alarm & security ──
   { id: "alarm_arm", need: "alarm", where: BOTH, admin: false,
@@ -155,7 +163,8 @@ export const TIPS = Object.freeze([
     get body() { return t("Press the shield on the Atlas's emergency button to arm or disarm your alarm, with its code if it asks for one."); },
     fit: (f) => (f.alarmPanels ? 3 : 0),
     used: { events: ["alarm_button:arm", "alarm_button:disarm"] },
-    target: { view: "settings", tab: "atlas", part: "emergency_button" } },
+    // The alarm's own place: the Atlas's emergency button and its card (lights_panel.js _openEmergencyCard).
+    target: { atlas: "emergency" } },
   { id: "door_openers", need: "alarm", where: OVERVIEW, admin: true,
     get title() { return t("Open the garage from the map"); },
     get body() { return t("Mark your garage doors and gates as openers, then open or close them from their card on the map."); },
@@ -220,13 +229,13 @@ export const TIPS = Object.freeze([
     get title() { return t("Find a lost tag"); },
     get body() { return t("Locate walks you to a lost tag, room by room."); },
     fit: (f) => (f.receivers >= 3 && f.rooms >= 2 && f.tracked ? 2 : 0),
-    used: { events: ["addon_used:insights"] },
+    used: { uses: true },                          // views/locate.js says so (editions.js tipUsed)
     target: { view: "follow", locate: true } },
   { id: "busy_times", need: "insights", where: OVERVIEW, admin: false,
     get title() { return t("Each room's busy hours"); },
     get body() { return t("Busy Times shows when each room is busiest, hour by hour."); },
     fit: (f) => (f.receivers >= 2 && f.rooms >= 2 ? 1 : 0),
-    used: { events: ["addon_used:insights"] },
+    used: { uses: true },                          // views/busy_times.js says so (editions.js tipUsed)
     target: { view: "traceback", mode: "busytimes" } },
   { id: "forensics", need: "insights", where: OVERVIEW, admin: true,
     get title() { return t("What was near a receiver"); },
@@ -245,7 +254,7 @@ export const TIPS = Object.freeze([
     get title() { return t("Your WLED lights, in depth"); },
     get body() { return t("Hold a WLED light on the map: its card's Advanced tab has its presets, LEDs, sync and backups."); },
     fit: (f) => (f.wled ? 3 : 0),
-    used: {},
+    used: { uses: true },                          // its card's Advanced tab opened (lights_map.js, editions.js tipUsed)
     target: { view: "maps", tab: "lights" } },
   { id: "light_glow", need: "lighting", where: BOTH, admin: true,
     get title() { return t("A glow from each light"); },
@@ -257,9 +266,9 @@ export const TIPS = Object.freeze([
   { id: "ai_plans", need: "maps", where: OVERVIEW, admin: true,
     get title() { return t("Let your AI read your floor plans"); },
     get body() { return t("Your own AI Task can read your plans for stairs and rooms, and you check each find before it's saved."); },
-    fit: (f) => (f.plans && f.aiTasks ? 2 : 0),
+    fit: (f) => (f.plans && f.aiTaskSet ? 2 : 0),   // only once an AI Task is chosen in Settings → AI
     used: { settings: ["ai_plans_enabled"] },
-    target: { view: "settings", tab: "ai", part: "ai_task", focus: "aiTask" } },
+    target: { view: "settings", tab: "ai", part: "ai_plans" } },
   // ── Robot vacuum ──
   { id: "robot_vacuum", need: "vacuum", where: OVERVIEW, admin: true,
     get title() { return t("Your robot vacuum's map"); },
@@ -305,6 +314,7 @@ export function factsFrom(src) {
   f.tracked = (Array.isArray(s.irk_devices) ? s.irk_devices.length : 0) + (Array.isArray(s.followed_addrs) ? s.followed_addrs.length : 0);
   const matches = s.room_audio_matches && typeof s.room_audio_matches === "object" ? s.room_audio_matches : {};
   f.audioMatched = Object.values(matches).filter((v) => Array.isArray(v) && v.length).length;
+  f.aiTaskSet = !!(typeof s.atlas_3d_ai_task_entity === "string" && s.atlas_3d_ai_task_entity);
   return f;
 }
 
@@ -315,6 +325,7 @@ export function licensed(tip, settings) {
   if (need === "free") return true;
   if (need === "pro") return E.currentTier(s) === "pro";
   if (need === "house3d") return E.tierAtLeast(E.currentTier(s), E.house3dTier(s));
+  if (need === "vacuum") return E.vacuumAllowed(s);    // the robot's features as the rest of the panel gates them
   return E.addonAllowed(s, need);
 }
 /** Whether this build shows the screen the tip is about (a Bright build hides the presence ones). */
@@ -326,7 +337,7 @@ export function inEdition(tip, settings) {
  *  Library or Upload, or a screen of its own (every screen is in Basic's menu, the expert ones under More tools). */
 export function basicOk(target) {
   if (!target) return false;
-  if (target.focus) return true;
+  if (target.focus || target.atlas) return true;       // the Atlas page is everyone's, in every mode
   if (target.view === "settings") return target.tab === "appearance";
   if (target.view === "maps") return target.tab === "library" || target.tab === "upload";
   return target.view !== "devices" && target.view !== "bluetooth";
@@ -398,7 +409,8 @@ export function pickTip(o) {
 }
 
 // ── the state (tips.py clean_state's twin) ──────────────────────────────────
-const _ts = (v, now) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= now / 1000 + DAY_S ? Math.floor(v) : 0);
+// A time ahead of now (a device whose clock runs fast) is kept at now, the tip still seen (tips.py _ts).
+const _ts = (v, now) => (typeof v === "number" && !Number.isNaN(v) && v > 0 ? Math.floor(Math.min(v, now / 1000)) : 0);
 const _ids = (raw) => { const got = new Set(Array.isArray(raw) ? raw.filter((x) => typeof x === "string") : []); return TIP_IDS.filter((i) => got.has(i)); };
 /** settings.tips_state as kept: {seen: {id: s}, dismissed: [id], used: [id], last_shown: s}, catalogue ids only. */
 export function cleanState(raw, now = Date.now()) {
@@ -423,19 +435,25 @@ export function withDismissed(state, id, now = Date.now()) {
 }
 /**
  * What is newly in use: by `event` (a word the panel counted: any tip it names, so one never
- * shows after), or by the settings (a tip already shown, so the state stays small). null when
- * nothing changed; else { state, added, after } — after: used within USED_AFTER_DAYS of showing.
+ * shows after), by `uses` (a Map of tip id → ms: its feature said so, editions.js tipUsed), or
+ * by the settings (a tip already shown, so the state stays small). `quiet`: tips whose Show me
+ * was just pressed, whose words and uses are the Show me itself. null when nothing changed;
+ * else { state, added, after } — after: used within USED_AFTER_DAYS of showing.
  */
-export function usedNow(settings, now = Date.now(), event = null) {
+export function usedNow(settings, now = Date.now(), event = null, uses = null, quiet = null) {
   const s = settings || {}, st = cleanState(s.tips_state, now);
   const used = new Set(st.used), added = [], after = [];
   for (const tip of TIPS) {
     if (used.has(tip.id)) continue;
-    if (!(event ? eventUses(tip, event) : (st.seen[tip.id] && usedBySettings(tip, s)))) continue;
+    let at = now, hit;
+    if (uses) { hit = uses.has(tip.id); if (hit) at = uses.get(tip.id); }
+    else if (event) hit = eventUses(tip, event);
+    else hit = !!st.seen[tip.id] && usedBySettings(tip, s);
+    if (!hit || ((uses || event) && quiet && quiet.has(tip.id))) continue;
     used.add(tip.id);
     added.push(tip.id);
-    const at = st.seen[tip.id];
-    if (at && now / 1000 - at <= USED_AFTER_DAYS * DAY_S) after.push(tip.id);
+    const seen = st.seen[tip.id];
+    if (seen && at / 1000 - seen <= USED_AFTER_DAYS * DAY_S) after.push(tip.id);
   }
   return added.length ? { state: { ...st, used: TIP_IDS.filter((i) => used.has(i)) }, added, after } : null;
 }
@@ -445,30 +463,70 @@ export function usedNow(settings, now = Date.now(), event = null) {
 //          save(patch) → Promise, send(word), go(target), canGo(target), hasLine(key),
 //          rerender(), toast(text) }
 const _page = { id: null, spot: null, closed: false };
+// Show me pressed, by tip (ms): for GO_QUIET_S after it, a word or a use of that feature is the Show me landing there
+// (the screen it opens counts itself opened), not a use.
+export const GO_QUIET_S = 60;
+const _wentAt = new Map();
+const _quiet = (now) => new Set([..._wentAt].filter(([, at]) => now - at < GO_QUIET_S * 1000).map(([id]) => id));
+// Features that said they were used (editions.js tipUsed, a page event: the views import nothing of this), kept until a
+// host can write them down (reconcile, noteEvent).
+const _pendingUse = new Map();
+/** A feature of `id` used now (live data only: the caller says). Not right after its own Show me. */
+export function noteUse(id, now = Date.now()) {
+  if (BY_ID.has(id) && !_quiet(now).has(id) && !_pendingUse.has(id)) _pendingUse.set(id, now);
+}
+try {
+  if (typeof globalThis.addEventListener === "function")
+    globalThis.addEventListener("padspan-tip-used", (e) => { try { noteUse(String(e && e.detail)); } catch (_) { /* never the error */ } });
+} catch (_) { /* no page events here */ }
 /** Forget this page's tip (tests; a page load does it by itself). */
-export function resetPage() { _page.id = null; _page.spot = null; _page.closed = false; }
+export function resetPage() { _page.id = null; _page.spot = null; _page.closed = false; _wentAt.clear(); _pendingUse.clear(); }
 export function pageTip() { return { ..._page }; }
 
 const _send = (host, word) => { try { if (host && typeof host.send === "function") host.send(word); } catch (_) { /* the report is a courtesy */ } };
 function _write(host, patch) {
+  if (host.live === false) return Promise.resolve();            // sample data: the real house's settings are not this page's
   if (host.settings) Object.assign(host.settings, patch);      // at once: the next draw reads it
   try { return Promise.resolve(typeof host.save === "function" ? host.save(patch) : null).catch(() => {}); } catch (_) { return Promise.resolve(); }
 }
 const _known = (host) => !!(host && host.settings && "tips_enabled" in host.settings);
+// "No more tips" from someone who is not an administrator: this browser only (the house's switch, tips_enabled, is an
+// administrator's: ws_settings refuses it to anyone else).
+export const LOCAL_OFF_KEY = "padspan_tips_off";
+export function localOff() { try { return globalThis.localStorage && globalThis.localStorage.getItem(LOCAL_OFF_KEY) === "1"; } catch (_) { return false; } }
+function _setLocalOff(off) {
+  try { if (off) globalThis.localStorage.setItem(LOCAL_OFF_KEY, "1"); else globalThis.localStorage.removeItem(LOCAL_OFF_KEY); } catch (_) { /* this page only */ }
+}
+/** Tips on for whoever this is: the house's switch, and for anyone but an administrator this browser's too. */
+export function tipsOnFor(host) {
+  const s = (host && host.settings) || {};
+  return s.tips_enabled !== false && (!!host.admin || !localOff());
+}
 function _apply(host, ch) {
   if (!ch) return;
   _write(host, { tips_state: ch.state });
   for (const id of ch.after) _send(host, "tip_used_after:" + id);
 }
+/** The uses the features said since (noteUse), written down once a live host is here. */
+function _usesNow(host, now) {
+  if (!_pendingUse.size || host.live === false) return;
+  const uses = new Map(_pendingUse);
+  _pendingUse.clear();
+  _apply(host, usedNow(host.settings, now, null, uses, _quiet(now)));
+}
 /** A feature turned on in the settings since its tip showed: kept as used (tip_used_after within the week). */
 export function reconcile(host, now = Date.now()) {
-  if (_known(host)) _apply(host, usedNow(host.settings, now));
+  if (!_known(host)) return;
+  _apply(host, usedNow(host.settings, now));
+  _usesNow(host, now);
 }
-/** A word the panel counted (its usage report's, sent or not): a tip whose feature it names is used. */
+/** A word the panel counted (its usage report's, sent or not): a tip whose feature it names is used. Never in sample
+ *  data (the sample house's use is not this house's), never a tip's own words, never its Show me landing. */
 export function noteEvent(host, word, now = Date.now()) {
   const w = String(word || "");
-  if (!_known(host) || /^tips?_/.test(w)) return;
-  _apply(host, usedNow(host.settings, now, w));
+  if (!_known(host) || host.live === false || /^tips?_/.test(w)) return;
+  _apply(host, usedNow(host.settings, now, w, null, _quiet(now)));
+  _usesNow(host, now);
 }
 
 /**
@@ -479,7 +537,7 @@ export function noteEvent(host, word, now = Date.now()) {
 export function currentTip(host, place, spot = place, now = Date.now()) {
   if (!host || host.kiosk || host.live === false || !_known(host)) return null;
   reconcile(host, now);                            // a feature turned on since its tip: used (tips on or off)
-  if (host.settings.tips_enabled === false) return null;
+  if (!tipsOnFor(host)) return null;
   if (_page.id) return !_page.closed && _page.spot === spot ? tipById(_page.id) : null;
   const facts = typeof host.facts === "function" ? host.facts() : host.facts;
   const tip = pickTip({ settings: host.settings, facts, place, now, admin: !!host.admin, basic: !!host.basic,
@@ -491,7 +549,8 @@ export function currentTip(host, place, spot = place, now = Date.now()) {
   return tip;
 }
 
-/** An answer to the page's tip: "go" (Show me), "not_now", "dismiss" or "off" (No more tips). */
+/** An answer to the page's tip: "go" (Show me), "not_now" (Got it: seen, so never again, as the owner's rule says),
+ *  "dismiss" (✕) or "off" (No more tips: the house's for an administrator, this browser's for anyone else). */
 export function answer(host, tip, what, now = Date.now()) {
   if (!tip) return;
   _page.closed = true;
@@ -501,13 +560,20 @@ export function answer(host, tip, what, now = Date.now()) {
     _write(host, { tips_state: withDismissed(withSeen(st, tip.id, now), tip.id, now) });
   } else if (what === "off") {
     _send(host, "tips_off");
-    _write(host, { tips_enabled: false });
-    if (typeof host.toast === "function") host.toast(t("Tips are off. Settings → Appearance → Tips brings them back."));
+    if (host.admin) _write(host, { tips_enabled: false });
+    else _setLocalOff(true);
+    if (typeof host.toast === "function") host.toast(host.admin ? t("Tips are off. Settings → Appearance → Tips brings them back.")
+      : t("Tips are off on this browser. Settings → Appearance → Tips brings them back."));
   } else {
     _send(host, (what === "go" ? "tip_go:" : "tip_not_now:") + tip.id);
     // Seen it stays, so it never comes back (the owner's rule); written again only if the first save was lost.
     if (!st.seen[tip.id]) _write(host, { tips_state: withSeen(st, tip.id, now) });
-    if (what === "go" && tip.target && typeof host.go === "function") { try { host.go(tip.target); } catch (_) { /* stays here */ } }
+    // Show me that opens a screen: what that screen counts as it opens is the Show me (a ⋯ line pointed at is not:
+    // ticking it is the person's own).
+    if (what === "go" && tip.target && typeof host.go === "function") {
+      _wentAt.set(tip.id, now);
+      try { host.go(tip.target); } catch (_) { /* stays here */ }
+    }
   }
   if (typeof host.rerender === "function") host.rerender();
 }
@@ -516,6 +582,9 @@ export function answer(host, tip, what, now = Date.now()) {
 /** "Show me" on the panel: the exact screen, tab and card; in Basic a focused part where it has one. */
 export function goCtx(ctx, target) {
   const st = ctx.state, A = ctx.actions || {};
+  // The Atlas page's emergency button card (lights_panel.js reads ?card=emergency once it has loaded).
+  if (target.atlas) { try { globalThis.location.assign(`/padspan-lights?card=${encodeURIComponent(target.atlas)}`); } catch (_) { /* stays */ } return true; }
+  if (target.reveal) st._presenceReveal = target.reveal;   // its Tracking section opens (settings.js)
   if (st.complexity === "basic" && target.focus && FOCUS) { FOCUS.openFocus(ctx, FOCUS.part(target.focus)); return true; }
   if (target.view === "settings") { st._settingsTab = target.tab || "appearance"; st._settingsPart = target.part || null; }
   if (target.view === "bluetooth" && target.tab) st.btTab = target.tab;
@@ -528,7 +597,15 @@ export function goCtx(ctx, target) {
   if (target.view === "maps" && target.tab && typeof A.setMapsTab === "function") A.setMapsTab(target.tab);
   return true;
 }
-/** A host from a view's ctx. kiosk: a wall screen (the caller adds what it knows, such as wallScreen()). */
+/** A wall screen: ?kiosk=1, or a window that fills the screen (panel.js wallScreen, the same test). */
+export function wallScreen(kiosk, win = globalThis) {
+  if (kiosk) return true;
+  try {
+    const sc = win.screen;
+    return !!(sc && sc.width && win.innerWidth >= sc.width - 1 && win.innerHeight >= sc.height - 1);
+  } catch (_) { return false; }
+}
+/** A host from a view's ctx: Overview, Settings → Atlas, the Atlas builder. Never a wall (?kiosk=1 or full screen). */
 export function hostFromCtx(ctx, extra) {
   const st = ctx.state || {}, A = ctx.actions || {};
   const snap = st.live && st.live.snapshot;
@@ -536,7 +613,7 @@ export function hostFromCtx(ctx, extra) {
     settings: st.settings,
     admin: !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin),
     basic: st.complexity === "basic",
-    kiosk: !!st.kioskMode,
+    kiosk: wallScreen(!!st.kioskMode),
     live: st.dataMode === "live",
     facts: () => factsFrom({ states: ctx.hass && ctx.hass.states, entities: ctx.hass && ctx.hass.entities, model: st.model,
       plans: st.maps && Array.isArray(st.maps.list) ? st.maps.list : null, radios: snap && snap.ble && Array.isArray(snap.ble.radios) ? snap.ble.radios : null,
@@ -545,7 +622,8 @@ export function hostFromCtx(ctx, extra) {
       .then((r) => { if (r && r.settings) st.settings = r.settings; }),
     send: (w) => { if (A.telemetryEvent) A.telemetryEvent(w); },
     go: (target) => goCtx(ctx, target),
-    canGo: (target) => !!target && !!target.view && (target.view === "settings" || typeof A.canOpen !== "function" || A.canOpen(target.view)),
+    canGo: (target) => !!target && (!!target.atlas
+      || (!!target.view && (target.view === "settings" || typeof A.canOpen !== "function" || A.canOpen(target.view)))),
     rerender: () => { if (A.renderRooms) A.renderRooms(); },
     toast: (m) => { if (typeof ctx.toast === "function") ctx.toast(m); },
     ...(extra || {}),
@@ -576,7 +654,7 @@ function _actions(host, tip, mark) {
     ? _button(t("Show me"), { [mark]: "go" }, () => answer(host, tip, "go"), true) : null;
   return h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, [
     go,
-    _button(t("Not now"), { [mark]: "not_now" }, () => answer(host, tip, "not_now")),
+    _button(t("Got it"), { [mark]: "not_now" }, () => answer(host, tip, "not_now")),
     _button(t("No more tips"), { [mark]: "off" }, () => answer(host, tip, "off")),
   ]);
 }
@@ -633,7 +711,7 @@ export function menuTip(host, keys, now = Date.now()) {
   const canGo = !!line || (!!tip.target && typeof hh.go === "function" && (typeof hh.canGo !== "function" || hh.canGo(tip.target)));
   return {
     id: tip.id, title: tip.title, body: tip.body, line,
-    words: { label: t("Tip"), go: t("Show me"), notNow: t("Not now"), off: t("No more tips") },
+    words: { label: t("Tip"), go: t("Show me"), notNow: t("Got it"), off: t("No more tips") },
     canGo,
     go: () => answer(line ? { ...hh, go: null } : hh, line ? { ...tip, target: null } : tip, "go", Date.now()),
     notNow: () => answer(hh, tip, "not_now", Date.now()),
@@ -649,13 +727,17 @@ export function menuTip(host, keys, now = Date.now()) {
 export function settingsCard(host) {
   const s = (host && host.settings) || {};
   if (!("tips_enabled" in s)) return null;          // an older backend: nothing to switch
-  const on = s.tips_enabled !== false;
+  const admin = !!host.admin, houseOff = s.tips_enabled === false;
+  const on = tipsOnFor(host);
   const card = h("div", { class: "card", "data-focus-part": "tips", "data-tips-card": "", style: "margin-top:12px" });
   card.appendChild(h("div", { class: "h2", style: "margin:0 0 4px;color:#52b788" }, t("Tips")));
   const cb = h("input", { type: "checkbox", id: "tipsEnabledToggle", "data-tips-card": "switch", style: "width:18px;height:18px;accent-color:#52b788;cursor:pointer" });
   cb.checked = on;
+  // Off for the whole house: only an administrator turns it back on.
+  if (!admin && houseOff) cb.disabled = true;
   const set = (want) => {
     if (!want) _send(host, "tips_off");
+    if (!admin) { _setLocalOff(!want); if (typeof host.rerender === "function") host.rerender(); return; }
     _write(host, { tips_enabled: want }).then(() => { if (typeof host.rerender === "function") host.rerender(); });
   };
   cb.addEventListener("change", () => set(cb.checked));
@@ -663,7 +745,9 @@ export function settingsCard(host) {
     [cb, t("Show a tip now and then")]));
   card.appendChild(h("div", { class: "muted", style: "font-size:12px;margin-top:2px;line-height:1.5" },
     t("At most one a day, about something this house already has and doesn't use yet: on the Overview, or where you adjust the Atlas. Never on a wall screen, and never one you've seen before.")));
-  if (!on) {
+  if (!admin) card.appendChild(h("div", { class: "muted", "data-tips-card": "local", style: "font-size:12px;margin-top:4px" },
+    houseOff ? t("An administrator turned tips off for the whole house.") : t("This switch is for this browser only.")));
+  if (!on && !(houseOff && !admin)) {
     card.appendChild(h("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px" }, [
       h("span", { class: "muted", style: "font-size:12px" }, t("Tips are off.")),
       _button(t("Bring tips back"), { "data-tips-card": "back" }, () => set(true), true),

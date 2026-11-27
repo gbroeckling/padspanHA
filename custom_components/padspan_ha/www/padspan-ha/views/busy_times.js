@@ -33,7 +33,7 @@
  * insights_get itself would also break the free Insights tab.
  */
 
-const { addonAllowed, addonPrice, addonOfferSeen, addonUsedSeen } =
+const { addonAllowed, addonPrice, addonOfferSeen, addonUsedSeen, tipUsed } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
 // must not blank the view it sits in.
@@ -65,6 +65,7 @@ export function render(ctx) {
     return root;
   }
   addonUsedSeen(tel, "insights");
+  tipUsed("busy_times", ctx.state.dataMode === "live");   // its feature tip (views/tips.js) is done with
 
   const dayBtnEls = [1, 3, 7].map(d => {
     const b = el("button", { class: "btn tiny" }, `${d}d`);
