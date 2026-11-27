@@ -151,10 +151,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 .door p b{color:var(--fg)}
 .door p.more{margin-top:12px;font-weight:700}
 .pill.pro{color:#04160c;background:var(--acc2);border-color:var(--acc2)}
+/* The Black Friday bar above the nav (#bf-top): one or two lines, in the page's own colours. */
+.bfbar{background:rgba(52,211,153,.10);border-bottom:1px solid var(--line);color:var(--fg);font-size:13.5px;line-height:1.5;text-align:center;padding:7px 22px}
+.bfbar p{max-width:1100px;margin:0 auto}
+.bfbar b{color:var(--acc2)}
+@media(max-width:640px){.bfbar{font-size:12.5px;padding:6px 14px}}
 @media(max-width:640px){.hero{padding:46px 0 30px}section{padding:40px 0}section[id]{scroll-margin-top:88px}nav.top .inner{gap:12px}nav.top a{font-size:12.5px}}
 </style>
 </head>
 <body>
+
+<!-- Black Friday to Cyber Monday (the owner, 2026-11-27): the lifetime launch price's last days, in a bar above
+     everything, so a laptop or a phone sees it without scrolling. It goes by itself at the lifetime price's switch
+     (editions.js PRO_LIFETIME_LAUNCH_UNTIL, #pro-lifetime's data-launch-until); visitors without JavaScript keep it
+     until the Dec 1 tidy takes it out. -->
+<div class="bfbar" id="bf-top" data-launch-until="2026-12-01T08:00:00Z"><p><b>Black Friday to Cyber Monday:</b> <a href="#pro">PadSpan Pro for life</a> is $89 CAD until Monday, November 30. Then it's $168 until December 15, and after that there's no lifetime. <a href="#addons">Every add-on</a> is at its Black Friday price until January 1.</p></div>
+<script>(function(){var e=document.getElementById("bf-top");if(e&&Date.now()>=Date.parse(e.getAttribute("data-launch-until")))e.remove();})();</script>
 
 <nav class="top">
   <div class="inner">
@@ -188,11 +200,6 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <a class="btn ghost" href="demo/">Try the demo house</a>
     <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA">View on GitHub</a>
   </div>
-  <!-- Black Friday to Cyber Monday (the owner, 2026-11-27): the lifetime launch price's last days. It goes by itself
-       at the lifetime price's switch (editions.js PRO_LIFETIME_LAUNCH_UNTIL, #pro-lifetime's data-launch-until);
-       visitors without JavaScript keep it until the Dec 1 tidy takes it out. -->
-  <p class="sub" id="bf-top" data-launch-until="2026-12-01T08:00:00Z" style="max-width:900px"><b>Black Friday to Cyber Monday:</b> <a href="#pro">PadSpan Pro for life</a> is $89 CAD until Monday, November 30. Then it's $168 until December 15, and after that there's no lifetime. <a href="#addons">Every add-on</a> is at its Black Friday price until January 1.</p>
-  <script>(function(){var e=document.getElementById("bf-top");if(e&&Date.now()>=Date.parse(e.getAttribute("data-launch-until")))e.remove();})();</script>
 </header>
 
 <div class="wrap">

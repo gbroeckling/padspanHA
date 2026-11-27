@@ -335,27 +335,36 @@ def test_the_lifetime_price_matches_the_panel_and_switches_on_the_same_date(html
     assert full == "168" and 'value="168.00"' in html and "$168" in html, "the page's switch to $168"
 
 
-def test_the_black_friday_line_under_the_hero_goes_when_the_launch_price_does(html: str) -> None:
-    """The owner's line under the hero's buttons (2026-11-27): Pro for life at the launch price until November 30,
-    the full price until December 15, then no lifetime, and the add-ons' sale until January 1, at editions.js's
-    prices. Without JavaScript it shows; with it, it goes by itself at PRO_LIFETIME_LAUNCH_UNTIL, the moment the
-    lifetime box switches to the full price."""
+def test_the_black_friday_bar_tops_the_page_and_goes_when_the_launch_price_does(html: str) -> None:
+    """The owner's Black Friday bar (2026-11-27), the first thing in <body>, above the nav and the hero, so 1366x768,
+    1440x900 and a phone see it without scrolling: Pro for life at the launch price until November 30, the full price
+    until December 15, then no lifetime, and the add-ons' sale until January 1, at editions.js's prices. Without
+    JavaScript it shows; with it, it goes by itself at PRO_LIFETIME_LAUNCH_UNTIL, the moment the lifetime box switches
+    to the full price."""
     ed = _ED.read_text(encoding="utf-8")
     until = re.search(r'PRO_LIFETIME_LAUNCH_UNTIL = "([^"]+)"', ed).group(1)
     launch = re.search(r'PRO_LIFETIME_LAUNCH_PRICE = "\$(\d+) CAD"', ed).group(1)
     full = re.search(r'PRO_LIFETIME_FULL_PRICE = "\$(\d+) CAD"', ed).group(1)
-    hero = html[html.index('<header class="hero'):html.index("</header>")]
-    line = re.search(r'<p class="sub" id="bf-top" data-launch-until="([^"]+)"[^>]*>(.*?)</p>', hero, re.S)
-    assert line and line.group(1) == until == "2026-12-01T08:00:00Z"
-    assert hero.index('<div class="cta">') < line.start(), "under the buttons"
-    assert _seen(line.group(2)).strip() == (
+    body = re.sub(r"<!--.*?-->", "", html[html.index("<body>") + len("<body>"):], flags=re.S).lstrip()
+    bar = re.match(r'<div class="bfbar" id="bf-top" data-launch-until="([^"]+)"><p>(.*?)</p></div>\s*', body, re.S)
+    assert bar, "the bar is the first thing on the page"
+    assert bar.group(1) == until == "2026-12-01T08:00:00Z"
+    assert html.index('id="bf-top"') < html.index('<nav class="top">') < html.index('<header class="hero')
+    assert html.count('id="bf-top"') == 1 and "data-launch-until" not in html[html.index('<header class="hero'):
+                                                                            html.index("</header>")]
+    assert _seen(bar.group(2)).strip() == (
         f"Black Friday to Cyber Monday: PadSpan Pro for life is ${launch} CAD until Monday, November 30. "
         f"Then it's ${full} until December 15, and after that there's no lifetime. "
         "Every add-on is at its Black Friday price until January 1.")
-    assert '<a href="#pro">PadSpan Pro for life</a>' in line.group(2) and '<a href="#addons">Every add-on</a>' in line.group(2)
-    assert hero[line.end():].lstrip().startswith(
+    assert '<a href="#pro">PadSpan Pro for life</a>' in bar.group(2) and '<a href="#addons">Every add-on</a>' in bar.group(2)
+    assert body[bar.end():].startswith(
         '<script>(function(){var e=document.getElementById("bf-top");'
         'if(e&&Date.now()>=Date.parse(e.getAttribute("data-launch-until")))e.remove();})();</script>')
+    # Shown without JavaScript, never hidden or moving: no display:none, no animation.
+    css = html[:html.index("</style>")]
+    rules = " ".join(re.findall(r"\.bfbar[^{]*\{([^}]*)\}", css))
+    assert rules and "display:none" not in rules and "animation" not in rules and "position" not in rules
+
 
 
 def test_every_sku_routes_to_the_tier_it_claims(html: str) -> None:
