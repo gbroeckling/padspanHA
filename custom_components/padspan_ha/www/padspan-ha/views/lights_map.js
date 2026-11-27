@@ -1593,7 +1593,12 @@ export function openAggregateSheet(api, spec, o = {}){
   const desktop = !into && typeof window !== "undefined" && window.innerWidth > 768;
   if (desktop) overlay.style.alignItems = "center";
   let open = true, release = () => {};
-  const close = () => { if (!open) return; open = false; (overlay || sheet).remove(); release(); if (o && typeof o.onClose === "function") o.onClose(); };
+  // Room controls (room_controls.js): a slider held in the sheet ends when it closes (letGo).
+  let lastApi = api;
+  const rcOf = (a) => (a && a.roomControls) || null;
+  const close = () => { if (!open) return; open = false; (overlay || sheet).remove(); release();
+    const rc = rcOf(lastApi); if (rc && typeof rc.letGo === "function") rc.letGo();
+    if (o && typeof o.onClose === "function") o.onClose(); };
   if (overlay) overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const sheet = mk("div", into ? _S.inPanel : _S.sheet + (desktop ? ";border-radius:16px" : ""));
   const greyed = ";opacity:.45;cursor:default";
@@ -1601,6 +1606,9 @@ export function openAggregateSheet(api, spec, o = {}){
   // before / after (room controls, room_controls.js, only while a screen has them on): {sig, draw()} parts drawn
   // above the list and below it. Without them the sheet, and what it is compared by, are as they always were.
   const fill = (api, { title, sub, who, items, actions, before, after }) => {
+    lastApi = api;
+    // Never drawn again while one of its sliders is held (a light changing mid-drag rebuilt it under the finger).
+    if (drawn !== null && rcOf(api) && typeof rcOf(api).held === "function" && rcOf(api).held()) return;
     // Drawn again only when something it shows changed: drawing it on every
     // update would take a Reset's "Yes, clear it" away while it is read.
     const base = [title, sub || "", who || "", (actions || []).map(a => [a.label, !!a.primary]),

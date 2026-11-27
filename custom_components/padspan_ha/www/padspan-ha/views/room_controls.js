@@ -79,6 +79,8 @@ const COVER_OPEN = 1, COVER_CLOSE = 2, COVER_STOP = 8;
 // here: by its device class, or linked as a door's opener (o.openers).
 const NOT_SHADES = new Set(["garage", "gate", "door"]);
 const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
+// A player making sound now, and the states of a player that has media at all (All audio off).
+const SOUNDING = new Set(["playing", "buffering"]), MEDIA_STATES = new Set(["playing", "paused", "idle", "buffering"]);
 // How long a pressed level or mute shows before Home Assistant's own state is shown again.
 const OPTIMISTIC_MS = 3000;
 // What one − / + press moves a player that steps itself (VOLUME_STEP: a Control4 room, 1 in 100) when its state
@@ -86,8 +88,12 @@ const OPTIMISTIC_MS = 3000;
 const SELF_STEP = 0.01;
 // A dragged slider asks Home Assistant at most this often; the value it is let go at always.
 const SEND_EVERY_MS = 250;
+// A held slider with no input for this long is let go of (a finger lifted off it, or its sheet gone, unheard).
+const DRAG_IDLE_MS = 4000;
 // Sources up to this many are chips; more open a list. Sound modes past LONG_MODES are grouped in that list.
 const CHIPS_MAX = 4, LONG_MODES = 8;
+// A source's new name is kept this long after the last key (and at once on leaving the field or closing the card).
+const RENAME_MS = 600;
 const PLAYER_RE = /^media_player\.[a-z0-9_]+$/;
 
 /** A name as two systems may both write it: lower case, no apostrophes, spaces or punctuation
@@ -171,16 +177,23 @@ export function cleanMatches(raw){
 
 const isMap = (x) => !!x && typeof x === "object" && !Array.isArray(x);
 const strings = (x) => (Array.isArray(x) ? [...new Set(x.filter(s => typeof s === "string" && s))] : []);
+/** Its own key only: a source called "constructor" or "__proto__" is a source, never something every object has. */
+const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+// The owner's source lists as the server keeps them (ws_settings._source_names): the first 100, none over 100 long.
+const SOURCES_MAX = 100;
+const capped = (x) => (Array.isArray(x) ? [...new Set(x.slice(0, SOURCES_MAX).filter(s => typeof s === "string" && s && s.length <= SOURCES_MAX))] : []);
 /** The owner's tidy-up of each player's sources, cleaned (as ws_settings.clean_room_audio_sources keeps it):
  *  {player: {names: {source: label}, hidden: [source], order: [source]}}; a player with none of them left out. */
 export function cleanSources(raw){
   const out = {};
   if (!isMap(raw)) return out;
-  for (const [eid, c] of Object.entries(raw)) {
+  for (const [eid, c] of Object.entries(raw).slice(0, 200)) {
     if (!PLAYER_RE.test(eid) || !isMap(c)) continue;
-    const names = {};
-    if (isMap(c.names)) for (const [k, v] of Object.entries(c.names)) if (k && typeof v === "string" && v.trim() && v.trim() !== k) names[k] = v.trim().slice(0, 60);
-    const hidden = strings(c.hidden), order = strings(c.order);
+    const names = Object.create(null);
+    if (isMap(c.names)) for (const [k, v] of Object.entries(c.names).slice(0, SOURCES_MAX)) {
+      if (k && k.length <= SOURCES_MAX && typeof v === "string" && v.trim() && v.trim() !== k) names[k] = v.trim().slice(0, 60);
+    }
+    const hidden = capped(c.hidden), order = capped(c.order);
     if (Object.keys(names).length || hidden.length || order.length) out[eid] = { names, hidden, order };
   }
   return out;
@@ -189,15 +202,16 @@ export function cleanSources(raw){
 export function cleanLimits(raw){
   const out = {};
   if (!isMap(raw)) return out;
-  for (const [eid, v] of Object.entries(raw)) if (PLAYER_RE.test(eid) && typeof v === "number" && v >= 0.1 && v <= 1) out[eid] = Math.round(v * 100) / 100;
+  for (const [eid, v] of Object.entries(raw).slice(0, 200)) if (PLAYER_RE.test(eid) && typeof v === "number" && v >= 0.1 && v <= 1) out[eid] = Math.round(v * 100) / 100;
   return out;
 }
 /** A player's sources in the owner's order (his order first, the rest as the player lists them), with his names:
  *  [{raw, label, hidden}]. */
 export function orderSources(list, conf){
-  const c = conf || {}, names = c.names || {}, hidden = new Set(c.hidden || []), order = c.order || [];
+  const c = conf || {}, names = c.names || null, hidden = new Set(strings(c.hidden)), order = strings(c.order);
   const raw = strings(list);
-  return [...order.filter(s => raw.includes(s)), ...raw.filter(s => !order.includes(s))].map(s => ({ raw: s, label: names[s] || s, hidden: hidden.has(s) }));
+  return [...order.filter(s => raw.includes(s)), ...raw.filter(s => !order.includes(s))]
+    .map(s => ({ raw: s, label: own(names, s) && typeof names[s] === "string" && names[s] ? names[s] : s, hidden: hidden.has(s) }));
 }
 /** The sources a player's row offers: the owner's order and names, his hidden ones left out. */
 export const tidySources = (list, conf) => orderSources(list, conf).filter(s => !s.hidden);
@@ -262,12 +276,14 @@ const snake = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").r
 /** A player's Sound controls: the number, switch and select entities of its own device and its own integration that
  *  map to one of our keys (one each, hidden, disabled and stateless ones left out), and a Denon's Dynamic EQ;
  *  [{eid, domain, key}] in SOUND's order. Nothing for a player whose integration adds none (Control4). */
-export function soundControls(hass, eid){
+export function soundControls(hass, eid, byDevice = null){
   const ents = (hass && hass.entities) || {}, states = (hass && hass.states) || {};
-  const me = ents[eid], out = [], seen = new Set();
+  const me = own(ents, eid) ? ents[eid] : null, out = [], seen = new Set();
   if (!me || !me.platform) return out;
   const keys = SOUND_KEYS[me.platform] || {}, tails = SOUND_TAILS[me.platform] || {};
-  if (me.device_id) for (const id of Object.keys(ents).sort()) {
+  // byDevice (devicesIndex): the entity ids of each device, made once for a whole draw; else every entity is read.
+  const ids = byDevice ? (byDevice.get(me.device_id) || []) : Object.keys(ents).sort();
+  if (me.device_id) for (const id of ids) {
     const e = ents[id], domain = id.split(".")[0], s = states[id];
     if (!["number", "switch", "select"].includes(domain) || !e || e.device_id !== me.device_id || e.platform !== me.platform) continue;
     if (e.hidden || e.hidden_by || e.disabled_by || !s || s.state === "unavailable") continue;
@@ -282,6 +298,15 @@ export function soundControls(hass, eid){
   const a = (states[eid] && states[eid].attributes) || {};
   if (me.platform === "denonavr" && typeof a.dynamic_eq === "boolean") out.push({ eid, domain: "denonavr", key: "dynamic_eq" });
   return out.sort((x, y) => SOUND_ORDER.indexOf(x.key) - SOUND_ORDER.indexOf(y.key));
+}
+/** Every device's entity ids, sorted: soundControls' byDevice, made once per draw. */
+export function devicesIndex(hass){
+  const out = new Map();
+  for (const id of Object.keys((hass && hass.entities) || {}).sort()) {
+    const e = hass.entities[id];
+    if (e && e.device_id) { if (!out.has(e.device_id)) out.set(e.device_id, []); out.get(e.device_id).push(id); }
+  }
+  return out;
 }
 
 const median = (xs) => {
@@ -332,6 +357,9 @@ const S = {
   danger: "min-height:36px;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#7f1d1d;border:1px solid #dc2626;color:#fecaca",
 };
 const off = ";opacity:.4;cursor:default";
+// The transport's and ⏻'s glyphs as text (U+FE0E): Edge and Chrome draw ⏪ and ⏩ as blue colour emoji otherwise.
+const TEXT_GLYPH = String.fromCharCode(0xFE0E);
+const glyph = (c) => c + TEXT_GLYPH;
 const mk = (tag, style, text) => { const n = document.createElement(tag); if (style) n.style.cssText = style; if (text !== undefined) n.textContent = text; return n; };
 
 /**
@@ -361,23 +389,32 @@ export function createRoomControls(o){
   const dialogs = new Set();     // the open cards (matching, a picker, Share), closed with the panel
   let share = null;              // the open Share card: {eid, refresh}
   let counted = false;
+  // What one sheet() or one draw reads many times (the offered players, the cleaned settings, the rooms, each device's
+  // entities), made once for it (withMemo); anything else reads Home Assistant as it is now.
+  let memo = null;
+  const once = (key, make) => { if (!memo) return make(); if (!memo.has(key)) memo.set(key, make()); return memo.get(key); };
+  const withMemo = (m, run) => { const was = memo; memo = m; try { return run(); } finally { memo = was; } };
   const H = () => o.hass() || {};
   const st = (eid) => (H().states || {})[eid];
   const settings = () => o.settings() || {};
   const haOn = () => settings().room_audio_ha_speakers === true;
-  const matches = () => cleanMatches(settings().room_audio_matches);
+  const matches = () => once("matches", () => cleanMatches(settings().room_audio_matches));
+  const offeredPlayers = () => once("players", () => audioPlayers(H(), haOn()));
+  const offeredMap = () => once("playerMap", () => new Map(offeredPlayers().map(p => [p.eid, p])));
+  const rooms = () => once("rooms", () => mapRooms(o.model()));
+  const soundOf = (eid) => once(`sound:${eid}`, () => soundControls(H(), eid, memo ? once("devices", () => devicesIndex(H())) : null));
   // Set up: the card has kept its picks once (or, from before that was written down, some are kept). Only a house
   // never set up gets the card's guesses, the card opening by itself and the prominent button in every room.
   const setUp = () => settings().room_audio_matched === true || Object.keys(matches()).length > 0;
-  const sourcesOf = (eid) => cleanSources(settings().room_audio_sources)[eid] || null;
+  const sourcesOf = (eid) => { const all = once("sources", () => cleanSources(settings().room_audio_sources)); return own(all, eid) ? all[eid] : null; };
   /** A player's volume limit (0.1..1; 1: none). */
-  const limitOf = (eid) => cleanLimits(settings().room_audio_limits)[eid] || 1;
+  const limitOf = (eid) => { const all = once("limits", () => cleanLimits(settings().room_audio_limits)); return own(all, eid) ? all[eid] : 1; };
   // A Control4 room's ⏪ and ⏩: the Control4 integration's control4.media_scan, where it has one.
   const scanOK = () => { const sv = H().services; return !!(sv && sv.control4 && sv.control4.media_scan); };
   const count = (w) => { try { o.count(w); } catch (_) { /* the report is never the error */ } };
   const optOf = (eid) => { const v = opt.get(eid); if (v && Date.now() < v.until) return v; opt.delete(eid); return null; };
   const roomArea = (room) => {
-    const r = mapRooms(o.model()).find(x => x.name === room);
+    const r = rooms().find(x => x.name === room);
     if (r) return r.area_id;
     const want = String(room || "").trim().toLowerCase();
     for (const [id, a] of Object.entries(H().areas || {})) if (String((a && a.name) || "").trim().toLowerCase() === want) return id;
@@ -387,7 +424,7 @@ export function createRoomControls(o){
   const playersIn = (room) => {
     const aid = roomArea(room);
     if (!aid) return [];
-    const offered = new Map(audioPlayers(H(), haOn()).map(p => [p.eid, p]));
+    const offered = offeredMap();
     return (matches()[aid] || []).map(e => offered.get(e)).filter(p => p && st(p.eid));
   };
   // The redraw after a press: at once (what was pressed), then once Home Assistant has had time to say.
@@ -412,8 +449,19 @@ export function createRoomControls(o){
   /** The level a player's number shows: Home Assistant's, or for a while after − / + the level pressed to. Home
    *  Assistant saying something new is shown, unless it is on its way there (between where it was and the pressed
    *  level: the presses it has not caught up with yet are still coming). */
-  const dragging = (eid) => { const d = drag.get(eid); return !!d && (d.active || Date.now() < d.until); };
+  // A drag with no input for DRAG_IDLE_MS is over, whatever became of its slider (let go off it, its sheet closed): the
+  // number never keeps a stale level.
+  const dragging = (eid) => { const d = drag.get(eid); return !!d && ((d.active && Date.now() - d.at < DRAG_IDLE_MS) || Date.now() < d.until); };
+  /** Every held slider let go of (its sheet closed, a pointer let go anywhere): what was dragged to is sent. */
+  function letGo(){ for (const [eid, d] of drag) if (d.active && d.finish) d.finish(); else if (d.active) { d.active = false; d.until = 0; paintLevel(eid); } }
+  let letGoHooked = false;
+  const hookLetGo = () => {
+    if (letGoHooked || typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+    letGoHooked = true;
+    for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, letGo, true);
+  };
   function levelNow(eid){
+    if (!playerOn(st(eid))) return reported(eid);   // off: no level of its own, nor one just pressed or dragged to
     if (dragging(eid)) return drag.get(eid).level;
     const r = reported(eid), v = vol.get(eid);
     if (!v || Date.now() >= v.until) return r;
@@ -422,20 +470,22 @@ export function createRoomControls(o){
     return want !== 0 && Math.sign(got) === Math.sign(want) && Math.abs(got) < Math.abs(want) ? v.level : r;
   }
   const levelText = (l) => (l === null ? "—" : String(Math.round(l * 100)));
-  const atLimit = (eid, l) => l !== null && l >= limitOf(eid) - 1e-9;
+  /** May + go one step up from l: never past the player's limit (one step that would pass it is refused, not cut
+   *  short: Home Assistant steps a player by its own step), and never with a limit and no level known. */
+  const upBlocked = (eid, l, step) => { const lim = limitOf(eid); return lim < 1 && (l === null || l + step > lim + 1e-9); };
   /** The number as it is now, in place (the row is not drawn again); the slider too unless it is held, and + greyed at
    *  the player's limit. */
   function paintLevel(eid){
     const l = levelNow(eid), n = levelEls.get(eid), sl = sliders.get(eid), plus = plusEls.get(eid);
     if (n) { const s = levelText(l); if (n.textContent !== s) n.textContent = s; }
-    if (sl && !(drag.get(eid) || {}).active && l !== null) { const v = String(Math.round(Math.min(l, limitOf(eid)) * 100)); if (sl.value !== v) sl.value = v; }
-    if (plus && plus.dataset.can === "1") { const top = atLimit(eid, l); if (plus.disabled !== top) { plus.disabled = top; plus.style.opacity = top ? ".4" : ""; } }
+    if (sl && !dragging(eid) && l !== null) { const v = String(Math.round(Math.min(l, limitOf(eid)) * 100)); if (sl.value !== v) sl.value = v; }
+    if (plus) { const top = upBlocked(eid, l, plus.step); if (plus.btn.disabled !== top) { plus.btn.disabled = top; plus.btn.style.opacity = top ? ".4" : ""; } }
   }
   /** One − / + press: the number moves one step at once (presses add up), then Home Assistant is asked. Never up past
    *  the player's limit. */
   function nudgeLevel(p, dir, step){
     const r = reported(p.eid), shown = levelNow(p.eid), v = vol.get(p.eid);
-    if (dir > 0 && atLimit(p.eid, shown)) return;
+    if (dir > 0 && upBlocked(p.eid, shown, step)) return;
     if (shown !== null) {
       const going = !!v && Date.now() < v.until && shown === v.level;
       if (v) clearTimeout(v.timer);
@@ -450,10 +500,11 @@ export function createRoomControls(o){
   }
 
   /** {room name: "on" | "muted"} for the map: a room with a player on; muted while its first player is. */
-  function looks(){
+  function looks(){ return withMemo(new Map(), looksOf); }
+  function looksOf(){
     if (!counted) { counted = true; count("on"); }
     const out = {};
-    for (const r of mapRooms(o.model())) {
+    for (const r of rooms()) {
       const ps = playersIn(r.name);
       if (!ps.some(p => playerOn(st(p.eid)))) continue;
       const first = st(ps[0].eid), op = optOf(ps[0].eid);
@@ -497,26 +548,29 @@ export function createRoomControls(o){
     // volume_step; Home Assistant steps a VOLUME_SET player by its volume_step (0.1 unless it says). The number shows
     // the pressed level at once, in place (the owner, 2026-11-25: "The volume doesn't update fast enough"; before that,
     // a guess counted in tens, and a row drawn again under the finger lost the next quick press).
-    const own = Number(a.volume_step) > 0 ? Number(a.volume_step) : 0;
-    const step = own || (has(s, VOLUME_STEP) ? SELF_STEP : 0.1);
+    const ownStep = Number(a.volume_step) > 0 ? Number(a.volume_step) : 0;
+    const step = ownStep || (has(s, VOLUME_STEP) ? SELF_STEP : 0.1);
     const nudge = (dir) => () => nudgeLevel(p, dir, step);
-    // A player that sets its level has the slider under its row (volumeSlider) and only the number here; − and + are
-    // for the ones that only step (a Control4 room). + is greyed at the player's limit, in place (paintLevel).
-    const sets = has(s, VOLUME_SET);
-    if (!sets) ctl.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
+    // A player that sets its level and says what it is has the slider under its row (volumeSlider); − and + stay for
+    // every player that steps (VOLUME_STEP: a Control4 room, Home Assistant's own Control4 rooms too, beside their
+    // slider) and for one whose level is not known (greyed when it can't step). + is greyed at the player's limit, in
+    // place (paintLevel).
+    const pm = !(has(s, VOLUME_SET) && lvl !== null) || has(s, VOLUME_STEP);
+    plusEls.delete(p.eid);
+    if (pm) ctl.appendChild(btn("−", t("{name} volume down", { name: p.name }), nudge(-1), na || !steps));
     const lv = mk("span", S.level, levelText(lvl));
     lv.setAttribute("data-level", "");
     levelEls.set(p.eid, lv);
     ctl.appendChild(lv);
-    if (!sets) {
+    if (pm) {
       const plus = btn("+", t("{name} volume up", { name: p.name }), nudge(1), na || !steps);
-      if (!na && steps) { plus.dataset.can = "1"; plusEls.set(p.eid, plus); if (atLimit(p.eid, lvl)) { plus.disabled = true; plus.style.opacity = ".4"; } }
+      if (!na && steps) { plusEls.set(p.eid, { btn: plus, step }); if (upBlocked(p.eid, lvl, step)) { plus.disabled = true; plus.style.opacity = ".4"; } }
       ctl.appendChild(plus);
     }
     // On while it is off, for a player that turns on; never a Control4 room's (its turn_on starts the room's last
     // source, else its first video source: it can turn a TV on; a source picked starts the room instead).
     if (!on && !na && has(s, TURN_ON) && p.platform !== "control4") ctl.appendChild(btn(t("On"), t("Turn {name} on", { name: p.name }), () => call("media_player", "turn_on", { entity_id: p.eid }, null, p.name)));
-    else if (has(s, TURN_OFF)) ctl.appendChild(btn("⏻", t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
+    else if (has(s, TURN_OFF)) ctl.appendChild(btn(glyph("⏻"), t("Turn {name} off", { name: p.name }), () => call("media_player", "turn_off", { entity_id: p.eid }, "off", p.name), na || !on));
     return row;
   }
 
@@ -527,18 +581,22 @@ export function createRoomControls(o){
     const s = st(p.eid), out = [];
     if (!s || s.state === "unavailable") return out;
     const a = s.attributes || {}, on = playerOn(s);
-    const showNow = (s.state === "playing" || s.state === "paused") && !!(a.media_title || a.media_artist || a.entity_picture);
+    const pic = typeof a.entity_picture === "string" ? a.entity_picture : "";
+    const picOK = (pic.startsWith("/") && !pic.startsWith("//")) || pic.startsWith("https://");
+    const showNow = (s.state === "playing" || s.state === "paused") && !!(a.media_title || a.media_artist || picOK);
     const tr = on ? transport(p, s) : null;
     if (showNow || tr) {
       const line = mk("div", S.line);
       line.setAttribute("data-audio-now", p.eid);
       if (showNow) {
-        // entity_picture: a same-origin relative URL (Home Assistant's proxy), used as it is; gone if it fails.
-        if (a.entity_picture) {
+        // entity_picture: a same-origin path (Home Assistant's proxy) or https, used as it is, no referrer; gone if
+        // it fails.
+        if (picOK) {
           const img = mk("img", S.thumb);
           img.alt = "";
+          img.referrerPolicy = "no-referrer";
           img.addEventListener("error", () => { img.style.display = "none"; });
-          img.src = String(a.entity_picture);
+          img.src = pic;
           line.appendChild(img);
         }
         const text = mk("div", S.playing);
@@ -556,12 +614,12 @@ export function createRoomControls(o){
       n.setAttribute("data-audio-group", p.eid);
       out.push(n);
     }
-    if (has(s, VOLUME_SET) && reported(p.eid) !== null) { const line = mk("div", S.line); line.appendChild(volumeSlider(p)); out.push(line); }
+    if (has(s, VOLUME_SET) && levelNow(p.eid) !== null) { const line = mk("div", S.line); line.appendChild(volumeSlider(p)); out.push(line); }
     const src = sourceLine(p, s);
     if (src) out.push(src);
     const mode = on ? modeLine(p, s) : null;
     if (mode) out.push(mode);
-    const ctls = soundControls(H(), p.eid), cands = has(s, GROUPING) ? shareCandidates(p) : [];
+    const ctls = soundOf(p.eid), cands = has(s, GROUPING) ? shareCandidates(p) : [];
     if (ctls.length || cands.length) {
       const line = mk("div", S.line);
       if (ctls.length) {
@@ -572,7 +630,7 @@ export function createRoomControls(o){
           if (soundOpen.has(p.eid)) { soundOpen.delete(p.eid); if (part) part.remove(); part = null; }
           else {
             soundOpen.add(p.eid);
-            part = soundPart(p, soundControls(H(), p.eid));
+            part = soundPart(p, soundOf(p.eid));
             if (line.parentNode) line.parentNode.insertBefore(part, line.nextSibling);
           }
           b.textContent = word(); b.setAttribute("aria-expanded", String(soundOpen.has(p.eid)));
@@ -593,7 +651,7 @@ export function createRoomControls(o){
     }
     return out;
   }
-  const sourceLabel = (eid, raw) => { if (!raw) return ""; const c = sourcesOf(eid); return (c && c.names[raw]) || String(raw); };
+  const sourceLabel = (eid, raw) => { if (!raw) return ""; const c = sourcesOf(eid); return (c && own(c.names, raw) && c.names[raw]) || String(raw); };
 
   /** The transport, only what the player supports: ⏮, a Control4 room's ⏪ (control4.media_scan, where the Control4
    *  integration has it), play and pause, ⏹, ⏩, ⏭. One toggle only while the state says playing or paused; a player
@@ -603,20 +661,22 @@ export function createRoomControls(o){
     const g = mk("span", S.group), n = { name: p.name };
     g.setAttribute("data-audio-transport", p.eid);
     const add = (text, aria, domain, service, word, extra) => g.appendChild(button(text, aria, () => call(domain, service, { entity_id: p.eid, ...(extra || {}) }, word, p.name)));
-    const c4 = p.platform === "control4", scan = c4 && scanOK(), P = has(s, PLAY), Z = has(s, PAUSE), now = s.state;
-    if (has(s, PREVIOUS_TRACK)) add("⏮", t("{name} previous", n), "media_player", "media_previous_track", "previous");
-    if (scan) add("⏪", t("{name} rewind", n), "control4", "media_scan", "scan", { direction: "back" });
+    const c4 = p.platform === "control4", P = has(s, PLAY), Z = has(s, PAUSE), now = s.state;
+    // ⏪ ⏩: a Control4 room that plays (play or pause), on, where the Control4 integration has control4.media_scan.
+    const scan = c4 && (P || Z) && playerOn(s) && scanOK();
+    if (has(s, PREVIOUS_TRACK)) add(glyph("⏮"), t("{name} previous", n), "media_player", "media_previous_track", "previous");
+    if (scan) add(glyph("⏪"), t("{name} rewind", n), "control4", "media_scan", "scan", { direction: "back" });
     if (P && Z && (now === "playing" || now === "paused")) {
       const playing = now === "playing";
-      add(playing ? "⏸" : "▶", playing ? t("Pause {name}", n) : t("Play {name}", n), "media_player", "media_play_pause", playing ? "pause" : "play");
+      add(glyph(playing ? "⏸" : "▶"), playing ? t("Pause {name}", n) : t("Play {name}", n), "media_player", "media_play_pause", playing ? "pause" : "play");
     } else if (P && Z) {
-      add("▶", t("Play {name}", n), "media_player", "media_play", "play");
-      add("⏸", t("Pause {name}", n), "media_player", "media_pause", "pause");
-    } else if (P && now !== "playing") add("▶", t("Play {name}", n), "media_player", "media_play", "play");
-    else if (Z && now === "playing") add("⏸", t("Pause {name}", n), "media_player", "media_pause", "pause");
-    if (has(s, STOP) && (!Z || c4)) add("⏹", t("Stop {name}", n), "media_player", "media_stop", "pause");
-    if (scan) add("⏩", t("{name} fast-forward", n), "control4", "media_scan", "scan", { direction: "forward" });
-    if (has(s, NEXT_TRACK)) add("⏭", t("{name} next", n), "media_player", "media_next_track", "next");
+      add(glyph("▶"), t("Play {name}", n), "media_player", "media_play", "play");
+      add(glyph("⏸"), t("Pause {name}", n), "media_player", "media_pause", "pause");
+    } else if (P && now !== "playing") add(glyph("▶"), t("Play {name}", n), "media_player", "media_play", "play");
+    else if (Z && now === "playing") add(glyph("⏸"), t("Pause {name}", n), "media_player", "media_pause", "pause");
+    if (has(s, STOP) && (!Z || c4)) add(glyph("⏹"), t("Stop {name}", n), "media_player", "media_stop", "pause");
+    if (scan) add(glyph("⏩"), t("{name} fast-forward", n), "control4", "media_scan", "scan", { direction: "forward" });
+    if (has(s, NEXT_TRACK)) add(glyph("⏭"), t("{name} next", n), "media_player", "media_next_track", "next");
     return g.children.length ? g : null;
   }
 
@@ -633,10 +693,13 @@ export function createRoomControls(o){
     r.setAttribute("data-slider", p.eid);
     if (lvl === null) r.disabled = true;
     sliders.set(p.eid, r);
+    hookLetGo();
     const take = () => {
       let d = drag.get(p.eid);
-      if (!d) { d = { level: 0, active: false, until: 0, sent: null, sentAt: 0, timer: 0 }; drag.set(p.eid, d); }
+      if (!d) { d = { level: 0, active: false, until: 0, at: 0, sent: null, sentAt: 0, timer: 0, finish: null }; drag.set(p.eid, d); }
       d.level = Math.round(Math.min(limitOf(p.eid), Math.max(0, Number(r.value) / 100)) * 100) / 100;
+      d.at = Date.now();
+      d.finish = finish;
       return d;
     };
     const send = () => {
@@ -658,7 +721,7 @@ export function createRoomControls(o){
       if (wait <= 0) send();
       else if (!d.timer) d.timer = setTimeout(send, wait);
     };
-    const finish = () => {
+    function finish(){
       const d = drag.get(p.eid);
       if (!d) return;
       if (d.active) {
@@ -667,7 +730,7 @@ export function createRoomControls(o){
         setTimeout(() => paintLevel(p.eid), OPTIMISTIC_MS + 50);
       }
       send();
-    };
+    }
     const quiet = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
     r.addEventListener("input", move);
     r.addEventListener("change", () => { take(); finish(); });
@@ -702,10 +765,12 @@ export function createRoomControls(o){
     return line;
   }
   /** The source line (SELECT_SOURCE with a source_list): the owner's names, without his hidden ones, in his order.
-   *  Shown while the player is off too: picking a source starts it (a Control4 room). */
+   *  While the player is off too where picking a source starts it (a Control4 room, a player that turns on). */
   function sourceLine(p, s){
     const a = s.attributes || {};
     if (!has(s, SELECT_SOURCE)) return null;
+    // Off, only where a source starts it: a Control4 room, or a player that turns on.
+    if (!playerOn(s) && p.platform !== "control4" && !has(s, TURN_ON)) return null;
     const items = tidySources(a.source_list, sourcesOf(p.eid)).map(x => ({ value: x.raw, label: x.label }));
     if (!items.length) return null;
     const op = optOf(p.eid) || {}, cur = typeof op.source === "string" ? op.source : a.source;
@@ -768,12 +833,19 @@ export function createRoomControls(o){
       const sel = mk("select", S.select);
       sel.setAttribute("aria-label", label);
       const cur = typeof op.option === "string" ? op.option : s.state;
-      for (const x of strings(a.options)) { const n = mk("option", null, x); n.value = x; if (x === cur) n.selected = true; sel.appendChild(n); }
-      sel.value = cur;
+      const opts = strings(a.options);
+      // Its state is none of its options (unknown, or a mode the list lacks): shown first, never picked.
+      if (!opts.includes(cur)) {
+        const n = mk("option", null, cur && cur !== "unknown" ? String(cur) : t("Pick one"));
+        n.value = ""; n.disabled = true; n.selected = true;
+        sel.appendChild(n);
+      }
+      for (const x of opts) { const n = mk("option", null, x); n.value = x; if (x === cur) n.selected = true; sel.appendChild(n); }
+      sel.value = opts.includes(cur) ? cur : "";
       sel.addEventListener("click", (e) => { if (e && e.stopPropagation) e.stopPropagation(); });
       sel.addEventListener("change", () => {
         const v = sel.value;
-        if (v === cur) return;
+        if (!v || v === cur) return;
         opt.set(key, { option: v, until: Date.now() + OPTIMISTIC_MS });
         call("select", "select_option", { entity_id: c.eid, option: v }, "sound", label, () => opt.delete(key));
       });
@@ -790,12 +862,12 @@ export function createRoomControls(o){
     }
     return row;
   }
-  const soundSig = (eid) => soundControls(H(), eid).map(c => { const s = st(c.eid) || {}, a = s.attributes || {}, op = optOf(optKey(c));
+  const soundSig = (eid) => soundOf(eid).map(c => { const s = st(c.eid) || {}, a = s.attributes || {}, op = optOf(optKey(c));
     return [c.eid, c.key, s.state, a.options, a.min, a.max, a.step, a.unit_of_measurement, a.dynamic_eq, op && [op.value, op.on, op.option]]; });
 
   // ── Share: other rooms' players on the same platform join this one (GROUPING works within one platform) ──
   const areaOfPlayer = (eid) => { const m = matches(); return Object.keys(m).find(a => m[a].includes(eid)) || null; };
-  const roomName = (aid) => { const r = mapRooms(o.model()).find(x => x.area_id === aid), a = (H().areas || {})[aid]; return r ? r.name : (a && a.name) || null; };
+  const roomName = (aid) => { const r = rooms().find(x => x.area_id === aid), a = own(H().areas, aid) ? H().areas[aid] : null; return r ? r.name : (a && a.name) || null; };
   /** The rooms (else the players) a player's group plays in besides itself. */
   function groupOthers(eid){
     const g = ((st(eid) || {}).attributes || {}).group_members;
@@ -804,7 +876,7 @@ export function createRoomControls(o){
   }
   /** The other rooms' matched players on this player's platform that group too: [{eid, name, platform, room}]. */
   function shareCandidates(p){
-    const mine = areaOfPlayer(p.eid), offered = new Map(audioPlayers(H(), haOn()).map(x => [x.eid, x])), out = [];
+    const mine = areaOfPlayer(p.eid), offered = offeredMap(), out = [];
     for (const [aid, list] of Object.entries(matches())) {
       if (aid === mine) continue;
       for (const e of list) { const q = offered.get(e), s = st(e); if (q && s && q.platform === p.platform && has(s, GROUPING)) out.push({ ...q, room: roomName(aid) || q.name }); }
@@ -836,7 +908,8 @@ export function createRoomControls(o){
         cb.addEventListener("change", () => {
           const want = !!cb.checked;
           pending.set(c.eid, { on: want, until: Date.now() + OPTIMISTIC_MS });
-          if (want) call("media_player", "join", { entity_id: p.eid, group_members: [c.eid] }, "share", p.name, () => pending.delete(c.eid));
+          // Joined to the group's leader (its first member; this player when it is in no group).
+          if (want) call("media_player", "join", { entity_id: members()[0] || p.eid, group_members: [c.eid] }, "share", p.name, () => pending.delete(c.eid));
           else call("media_player", "unjoin", { entity_id: c.eid }, "unshare", c.name, () => pending.delete(c.eid));
           draw();
         });
@@ -874,14 +947,21 @@ export function createRoomControls(o){
   }
 
   // ── All audio off: every matched player that is on, in every room ──
-  /** [[player, service]]: off where it turns off, else paused, else stopped. */
+  /** [[player, service, extra]]: every matched player that is sounding: playing or buffering, or on with no media
+   *  state (a Control4 room) where it turns off. Paused and idle players are silent already (a Sonos or a Music
+   *  Assistant player sits idle for good): left alone. Off where it turns off, else paused while playing, else
+   *  stopped, else muted. */
   function allOffTargets(){
-    const offered = new Map(audioPlayers(H(), haOn()).map(x => [x.eid, x])), out = [];
+    const offered = offeredMap(), out = [];
     for (const list of Object.values(matches())) for (const e of list) {
       const q = offered.get(e), s = st(e);
-      if (!q || !playerOn(s)) continue;
-      const how = has(s, TURN_OFF) ? "turn_off" : has(s, PAUSE) ? "media_pause" : has(s, STOP) ? "media_stop" : null;
-      if (how) out.push([q, how]);
+      if (!q || !s) continue;
+      const playing = SOUNDING.has(String(s.state));
+      if (!playing && !(playerOn(s) && !MEDIA_STATES.has(String(s.state)) && has(s, TURN_OFF))) continue;
+      if (has(s, TURN_OFF)) out.push([q, "turn_off"]);
+      else if (playing && has(s, PAUSE)) out.push([q, "media_pause"]);
+      else if (has(s, STOP)) out.push([q, "media_stop"]);
+      else if (has(s, VOLUME_MUTE)) out.push([q, "volume_mute", { is_volume_muted: true }]);
     }
     return out;
   }
@@ -895,7 +975,7 @@ export function createRoomControls(o){
       wrap.appendChild(mk("span", "font-size:12px;font-weight:700", t("Turn off every room's audio?")));
       wrap.appendChild(button(t("Turn off"), t("Turn off every room's audio"), () => {
         count("all_off");
-        for (const [q, how] of allOffTargets()) call("media_player", how, { entity_id: q.eid }, null, q.name);
+        for (const [q, how, extra] of allOffTargets()) call("media_player", how, { entity_id: q.eid, ...(extra || {}) }, null, q.name);
         rest();
       }, false, S.danger));
       wrap.appendChild(button(t("Cancel"), t("Cancel"), rest, false, S.more));
@@ -903,7 +983,7 @@ export function createRoomControls(o){
     rest();
     return wrap;
   }
-  const systemsPresent = () => [...new Set(audioPlayers(H(), haOn()).map(p => p.platform))];
+  const systemsPresent = () => [...new Set(offeredPlayers().map(p => p.platform))];
   function matchButton(prominent){
     const wrap = mk("div", "padding:4px 0 2px");
     const onlyC4 = (() => { const s = systemsPresent(); return s.length === 1 && s[0] === "control4"; })();
@@ -984,7 +1064,13 @@ export function createRoomControls(o){
    *  above the lights and Shades and Climate below them; each part null when the room has nothing for it or the host
    *  has it off. lightsOn: the room's lights on now that Home Assistant can reach; setMany: the sheet's own lights
    *  switch; parts: {audio, shades, climate}, which are on for this screen (the host's ⋯ lines and add-ons). */
-  function sheet(room, { lightsOn = [], setMany = null, parts = { audio: true, shades: true, climate: true } } = {}){
+  function sheet(room, opts = {}){
+    // One memo for the whole sheet and its Audio draw (the host draws it at once when its signature changed).
+    const m = new Map(), out = withMemo(m, () => sheetOf(room, opts));
+    if (out.before) { const draw = out.before.draw; out.before.draw = () => withMemo(m, draw); }
+    return out;
+  }
+  function sheetOf(room, { lightsOn = [], setMany = null, parts = { audio: true, shades: true, climate: true } } = {}){
     const h = H(), aid = roomArea(room);
     const want = parts || {};
     // The status line (Climate's): the median temperature and humidity of the room's sensors.
@@ -1094,7 +1180,7 @@ export function createRoomControls(o){
     const list = mk("div");
     const fill = () => {
       list.replaceChildren();
-      const shown = items.filter(it => !q || it.label.toLowerCase().includes(q));
+      const shown = items.filter(it => !q || String(it.label).toLowerCase().includes(q));
       const groups = grouped ? groupModes(shown.map(it => it.value)).map(g => ({ label: g.label, items: g.items.map(v => shown.find(it => it.value === v)) }))
         : [{ label: null, items: shown }];
       for (const g of groups) {
@@ -1175,8 +1261,11 @@ export function createRoomControls(o){
         sel.setAttribute("aria-label", t("Volume limit for {name}", { name: p.name }));
         sel.setAttribute("data-audio-limit", p.eid);
         const none = mk("option", null, t("No limit")); none.value = ""; sel.appendChild(none);
-        for (let pct = 10; pct <= 100; pct += 10) { const op = mk("option", null, `${pct} %`); op.value = String(pct / 100); sel.appendChild(op); }
-        sel.value = limDraft[p.eid] ? String(limDraft[p.eid]) : "";
+        const kept = own(limDraft, p.eid) ? limDraft[p.eid] : null;
+        const steps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => n / 10);
+        if (kept !== null && !steps.includes(kept)) steps.push(kept);   // kept between the steps (0.35): offered as it is
+        for (const v of steps.sort((x, y) => x - y)) { const op = mk("option", null, `${Math.round(v * 100)} %`); op.value = String(v); sel.appendChild(op); }
+        sel.value = kept !== null ? String(kept) : "";
         sel.addEventListener("change", () => {
           const v = sel.value ? Number(sel.value) : null;
           if (v === (limDraft[p.eid] || null)) return;
@@ -1186,7 +1275,7 @@ export function createRoomControls(o){
         lab.appendChild(sel);
         line.appendChild(lab);
       }
-      if (strings(((s && s.attributes) || {}).source_list).length) {
+      if (capped(((s && s.attributes) || {}).source_list).length) {
         const b = button(`${t("Sources")} ›`, t("Sources for {name}", { name: p.name }), () => openSources(p), false, S.more);
         b.setAttribute("data-audio-sources", p.eid);
         line.appendChild(b);
@@ -1197,30 +1286,45 @@ export function createRoomControls(o){
      *  made (room_audio_sources). Home Assistant's own names stay as they are. */
     const openSources = (p) => {
       const sd = dialog("data-audio-sources-card", 10002, 500);
-      const conf = () => srcDraft[p.eid] || { names: {}, hidden: [], order: [] };
+      const renames = new Map(), pendingRenames = new Map();   // source -> its typing timer / its unsaved name's commit
+      sd.onClose = () => { for (const commit of [...pendingRenames.values()]) commit(); pendingRenames.clear(); };
+      const conf = () => (own(srcDraft, p.eid) ? srcDraft[p.eid] : { names: Object.create(null), hidden: [], order: [] });
       const edit = (fn) => {
-        const c = conf(), next = { names: { ...c.names }, hidden: [...c.hidden], order: [...c.order] };
+        const c = conf(), next = { names: Object.assign(Object.create(null), c.names), hidden: [...c.hidden], order: [...c.order] };
         fn(next);
         srcDraft = cleanSources({ ...srcDraft, [p.eid]: next });
         tidied({ room_audio_sources: srcDraft }, "sources_saved");
       };
       const draw = () => {
+        for (const commit of [...pendingRenames.values()]) commit();   // a name being typed is kept before the rows go
         sd.box.replaceChildren();
         sd.box.appendChild(cardHead(sd, t("Sources for {name}", { name: p.name }), t("Rename, hide and order the sources its card offers. Home Assistant keeps its own names.")));
-        const all = orderSources(((st(p.eid) || {}).attributes || {}).source_list, conf());
+        // As the server keeps them: the first 100 sources, none over 100 long (capped).
+        const all = orderSources(capped(((st(p.eid) || {}).attributes || {}).source_list), conf());
         all.forEach((x, i) => {
           const row = mk("div", S.row + ";border-bottom:1px solid rgba(120,190,155,.08)");
           row.setAttribute("data-source", x.raw);
-          const cb = mk("input", "width:20px;height:20px");
+          // The tick and the source's name are one label, 36 px tall: a press anywhere on them shows or hides it.
+          const lab = mk("label", "display:flex;align-items:center;gap:10px;min-height:36px;flex:1 1 140px;min-width:0;cursor:pointer;font-size:13px");
+          const cb = mk("input", "width:22px;height:22px;margin:0;flex:0 0 auto");
           cb.type = "checkbox"; cb.checked = !x.hidden;
           cb.setAttribute("aria-label", t("Show {source}", { source: x.raw }));
           cb.addEventListener("change", () => { const show = !!cb.checked; edit(c => { c.hidden = show ? c.hidden.filter(v => v !== x.raw) : [...c.hidden, x.raw]; }); draw(); });
-          row.appendChild(cb);
-          row.appendChild(mk("span", S.name + ";flex:1 1 100px", x.raw));
+          lab.appendChild(cb);
+          lab.appendChild(mk("span", "overflow:hidden;text-overflow:ellipsis", x.raw));
+          row.appendChild(lab);
           const name = mk("input", S.select + ";flex:1 1 140px;max-width:none;box-sizing:border-box");
-          name.type = "text"; name.value = x.label === x.raw ? "" : x.label; name.placeholder = x.raw;
+          name.type = "text"; name.value = x.label === x.raw ? "" : x.label; name.placeholder = x.raw; name.maxLength = 60;
           name.setAttribute("aria-label", t("Name for {source}", { source: x.raw }));
-          name.addEventListener("change", () => { const v = String(name.value || "").trim(); edit(c => { if (v && v !== x.raw) c.names[x.raw] = v; else delete c.names[x.raw]; }); });
+          // Kept as it is typed (a pause of RENAME_MS), on leaving the field, and when the card closes (Escape too).
+          const commit = () => {
+            clearTimeout(renames.get(x.raw)); renames.delete(x.raw); pendingRenames.delete(x.raw);
+            const v = String(name.value || "").trim(), c = conf(), was = own(c.names, x.raw) ? c.names[x.raw] : "";
+            if ((v && v !== x.raw ? v.slice(0, 60) : "") === was) return;
+            edit(n => { if (v && v !== x.raw) n.names[x.raw] = v; else delete n.names[x.raw]; });
+          };
+          name.addEventListener("input", () => { clearTimeout(renames.get(x.raw)); renames.set(x.raw, setTimeout(commit, RENAME_MS)); pendingRenames.set(x.raw, commit); });
+          name.addEventListener("change", () => { pendingRenames.delete(x.raw); commit(); });
           row.appendChild(name);
           const arrow = (text, aria, j, can) => {
             const b = button(text, aria, () => { const ord = all.map(y => y.raw); [ord[i], ord[j]] = [ord[j], ord[i]]; edit(c => { c.order = ord; }); draw(); }, !can);
@@ -1313,5 +1417,8 @@ export function createRoomControls(o){
   }
 
   // close(): every card this made (the panel went away).
-  return { looks, sheet, switched, openMatch, canMatch: () => !!o.admin(), close: () => { for (const d of [...dialogs]) d.close(); } };
+  // held(): a slider in a sheet is held now (or was let go of a moment ago): the host draws its sheet again only after
+  // (lights_map.js openAggregateSheet). letGo(): the sheet closed; any held slider is let go of.
+  return { looks, sheet, switched, openMatch, canMatch: () => !!o.admin(), close: () => { for (const d of [...dialogs]) d.close(); },
+    held: () => [...drag.keys()].some(dragging), letGo };
 }

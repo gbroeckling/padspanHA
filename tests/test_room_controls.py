@@ -43,6 +43,10 @@ def run():
                                   "match", "first-time", "cleared", "kept", "non-admin",
                                   # the full card (the owner, 2026-11-26): each part only where the player supports it
                                   "transport", "scan", "slider", "limit", "onoff", "sources", "modes", "sound", "share", "all-off", "tidy",
+                                  # the review's fixes: Home Assistant core's Control4 room, no level, a held slider, the limit's gaps,
+                                  # only what sounds, the group's leader, odd source names, the picture, the selects, the Sources card, one read
+                                  "c4-core", "no-level", "held", "limit-gaps", "all-off-quiet", "share-leader", "odd-sources", "picture", "selects",
+                                  "sources-card", "memo",
                                   "german"])
 def test_room_controls(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
