@@ -43,7 +43,7 @@
 const { pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 // Its words in the panel's language (views/i18n.js; English is the key).
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
-const { addonAllowed, addonPrice, addonOfferSeen, addonUsedSeen } =
+const { addonAllowed, addonPrice, addonOfferSeen, addonUsedSeen, tipUsed } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
 // must not blank the view it sits in.
@@ -82,6 +82,7 @@ export function render(ctx, { targetKey } = {}) {
     return root;
   }
   addonUsedSeen(tel, "insights");
+  tipUsed("locate", ctx.state.dataMode === "live");   // its feature tip (views/tips.js) is done with
 
   const pickerCard = el("div");
   const body = el("div");

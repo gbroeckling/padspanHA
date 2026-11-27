@@ -335,6 +335,11 @@ FROM_OTHER_SETTINGS: dict[str, list[tuple[str, Any, dict[str, Any]]]] = {
     "yesterday_home_time": [("not a time", "7:30", {})],
     "yesterday_home_target": [("not a notification target", "script.unlock_door", {})],
     "object_history_days": [("not one of the choices", 3, {})],
+    # Feature tips: what is sent is added to what is kept (tips.merge_state), never in place of it.
+    "tips_state": [("an older copy, from another screen", {"seen": {"audio": NOW - 9 * 86400}, "last_shown": NOW - 9 * 86400},
+                    {"tips_state": {"seen": {"audio": NOW - 10 * 86400, "heatmap": NOW - 86400}, "dismissed": ["edgecut"],
+                                    "used": ["themes"], "last_shown": NOW - 86400}}),
+                   ("emptied", {}, {"tips_state": {"seen": {"audio": NOW - 86400}, "used": ["themes"], "last_shown": NOW - 86400}})],
     "tasmota_ble_enabled": [("on, already running", True, {"__running__": "tasmota"}),
                             ("off, while running", False, {"__running__": "tasmota"})],
 }

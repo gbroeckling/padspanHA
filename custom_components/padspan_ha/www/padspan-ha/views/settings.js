@@ -4463,7 +4463,7 @@ function _settingsAI(ctx, el){
   // The master switch over every AI map-building feature (2026-11, experimental, off by default): today's
   // stair finder and the Plans tool in Live Aboard's Edit bar. Off hides them all; its two rows show only while on.
   const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, t("EXPERIMENTAL"));
-  const master = el("label",{"data-ai-plans":"",style:"display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:pointer"});
+  const master = el("label",{"data-ai-plans":"","data-focus-part":"ai_plans",style:"display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:pointer"});
   const masterCb = el("input",{type:"checkbox", style:"margin-top:3px"});
   masterCb.checked = settings.ai_plans_enabled === true;
   master.appendChild(masterCb);

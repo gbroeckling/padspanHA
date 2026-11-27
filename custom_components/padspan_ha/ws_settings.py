@@ -1664,8 +1664,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "tips_enabled" in msg:
             payload["tips_enabled"] = bool(msg["tips_enabled"])
         if "tips_state" in msg:
-            from .tips import clean_state as _clean_tips  # noqa: PLC0415
-            payload["tips_state"] = _clean_tips(msg["tips_state"])
+            # Added to what is kept, never in place of it (tips.merge_state): a browser's stale copy, another
+            # device's or an empty {} can't bring a seen tip back.
+            from .tips import merge_state as _merge_tips  # noqa: PLC0415
+            payload["tips_state"] = _merge_tips(st.data.get("tips_state"), msg["tips_state"])
         if "espresense_companion_url" in msg:
             # Admin-only (Phase 2i security audit, 2026-09-19): this URL is
             # later fetched server-side, verbatim, by the admin-only

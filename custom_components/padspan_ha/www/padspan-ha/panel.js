@@ -116,33 +116,37 @@ const _trialPromise = import(`./views/trial_offer.js?b=${BUILD_ID}`)
 // Free Pro (views/pro_invite.js): an invite the developer sent this install,
 // and the one-time "test it, get Pro free" card. Optional like the trial.
 let PRO_INVITE = null;
-import(`./views/pro_invite.js?b=${BUILD_ID}`)
+const _proInvitePromise = import(`./views/pro_invite.js?b=${BUILD_ID}`)
   .then(m => { PRO_INVITE = m; })
   .catch(err => console.warn("PadSpan: pro_invite module failed to load", err));
 // Where "Let Claude draw your rooms" is offered (views/ai_wizard_offer.js):
 // a Getting started row and an Overview card. Optional like the trial.
 let AIW = null;
-import(`./views/ai_wizard_offer.js?b=${BUILD_ID}`)
+const _aiwPromise = import(`./views/ai_wizard_offer.js?b=${BUILD_ID}`)
   .then(m => { AIW = m; })
   .catch(err => console.warn("PadSpan: ai_wizard_offer module failed to load", err));
 // OS 2 Local for Control4 (views/c4local.js): the Overview's card when a Control4 entry failed to set up or a
 // controller runs OS 2. Optional like the others.
 let C4L = null;
-import(`./views/c4local.js?b=${BUILD_ID}`)
+const _c4lPromise = import(`./views/c4local.js?b=${BUILD_ID}`)
   .then(m => { C4L = m; })
   .catch(err => console.warn("PadSpan: c4local module failed to load", err));
 // Feature tips (views/tips.js): the Overview's card, last in line, and the words that say a feature was used.
 // Optional like the others.
+// Loaded only once the modules of every Overview card before it have loaded or failed (_tipsAfter, below), so the tip
+// never takes the slot from one of them that was a moment late.
 let TIPS = null;
-import(`./views/tips.js?b=${BUILD_ID}`)
-  .then(m => { TIPS = m; })
-  .catch(err => console.warn("PadSpan: tips module failed to load", err));
 // "Is this setup step done?": views/setup_status.js, the one rule Setup, the
 // Setup Wizard and Mapping read; the Getting started card waits for it.
 let SETUP_STATUS = null;
 import(`./views/setup_status.js?b=${BUILD_ID}`)
   .then(m => { SETUP_STATUS = m; })
   .catch(err => console.warn("PadSpan: setup_status module failed to load", err));
+// The feature tips (views/tips.js), after the Overview's other cards' modules (TIPS above).
+Promise.allSettled([_editionsPromise, _trialPromise, _proInvitePromise, _aiwPromise, _c4lPromise])
+  .then(() => import(`./views/tips.js?b=${BUILD_ID}`))
+  .then(m => { TIPS = m; })
+  .catch(err => console.warn("PadSpan: tips module failed to load", err));
 // Basic's focused views (views/focus.js): a link from Basic opens just the
 // part it is about. Settings and Mapping load it too; the panel's own links
 // (an Overview tip, the tester card) wait for it.
@@ -1589,8 +1593,16 @@ class PadSpanHaApp extends HTMLElement {
     if (!TIPS || !this.state.settings || this.state.kioskMode || wallScreen(false)) return null;
     if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
     if (!this._tipCardVisible && this._overviewCardShown) return null;   // another card has this page load
+    // The cards before it that ask the server in the background (Let Claude draw your rooms, OS 2 Local for Control4):
+    // not before they have their answer, or the tip would take the slot they are about to want.
+    if (!this._tipCardVisible) {
+      try {
+        const c = this._ctx();
+        if ((AIW && AIW.overviewPending && AIW.overviewPending(c)) || (C4L && C4L.overviewPending && C4L.overviewPending(c))) return null;
+      } catch(e) { return null; }
+    }
     let card = null;
-    try { card = TIPS.overviewCard(TIPS.hostFromCtx(this._ctx())); } catch(e) { card = null; }
+    try { card = TIPS.overviewCard(TIPS.hostFromCtx(this._ctx(), { kiosk: this.state.kioskMode || wallScreen(false) })); } catch(e) { card = null; }
     if (card) { this._tipCardVisible = true; this._overviewCardShown = true; }
     return card;
   }
@@ -3008,7 +3020,7 @@ class PadSpanHaApp extends HTMLElement {
     const s = this.state.settings;
     if (!TIPS || !s || !("tips_enabled" in s)) return;
     try {
-      TIPS.noteEvent({ settings: s, send: (w) => this._telemetryEvent(w),
+      TIPS.noteEvent({ settings: s, send: (w) => this._telemetryEvent(w), live: !!this.state._dataModeKnown && this.state.dataMode === "live",
         save: (patch) => this._callWS({ type: "padspan_ha/settings_set", ...patch })
           .then(res => { if (res && res.settings) this.state.settings = res.settings; }) }, String(name));
     } catch (_) { /* a tip is never the error */ }

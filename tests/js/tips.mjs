@@ -39,11 +39,11 @@ const DAY = 86400e3;
 const NOW = Date.parse("2026-12-10T18:00:00Z");
 const ALL_ADDONS = E.ADDONS.map(a => a.name);
 const base = { tips_enabled: true, tips_state: {}, server_tips_rank: [], first_seen_ts: (NOW - 10 * DAY) / 1000,
-  tier: "pro", addons_licensed: ALL_ADDONS, addon_key: false, edition: "full", free_basics: true };
+  tier: "pro", addons_licensed: ALL_ADDONS, addon_key: false, edition: "full", free_basics: true, addons_on_sale: ALL_ADDONS };
 // A house with everything every tip asks about.
 const RICH = { plans: 2, rooms: 8, lights: 20, placedLights: 12, receivers: 5, tracked: 2, climate: 2, airSensors: 6,
   shades: 4, garage: 1, openings: 6, media: 3, audioMatched: 2, alarmPanels: 1, wled: 1, vacuums: 1, aiTasks: 1,
-  house3d: true, wifiSurvey: true };
+  aiTaskSet: true, house3d: true, wifiSurvey: true };
 const BARE = Object.fromEntries(Object.keys(RICH).map(k => [k, typeof RICH[k] === "boolean" ? false : 0]));
 const pick = (o) => T.pickTip({ settings: base, facts: RICH, place: "overview", now: NOW, admin: true, basic: false,
   canGo: () => true, hasLine: () => false, ...o });
@@ -88,7 +88,8 @@ attempt("licence", () => {
     check(`licence: ${name}: every tip it could show is licensed`, fits.every(x => T.licensed(x.tip, s)), fits.map(x => x.tip.id));
     for (const x of fits) {
       const need = x.tip.need;
-      const ok = need === "free" ? true : need === "pro" ? E.currentTier(s) === "pro" : need === "house3d" ? E.tierAtLeast(E.currentTier(s), E.house3dTier(s)) : E.addonAllowed(s, need);
+      const ok = need === "free" ? true : need === "pro" ? E.currentTier(s) === "pro" : need === "house3d" ? E.tierAtLeast(E.currentTier(s), E.house3dTier(s))
+        : need === "vacuum" ? E.vacuumAllowed(s) : E.addonAllowed(s, need);
       check(`licence: ${name}: ${x.tip.id} is its licence's`, ok);
     }
   }
@@ -182,7 +183,8 @@ attempt("places", () => {
 attempt("state", () => {
   const c = T.cleanState({ seen: { audio: NOW / 1000 - 5, nope: 1, heatmap: NOW / 1000 + 9 * 86400, edgecut: "x", themes: -4 }, dismissed: ["edgecut", "edgecut", 3, "zzz"],
     used: "audio", last_shown: true }, NOW);
-  check("state: catalogue ids only, sane times", JSON.stringify(c) === JSON.stringify({ seen: { audio: Math.floor(NOW / 1000 - 5) }, dismissed: ["edgecut"], used: [], last_shown: Math.floor(NOW / 1000 - 5) }), JSON.stringify(c));
+  check("state: catalogue ids only; a time ahead kept, at now", JSON.stringify(c) === JSON.stringify({ seen: { audio: Math.floor(NOW / 1000 - 5), heatmap: Math.floor(NOW / 1000) }, dismissed: ["edgecut"], used: [], last_shown: Math.floor(NOW / 1000) }), JSON.stringify(c));
+  check("state: a clock a year ahead still keeps the tip seen", T.cleanState({ seen: { audio: NOW / 1000 + 365 * 86400 } }, NOW).seen.audio === Math.floor(NOW / 1000));
   check("state: junk is empty", JSON.stringify(T.cleanState("junk", NOW)) === JSON.stringify({ seen: {}, dismissed: [], used: [], last_shown: 0 }));
   const s1 = T.withSeen({}, "audio", NOW);
   check("state: seen now, the day's tip", s1.seen.audio === Math.floor(NOW / 1000) && s1.last_shown === Math.floor(NOW / 1000));
@@ -374,7 +376,10 @@ attempt("slot", () => {
   const body = src.slice(m.index, end);
   let wall = false;
   // The module-level names panel.js hands it: TIPS and wallScreen, nothing else.
-  const method = new Function("TIPS", "wallScreen", `return { ${body} }._featureTipCard;`)(T, () => wall);
+  // The module-level names panel.js hands it: TIPS, wallScreen, and the two cards before it that ask the server.
+  const PEND = { aiw: false, c4l: false };
+  const AIW = { overviewPending: () => PEND.aiw }, C4L = { overviewPending: () => PEND.c4l };
+  const method = new Function("TIPS", "wallScreen", "AIW", "C4L", `return { ${body} }._featureTipCard;`)(T, () => wall, AIW, C4L);
   const panel = (over = {}) => {
     const sent = [], saved = [];
     // The panel asks at the real clock: an install ten days old by it.
@@ -399,6 +404,11 @@ attempt("slot", () => {
   const unk = panel(); unk.state._dataModeKnown = false;
   check("slot: data mode not known yet: no tip", method.call(unk) === null);
   check("slot: none of it used up a tip", T.pageTip().id === null);
+  PEND.aiw = true;
+  check("slot: Let Claude draw your rooms not answered yet: no tip", method.call(panel()) === null && T.pageTip().id === null);
+  PEND.aiw = false; PEND.c4l = true;
+  check("slot: OS 2 Local for Control4 not answered yet: no tip", method.call(panel()) === null && T.pageTip().id === null);
+  PEND.c4l = false;
   const p = panel();
   const card = method.call(p);
   check("slot: the slot free: the card, holding the slot", !!card && p._overviewCardShown === true && p._tipCardVisible === true
@@ -409,6 +419,100 @@ attempt("slot", () => {
   again.querySelector('[data-feature-tip-act="not_now"]').click();
   check("slot: answered: gone, and the slot stays taken this page load", method.call(p) === null && p._overviewCardShown === true);
 });
+
+// ── the review's fixes (2026-11-26) ────────────────────────────────────────
+attempt("review", () => {
+  // Show me's places.
+  const alarm = T.tipById("alarm_arm"), ai = T.tipById("ai_plans");
+  check("review: the alarm's Show me opens the Atlas's emergency button card", alarm.target && alarm.target.atlas === "emergency" && T.basicOk(alarm.target));
+  check("review: AI plan reading opens its own switch, never in Basic", ai.target.part === "ai_plans" && !ai.target.focus && !T.basicOk(ai.target));
+  check("review: AI plan reading fits only with an AI Task chosen", ai.fit({ ...RICH, aiTaskSet: false }, base) === 0 && ai.fit(RICH, base) > 0);
+  check("review: the AI Task chosen is a fact", T.factsFrom({ settings: { atlas_3d_ai_task_entity: "ai_task.claude" } }).aiTaskSet === true
+    && T.factsFrom({ settings: {} }).aiTaskSet === false);
+  for (const id of ["lights_follow", "yesterday_home", "guest_tags"])
+    check(`review: ${id}'s Show me opens its Tracking section`, !!T.tipById(id).target.reveal);
+  const st = { _settingsTab: null }, shown = [];
+  T.goCtx({ state: st, actions: { showView: (v) => shown.push(v) } }, T.tipById("lights_follow").target);
+  check("review: goCtx sets the section to open", st._presenceReveal === "integrations" && st._settingsPart === "lights_follow" && shown.join() === "settings");
+  let went = null;
+  const loc = globalThis.location;
+  globalThis.location = { assign: (u) => { went = u; } };
+  T.goCtx({ state: {}, actions: {} }, alarm.target);
+  globalThis.location = loc;
+  check("review: goCtx takes the alarm's Show me to the Atlas page's card", went === "/padspan-lights?card=emergency", went);
+  // The robot vacuum goes by vacuumAllowed: a Bright key has had its features all along.
+  const brightVac = { ...base, tier: "bright", addons_licensed: [] };
+  check("review: robot vacuum by vacuumAllowed", T.licensed(T.tipById("robot_vacuum"), brightVac) === E.vacuumAllowed(brightVac)
+    && !T.licensed(T.tipById("robot_vacuum"), { ...base, tier: "free", addons_licensed: [] }));
+  // Each its own "used"; none of the four counts its own Show me landing.
+  for (const id of ["locate", "busy_times", "wled_controls"])
+    check(`review: ${id} has its own use, no shared word`, T.tipById(id).used.uses === true && !(T.tipById(id).used.events || []).length);
+  T.resetPage();
+  const q = host({ go: () => {} });
+  q.h.settings.tips_state = {};
+  const shownTip = T.tipById("wifi_coverage");
+  q.h.settings.tips_state = { seen: { wifi_coverage: (NOW - DAY) / 1000 } };
+  T.answer(q.h, shownTip, "go", NOW);
+  T.noteEvent(q.h, "tab:wifi", NOW + 2000);
+  check("review: Show me's own landing (tab:wifi) is not a use", !T.cleanState(q.h.settings.tips_state, NOW).used.includes("wifi_coverage") && !q.sent.includes("tip_used_after:wifi_coverage"));
+  T.noteEvent(q.h, "tab:wifi", NOW + (T.GO_QUIET_S + 5) * 1000);
+  check("review: a visit after the quiet window is", T.cleanState(q.h.settings.tips_state, NOW).used.includes("wifi_coverage") && q.sent.includes("tip_used_after:wifi_coverage"));
+  T.resetPage();
+  const b = host({ go: () => {} });
+  b.h.settings.tips_state = { seen: { busy_times: (NOW - DAY) / 1000 } };
+  T.answer(b.h, T.tipById("busy_times"), "go", NOW);
+  T.noteUse("busy_times", NOW + 1000);
+  T.reconcile(b.h, NOW + 1000);
+  check("review: Busy Times opened by its Show me: not a use", !T.cleanState(b.h.settings.tips_state, NOW).used.includes("busy_times"));
+  T.noteUse("busy_times", NOW + 120e3);
+  T.noteUse("locate", NOW + 120e3);
+  T.reconcile(b.h, NOW + 120e3);
+  const used = T.cleanState(b.h.settings.tips_state, NOW).used;
+  check("review: later, Busy Times and Locate each by their own use", used.includes("busy_times") && used.includes("locate") && b.sent.includes("tip_used_after:busy_times")
+    && !b.sent.includes("tip_used_after:locate"), JSON.stringify({ used, sent: b.sent }));
+  T.noteEvent(b.h, "addon_used:insights", NOW + 200e3);
+  check("review: the shared insights word marks neither", true);
+  // A ⋯ line pointed at: ticking it is the person's own, counted at once.
+  T.resetPage();
+  const ln = host({ go: null, canGo: () => false });
+  ln.h.settings.tips_state = {};
+  const mt = T.menuTip(ln.h, ["edgecut"], NOW);
+  mt.go();
+  T.noteEvent(ln.h, "house3d_show:show:edgecut", Date.now() + 1000);
+  check("review: a line ticked after Show me counts", T.cleanState(ln.h.settings.tips_state, Date.now()).used.includes("edgecut"));
+  // Sample data: the sample house's use is never this house's.
+  T.resetPage();
+  const smp = host({ live: false });
+  T.noteEvent(smp.h, "room_controls:up", NOW);
+  T.noteUse("locate", NOW);
+  T.reconcile(smp.h, NOW);
+  check("review: sample data marks nothing used", smp.saved.length === 0);
+  T.resetPage();
+  // A wall in Settings → Atlas and the Atlas builder: a window filling the screen.
+  const scr = globalThis.screen, iw = globalThis.innerWidth, ih = globalThis.innerHeight;
+  globalThis.screen = { width: 1920, height: 1080 }; globalThis.innerWidth = 1920; globalThis.innerHeight = 1080;
+  const wallHost = T.hostFromCtx({ state: { settings: base, dataMode: "live" }, actions: {} });
+  check("review: a full-screen window is a wall for every view's host", wallHost.kiosk === true && T.adjustLine({ ...wallHost, settings: { ...base } }, "settings_atlas", NOW) === null);
+  globalThis.innerHeight = 900;
+  check("review: an ordinary window is not", T.hostFromCtx({ state: { settings: base, dataMode: "live" }, actions: {} }).kiosk === false);
+  globalThis.screen = scr; globalThis.innerWidth = iw; globalThis.innerHeight = ih;
+});
+
+// The two cards the Overview's tip waits for: their own "still asking" rule.
+const AIWM = await import(url("views/ai_wizard_offer.js"));
+const C4LM = await import(url("views/c4local.js"));
+let release = null;
+const aiCtx = { state: { dataMode: "live", model: {}, maps: { list: [] } }, hass: { user: { is_admin: true } },
+  actions: { callWS: () => new Promise((r) => { release = r; }), renderRooms() {} } };
+check("review: Let Claude draw your rooms, asked and not back: pending", AIWM.overviewPending(aiCtx) === true && typeof release === "function");
+release({ offer: false });
+for (let i = 0; i < 6; i++) await Promise.resolve();   // the answer's then and finally
+check("review: Let Claude draw your rooms, answered: not pending", AIWM.overviewPending(aiCtx) === false);
+check("review: not an administrator: never pending", AIWM.overviewPending({ ...aiCtx, hass: { user: { is_admin: false } } }) === false);
+C4LM._reset();
+const c4Ctx = { state: { settings: { addons_on_sale: [] } }, hass: { user: { is_admin: true }, config: { components: ["control4"] } },
+  actions: { wsCall: () => new Promise(() => {}), renderRooms() {} } };
+check("review: OS 2 Local not published: never pending", C4LM.overviewPending(c4Ctx) === false);
 
 console.log(JSON.stringify({ checks, failures }));
 process.exit(failures.length ? 1 : 0);

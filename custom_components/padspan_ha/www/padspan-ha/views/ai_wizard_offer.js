@@ -130,6 +130,13 @@ export function infoFor(ctx, surface) {
   return null;
 }
 
+/** Whether the Overview's card is still waiting for its answer (asked, not back): the Overview's feature tip, which
+ *  comes after it, waits too, so it never takes the slot from this card a moment before it answers. */
+export function overviewPending(ctx) {
+  if (!_admin(ctx) || !ctx.state || ctx.state.dataMode !== "live") return false;
+  return infoFor(ctx, "overview") === null;
+}
+
 /** Whether to offer here; the first time a page, said to the server (shown, by where). */
 export function offered(ctx, surface) {
   const i = infoFor(ctx, surface);
