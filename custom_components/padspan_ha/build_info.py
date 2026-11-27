@@ -31,7 +31,7 @@ BUILD_VERSION = "0.38.306"
 # licence.py. Every copy built carries its own floor and never asks permission.
 EDITION = "full"
 TIER_FLOOR = "free"
-BUILD_ID = "20261127T055049Z"
+BUILD_ID = "20261127T062233Z"
 CHANNEL = "beta"
 
 # Backwards/for convenience
