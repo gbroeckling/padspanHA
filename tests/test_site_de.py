@@ -200,6 +200,7 @@ def deploy(monkeypatch, b):
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
     monkeypatch.setattr(mod, "preflight_htaccess", lambda: [])
     monkeypatch.setattr(mod, "verify_live", lambda version: True)
+    monkeypatch.setattr(mod, "tell_indexnow", lambda urls, what: calls.append(f"indexnow {len(urls)}"))   # no network
     monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--version", "9.9.9"])
     return mod, calls
 
@@ -244,6 +245,7 @@ def test_the_htaccess_is_tried_before_anything_is_uploaded(monkeypatch, b) -> No
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
     monkeypatch.setattr(mod, "origin", fake_origin)
     monkeypatch.setattr(mod, "verify_live", lambda version: True)
+    monkeypatch.setattr(mod, "tell_indexnow", lambda urls, what: None)   # no network
     monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--version", "9.9.9"])
     mod.main()
     scratch = next(i for i, c in enumerate(calls) if "mkdir -p" in c and "_deploy_check_" in c)

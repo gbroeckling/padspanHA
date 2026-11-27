@@ -14,6 +14,7 @@ other files beside the page (site/<key>.txt).
 """
 from __future__ import annotations
 
+import http.client
 import json
 import pathlib
 import re
@@ -39,7 +40,8 @@ def sitemap_urls() -> list[str]:
 
 def submit(urls: list[str]) -> tuple[int, str]:
     """(HTTP status, reason). 200 and 202 mean accepted; 202 while the key is
-    still being checked. 403: the key file isn't live. 422: a URL isn't on HOST."""
+    still being checked. 403: the key file isn't live. 422: a URL isn't on HOST.
+    0: IndexNow couldn't be reached (no network, DNS, a timeout), said, not raised."""
     k = key()
     body = json.dumps({"host": HOST, "key": k, "keyLocation": f"https://{HOST}/{k}.txt",
                        "urlList": urls}).encode("utf-8")
@@ -51,6 +53,8 @@ def submit(urls: list[str]) -> tuple[int, str]:
             return r.status, r.reason
     except urllib.error.HTTPError as e:
         return e.code, e.reason
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+        return 0, f"unreachable ({getattr(e, 'reason', None) or e})"
 
 
 def main() -> None:

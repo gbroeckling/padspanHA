@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Deploy padspan.traks.ca from the repo.
 
-    python scripts/deploy_site.py            # stamp version, upload, verify
+    python scripts/deploy_site.py            # stamp version, upload, verify, tell IndexNow what changed
     python scripts/deploy_site.py --dry-run  # stamp and verify locally, upload nothing
     python scripts/deploy_site.py --guides-only  # site/guides/ and sitemap.xml only
 
@@ -31,11 +31,13 @@ kept the first time each day.
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import os
 import pathlib
 import re
 import secrets
+import shlex
 import subprocess
 import sys
 import urllib.error
@@ -370,6 +372,46 @@ def sitemap_with_dates() -> bytes:
         return plain
 
 
+def page_url(name: str) -> str:
+    """The address of an uploaded page: index.html -> /, guides/x/index.html -> /guides/x/."""
+    return URL + (name[:-len("index.html")] if name == "index.html" or name.endswith("/index.html") else name)
+
+
+def sitemap_urls() -> list[str]:
+    return re.findall(r"<loc>([^<]+)</loc>", (SRC.parent / "sitemap.xml").read_text(encoding="utf-8"))
+
+
+def changed_pages(pages: dict[str, bytes]) -> list[str] | None:
+    """Which of these pages (path under REMOTE_DIR -> the bytes about to go up) differ from the server's copy, or
+    aren't on the server yet. Asked before anything is uploaded, in one read-only sha256sum on the server (as root,
+    like the rest of the deploy, or as the login if sudo won't run it). None when it can't be asked or gives no
+    answer: then nobody knows what changed."""
+    names = sorted(pages)
+    files = " ".join(map(shlex.quote, names))
+    r = subprocess.run(f'{SSH} {HOST} "cd {REMOTE_DIR} && (sudo -n sha256sum -- {files} || sha256sum -- {files})"',
+                       shell=True, capture_output=True, text=True)
+    there = {name: digest for digest, name in re.findall(r"(?m)^([0-9a-f]{64}) [ *](\S+)$", r.stdout or "")}
+    if not there:
+        return None
+    return [n for n in names if there.get(n) != hashlib.sha256(pages[n]).hexdigest()]
+
+
+def tell_indexnow(urls: list[str], what: str) -> None:
+    """Hand the IndexNow engines (scripts/indexnow.py) the pages a deploy put up, and say how it went. Never stops
+    a deploy: the pages are live either way, and search engines find them from the sitemap in the end."""
+    if not urls:
+        print(f"  IndexNow: no {what}, nothing sent")
+        return
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import indexnow  # noqa: E402
+
+        status, reason = indexnow.submit(urls)
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        status, reason = 0, f"not sent ({e})"
+    print(f"  {'OK  ' if status in (200, 202) else 'WARN'} IndexNow: {status} {reason} for {len(urls)} {what}")
+
+
 def guides_only() -> None:
     """Put the guides, the sitemap that lists them and the IndexNow key live, and
     nothing else, then tell the IndexNow engines about the guides.
@@ -394,11 +436,7 @@ def guides_only() -> None:
     # Not fatal: the pages are up either way, and search engines find them
     # from the sitemap in the end.
     if INDEXNOW_KEYS:
-        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-        import indexnow  # noqa: E402
-
-        status, reason = indexnow.submit([URL + g.rsplit("/", 1)[0] + "/" for g in GUIDES])
-        print(f"  {'OK  ' if status in (200, 202) else 'WARN'} IndexNow: {status} {reason}")
+        tell_indexnow([page_url(g) for g in GUIDES], "guide(s)")
     print("\n=== guides live; the home page was not touched ===\n")
 
 
@@ -440,6 +478,13 @@ def main() -> None:
         raise SystemExit("site/.htaccess failed its check in a scratch folder, so nothing was uploaded:\n  - "
                          + "\n  - ".join(problems))
     print("  site/.htaccess checked in a scratch folder on the server")
+
+    # Which pages this deploy changes, asked of the server before anything goes up: once the deploy is verified,
+    # IndexNow is told about those. A version stamp is a change: the page says something new.
+    pages = {"index.html": stamped.encode("utf-8"), "de/index.html": de_html.encode("utf-8"),
+             **{name: (SRC.parent / name).read_bytes() for name in GUIDES}}
+    changed = changed_pages(pages)
+    print(f"  pages this deploy changes: {'unknown (the server could not be asked)' if changed is None else len(changed)}")
 
     # German first: once the new .htaccess is up, visitors from Germany, Austria
     # and Switzerland are sent to /de/, so it has to be there already.
@@ -487,6 +532,20 @@ def main() -> None:
     print("\nVerifying the live page...")
     if not verify_live(version):
         raise SystemExit("the deployed page failed verification — look at it before leaving it")
+    # Only pages the sitemap lists, the ones search engines are asked to index. When nobody knows what changed,
+    # all of them.
+    if INDEXNOW_KEYS:
+        listed = sitemap_urls()
+        if changed is None:
+            tell_indexnow(listed, "page(s) in the sitemap (what changed is unknown)")
+        else:
+            urls = {page_url(name) for name in changed}
+            sent = [u for u in listed if u in urls]
+            for u in sent[:15]:
+                print(f"    {u}")
+            if len(sent) > 15:
+                print(f"    ... and {len(sent) - 15} more")
+            tell_indexnow(sent, "changed page(s)")
     print(f"\n=== {URL} is live on v{version} ===\n")
 
 
