@@ -12,7 +12,7 @@ It's a Home Assistant integration. It draws your house from its floor plan, floo
 
 [![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in **Settings → Marketplace** (Home Assistant 2026.11 and newer) or in HACS (older versions). Or search either one for PadSpan.
 
-**Free and open source (GPL-3.0).** The free version needs no key and doesn't run out. From December 1, 2026, placing each light exactly where it hangs, the plain wall screen and the house in 3D are free too; until then they are Pro. PadSpan Pro is the one purchase for the rest: fixture shapes, Furnish, people in 3D, the 3D editor, the wall screen's extras and every add-on. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md)).
+**Free and open source (GPL-3.0).** The free version needs no key and doesn't run out. PadSpan Pro is the one purchase for the rest: fixture shapes, Furnish, people in 3D, the 3D editor, the wall screen's extras and every add-on. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md)).
 
 **Black Friday to Cyber Monday:** PadSpan Pro for life is $89 CAD until November 30, then $168 until December 15; after that there's no lifetime. Every add-on is at its Black Friday price until January 1. [Prices](https://padspan.traks.ca/#pro)
 

@@ -245,7 +245,6 @@ _PAID_BASICS = ("Wall mode fits the whole house to a wall screen and dims it at 
                 "Place each light exactly where it hangs, in metres", "Fans, locks and sensors placed the same way",
                 "Placement comes with PadSpan Pro at $45 a year", "PadSpan Pro for exact placement, the 3D house and wall mode",
                 "Wall mode on the Atlas page is PadSpan Pro.", "The 3D house (Pro)", "PadSpan Pro's 3D house.",
-                "From December 1, placing each light, the plain wall screen and the 3D house are free for everyone.",
                 "Live Aboard, the house in 3D, and Furnish", "Light placement, shapes, WLED, Showcase",
                 "Wall mode and the Atlas as your Overview", "a PDF, a LiDAR scan or a blank floor",
                 "Light placement — that is Bright Pro", "Light placement, fixture shapes and sizes",
@@ -260,7 +259,6 @@ _FREE_BASICS = ("It dims at night and shifts against burn-in",
                 "Wall mode on the Atlas page is free; its night dimming and burn-in shift are PadSpan Pro.",
                 "and a RoomPlan app that shares USDZ, and PadSpan Pro or the Advanced map creation add-on",
                 "The sample house in Live Aboard, furnished with PadSpan Pro.",
-                "Placing each light, the plain wall screen and the 3D house are free for everyone.",
                 ", and so do Advanced map creation and Robot vacuum",
                 "Furnish, people and the editor in the 3D house", "Fixture shapes, WLED, Showcase",
                 "The wall screen's extras and the Atlas as your Overview",
@@ -295,6 +293,27 @@ def test_the_free_basics_read_right_before_december_1_until_december_15_and_afte
         assert f'name="item_number" value="padspan-addon-{name}"' not in pages["before"], name
         for when in ("december", "after"):
             assert f'name="item_number" value="padspan-addon-{name}"' in pages[when], (name, when)
+
+
+# What stays Pro after December 1: all the #pro box sells, before December 1 and after it. The owner (2026-11-27):
+# no word yet that anything becomes free.
+_PRO_KEEPS = ("PadSpan Pro adds people in the 3D house, Furnish, the wall screen's extras and every add-on",
+              "People and tags on the Atlas and in the 3D house, where PadSpan places them.",
+              "The 3D editor, to draw doors, windows and doorways in the 3D house", "Furnish fills a room in one tap",
+              "The view flies to what happens.",
+              "The wall screen's extras: night dimming, the burn-in shift, floors in turn and Fully Kiosk motion wake.",
+              "The new Atlas layout away from a wall screen", "The Atlas as your Overview, the first thing PadSpan opens.")
+
+
+def test_the_pro_box_sells_only_what_stays_pro_and_calls_nothing_free(html: str) -> None:
+    """The #pro heading, its lede and its Only with Pro list read the same before December 1, from it and from
+    December 16: what stays Pro, and no "free" (the trial and the free ways into Pro are in the boxes after it)."""
+    for when, page in _periods(html).items():
+        box = page[page.index('<section class="wrap" id="pro">'):]
+        words = _seen(box[:box.index("<h3>Also in every Pro key</h3>")])
+        for said in _PRO_KEEPS:
+            assert said in words, (when, said)
+        assert not re.search(r"\bfree\b", words, re.I), (when, re.search(r".{60}\bfree\b.{60}", words, re.I | re.S))
 
 
 def test_the_cross_discount_is_said_in_both_boxes_and_the_box_charges_the_public_price(html: str) -> None:
