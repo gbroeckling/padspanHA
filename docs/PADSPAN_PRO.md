@@ -425,7 +425,7 @@ same card as its lights.
   **Sound** (the bass, treble, loudness, EQ, subwoofer, surround, speech, night and lip-sync
   settings the player's integration offers) and **Share** (play the music in other rooms of the
   same system, each with its own volume). Buttons show only for what the player can do.
-- **All audio off**: the music off in every room, after asking.
+- **Any audio in house off**: the music off in every room, after asking.
 - **On the map**: a small speaker beside a room's name while one of its players is on, struck
   through while it's muted. A tap on it opens the room's card; only the card's buttons change
   anything.

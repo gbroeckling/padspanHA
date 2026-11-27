@@ -187,7 +187,7 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
       gruppiert ist.
 
     Was ein Player nicht kann, fehlt oder ist grau: Ein ausgeschalteter Player zeigt seine
-    Lautstärke als —. **Alles Audio aus**, nach den Playern, schaltet nach einer Rückfrage aus, was in allen Räumen gerade
+    Lautstärke als —. **Jedes Audio im Haus aus**, nach den Playern, schaltet nach einer Rückfrage aus, was in allen Räumen gerade
     spielt: Ein Player, der sich nicht ausschalten lässt, wird pausiert, sonst gestoppt, sonst
     stummgeschaltet. Pausierte oder ruhende Player bleiben, wie sie sind.
   - die Lichter des Raums wie bisher.

@@ -1449,7 +1449,7 @@ ALARM_BUTTON_EVENTS: frozenset[str] = frozenset(f"alarm_button:{w}" for w in ALA
 # load while a screen has them on; the matching card opened and saved; a player's volume up or down, mute and off; a
 # thermostat's setpoint; the shades; a room's Room off. The full card (2026-11-26): a source or a sound mode picked,
 # play, pause (or stop), next, previous, a Control4 room's scan, a slider let go of, a Sound control, a room shared
-# or unshared, All audio off, and the owner's sources and limit saved (once per card). Counts only, never a room, a
+# or unshared, Any audio in house off, and the owner's sources and limit saved (once per card). Counts only, never a room, a
 # player, a system, a source or a level.
 ROOM_CONTROLS_WORDS: tuple[str, ...] = ("on", "match_open", "match_saved", "up", "down", "mute", "off", "climate", "cover",
                                         "room_off", "source", "sound_mode", "play", "pause", "next", "previous", "scan",

@@ -44,7 +44,7 @@
 //               and ⏻ or On; then only what that player supports now (its supported_features, read at every
 //               draw): what is playing with its transport, the source and the sound mode (pickLine), "Sound ›"
 //               (its tone, EQ and surround entities: soundControls) and "Share ›" (other rooms on its platform:
-//               openShare); All audio off under the players. The owner's tidy-up, in the matching card: each
+//               openShare); Any audio in house off under the players. The owner's tidy-up, in the matching card: each
 //               player's sources renamed, hidden and ordered (room_audio_sources) and its volume limit
 //               (room_audio_limits), held wherever a level is set.
 //
@@ -79,7 +79,7 @@ const COVER_OPEN = 1, COVER_CLOSE = 2, COVER_STOP = 8;
 // here: by its device class, or linked as a door's opener (o.openers).
 const NOT_SHADES = new Set(["garage", "gate", "door"]);
 const OFF_STATES = new Set(["off", "standby", "unavailable", "unknown"]);
-// A player making sound now, and the states of a player that has media at all (All audio off).
+// A player making sound now, and the states of a player that has media at all (Any audio in house off).
 const SOUNDING = new Set(["playing", "buffering"]), MEDIA_STATES = new Set(["playing", "paused", "idle", "buffering"]);
 // How long a pressed level or mute shows before Home Assistant's own state is shown again.
 const OPTIMISTIC_MS = 3000;
@@ -946,7 +946,7 @@ export function createRoomControls(o){
     return me;
   }
 
-  // ── All audio off: every matched player that is on, in every room ──
+  // ── Any audio in house off: every matched player that is on, in every room ──
   /** [[player, service, extra]]: every matched player that is sounding: playing or buffering, or on with no media
    *  state (a Control4 room) where it turns off. Paused and idle players are silent already (a Sonos or a Music
    *  Assistant player sits idle for good): left alone. Off where it turns off, else paused while playing, else
@@ -969,7 +969,7 @@ export function createRoomControls(o){
   function allOffButton(){
     const wrap = mk("div", "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0 2px");
     wrap.setAttribute("data-audio-all-off", "");
-    const rest = () => { wrap.replaceChildren(); wrap.appendChild(button(t("All audio off"), t("Turn off every room's audio"), ask, false, S.more)); };
+    const rest = () => { wrap.replaceChildren(); wrap.appendChild(button(t("Any audio in house off"), t("Turn off every room's audio"), ask, false, S.more)); };
     const ask = () => {
       wrap.replaceChildren();
       wrap.appendChild(mk("span", "font-size:12px;font-weight:700", t("Turn off every room's audio?")));

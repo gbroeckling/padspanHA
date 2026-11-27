@@ -1029,20 +1029,20 @@ await tryCase("all-off", async () => {
     office: ["media_player.dlna_office"], garage: ["media_player.cast_garage"] }, ha: true });
   const sec = drawAudio(r);
   const wrap = q(sec, "data-audio-all-off");
-  check("all-off", wrap && words(wrap).join() === "All audio off" && sec.children[sec.children.length - 1] === wrap, wrap && words(wrap));
+  check("all-off", wrap && words(wrap).join() === "Any audio in house off" && sec.children[sec.children.length - 1] === wrap, wrap && words(wrap));
   const n = h.calls.length;
-  await press(byText(wrap, "All audio off"));
+  await press(byText(wrap, "Any audio in house off"));
   check("all-off", texts(wrap).includes("Turn off every room's audio?") && words(wrap).join() === "Turn off,Cancel" && h.calls.length === n, texts(wrap));
   await press(byText(wrap, "Cancel"));
-  check("all-off", words(wrap).join() === "All audio off" && h.calls.length === n, words(wrap));
-  await press(byText(wrap, "All audio off"));
+  check("all-off", words(wrap).join() === "Any audio in house off" && h.calls.length === n, words(wrap));
+  await press(byText(wrap, "Any audio in house off"));
   await press(byText(wrap, "Turn off"));
   check("all-off", h.calls.slice(n).map(c => `${c.service}:${c.entity_id}`).join() === "turn_off:media_player.c4_great_room,turn_off:media_player.denon_zone_2,"
     + "media_pause:media_player.sonos_kitchen,media_stop:media_player.dlna_office", h.calls.slice(n));
-  check("all-off", r.counts.filter(w => w === "all_off").length === 1 && words(wrap).join() === "All audio off", r.counts);
+  check("all-off", r.counts.filter(w => w === "all_off").length === 1 && words(wrap).join() === "Any audio in house off", r.counts);
   // Everything off: no button.
   for (const e of ["media_player.c4_great_room", "media_player.denon_zone_2", "media_player.sonos_kitchen", "media_player.dlna_office"]) h.hass.states[e].state = "off";
-  check("all-off", !q(drawAudio(r), "data-audio-all-off"), "All audio off with everything off");
+  check("all-off", !q(drawAudio(r), "data-audio-all-off"), "Any audio in house off with everything off");
 });
 
 // ── the owner's tidy-up in the matching card: the volume limit, and each player's sources (names, hidden, order) ──
@@ -1196,7 +1196,7 @@ await tryCase("limit-gaps", async () => {
   check("limit-gaps", byAria(rowOf(drawAudio(r2, "Alex's Office"), "media_player.c4_office"), "Alex’s office volume up").disabled === false, "no limit, no level: greyed");
 });
 
-// ── All audio off: only what is sounding ──
+// ── Any audio in house off: only what is sounding ──
 await tryCase("all-off-quiet", async () => {
   const h = house();
   h.hass.states["media_player.c4_great_room"].state = "off"; h.hass.states["media_player.denon_zone_2"].state = "off";
@@ -1207,12 +1207,12 @@ await tryCase("all-off-quiet", async () => {
     office: ["media_player.ma_office"], garage: ["media_player.esp_garage"] }, ha: true });
   // The idle Sonos and the paused Music Assistant player are silent: the button is for the one playing speaker only.
   const wrap = q(drawAudio(r), "data-audio-all-off");
-  await press(byText(wrap, "All audio off"));
+  await press(byText(wrap, "Any audio in house off"));
   const n = h.calls.length;
   await press(byText(wrap, "Turn off"));
   check("all-off-quiet", JSON.stringify(h.calls.slice(n)) === JSON.stringify([{ domain: "media_player", service: "volume_mute", entity_id: "media_player.esp_garage", is_volume_muted: true }]), h.calls.slice(n));
   h.hass.states["media_player.esp_garage"].state = "idle";
-  check("all-off-quiet", !q(drawAudio(r), "data-audio-all-off"), "All audio off with nothing sounding");
+  check("all-off-quiet", !q(drawAudio(r), "data-audio-all-off"), "Any audio in house off with nothing sounding");
 });
 
 // ── Share from a player that follows a group: joined to its leader ──

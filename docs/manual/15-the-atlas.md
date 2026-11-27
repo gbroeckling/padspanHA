@@ -168,7 +168,7 @@ thermostats are lines of their own in the same list: **Shades** (free,
       says "with Kitchen, Den" while it's grouped.
 
     What a player can't do is left out or greyed: a player that is off shows its level as —.
-    **All audio off**, after the players, turns off whatever is playing in every room, after
+    **Any audio in house off**, after the players, turns off whatever is playing in every room, after
     asking: a player that can't be turned off is paused, else stopped, else muted. Players that are
     paused or idle are left as they are.
   - the room's lights, as before.
