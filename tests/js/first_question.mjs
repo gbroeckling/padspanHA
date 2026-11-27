@@ -127,6 +127,14 @@ check("due:not on a wall screen", !FQ.due(makeCtx({ settings: { purpose_ask: "du
   FQ.openStep(ctx, "plan");
   check("step:plan opens Mapping → Upload with the scan offered first", state.mapsTab === "upload" && state._mapsWizard === null
     && state._roughPlan.open === true && state._roughPlan.kind === "scan" && log.some(x => x[1] === "maps"), state);
+  // rough_plan.js's own defaults on a new install (no _roughPlan yet): the blank floor's fields read "", not undefined
+  check("step:plan on a new install keeps the blank floor's defaults", state._roughPlan.across === "" && state._roughPlan.down === ""
+    && state._roughPlan.busy === false, state._roughPlan);
+  const kept = makeCtx();
+  kept.state._roughPlan = { open: false, kind: null, across: "12", down: "8", busy: false, msg: "x", walk: null };
+  FQ.openStep(kept.ctx, "plan");
+  check("step:plan keeps what was typed", kept.state._roughPlan.across === "12" && kept.state._roughPlan.down === "8"
+    && kept.state._roughPlan.kind === "scan" && kept.state._roughPlan.msg === "", kept.state._roughPlan);
 }
 {
   const { ctx, log, state } = makeCtx();

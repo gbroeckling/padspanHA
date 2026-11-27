@@ -130,6 +130,15 @@ def _licence_parts() -> str:
 def test_no_forever_and_no_stays_free_on_the_licence_card():
     text = _licence_parts()
     assert "forever" not in text and "stays free" not in text
+    # one click away: the tiers wizard's step labels, and its "?" (the settings_tiers help)
+    s = _read("views/settings.js")
+    steps = s[s.index("const TIERS_WIZARD_STEPS = ["):s.index("function _tiersWizardFooter(")]
+    assert "always free" not in steps and 't("The free version")' in steps
+    helps = _read("help_content.js")
+    tiers = helps[helps.index("  settings_tiers: {"):]
+    tiers = tiers[:tiers.index("\n  },")]
+    assert "forever" not in tiers.lower() and "stays free" not in tiers and "always free" not in tiers
+    assert "the free version doesn't run out" in tiers and "PadSpan says which where you meet them" in tiers
     assert "FREE_LINE()" in text and _FREE in _read("views/settings.js")
 
 
@@ -138,6 +147,9 @@ def test_what_needs_what_is_said_as_it_is_now():
     assert ("Fixture shapes with their size and angle, WLED's Advanced controls and Fit room need Pro or the Advanced "
             "smart lighting add-on") in s
     assert "Showcase needs Pro or the Looks pack" in s
+    # before December 1 as well as from it: what Forensics, Locate and Busy Times need
+    card = s[s.index("  if (!hasKey) {\n    line = fb"):s.index("    line += \" \" + FREE_LINE();")]
+    assert card.count("Forensics, Locate and Busy Times need Pro or Presence insights") == 2, card
     assert "The lights' looks (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D editor and Furnish are locked" not in s
 
 

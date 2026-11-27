@@ -1,5 +1,5 @@
 {
-"What's always free": "Ce qui reste toujours gratuit",
+"The free version": "La version gratuite",
 "The tiers": "Les niveaux",
 "Upgrading": "Mise à niveau",
 "← Back": "← Retour",
@@ -68,7 +68,7 @@
 "PadSpan licence": "Licence PadSpan",
 "free": "gratuit",
 "No licence key on this install. Light placement, the 3D house and the wall screen are locked.": "Aucune clé de licence sur cette installation. Le placement des lumières, la maison en 3D et l’écran mural sont verrouillés.",
-"No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times.": "Aucune clé de licence sur cette installation. Les fonctions payantes sont verrouillées : le placement des lumières, Forensique, la maison en 3D, l’écran mural, Localiser et Busy Times.",
+"No licence key on this install. Light placement, the 3D house and the wall screen are locked. Forensics, Locate and Busy Times need Pro or Presence insights.": "Aucune clé de licence sur cette installation. Le placement des lumières, la maison en 3D et l’écran mural sont verrouillés. Forensique, Localiser et Busy Times demandent Pro ou « Analyses de présence ».",
 "Your 90-day trial": "Votre essai de 90 jours",
 "The {name} licence": "La licence {name}",
 "{what} expired on {date}": "{what} a expiré le {date}",

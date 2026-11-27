@@ -207,6 +207,8 @@ EVENTS: frozenset[str] = frozenset({
     # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
     # and honest): whether anyone looks, once per opening.
     "stale_receivers_listed",
+    # The first-run question (onboarding.PURPOSE_KEYS) skipped: asked and skipped, told apart from never asked.
+    "purpose_skipped",
     # Open screens (screens.py, off by default): a reload or an announcement
     # that reached at least one screen, once per call. Never the message.
     "screens_reload_sent", "screens_announce_sent", "screens_announce_test_sent",
