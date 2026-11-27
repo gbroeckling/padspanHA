@@ -1,5 +1,5 @@
 {
-"What's always free": "Wat altijd gratis is",
+"The free version": "De gratis versie",
 "The tiers": "De niveaus",
 "Upgrading": "Upgraden",
 "← Back": "← Terug",
@@ -68,7 +68,7 @@
 "PadSpan licence": "PadSpan-licentie",
 "free": "gratis",
 "No licence key on this install. Light placement, the 3D house and the wall screen are locked.": "Deze installatie heeft geen licentiesleutel. Lampplaatsing, het 3D-huis en het wandscherm zijn vergrendeld.",
-"No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times.": "Deze installatie heeft geen licentiesleutel. De betaalde functies zijn vergrendeld: lampplaatsing, Forensisch, het 3D-huis, het wandscherm, Zoeken en Busy Times.",
+"No licence key on this install. Light placement, the 3D house and the wall screen are locked. Forensics, Locate and Busy Times need Pro or Presence insights.": "Deze installatie heeft geen licentiesleutel. Lampplaatsing, het 3D-huis en het wandscherm zijn vergrendeld. Forensisch, Zoeken en Busy Times vragen Pro of “Aanwezigheidsinzichten”.",
 "Your 90-day trial": "Je proefperiode van 90 dagen",
 "The {name} licence": "De {name}-licentie",
 "{what} expired on {date}": "{what} is verlopen op {date}",

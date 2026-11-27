@@ -966,6 +966,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # that was never asked stays so.
             if st is not None and st.data.get("purpose_ask") == "due":
                 payload["purpose_ask"] = "done"
+                if not payload.get("purpose"):
+                    from .telemetry import bump as _bump  # noqa: PLC0415
+                    _bump(hass, "purpose_skipped")       # the usage report, a count only (when it is on)
         if "telemetry_enabled" in msg:
             # Opting a whole install into sending reports is an admin's call,
             # like the send-now and reset-id commands beside it.

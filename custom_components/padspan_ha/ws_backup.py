@@ -584,7 +584,8 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             data["server_offers"] = (store_obj.data or {}).get("server_offers") or {}
                             # Whether the first-run question is asked is this install's (onboarding.PURPOSE_KEYS):
                             # a backup taken on a new install's first day must not ask an older one.
-                            data["purpose_ask"] = (store_obj.data or {}).get("purpose_ask") or ""
+                            from .settings_store import purpose_ask_kept
+                            data["purpose_ask"] = purpose_ask_kept(store_obj.data or {}, data)
                             # Nor bring back the trial milestone card, or restart
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import live_first_kept, trial_state_kept

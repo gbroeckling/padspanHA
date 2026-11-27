@@ -460,6 +460,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 }
 
 
+def purpose_ask_kept(live: dict[str, Any] | None, other: dict[str, Any] | None) -> str:
+    """settings["purpose_ask"] through a settings restore (`other` is the settings coming in): this install's own,
+    never the backup's, so a backup from a new install's first day never asks an older one. A new install still
+    asking ("due") whose restored settings already hold an answer is done: the question was answered there."""
+    from .onboarding import purpose_keys  # noqa: PLC0415
+    mine = str((live or {}).get("purpose_ask") or "")
+    return "done" if mine == "due" and purpose_keys((other or {}).get("purpose")) else mine
+
+
 def live_first_kept(live: dict[str, Any] | None, other: dict[str, Any] | None,
                     from_bright: bool = False) -> dict[str, Any]:
     """onboarding["live_first"] through a settings restore or a Bright import

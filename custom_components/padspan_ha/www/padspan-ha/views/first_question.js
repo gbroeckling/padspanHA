@@ -72,7 +72,8 @@ export function openStep(ctx, key) {
   if (key === "plan") {
     // Mapping → Upload, the ways to a plan open at the scan (rough_plan.js keeps its state in _roughPlan).
     st._mapsWizard = null;
-    st._roughPlan = { ...(st._roughPlan || {}), open: true, kind: "scan", msg: "", walk: null };
+    // rough_plan.js's own defaults first: a new install has no _roughPlan yet, and its blank floor reads across/down.
+    st._roughPlan = { across: "", down: "", busy: false, ...(st._roughPlan || {}), open: true, kind: "scan", msg: "", walk: null };
     st.mapsTab = "upload";
     ctx.actions.showView("maps");
     return;

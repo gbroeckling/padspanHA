@@ -3269,7 +3269,7 @@ function _voiceQuestionsCard(ctx, el) {
 // ctx.state._tiersWizard = { step } while open; falsy means closed.
 // i18n part: features
 const TIERS_WIZARD_STEPS = [
-  { n: 1, id: "free",    label: () => t("What's always free") },
+  { n: 1, id: "free",    label: () => t("The free version") },
   { n: 2, id: "ladder",  label: () => t("The tiers") },
   { n: 3, id: "upgrade", label: () => t("Upgrading") },
 ];
@@ -3645,7 +3645,7 @@ function _settingsLicence(ctx, el){
         : t("No licence key on this install. Light placement, the plain wall screen and the 3D house are free. Fixture shapes with their size and angle, WLED's Advanced controls and Fit room need Pro or the Advanced smart lighting add-on, and Showcase needs Pro or the Looks pack. Forensics, Locate and Busy Times need Pro or Presence insights; the 3D editor, Furnish and people in 3D need Pro."))
       : edition === "PadSpan Bright"
       ? t("No licence key on this install. Light placement, the 3D house and the wall screen are locked.")
-      : t("No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times.");
+      : t("No licence key on this install. Light placement, the 3D house and the wall screen are locked. Forensics, Locate and Busy Times need Pro or Presence insights.");
     line += " " + FREE_LINE();
     colour = "#94a3b8";
   } else if (isAddons) {

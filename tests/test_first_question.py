@@ -77,8 +77,17 @@ def test_bright_is_never_asked(tmp_path, monkeypatch):
 
 
 def test_a_restore_keeps_this_installs_asking():
+    from custom_components.padspan_ha.settings_store import purpose_ask_kept
+    # this install's own, never the backup's
+    assert purpose_ask_kept({}, {"purpose_ask": "due"}) == ""
+    assert purpose_ask_kept({"purpose_ask": ""}, {"purpose_ask": "due", "purpose": []}) == ""
+    assert purpose_ask_kept({"purpose_ask": "done"}, {"purpose_ask": "due"}) == "done"
+    # a new install still asking: done once the restored settings hold an answer (as live_first_kept does)
+    assert purpose_ask_kept({"purpose_ask": "due"}, {"purpose": ["plan"]}) == "done"
+    assert purpose_ask_kept({"purpose_ask": "due"}, {"purpose": ["garage"]}) == "due"
+    assert purpose_ask_kept({"purpose_ask": "due"}, {}) == "due"
     src = (_ROOT / "custom_components" / "padspan_ha" / "ws_backup.py").read_text(encoding="utf-8")
-    assert 'data["purpose_ask"] = (store_obj.data or {}).get("purpose_ask") or ""' in src
+    assert 'data["purpose_ask"] = purpose_ask_kept(store_obj.data or {}, data)' in src
 
 
 # ═══ 2. stored, an administrator's ════════════════════════════════════════════
@@ -129,6 +138,21 @@ def test_settings_never_starts_the_asking():
     # Only ever forward: "due" is never sent from the panel.
     saved, err, data = _settings_set({"purpose_ask": "done"}, {"purpose_ask": "due"})
     assert data["purpose_ask"] == "done"
+
+
+def test_a_skip_is_counted_and_an_answer_is_not(monkeypatch):
+    bumped = []
+    monkeypatch.setattr(T, "bump", lambda hass, event, n=1: bumped.append(event) or True)
+    _settings_set({"purpose_ask": "due"}, {"purpose_ask": "done"})
+    assert bumped == ["purpose_skipped"]
+    assert "purpose_skipped" in T.EVENTS and T.event_allowed("purpose_skipped")
+    bumped.clear()
+    _settings_set({"purpose_ask": "due"}, {"purpose": ["lights"]})      # answered
+    _settings_set({"purpose_ask": "done"}, {"purpose_ask": "done"})     # asked before
+    _settings_set({"purpose_ask": ""}, {"purpose": []})                 # never asked: Settings
+    assert bumped == []
+    ib = (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
+    assert 'purpose_skipped: "Skipped the first-run question"' in ib
 
 
 def test_only_an_administrator_answers():
@@ -196,7 +220,7 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("due:", 5), ("ask:", 4), ("start:", 5), ("skip:", 2), ("step:", 6),
+@pytest.mark.parametrize("prefix,least", [("due:", 5), ("ask:", 4), ("start:", 5), ("skip:", 2), ("step:", 8),
                                           ("next:", 6), ("settings:", 4)])
 def test_the_question_in_the_panel(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}

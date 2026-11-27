@@ -125,7 +125,7 @@ const wizardOf = (step) => (s) => renderFeatures(s, { _tiersWizard: { step } }).
 const BR = { edition: "bright" };
 const FB_SENTENCES = [
   ["nokey", KINDS.nokey, statusOf,
-    "No licence key on this install. The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on.",
+    "No licence key on this install. Light placement, the 3D house and the wall screen are locked. Forensics, Locate and Busy Times need Pro or Presence insights. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on.",
     "No licence key on this install. Light placement, the plain wall screen and the 3D house are free. Fixture shapes with their size and angle, WLED's Advanced controls and Fit room need Pro or the Advanced smart lighting add-on, and Showcase needs Pro or the Looks pack. Forensics, Locate and Busy Times need Pro or Presence insights; the 3D editor, Furnish and people in 3D need Pro. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on."],
   ["nokey_bright", { ...KINDS.nokey, ...BR }, statusOf,
     "No licence key on this install. Light placement, the 3D house and the wall screen are locked. The free version needs no key and doesn't run out. Some features need PadSpan Pro or an add-on, and PadSpan says which where you meet them. Pro includes every add-on.",
