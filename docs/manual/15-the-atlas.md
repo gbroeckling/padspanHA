@@ -144,8 +144,9 @@ thermostats are lines of their own in the same list: **Shades** (free,
     while it is off (never for a Control4 room, whose "on" can start a TV: pick a source instead).
     The volume is a slider for a player that takes a level: the number follows your finger, Home
     Assistant is told at most four times a second and once more when you let go, and nothing
-    redraws under your finger. A player that steps itself (a Control4 room) keeps **−**, the level
-    and **+**: each press moves the level shown at once, 1 in 100, and quick presses add up.
+    redraws under your finger. A player that steps (a Control4 room) keeps **−**, the level and **+**,
+    beside the slider where it also takes a level: each press moves the level shown at once, 1 in
+    100 on a player that steps itself, and quick presses add up.
     Under the row, while something plays: the cover, the title and the artist, with ▶/⏸ (one
     button while Home Assistant says playing or paused, separate ▶ and ⏸ otherwise, as for a
     Control4 room), ⏮ ⏭ and ⏹, and ⏪ ⏩ for a Control4 room whose integration has the
@@ -167,8 +168,9 @@ thermostats are lines of their own in the same list: **Shades** (free,
       says "with Kitchen, Den" while it's grouped.
 
     What a player can't do is left out or greyed: a player that is off shows its level as —.
-    **All audio off**, after the players, turns off every room's music (players that can't be
-    turned off are paused or stopped), after asking.
+    **All audio off**, after the players, turns off whatever is playing in every room, after
+    asking: a player that can't be turned off is paused, else stopped, else muted. Players that are
+    paused or idle are left as they are.
   - the room's lights, as before.
 
   Each press is one call to Home Assistant, with no question first. Anyone who can switch the lights

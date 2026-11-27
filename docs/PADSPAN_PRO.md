@@ -418,7 +418,7 @@ same card as its lights.
 - **Room off (n)**: turns off the room's lights and players that are on. It never touches a lock, a
   shade, a thermostat or a plug.
 - **Audio**: a row for each player, named by its system ("Control4 · Great Room"), with On, Off or
-  Muted, **Mute**, a volume slider (or **−**, the level and **+** for a player that steps, such as
+  Muted, **Mute**, a volume slider (and **−**, the level and **+** for a player that steps, such as
   Control4), **On** and **⏻**. Under it, while something plays: the cover, title and artist, with
   play and pause, previous and next and stop (rewind and fast-forward too, for a Control4 room
   whose integration offers them). Then **Source** and **Mode** (a receiver's sound mode, grouped),

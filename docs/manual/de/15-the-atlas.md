@@ -160,9 +160,10 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
     starten kann: Wähl stattdessen eine Quelle). Die Lautstärke ist ein Schieberegler bei einem
     Player, der eine Lautstärke annimmt: Die Zahl folgt deinem Finger, Home Assistant erfährt sie
     höchstens viermal pro Sekunde und noch einmal, wenn du loslässt, und unter deinem Finger wird
-    nichts neu gezeichnet. Ein Player, der selbst schrittweise regelt (ein Control4-Raum), behält
-    **−**, die Lautstärke und **+**: Jeder Druck ändert die angezeigte Lautstärke sofort um 1 von 100,
-    und schnelle Tipps zählen zusammen.
+    nichts neu gezeichnet. Ein Player, der schrittweise regelt (ein Control4-Raum), behält **−**, die
+    Lautstärke und **+**, neben dem Schieberegler, wo er auch eine Lautstärke annimmt: Jeder Druck
+    ändert die angezeigte Lautstärke sofort, um 1 von 100 bei einem Player, der selbst schrittweise
+    regelt, und schnelle Tipps zählen zusammen.
     Unter der Zeile, solange etwas läuft: das Cover, der Titel und der Interpret, mit ▶/⏸ (eine
     Taste, solange Home Assistant „spielt“ oder „pausiert“ meldet, sonst getrennte ▶ und ⏸, wie bei
     einem Control4-Raum), ⏮ ⏭ und ⏹, und ⏪ ⏩ bei einem Control4-Raum, dessen Integration die
@@ -186,8 +187,9 @@ eines Raums haben in derselben Liste eigene Zeilen: **Beschattung** (kostenlos,
       gruppiert ist.
 
     Was ein Player nicht kann, fehlt oder ist grau: Ein ausgeschalteter Player zeigt seine
-    Lautstärke als —. **Alles Audio aus**, nach den Playern, schaltet nach einer Rückfrage die Musik
-    in allen Räumen aus (Player, die sich nicht ausschalten lassen, werden pausiert oder gestoppt).
+    Lautstärke als —. **Alles Audio aus**, nach den Playern, schaltet nach einer Rückfrage aus, was in allen Räumen gerade
+    spielt: Ein Player, der sich nicht ausschalten lässt, wird pausiert, sonst gestoppt, sonst
+    stummgeschaltet. Pausierte oder ruhende Player bleiben, wie sie sind.
   - die Lichter des Raums wie bisher.
 
   Jeder Druck ist ein Aufruf an Home Assistant, ohne Rückfrage. Wer die Lichter schalten kann, kann
