@@ -63,6 +63,11 @@ check("energy: Pro and a key holding it may use it", E.addonAllowed({ tier: "pro
 check("energy: never a trial's while not on sale", E.addonAllowed({ tier: "pro", license_is_trial: true }, "energy") === false
   && E.addonAllowed({ tier: "pro", license_is_trial: true }, "audio") === true && E.addonAllowed({ tier: "pro", license_is_trial: false }, "energy") === true
   && JSON.stringify(E.HELD_FROM_TRIALS) === JSON.stringify(["energy"]));
+// The Atlas hands {tier, addons_licensed} only (lights_panel.js _addon): the backend's list decides, which leaves Energy
+// out for a trial and puts it in for a paid Pro key.
+check("energy: the Atlas's question goes by the backend's list", E.addonAllowed({ tier: "pro", addons_licensed: ["audio"] }, "energy") === false
+  && E.addonAllowed({ tier: "pro", addons_licensed: ["audio", "energy"] }, "energy") === true
+  && E.addonAllowed({ tier: "pro", addons_licensed: ["audio"] }, "audio") === true && E.addonAllowed({ tier: "pro", addons_licensed: [] }, "looks") === true);
 check("energy: never in the sale card", !E.addonSaleCardPicks({ tier: "free" }, Date.parse("2026-12-24T12:00:00Z")).includes("energy"));
 check("the sale still halves the feature add-ons", E.addonPriceParts("audio", Date.parse("2026-12-24T12:00:00Z")).half === true);
 check("c4local: an add-on key holding it may use it", E.addonAllowed({ ...KEY, addons_licensed: ["c4local"] }, "c4local") === true

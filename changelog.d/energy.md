@@ -6,5 +6,5 @@
 - **Standby while you're out.** While everyone is away or Vacation Mode is on, PadSpan measures the house's lowest steady use and says what it costs over a year at your price.
 - **Sensor health.** Stale readings, units that aren't W, kW, kWh or Wh, a power and an energy sensor that disagree, a device bigger than the one it is part of, a grid figure that exports at night and a device with no area are each listed with the sensor.
 - **Who was home at spikes** (administrators only, off by default): the biggest jumps in the house's power over the last 7 days, with who PadSpan saw at home and where, and a link to Traceback at that moment. It stays on your house.
-- **Yesterday at home** adds the kWh and cost used in empty rooms the day before, while Energy is on.
+- **Yesterday at home** can add the kWh and cost used in empty rooms the day before: tick Energy in its lines (Settings → Tracking → Phones and guest tags → Yesterday at home), where it shows once Energy is on.
 - Energy is an add-on (Energie in German). It isn't on sale yet; a PadSpan Pro licence includes it, a Pro trial doesn't until it goes on sale.

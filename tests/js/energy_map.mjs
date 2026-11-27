@@ -141,6 +141,10 @@ await tryCase("map", async () => {
   const lbe = Object.fromEntries(LM.gatherLights(states, { "light.kitchen_lamp": "Kitchen" }, {}, "pro").map(l => [l.entity_id, l]));
   const placed = { ...MODEL, light_positions_m: { "light.kitchen_lamp": { x_m: 2, y_m: 2, floor_id: "main" } } };
   const dw = (m) => ISO.buildIsoSVG(m, { Kitchen: Object.values(lbe) }, new Set(), null, 150, 0, lbe, false, MODEL.floors, { codeChip: true, deviceWatts: { "light.kitchen_lamp": "80 W" } });
+  // With Automorph on (the owner's house) the glow stands in for the glyph: the watts still go by the fixture's point.
+  const glow = ISO.buildIsoSVG(placed, { Kitchen: Object.values(lbe) }, new Set(), null, 150, 0, lbe, false, MODEL.floors,
+    { codeChip: true, automorph: true, automorphRoomPct: 60, deviceWatts: { "light.kitchen_lamp": "80 W" } });
+  check("map", (glow.match(/class="ldev-watts"/g) || []).length === 1, "no watts with Automorph on");
   check("map", Object.keys(lbe).length === 1 && (dw(placed).match(/class="ldev-watts"/g) || []).length === 1 && dw(placed).includes(">\u26A1\uFE0E 80 W</text>"), "the placed lamp's watts");
   // Never on the room's name, its chip or its speaker: with all three crowding the lamp, the label finds a clear spot
   // or isn't drawn.
@@ -191,6 +195,30 @@ await tryCase("review", async () => {
   const w0 = walks;
   for (let i = 0; i < 20; i++) { rr.chips(); rr.deviceWatts(); }
   check("review", w0 === 1 && walks === 1 && rr.deviceWatts()["switch.s3"] === "80 W", { w0, walks });
+});
+
+// ── the Energy view (views/energy.js): asks at most every REFRESH_MS, even when its first call fails; sensor health says
+// an id with no other name once; money as a house reads it ──
+await tryCase("view", async () => {
+  const V = await import(url("views", "energy.js"));
+  const el = (tag, attrs = {}, kids = []) => { const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) if (v !== undefined && v !== null) n.setAttribute(k, String(v));
+    for (const c of Array.isArray(kids) ? kids : [kids]) if (c !== null && c !== undefined) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    return n; };
+  let calls = 0, renders = 0;
+  const ctx = { state: { view: "energy", settings: {} }, hass: { user: { is_admin: false }, states: {} },
+    helpers: { el, errorText: (e) => String(e && e.message || e) }, toast: () => {},
+    actions: { wsCall: async () => { calls++; throw new Error("down"); }, telemetryEvent: () => {},
+               renderRooms: () => { renders++; if (renders < 50) V.render(ctx); } } };   // bounded: the old loop never ended
+  for (let i = 0; i < 25; i++) { V.render(ctx); await tick(); }
+  check("view", calls === 1, { calls, renders });
+  // Sensor health: a name and its id small; an id with no other name once.
+  const box = el("div");
+  V.draw(ctx, el, box, { ...SUMMARY(), issues: [{ kind: "stale", entity: "sensor.grid_power" }, { kind: "stale", entity: "sensor.fridge_power" }] });
+  const health = all(box).find(n => n.attributes && n.attributes["data-energy"] === "health");
+  const texts = all(health).map(n => n._text).filter(Boolean);
+  check("view", texts.filter(x => x === "sensor.grid_power").length === 1 && texts.includes("Fridge") && texts.includes("sensor.fridge_power"), texts);
+  check("view", EN.fmtMoney(0.15, "CAD") === "$0.15", EN.fmtMoney(0.15, "CAD"));
 });
 
 // ── sheet: the room's Energy part; a room without metering, and Energy not passed, gain nothing ──
@@ -261,7 +289,8 @@ await tryCase("german", async () => {
   const words = all(part).map(x => x._text).filter(Boolean);
   check("german", words.includes("Energie") && words.includes("Raum gesamt") && words.some(w => w.startsWith("Leer seit 2 Std.")), words);
   // Numbers and money in the panel's language.
-  check("german", EN.fmtW(1834) === "1,8 kW" && EN.fmtKwh(4.81) === "4,81 kWh" && EN.fmtMoney(0.06, "CAD").includes("0,06"),
+  check("german", EN.fmtW(1834) === "1,8 kW" && EN.fmtKwh(4.81) === "4,81 kWh" && EN.fmtMoney(0.06, "CAD").includes("0,06")
+    && EN.fmtMoney(0.15, "EUR") === "0,15\u00A0€",
     [EN.fmtW(1834), EN.fmtKwh(4.81), EN.fmtMoney(0.06, "CAD")]);
   await I.useLanguage({ language: "en", locale: { language: "en" } }, ["atlas1"]);
 });

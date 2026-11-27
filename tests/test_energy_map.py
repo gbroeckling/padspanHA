@@ -34,7 +34,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["format", "chips", "map", "review", "sheet", "host-only", "german"])
+@pytest.mark.parametrize("case", ["format", "chips", "map", "review", "view", "sheet", "host-only", "german"])
 def test_energy_on_the_atlas(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -72,7 +72,7 @@ def test_settings_offers_energy_only_where_the_add_on_is_allowed():
     assert 'row("energy_enabled", t("Energy"),' in body and "if (settings.energy_enabled !== true) return card;" in body
     # Energy on the map is with the room's card's other parts (Settings → Atlas, "In the room's card"), once Energy is on.
     assert 'row("atlas_energy_enabled"' not in body
-    assert 'if (addonAllowed(settings, "energy") && settings.energy_enabled === true) {\n    roomPartRow("atlas_energy_enabled", t("Energy on the map"),' in st
+    assert 'if (addonAllowed(settings, "energy") && settings.energy_enabled === true) {\n    roomPartRow("atlas_energy_enabled", t("Energy"),' in st
     assert body.index("if (admin) {") < body.index('row("energy_spikes_enabled"')
 
 
@@ -120,3 +120,26 @@ def test_more_devices_of_the_area_leaves_out_what_the_energy_rows_read():
     la = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8").replace(chr(13), "")
     body = la[la.index("function paintRoomMore(api){"):][:1400]
     assert 'api.energy && typeof api.energy.shownIn === "function" && api.energy.sheet(room) ? api.energy.shownIn(room) : []' in body
+
+
+def test_energy_s_settings_are_greyed_for_household_members_and_its_card_s_rows_are_36_px():
+    """Every Energy setting is an administrator's (ws_settings): greyed, with its note, for anyone else, in Energy's own
+    card and in "In the room's card", where its row is called Energy like its neighbours. Every switch row of the Atlas
+    card is at least 36 px."""
+    st = _src("views/settings.js")
+    en = st[st.index("function _atlasEnergySection(ctx, el, settings){"):]
+    assert 'if (!admin) { cb.disabled = true; r.title = t("Only an administrator can change this"); }' in en
+    assert 'if (!admin) { mins.disabled = true; emptyRow.title = t("Only an administrator can change this"); }' in en
+    assert en.count("min-height:36px") >= 2
+    at = st[st.index("function _settingsAtlas(ctx, el){"):st.index("function _atlasEnergySection(ctx, el, settings){")]
+    assert 'roomPartRow("atlas_energy_enabled", t("Energy"),' in at and '"atlas-energy", true);' in at
+    assert 'if (locked) { cb.disabled = true;' in at and 't("Energy on the map")' not in st
+    for row in ("lightsRow", "emergRow", "colRow", "pulseRow", "alarmRow", "heatRow"):
+        line = next(ln for ln in at.splitlines() if ln.strip().startswith(f"const {row} = el(\"label\""))
+        assert "min-height:36px" in line, row
+
+
+def test_the_release_note_says_to_tick_energy_in_yesterday_at_home():
+    note = (_ROOT / "changelog.d" / "energy.md").read_text(encoding="utf-8")
+    assert "tick Energy in its lines" in note and "adds the kWh" not in note
+

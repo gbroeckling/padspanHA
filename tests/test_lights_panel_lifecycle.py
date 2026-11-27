@@ -349,6 +349,7 @@ def test_energy_through_the_panel(result) -> None:
         assert {k: got[k] for k in lit} == lit and got["asked"] >= 1, (case, got)
         assert sorted(got["sent"]) == ["energy:on", "energy:sheet"], (case, got)
     assert e["notAllowed"] == {"house": False, **nothing}, e["notAllowed"]
+    assert e["trial"] == {"house": False, **nothing}, e["trial"]              # held back from trials, as the backend
     assert e["classicOff"] == {"house": True, **nothing}, e["classicOff"]
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert '_energyHouse(){ return !!ENERGY && this._addon("energy") && this.state._energyHouse === true; }' in panel

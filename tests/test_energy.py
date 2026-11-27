@@ -766,3 +766,34 @@ async def test_yesterday_s_energy_line_follows_the_lines_chosen(monkeypatch) -> 
     import inspect
     src = inspect.getsource(PC.async_send_yesterday_home)
     assert 'if "energy" in lines and covered and room_list:' in src
+
+
+def test_the_trial_hold_is_one_list_in_both_halves() -> None:
+    import re
+    from pathlib import Path
+    from custom_components.padspan_ha import licence as L
+    ed = (Path(L.__file__).parent / "www" / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
+    js = re.search(r"export const HELD_FROM_TRIALS = Object\.freeze\(\[([^\]]*)\]\);", ed).group(1)
+    assert tuple(re.findall(r'"([a-z0-9]+)"', js)) == L.HELD_FROM_TRIALS == ("energy",)
+
+
+async def test_a_failed_traceback_read_keeps_its_cursor_and_is_read_again() -> None:
+    """A read that fails is not passed over: its window is read again (after OCCUPANCY_EVERY_S), never counted as a
+    stretch nobody was in."""
+    reads, fail = [], {"now": False}
+
+    async def day(start, end, guests=None):
+        reads.append((start, end))
+        if fail["now"]:
+            raise OSError("not readable")
+        return {"frames": 3, "occupied": {"Office": [(end - 60, end - 30)]}}
+    h = _hass({"energy_enabled": True}, tb=SimpleNamespace(frames=[], async_day_summary=day))
+    await E._async_trace(h, NOW)
+    fail["now"] = True
+    await E._async_trace(h, NOW + E.OCCUPANCY_EVERY_S)                       # fails: the cursor stays at NOW
+    await E._async_trace(h, NOW + E.OCCUPANCY_EVERY_S + 60)                  # not again at once
+    fail["now"] = False
+    got, _ = await E._async_trace(h, NOW + 2 * E.OCCUPANCY_EVERY_S)
+    assert reads == [(NOW - E.LOOKBACK_S, NOW), (NOW, NOW + E.OCCUPANCY_EVERY_S), (NOW, NOW + 2 * E.OCCUPANCY_EVERY_S)]
+    assert got["office"][-1] == (NOW + 2 * E.OCCUPANCY_EVERY_S - 60, NOW + 2 * E.OCCUPANCY_EVERY_S - 30)
+

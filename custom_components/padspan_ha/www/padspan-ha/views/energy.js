@@ -23,7 +23,7 @@ const SEARCH = new URL(import.meta.url).search;
 const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
 const { t } = await import(`./i18n.js${SEARCH}`).catch(() => ({ t: _fill }));
 const { fmtW, fmtKwh, fmtMoney, fmtFor, locale, BOLT } = await import(`./energy_map.js${SEARCH}`);
-const { addonUsedSeen } = await import(`./editions.js${SEARCH}`);
+const { addonUsedSeen, addonOnSale } = await import(`./editions.js${SEARCH}`);
 
 const REFRESH_MS = 30000;
 const AMBER = "#fbbf24";
@@ -58,7 +58,9 @@ export function render(ctx) {
   const es = ctx.state._energy || (ctx.state._energy = { data: null, ts: 0 });
   if (es.data) draw(ctx, el, content, es.data);
   else content.appendChild(el("div", { style: "text-align:center;color:#94a3b8;padding:20px" }, es.error ? es.error : t("Loading…")));
-  if (!es.data || Date.now() - es.ts > REFRESH_MS) load(ctx);
+  // Asked at most every REFRESH_MS, with or without an answer yet: a first call that fails is not asked again on every
+  // redraw (es.ts is stamped as each call starts).
+  if (Date.now() - es.ts > REFRESH_MS) load(ctx);
   if (!_viewCounted) {
     _viewCounted = true;
     const send = (n) => ctx.actions.telemetryEvent(n);
@@ -98,7 +100,8 @@ export function draw(ctx, el, content, d) {
   if (!d || d.on !== true) {
     // Not allowed here: Settings has no Energy card to point to; say what it needs.
     content.appendChild(d && d.allowed === false
-      ? card(el, t("Energy"), [note(el, t("Energy needs PadSpan Pro or the Energy add-on."))], "not_allowed")
+      // While Energy isn't sold, nobody can buy its add-on: say Pro alone.
+      ? card(el, t("Energy"), [note(el, addonOnSale("energy") ? t("Energy needs PadSpan Pro or the Energy add-on.") : t("Energy needs PadSpan Pro."))], "not_allowed")
       : card(el, t("Energy is off"), [note(el, t("Turn it on in Settings → Atlas → Energy."))], "off"));
     return;
   }
@@ -159,8 +162,9 @@ export function draw(ctx, el, content, d) {
   for (const x of d.devices || []) { names.set(x.id, x.name); if (x.rate) names.set(x.rate, x.name); }
   const nameOf = (eid) => names.get(eid) || ((ctx.hass && ctx.hass.states && ctx.hass.states[eid] && ctx.hass.states[eid].attributes) || {}).friendly_name || eid || "";
   content.appendChild(card(el, t("Sensor health"), issues.length ? issues.map(i => el("div", { style: "padding:4px 0;font-size:13px", "data-energy-issue": i.kind }, [
-    el("div", { style: "color:#e2e8f0" }, nameOf(i.entity)),
-    el("div", { style: "font-family:ui-monospace,monospace;font-size:10px;color:#64748b" }, i.entity || ""),
+    // The id once: under the name, or alone where it has no other name.
+    ...(nameOf(i.entity) !== (i.entity || "") ? [el("div", { style: "color:#e2e8f0" }, nameOf(i.entity))] : []),
+    el("div", { style: "font-family:ui-monospace,monospace;font-size:" + (nameOf(i.entity) !== (i.entity || "") ? "10px;color:#64748b" : "12px;color:#cbd5e1") }, i.entity || ""),
     el("div", { style: "color:#94a3b8;font-size:12px" }, ISSUE_WORDS[i.kind] ? ISSUE_WORDS[i.kind]() : i.kind),
   ])) : [note(el, t("Every sensor looks right."))], "health"));
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);

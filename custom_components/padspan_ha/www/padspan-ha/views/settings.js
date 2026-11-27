@@ -5257,7 +5257,7 @@ function _settingsAtlas(ctx, el){
   lightsCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#fbbf24;margin-bottom:6px"},t("\uD83D\uDCA1 Atlas \u2014 Mapped Light Control")));
   lightsCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
     t("The house map for everyday light control, as its own entry in the Home Assistant sidebar. On by default.")));
-  const lightsRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
+  const lightsRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;min-height:36px"});
   const lightsCb = el("input",{type:"checkbox"});
   lightsCb.checked = !!(settings.lights_panel_enabled);
   lightsRow.appendChild(lightsCb);
@@ -5278,7 +5278,7 @@ function _settingsAtlas(ctx, el){
   // The Atlas's red "Test emergency lighting" button — shown only when the
   // house has emergency lights; this hides it even then (never while a test
   // runs). Saved on its own the moment it changes.
-  const emergRow = el("label",{"data-focus-part":"emergency_button",style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const emergRow = el("label",{"data-focus-part":"emergency_button",style:"display:flex;align-items:center;gap:8px;cursor:pointer;min-height:36px;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   const emergCb = el("input",{type:"checkbox"});
   emergCb.checked = settings.atlas_emergency_button !== false;
   emergRow.appendChild(emergCb);
@@ -5304,7 +5304,7 @@ function _settingsAtlas(ctx, el){
   });
   // Lights in their own colours on the working Atlas (Showcase always does).
   // Off by default: the map everyone knows stays amber until asked.
-  const colRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
+  const colRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;min-height:36px;margin-top:10px"});
   const colCb = el("input",{type:"checkbox"});
   colCb.checked = settings.atlas_live_colours === true;
   colRow.appendChild(colCb);
@@ -5327,7 +5327,7 @@ function _settingsAtlas(ctx, el){
   // than 6 hours, or a window or cover open in the rain or snow, rings its room
   // in amber (lights_map.js safetyAlerts; a leak, smoke, gas or CO alarm
   // already rings red), and a wall screen names the worst one across its top.
-  const pulseRow = el("label",{"data-focus-part":"alert_pulse",style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const pulseRow = el("label",{"data-focus-part":"alert_pulse",style:"display:flex;align-items:center;gap:8px;cursor:pointer;min-height:36px;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   const pulseCb = el("input",{type:"checkbox"});
   pulseCb.checked = settings.atlas_alert_pulse === true;
   pulseRow.appendChild(pulseCb);
@@ -5352,7 +5352,7 @@ function _settingsAtlas(ctx, el){
   // A leak, smoke, gas or CO alarm that latches (the red ring above) sends one
   // notification, and one when it clears: emergency_notify, on by default
   // (flood_latch.py; where Follow alerts go, auto-picked when none is set).
-  const alarmRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"emergency-notify"});
+  const alarmRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;min-height:36px;margin-top:10px","data-settings":"emergency-notify"});
   const alarmCb = el("input",{type:"checkbox"});
   alarmCb.checked = settings.emergency_notify === true;
   alarmRow.appendChild(alarmCb);
@@ -5377,7 +5377,7 @@ function _settingsAtlas(ctx, el){
   // PadSpan Pro's and the Climate map add-on's: without either, no row at all,
   // and whatever is stored is kept for when a key comes back (as the 3D house's below).
   if (addonAllowed(settings, "climate")) {
-  const heatRow = el("label",{"data-focus-part":"atlas_heatmap",style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
+  const heatRow = el("label",{"data-focus-part":"atlas_heatmap",style:"display:flex;align-items:center;gap:8px;cursor:pointer;min-height:36px;margin-top:10px"});
   const heatCb = el("input",{type:"checkbox"});
   heatCb.checked = settings.atlas_heatmap_enabled === true;
   heatRow.appendChild(heatCb);
@@ -5408,16 +5408,20 @@ function _settingsAtlas(ctx, el){
   const partsNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 2px"},
     t("For the whole house on the classic layout; on the new layout (\u25A6 New layout) and on a wall screen, each screen ticks these in its \u22EF list instead. Off: none."));
   let partsShown = false;
-  const roomPartRow = (key, words, note, attr) => {
+  // adminOnly: an administrator's (ws_settings refuses anyone else): drawn for everyone, greyed with its note for them.
+  const partsAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  const roomPartRow = (key, words, note, attr, adminOnly = false) => {
     if (!partsShown) { partsShown = true; lightsCard.appendChild(partsHead); lightsCard.appendChild(partsNote); }
+    const locked = adminOnly && !partsAdmin;
     const row = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;min-height:36px","data-settings":attr || ("atlas-" + key.split("_")[1]),
       "data-focus-part":key.replace(/_enabled$/, "")});
     const cb = el("input",{type:"checkbox",style:"width:18px;height:18px;margin:0;flex:0 0 auto"});
     cb.checked = settings[key] === true;
+    if (locked) { cb.disabled = true; row.style.cursor = "not-allowed"; row.title = t("Only an administrator can change this"); }
     row.appendChild(cb);
-    row.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, words));
+    row.appendChild(el("span",{style:"color:" + (locked ? "#64748b" : "#e2e8f0") + ";font-size:14px"}, words));
     lightsCard.appendChild(row);
-    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:0 0 0 26px"}, note);
+    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:0 0 0 26px"}, locked ? note + " " + t("Only an administrator can change this") : note);
     lightsCard.appendChild(noteEl);
     cb.addEventListener("change", async ()=>{
       const want = cb.checked;
@@ -5441,8 +5445,8 @@ function _settingsAtlas(ctx, el){
       t("Each thermostat with − and + for its setpoint (or heat to and cool to), and the room's temperature and humidity."));
   }
   if (addonAllowed(settings, "energy") && settings.energy_enabled === true) {
-    roomPartRow("atlas_energy_enabled", t("Energy on the map"),
-      t("A room's watts beside its name, a device's watts by it, and its metered devices: watts now, kWh and cost today."), "atlas-energy");
+    roomPartRow("atlas_energy_enabled", t("Energy"),
+      t("On the map, a room's watts beside its name and a device's by it; in the card, its metered devices: watts now, kWh and cost today."), "atlas-energy", true);
   }
   lightsCard.appendChild(_atlasScenesLine(ctx, el));
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
@@ -5534,14 +5538,16 @@ function _atlasEnergySection(ctx, el, settings){
       ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
     }
   };
+  // Every Energy setting is an administrator's (ws_settings refuses anyone else): greyed, with its note, for the others.
   const row = (key, words, note, attr) => {
-    const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":attr});
+    const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:" + (admin ? "pointer" : "not-allowed") + ";margin-top:10px;min-height:36px","data-settings":attr});
     const cb = el("input",{type:"checkbox"});
     cb.checked = settings[key] === true;
+    if (!admin) { cb.disabled = true; r.title = t("Only an administrator can change this"); }
     r.appendChild(cb);
-    r.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, words));
+    r.appendChild(el("span",{style:"color:" + (admin ? "#e2e8f0" : "#64748b") + ";font-size:14px"}, words));
     card.appendChild(r);
-    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, note);
+    const noteEl = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, admin ? note : note + " " + t("Only an administrator can change this"));
     card.appendChild(noteEl);
     cb.addEventListener("change", ()=>save(key, cb.checked, cb, noteEl));
   };
@@ -5549,9 +5555,10 @@ function _atlasEnergySection(ctx, el, settings){
     t("Adds the Energy view to the menu and offers Energy in the Atlas's ⋯ list. Off: nothing of it shows anywhere, and nothing is read or measured."), "energy");
   if (settings.energy_enabled !== true) return card;
   // Energy on the map is with the room's card's other parts (_settingsAtlas, "In the room's card").
-  const emptyRow = el("label",{style:"display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:#e2e8f0","data-settings":"energy-empty"});
+  const emptyRow = el("label",{style:"display:flex;align-items:center;gap:8px;margin-top:12px;min-height:36px;font-size:13px;color:" + (admin ? "#e2e8f0" : "#64748b"),"data-settings":"energy-empty"});
   const mins = el("input",{type:"number",min:"1",max:"240",step:"1",style:"width:70px"});
   mins.value = String(Number.isInteger(settings.energy_empty_after_min) ? settings.energy_empty_after_min : 15);
+  if (!admin) { mins.disabled = true; emptyRow.title = t("Only an administrator can change this"); }
   emptyRow.appendChild(el("span",{}, t("A room counts as empty after")));
   emptyRow.appendChild(mins);
   emptyRow.appendChild(el("span",{}, t("minutes with nobody in it")));

@@ -147,7 +147,12 @@ export function addonOnSale(name, now = Date.now()) {
  *  backend's own answer for the key (settings.addons_licensed, licence.addon_allowed). */
 export function addonAllowed(settings, name) {
   const s = settings || {};
-  if (HELD_FROM_TRIALS.includes(name) && !addonOnSale(name) && s.license_is_trial === true) return false;
+  if (HELD_FROM_TRIALS.includes(name) && !addonOnSale(name)) {
+    // Held back from trials while not on sale: the backend's own answer decides wherever a caller has it (it leaves
+    // the add-on out for a trial, puts it in for a paid Pro key); the Atlas hands only {tier, addons_licensed}.
+    if (Array.isArray(s.addons_licensed)) return s.addons_licensed.includes(name);
+    return currentTier(s) === "pro" && s.license_is_trial !== true;
+  }
   return currentTier(s) === "pro" || (Array.isArray(s.addons_licensed) && s.addons_licensed.includes(name));
 }
 // Held back from a Pro trial while not on sale (the owner, 2026-11-26: "Hold it back from trials"; licence.py
