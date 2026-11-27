@@ -66,7 +66,7 @@ folding heading on that tab.
 | Yesterday at home: Send a morning message about the day before | off | on or off | One short message a day through Home Assistant about the day before, from Traceback's figures for that day ([chapter 13](13-alerts.md)). | `yesterday_home_enabled` |
 | Yesterday at home: Send it at | `08:00` |  | When the message goes, HH:MM in Home Assistant's time. | `yesterday_home_time` |
 | Yesterday at home: Send it to | empty |  | A notify target from the list Follow alerts use; empty: a Home Assistant notification. | `yesterday_home_target` |
-| Yesterday at home: What it tells | `['comings', 'guests', 'empty_rooms', 'lights']` |  | The lines it may hold: `comings`, `guests`, `empty_rooms`, `lights`. | `yesterday_home_lines` |
+| Yesterday at home: What it tells | `['comings', 'guests', 'empty_rooms', 'lights', 'energy']` |  | The lines it may hold: `comings`, `guests`, `empty_rooms`, `lights`. | `yesterday_home_lines` |
 | Phone Tracking (Private BLE) | empty |  | The phones and watches whose key (IRK) you added in PadSpan. | `irk_devices` |
 
 ### Settings → Tracking → What the panel shows

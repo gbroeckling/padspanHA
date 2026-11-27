@@ -22,13 +22,15 @@
 const SEARCH = new URL(import.meta.url).search;
 const _fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && Object.prototype.hasOwnProperty.call(v, k) ? String(v[k]) : m));
 const { t } = await import(`./i18n.js${SEARCH}`).catch(() => ({ t: _fill }));
-const { fmtW, fmtKwh, fmtMoney, fmtFor } = await import(`./energy_map.js${SEARCH}`);
+const { fmtW, fmtKwh, fmtMoney, fmtFor, locale, BOLT } = await import(`./energy_map.js${SEARCH}`);
 const { addonUsedSeen } = await import(`./editions.js${SEARCH}`);
 
 const REFRESH_MS = 30000;
 const AMBER = "#fbbf24";
+const HEAD = "#52b788";            // the panel's own card headings (amber reads as a warning elsewhere)
 const ISSUE_WORDS = {
-  stale: () => t("No reading for a while: it is left out of the totals"),
+  // A stale power reading is left out of the watts now; its kWh today come from the recorder and still count.
+  stale: () => t("No recent power reading: it is left out of the watts now"),
   unit: () => t("Its unit isn't W or kW (power) or kWh or Wh (energy)"),
   mismatch: () => t("Its power and energy sensors disagree about today"),
   child_over_parent: () => t("It uses more than the device it is part of"),
@@ -38,15 +40,15 @@ const ISSUE_WORDS = {
 };
 let _viewCounted = false;
 
-const _when = (ts) => new Date(ts * 1000).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const _when = (ts) => new Date(ts * 1000).toLocaleString(locale(), { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function render(ctx) {
   const { el } = ctx.helpers;
   const root = el("div", { id: "energy" });
   root.appendChild(el("div", { style: "margin-bottom:14px" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-      el("div", { style: "font-size:24px" }, "⚡"),
-      el("div", { style: `font-weight:700;font-size:16px;color:${AMBER}` }, t("Energy")),
+      el("div", { style: `font-size:24px;color:${AMBER}` }, BOLT),
+      el("div", { style: `font-weight:700;font-size:16px;color:${HEAD}` }, t("Energy")),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px" },
       t("Your house's power from Home Assistant's Energy setup, room by room, and what it uses while rooms are empty or everyone is out.")),
@@ -70,9 +72,11 @@ async function load(ctx) {
   const es = ctx.state._energy;
   if (es.loading) return;
   es.loading = true;
+  // Stamped before the call, as energy_map.js refresh() does: a failed call is tried again after REFRESH_MS, never on
+  // every redraw (each failure drew the view again, which asked again).
+  es.ts = Date.now();
   try {
     es.data = await ctx.actions.wsCall("padspan_ha/energy_get");
-    es.ts = Date.now();
     es.error = null;
   } catch (e) {
     es.error = ctx.helpers.errorText(e);
@@ -83,9 +87,11 @@ async function load(ctx) {
 }
 
 const card = (el, title, kids, attr) => el("div", { class: "card", style: "padding:14px 16px;margin-bottom:12px", ...(attr ? { "data-energy": attr } : {}) },
-  [el("div", { style: `font-weight:700;font-size:14px;color:${AMBER};margin-bottom:8px` }, title), ...kids]);
-const line = (el, left, right, attrs = {}) => el("div", { style: "display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:13px;border-bottom:1px solid rgba(120,190,155,.08)", ...attrs },
-  [el("span", { style: "min-width:0;overflow:hidden;text-overflow:ellipsis" }, left), el("span", { style: "font-variant-numeric:tabular-nums;white-space:nowrap" }, right)]);
+  [el("div", { style: `font-weight:700;font-size:14px;color:${HEAD};margin-bottom:8px` }, title), ...kids]);
+// A name and its figures: on a phone the figures go under the name rather than break it mid-word.
+const line = (el, left, right, attrs = {}) => el("div", { style: "display:flex;flex-wrap:wrap;justify-content:space-between;column-gap:12px;row-gap:2px;padding:4px 0;font-size:13px;border-bottom:1px solid rgba(120,190,155,.08)", ...attrs },
+  [el("span", { style: "flex:1 1 9em;min-width:0;overflow-wrap:normal;word-break:normal" }, left),
+   el("span", { style: "flex:0 1 auto;margin-left:auto;text-align:right;font-variant-numeric:tabular-nums" }, right)]);
 const note = (el, text) => el("div", { style: "font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5" }, text);
 
 export function draw(ctx, el, content, d) {
@@ -116,8 +122,8 @@ export function draw(ctx, el, content, d) {
   const sb = d.standby;
   content.appendChild(card(el, t("Standby while you're out"), [sb
     ? el("div", { style: "font-size:13px", "data-energy-standby": "" }, sb.year_cost !== null && sb.year_cost !== undefined
-      ? t("Standby while you're out: {w}, about {money} a year at your price", { w: fmtW(sb.w), money: fmtMoney(sb.year_cost, cur) })
-      : t("Standby while you're out: {w}, about {kwh} a year", { w: fmtW(sb.w), kwh: fmtKwh(sb.year_kwh) }))
+      ? t("{w}, about {money} a year at your price", { w: fmtW(sb.w), money: fmtMoney(sb.year_cost, cur) })
+      : t("{w}, about {kwh} a year", { w: fmtW(sb.w), kwh: fmtKwh(sb.year_kwh) }))
     : note(el, t("Not measured yet: PadSpan measures the house's lowest steady use while everyone is out or Vacation Mode is on."))], "standby"));
   // Empty rooms now.
   const em = d.empty || { rooms: [] };
@@ -132,10 +138,14 @@ export function draw(ctx, el, content, d) {
     note(el, t("A room counts as empty once nobody has been in it for {n} minutes.", { n: em.after_min || 15 })),
   ], "empty"));
   // Today.
-  const rooms = (d.rooms || []).filter(r => r.kwh > 0 || r.w > 0).slice().sort((a, b) => b.kwh - a.kwh || b.w - a.w);
-  const devs = (d.devices || []).filter(x => (x.own_kwh || 0) > 0).slice().sort((a, b) => (b.own_kwh || 0) - (a.own_kwh || 0));
+  // One rule for both lists: what used something today (0.005 kWh or more, so nothing reads "0.00 kWh").
+  const used = (k) => Number(k) >= 0.005;
+  const rooms = (d.rooms || []).filter(r => used(r.kwh)).slice().sort((a, b) => b.kwh - a.kwh);
+  const devs = (d.devices || []).filter(x => used(x.own_kwh)).slice().sort((a, b) => (b.own_kwh || 0) - (a.own_kwh || 0));
   const kwhMoney = (k, c) => [fmtKwh(k), money(c)].filter(Boolean).join(" · ");
+  const tday = d.today || {};
   content.appendChild(card(el, t("Today"), [
+    ...(used(tday.kwh) ? [line(el, el("b", {}, t("All metered devices")), kwhMoney(tday.kwh, tday.cost), { "data-energy-today": "" })] : []),
     el("div", { style: "font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin:2px 0" }, t("Rooms")),
     ...(rooms.length ? rooms.map(r => line(el, r.room, kwhMoney(r.kwh, r.cost), { "data-energy-room": r.room })) : [note(el, t("No room has used anything yet today."))]),
     el("div", { style: "font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin:10px 0 2px" }, t("Devices")),
@@ -144,8 +154,13 @@ export function draw(ctx, el, content, d) {
   ], "today"));
   // Health.
   const issues = d.issues || [];
+  // Each by its name (the device's, else the sensor's own), its entity id small under it.
+  const names = new Map();
+  for (const x of d.devices || []) { names.set(x.id, x.name); if (x.rate) names.set(x.rate, x.name); }
+  const nameOf = (eid) => names.get(eid) || ((ctx.hass && ctx.hass.states && ctx.hass.states[eid] && ctx.hass.states[eid].attributes) || {}).friendly_name || eid || "";
   content.appendChild(card(el, t("Sensor health"), issues.length ? issues.map(i => el("div", { style: "padding:4px 0;font-size:13px", "data-energy-issue": i.kind }, [
-    el("div", { style: "font-family:ui-monospace,monospace;font-size:12px;color:#cbd5e1" }, i.entity || ""),
+    el("div", { style: "color:#e2e8f0" }, nameOf(i.entity)),
+    el("div", { style: "font-family:ui-monospace,monospace;font-size:10px;color:#64748b" }, i.entity || ""),
     el("div", { style: "color:#94a3b8;font-size:12px" }, ISSUE_WORDS[i.kind] ? ISSUE_WORDS[i.kind]() : i.kind),
   ])) : [note(el, t("Every sensor looks right."))], "health"));
   const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
@@ -172,7 +187,7 @@ function alwaysOnCard(ctx, el, d) {
         ctx.toast(t("Could not save: {why}", { why: ctx.helpers.errorText(e) }), true);
       }
     });
-    return el("label", { style: "display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer" },
+    return el("label", { style: "display:flex;align-items:center;gap:8px;min-height:36px;padding:4px 0;font-size:13px;cursor:pointer" },
       [cb, el("span", {}, x.name + (x.room ? ` · ${x.room}` : ""))]);
   });
   return card(el, t("Expected always on"), [

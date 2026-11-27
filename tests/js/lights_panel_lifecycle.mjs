@@ -981,7 +981,7 @@ if (Cls) {
     return { el, sent, asked, svg, sheet, hasPart, done: () => { el.disconnectedCallback(); document.body.children.length = 0; } };
   };
   const seen = async (q) => { const s = q.svg(); const part = q.hasPart(); await flush(); await flush();
-    return { house: q.el._energyHouse(), on: q.el._energyOn(), chip: s.includes("lroom-energy"), chipWords: s.includes("⚡ 120 W"), part,
+    return { house: q.el._energyHouse(), on: q.el._energyOn(), chip: s.includes("lroom-energy"), chipWords: s.includes("\u26A1\uFE0E 120 W"), part,
              asked: q.asked.length, sent: q.sent.filter(e => e.startsWith("energy:")) }; };
   try {
     // Each case against the panel without the module drawn just before and just after it: the house's own clock (a

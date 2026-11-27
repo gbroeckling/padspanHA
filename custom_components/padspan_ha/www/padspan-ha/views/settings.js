@@ -1041,14 +1041,18 @@ function _settingsPresence(ctx, el){
       fill(ctx.state._notifyServices);
     }).catch(() => {}); }
     yTarget.addEventListener("change", ()=>save({ yesterday_home_target: yTarget.value }));
-    const have = new Set(Array.isArray(settings.yesterday_home_lines) ? settings.yesterday_home_lines : ["comings","guests","empty_rooms","lights"]);
+    const have = new Set(Array.isArray(settings.yesterday_home_lines) ? settings.yesterday_home_lines : ["comings","guests","empty_rooms","lights","energy"]);
     const lineBoxes = [];
     const lineRow = el("div",{style:"display:flex;flex-direction:column;gap:4px;margin:4px 0 8px"});
+    // Energy's line only where the house has Energy on and the add-on (energy.py async_yesterday): nothing to choose otherwise.
+    const energyLine = addonAllowed(settings, "energy") && settings.energy_enabled === true ? [["energy", t("The power used in rooms nobody was in (Energy)")]] : [];
     for (const [w, label] of [["comings", t("Who came and went, and when")], ["guests", t("Guest tags that arrived or left")],
-                              ["empty_rooms", t("The rooms empty longest")], ["lights", t("Lights left on in rooms where nobody was")]]) {
+                              ["empty_rooms", t("The rooms empty longest")], ["lights", t("Lights left on in rooms where nobody was")], ...energyLine]) {
       const c = el("input",{type:"checkbox",style:"accent-color:#52b788"});
       c.checked = have.has(w); c.value = w;
-      c.addEventListener("change", ()=>save({ yesterday_home_lines: lineBoxes.filter(b => b.checked).map(b => b.value) }));
+      // A line not offered here (Energy's, while Energy is off) keeps what was chosen for it.
+      c.addEventListener("change", ()=>save({ yesterday_home_lines: [...lineBoxes.filter(b => b.checked).map(b => b.value),
+        ...(!energyLine.length && have.has("energy") ? ["energy"] : [])] }));
       lineBoxes.push(c);
       lineRow.appendChild(el("label",{style:"font-size:13px;color:#e2e8f0;display:flex;gap:6px;align-items:center"},[c, label]));
     }

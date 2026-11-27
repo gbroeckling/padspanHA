@@ -1519,18 +1519,21 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 payload["room_audio_ha_speakers"] = bool(msg["room_audio_ha_speakers"])
             if "room_audio_matched" in msg:
                 payload["room_audio_matched"] = bool(msg["room_audio_matched"])
-        # Energy (energy.py): how long a room stays empty before it counts, clamped to 1-240 minutes. Energy's own
-        # switch (it starts the samples' store and the report's section for the whole house), the always-on list and
-        # who was home at spikes (they say who was home when) are an administrator's.
-        if "energy_empty_after_min" in msg:
-            from .energy import EMPTY_MIN_MAX as _en_max  # noqa: PLC0415
-            payload["energy_empty_after_min"] = max(1, min(_en_max, int(msg["energy_empty_after_min"])))
-        if "energy_enabled" in msg:
+        # Energy (energy.py): an administrator's, every setting of it: its own switch (it starts the samples' store and
+        # the report's section for the whole house), the classic layout's map switch, how long a room stays empty
+        # before it counts (clamped to 1-240 minutes), the always-on list and who was home at spikes.
+        if any(k in msg for k in ("energy_enabled", "atlas_energy_enabled", "energy_empty_after_min")):
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
-                connection.send_error(msg["id"], "unauthorized", "Only an administrator can turn Energy on or off")
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Energy's settings")
                 return
-            payload["energy_enabled"] = bool(msg["energy_enabled"])
+            if "energy_enabled" in msg:
+                payload["energy_enabled"] = bool(msg["energy_enabled"])
+            if "atlas_energy_enabled" in msg:
+                payload["atlas_energy_enabled"] = bool(msg["atlas_energy_enabled"])
+            if "energy_empty_after_min" in msg:
+                from .energy import EMPTY_MIN_MAX as _en_max  # noqa: PLC0415
+                payload["energy_empty_after_min"] = max(1, min(_en_max, int(msg["energy_empty_after_min"])))
         if "energy_always_on" in msg or "energy_spikes_enabled" in msg:
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
@@ -1685,7 +1688,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "ha_entity_occupancy_enabled", "subzones_enabled", "screens_remote_enabled",
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
                     "atlas_weather_enabled", "atlas_alert_pulse", "emergency_notify", "atlas_heatmap_enabled", "atlas_audio_enabled", "atlas_shades_enabled", "atlas_thermostats_enabled",
-                    "atlas_energy_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled", "ai_plan_build_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",

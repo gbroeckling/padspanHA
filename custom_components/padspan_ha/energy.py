@@ -535,6 +535,10 @@ def compute(f: dict[str, Any]) -> dict[str, Any]:
         "stale_after_s": STALE_S, "quiet_w": QUIET_W,
         "house": {"w": round(house_w, 1) if house_w is not None else None, "source": house_src, "stale": house_stale,
                   "metered_w": round(metered, 1), "rest_w": round(rest, 1) if rest is not None else None},
+        # Today across every metered device (each parent less its children): the house's metered total.
+        "today": {"kwh": round(sum(r["own_kwh"] for r in rows if isinstance(r["own_kwh"], (int, float))), 3),
+                  "cost": round(sum(r["own_kwh"] for r in rows if isinstance(r["own_kwh"], (int, float))) * price, 4)
+                  if price is not None else None},
         "rooms": sorted(rooms.values(), key=lambda g: (-g["w"], g["room"])),
         "devices": rows,
         "empty": {"w": round(sum(e["w"] for e in empty_rows), 1), "rooms": empty_rows,

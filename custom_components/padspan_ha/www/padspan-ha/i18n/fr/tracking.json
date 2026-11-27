@@ -267,50 +267,17 @@
 "Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.": "Collez l’IRK de votre appareil ci-dessus et PadSpan s’occupe du reste. Important : l’appareil doit émettre activement (réveillé, Bluetooth activé) et être à portée d’un scanner quand vous ajoutez son IRK. Cliquez ci-dessous pour des instructions pas à pas pour chaque type d’appareil.",
 "Detailed Setup Guide": "Guide de configuration détaillé",
 "Hide Guide": "Masquer le guide",
-"Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.": {
-"one": "Actuel : {delay} s → il faut ~{n} relevé de {poll} s d’accord à la suite.",
-"other": "Actuel : {delay} s → il faut ~{n} relevés de {poll} s d’accord à la suite."
-},
-"{n} days": {
-"one": "{n} jour",
-"other": "{n} jours"
-},
-"Object history set to {n} days": {
-"one": "Historique des objets réglé sur {n} jour",
-"other": "Historique des objets réglé sur {n} jours"
-},
-"Current: {n} days. Default: 1 day.": {
-"one": "Actuel : {n} jour. Par défaut : 1 jour.",
-"other": "Actuel : {n} jours. Par défaut : 1 jour."
-},
-"All {n} bonded devices are already registered.": {
-"one": "L’appareil associé est déjà enregistré.",
-"other": "Les {n} appareils associés sont déjà enregistrés."
-},
-"{n} new IRKs found!": {
-"one": "{n} nouvelle IRK trouvée !",
-"other": "{n} nouvelles IRK trouvées !"
-},
-"{n} RPA matches": {
-"one": "{n} correspondance RPA",
-"other": "{n} correspondances RPA"
-},
-"{n} IRKs registered": {
-"one": "{n} IRK enregistrée",
-"other": "{n} IRK enregistrées"
-},
-"{n} rotating addresses detected": {
-"one": "{n} adresse tournante détectée",
-"other": "{n} adresses tournantes détectées"
-},
-"No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.": {
-"one": "Aucune IRK enregistrée pour l’instant — {n} adresse MAC tournante détectée. Ajoutez des IRK ci-dessous pour suivre des téléphones.",
-"other": "Aucune IRK enregistrée pour l’instant — {n} adresses MAC tournantes détectées. Ajoutez des IRK ci-dessous pour suivre des téléphones."
-},
-"Verified — matched {n} rotating addresses{note}. Saving...": {
-"one": "Vérifiée — {n} adresse tournante reconnue{note}. Enregistrement...",
-"other": "Vérifiée — {n} adresses tournantes reconnues{note}. Enregistrement..."
-},
+"Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.": {"one": "Actuel : {delay} s → il faut ~{n} relevé de {poll} s d’accord à la suite.", "other": "Actuel : {delay} s → il faut ~{n} relevés de {poll} s d’accord à la suite."},
+"{n} days": {"one": "{n} jour", "other": "{n} jours"},
+"Object history set to {n} days": {"one": "Historique des objets réglé sur {n} jour", "other": "Historique des objets réglé sur {n} jours"},
+"Current: {n} days. Default: 1 day.": {"one": "Actuel : {n} jour. Par défaut : 1 jour.", "other": "Actuel : {n} jours. Par défaut : 1 jour."},
+"All {n} bonded devices are already registered.": {"one": "L’appareil associé est déjà enregistré.", "other": "Les {n} appareils associés sont déjà enregistrés."},
+"{n} new IRKs found!": {"one": "{n} nouvelle IRK trouvée !", "other": "{n} nouvelles IRK trouvées !"},
+"{n} RPA matches": {"one": "{n} correspondance RPA", "other": "{n} correspondances RPA"},
+"{n} IRKs registered": {"one": "{n} IRK enregistrée", "other": "{n} IRK enregistrées"},
+"{n} rotating addresses detected": {"one": "{n} adresse tournante détectée", "other": "{n} adresses tournantes détectées"},
+"No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.": {"one": "Aucune IRK enregistrée pour l’instant — {n} adresse MAC tournante détectée. Ajoutez des IRK ci-dessous pour suivre des téléphones.", "other": "Aucune IRK enregistrée pour l’instant — {n} adresses MAC tournantes détectées. Ajoutez des IRK ci-dessous pour suivre des téléphones."},
+"Verified — matched {n} rotating addresses{note}. Saving...": {"one": "Vérifiée — {n} adresse tournante reconnue{note}. Enregistrement...", "other": "Vérifiée — {n} adresses tournantes reconnues{note}. Enregistrement..."},
 "Yesterday at home": "Hier à la maison",
 "Send a morning message about the day before": "Envoyer chaque matin un message sur la veille",
 "One short message a day through Home Assistant: who came and went and when, guest tags that arrived or left, the rooms empty longest, and lights left on in rooms where nobody was. The figures are Traceback's for that day, and the message links to it. A day with none of these says \"Nothing to report\".": "Un court message par jour via Home Assistant : qui est arrivé et parti et quand, les tags invités arrivés ou partis, les pièces restées vides le plus longtemps, et les lumières restées allumées dans des pièces où il n'y avait personne. Les chiffres sont ceux de Traceback pour ce jour, et le message y renvoie. Un jour sans rien de tout cela dit « Rien à signaler ».",
@@ -323,5 +290,6 @@
 "The rooms empty longest": "Les pièces restées vides le plus longtemps",
 "Lights left on in rooms where nobody was": "Les lumières allumées dans des pièces où il n'y avait personne",
 "Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Seul un administrateur peut modifier ceci. Activé après l'heure du jour, le premier message arrive demain.",
-"Only add the phones of people who've agreed.": "N’ajoutez que les téléphones des personnes qui ont donné leur accord."
+"Only add the phones of people who've agreed.": "N’ajoutez que les téléphones des personnes qui ont donné leur accord.",
+"The power used in rooms nobody was in (Energy)": "L'électricité utilisée dans les pièces où personne n'était (Énergie)"
 }

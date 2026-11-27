@@ -51,7 +51,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "yesterday_home_enabled": False,
     "yesterday_home_time": "08:00",        # "HH:MM", Home Assistant's time
     "yesterday_home_target": "",           # a notify target (the Follow picker's); "" = a Home Assistant notification
-    "yesterday_home_lines": ["comings", "guests", "empty_rooms", "lights"],   # YESTERDAY_LINES, in that order
+    "yesterday_home_lines": ["comings", "guests", "empty_rooms", "lights", "energy"],   # YESTERDAY_LINES, in that order (energy: only while Energy is on)
     "yesterday_home_sent_day": "",         # backend-only: the day ("YYYY-MM-DD") last told, so a restart never tells it twice
     # Lights follow people (lights_follow.py): off until chosen in Settings; nothing runs while off.
     "lights_follow_enabled": False,

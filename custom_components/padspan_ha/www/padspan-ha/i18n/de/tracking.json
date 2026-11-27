@@ -267,50 +267,17 @@
 "Paste your device's IRK above and PadSpan handles the rest. Important: the device must be actively broadcasting (awake, Bluetooth on) and in range of a scanner when adding its IRK. Click below for step-by-step instructions for every device type.": "Füge oben den IRK deines Geräts ein, PadSpan erledigt den Rest. Wichtig: Das Gerät muss beim Hinzufügen seines IRK aktiv senden (wach, Bluetooth an) und in Reichweite eines Scanners sein. Unten findest du Schritt-für-Schritt-Anleitungen für jede Geräteart.",
 "Detailed Setup Guide": "Ausführliche Anleitung",
 "Hide Guide": "Anleitung ausblenden",
-"Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.": {
-"one": "Aktuell: {delay} s → braucht ~{n} übereinstimmende Abfrage von {poll} s in Folge.",
-"other": "Aktuell: {delay} s → braucht ~{n} übereinstimmende Abfragen von {poll} s in Folge."
-},
-"{n} days": {
-"one": "{n} Tag",
-"other": "{n} Tage"
-},
-"Object history set to {n} days": {
-"one": "Objektverlauf auf {n} Tag gesetzt",
-"other": "Objektverlauf auf {n} Tage gesetzt"
-},
-"Current: {n} days. Default: 1 day.": {
-"one": "Aktuell: {n} Tag. Standard: 1 Tag.",
-"other": "Aktuell: {n} Tage. Standard: 1 Tag."
-},
-"All {n} bonded devices are already registered.": {
-"one": "Das gekoppelte Gerät ist bereits eingetragen.",
-"other": "Alle {n} gekoppelten Geräte sind bereits eingetragen."
-},
-"{n} new IRKs found!": {
-"one": "{n} neuer IRK gefunden!",
-"other": "{n} neue IRKs gefunden!"
-},
-"{n} RPA matches": {
-"one": "{n} RPA-Treffer",
-"other": "{n} RPA-Treffer"
-},
-"{n} IRKs registered": {
-"one": "{n} IRK eingetragen",
-"other": "{n} IRKs eingetragen"
-},
-"{n} rotating addresses detected": {
-"one": "{n} wechselnde Adresse erkannt",
-"other": "{n} wechselnde Adressen erkannt"
-},
-"No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.": {
-"one": "Noch keine IRKs eingetragen — {n} wechselnde MAC-Adresse erkannt. Füge unten IRKs hinzu, um Handys zu verfolgen.",
-"other": "Noch keine IRKs eingetragen — {n} wechselnde MAC-Adressen erkannt. Füge unten IRKs hinzu, um Handys zu verfolgen."
-},
-"Verified — matched {n} rotating addresses{note}. Saving...": {
-"one": "Bestätigt — {n} wechselnde Adresse zugeordnet{note}. Wird gespeichert...",
-"other": "Bestätigt — {n} wechselnde Adressen zugeordnet{note}. Wird gespeichert..."
-},
+"Current: {delay}s → requires ~{n} consecutive {poll}s polls agreement.": {"one": "Aktuell: {delay} s → braucht ~{n} übereinstimmende Abfrage von {poll} s in Folge.", "other": "Aktuell: {delay} s → braucht ~{n} übereinstimmende Abfragen von {poll} s in Folge."},
+"{n} days": {"one": "{n} Tag", "other": "{n} Tage"},
+"Object history set to {n} days": {"one": "Objektverlauf auf {n} Tag gesetzt", "other": "Objektverlauf auf {n} Tage gesetzt"},
+"Current: {n} days. Default: 1 day.": {"one": "Aktuell: {n} Tag. Standard: 1 Tag.", "other": "Aktuell: {n} Tage. Standard: 1 Tag."},
+"All {n} bonded devices are already registered.": {"one": "Das gekoppelte Gerät ist bereits eingetragen.", "other": "Alle {n} gekoppelten Geräte sind bereits eingetragen."},
+"{n} new IRKs found!": {"one": "{n} neuer IRK gefunden!", "other": "{n} neue IRKs gefunden!"},
+"{n} RPA matches": {"one": "{n} RPA-Treffer", "other": "{n} RPA-Treffer"},
+"{n} IRKs registered": {"one": "{n} IRK eingetragen", "other": "{n} IRKs eingetragen"},
+"{n} rotating addresses detected": {"one": "{n} wechselnde Adresse erkannt", "other": "{n} wechselnde Adressen erkannt"},
+"No IRKs registered yet — {n} rotating MAC addresses detected. Add IRKs below to track phones.": {"one": "Noch keine IRKs eingetragen — {n} wechselnde MAC-Adresse erkannt. Füge unten IRKs hinzu, um Handys zu verfolgen.", "other": "Noch keine IRKs eingetragen — {n} wechselnde MAC-Adressen erkannt. Füge unten IRKs hinzu, um Handys zu verfolgen."},
+"Verified — matched {n} rotating addresses{note}. Saving...": {"one": "Bestätigt — {n} wechselnde Adresse zugeordnet{note}. Wird gespeichert...", "other": "Bestätigt — {n} wechselnde Adressen zugeordnet{note}. Wird gespeichert..."},
 "Yesterday at home": "Gestern zu Hause",
 "Send a morning message about the day before": "Jeden Morgen eine Nachricht über den Vortag senden",
 "One short message a day through Home Assistant: who came and went and when, guest tags that arrived or left, the rooms empty longest, and lights left on in rooms where nobody was. The figures are Traceback's for that day, and the message links to it. A day with none of these says \"Nothing to report\".": "Eine kurze Nachricht am Tag über Home Assistant: wer kam und ging und wann, Gast-Tags, die ankamen oder gingen, die Räume, die am längsten leer waren, und Lichter, die in Räumen brannten, in denen niemand war. Die Zahlen sind die von Traceback für diesen Tag, und die Nachricht verlinkt dorthin. Ein Tag ohne all das sagt „Nichts zu berichten“.",
@@ -323,5 +290,6 @@
 "The rooms empty longest": "Die Räume, die am längsten leer waren",
 "Lights left on in rooms where nobody was": "Lichter, die in Räumen brannten, in denen niemand war",
 "Only an administrator can change this. Turned on after today's time, the first message comes tomorrow.": "Nur ein Administrator kann das ändern. Nach der heutigen Uhrzeit eingeschaltet, kommt die erste Nachricht morgen.",
-"Only add the phones of people who've agreed.": "Füge nur die Handys von Leuten hinzu, die zugestimmt haben."
+"Only add the phones of people who've agreed.": "Füge nur die Handys von Leuten hinzu, die zugestimmt haben.",
+"The power used in rooms nobody was in (Energy)": "Der Strom in Räumen, in denen niemand war (Energie)"
 }

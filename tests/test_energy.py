@@ -724,12 +724,45 @@ def test_an_included_in_stat_loop_is_left_out_and_said() -> None:
     assert {("loop", "sensor.a"), ("loop", "sensor.b")} <= {(i["kind"], i["entity"]) for i in got["issues"]}
 
 
-def test_turning_energy_on_is_an_administrator_s() -> None:
+@pytest.mark.parametrize("key,value", [("energy_enabled", True), ("atlas_energy_enabled", True), ("energy_empty_after_min", 30)])
+def test_every_energy_setting_is_an_administrator_s(key, value) -> None:
+    """Energy's switch, the classic layout's map switch and the empty time: an administrator's, Enhanced security or not."""
     import asyncio
     sent = {}
     st_ = SimpleNamespace(data=dict(DEFAULT_SETTINGS), async_set=None)
     hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st_}})
     conn = SimpleNamespace(user=SimpleNamespace(is_admin=False), send_error=lambda i, c, m: sent.update(e=(c, m)),
                            send_result=lambda i, r: sent.update(r=r))
-    asyncio.run(WS.ws_settings_set(hass, conn, {"id": 1, "type": "padspan_ha/settings_set", "energy_enabled": True}))
-    assert sent.get("e") == ("unauthorized", "Only an administrator can turn Energy on or off") and st_.data["energy_enabled"] is False
+    asyncio.run(WS.ws_settings_set(hass, conn, {"id": 1, "type": "padspan_ha/settings_set", key: value}))
+    assert sent.get("e") == ("unauthorized", "Only an administrator can change Energy's settings")
+    assert st_.data[key] == DEFAULT_SETTINGS[key]
+
+
+def test_a_trial_never_unlocks_energy_while_it_is_not_on_sale(monkeypatch) -> None:
+    """The owner, 2026-11-26: "Hold it back from trials". A Pro trial key doesn't unlock Energy while it isn't sold; a
+    paid Pro key and a key holding Energy do; other add-ons follow the trial as ever. On sale, it follows the trial too."""
+    from custom_components.padspan_ha import licence as L
+    pro = {"forensics_license_key": "PSPAN-PROK-0000-0000-0001", "license_tier": "pro"}
+    trial = {**pro, "license_is_trial": True}
+    assert L.addon_allowed(pro, True, "energy") is True and L.addon_allowed(trial, True, "energy") is False
+    assert L.addon_allowed(trial, True, "audio") is True and L.addon_allowed(trial, True, "c4local") is True
+    assert "energy" not in L.addons_allowed(trial, True) and "energy" in L.addons_allowed(pro, True)
+    assert L.addon_allowed(KEY, True, "energy") is True                                     # a key holding it
+    h = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data=trial)}})
+    assert L.hass_addon_allowed(h, "energy") is False and E.allowed(h) is False
+    monkeypatch.setattr(L, "NOT_ON_SALE", tuple(a for a in L.NOT_ON_SALE if a != "energy"))
+    assert L.addon_allowed(trial, True, "energy") is True                                   # on sale: as any add-on
+
+
+def test_today_s_metered_total_is_every_device_s_own_kwh() -> None:
+    got = E.compute(facts())
+    assert got["today"] == {"kwh": 1.2 + 0.5 + 1.5 + 3.0, "cost": pytest.approx((1.2 + 0.5 + 1.5 + 3.0) * 0.12)}
+    assert E.compute(facts(prefs={"device_consumption": PREFS["device_consumption"]}))["today"]["cost"] is None
+
+
+async def test_yesterday_s_energy_line_follows_the_lines_chosen(monkeypatch) -> None:
+    """Energy's line is one of Yesterday at home's lines (YESTERDAY_LINES "energy"): unticked, it isn't asked for."""
+    assert "energy" in PC.YESTERDAY_LINES and "energy" in DEFAULT_SETTINGS["yesterday_home_lines"]
+    import inspect
+    src = inspect.getsource(PC.async_send_yesterday_home)
+    assert 'if "energy" in lines and covered and room_list:' in src
