@@ -3,6 +3,8 @@
 * /pro/ sells Pro for life itself: the home page's own lifetime box, its $89 -> $168 script and the two-year box
   that takes its place from December 16, copied, never retyped, and held to the home page here (the German page
   to the German home page that scripts/build_site_de.py makes). Its description quotes both lifetime prices.
+* /add-ons/ says the sale in its title (60 characters at most, " | PadSpan HA" included), description and og:
+  lines, and never implies Advanced map creation or Robot vacuum are half off before they go on sale.
 * Every date and price said here comes from the panel's one source, views/editions.js. Its moments are midnight
   Pacific (PST, UTC-8), the day boundary the site's dates are said in: a price valid "until November 30" ends at
   PRO_LIFETIME_LAUNCH_UNTIL, 2026-12-01T08:00:00Z.
@@ -24,6 +26,7 @@ _SITE = _ROOT / "site"
 _HOME = _SITE / "index.html"
 _ED = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "views" / "editions.js"
 _PRO = {"en": _SITE / "pro" / "index.html", "de": _SITE / "pro" / "de" / "index.html"}
+_ADDONS = {"en": _SITE / "add-ons" / "index.html", "de": _SITE / "add-ons" / "de" / "index.html"}
 
 pytestmark = pytest.mark.skipif(not _HOME.is_file(), reason="no site/ in this tree (the Bright derivation carries none)")
 
@@ -187,3 +190,33 @@ def test_pro_quotes_the_offer_by_the_owners_rule() -> None:
     assert "Lifetime keys already sold stay lifetime." in desc_en
     assert f"{launch} CAD bis {_de(nov30, True)}, dann {full} CAD bis {_de(dec15)}," in desc_de
     assert "Lebenszeit-Lizenzen bleiben gültig." in desc_de
+
+
+# --------------------------------------------------------------------- /add-ons/ says the sale
+
+# The two add-ons that go on sale on December 1 (editions.js on_sale_from: FREE_BASICS_FROM), as each page names them.
+_FROM_DEC1 = {"en": ("Advanced map creation", "Robot vacuum"), "de": ("Erweiterte Kartenerstellung", "Saugroboter")}
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_the_add_ons_page_says_the_sale_in_its_title_and_description(lang: str) -> None:
+    page = _read(_ADDONS[lang])
+    title = re.search(r"<title>([^<]+)</title>", page).group(1)
+    desc = _meta(page, "name", "description")
+    assert title.endswith(" | PadSpan HA") and len(title) <= 60, (len(title), title)
+    assert len(desc) <= 160, (len(desc), desc)
+    assert _meta(page, "property", "og:title") == title.removesuffix(" | PadSpan HA")
+    assert _meta(page, "property", "og:description") == desc
+    jan1 = _last_day("ADDON_HALF_UNTIL")
+    assert (_first_day("ADDON_HALF_FROM"), jan1) == (date(2026, 11, 27), date(2027, 1, 1))
+    term = re.search(r'export const ADDON_TERM = "(\d+) years";', _read(_ED)).group(1)
+    said = {"en": (f"half off through {_en(jan1)} |", f"Every PadSpan add-on on sale is half off through {_en(jan1)}.",
+                   "One feature each", f"one payment for {term} years on up to 3 homes", "PadSpan Pro includes them all."),
+            "de": (f"bis {_de(jan1)} zum halben Preis |", f"Jedes erhältliche Add-on bis einschließlich {_de(jan1)} zum halben Preis.",
+                   "Je eine Funktion", f"eine Zahlung für {term} Jahre auf bis zu 3 Zuhause", "Pro enthält sie alle.")}[lang]
+    assert said[0] in title and all(words in desc for words in said[1:]), (title, desc)
+    # They go on sale after the sale starts, so nothing seen before a click names them: nothing implies they are
+    # half off before December 1.
+    assert _first_day("FREE_BASICS_FROM") > _first_day("ADDON_HALF_FROM")
+    for name in _FROM_DEC1[lang]:
+        assert name not in title + desc, name
