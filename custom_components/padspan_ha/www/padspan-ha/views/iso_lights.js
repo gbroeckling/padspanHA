@@ -6119,6 +6119,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             if(c===0) break;
           }
           nameTxt+=`<g opacity="${SHOW?THEME.roomLabelOpacity:"0.85"}">${energyMark(ex, ey, efs, color, label)}</g>`;
+          placedLabels.push({x:ex, y:ey, w:ehw*2, h:ehh*2});   // the next room's chip keeps clear of this one
         }
         // A room so full that no spot in it is clear (a small larder between
         // two strips, a closet its own strip runs the length of): its name is

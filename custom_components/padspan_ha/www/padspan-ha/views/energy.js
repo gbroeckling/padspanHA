@@ -34,6 +34,7 @@ const ISSUE_WORDS = {
   child_over_parent: () => t("It uses more than the device it is part of"),
   grid_sign: () => t("The grid shows export at night: its sign may be the wrong way round"),
   no_area: () => t("It has no area in Home Assistant, so it is in no room"),
+  loop: () => t("It and another device are each set as part of the other: neither is taken out of the other"),
 };
 let _viewCounted = false;
 
@@ -89,7 +90,10 @@ const note = (el, text) => el("div", { style: "font-size:12px;color:#94a3b8;marg
 
 export function draw(ctx, el, content, d) {
   if (!d || d.on !== true) {
-    content.appendChild(card(el, t("Energy is off"), [note(el, t("Turn it on in Settings → Atlas → Energy."))], "off"));
+    // Not allowed here: Settings has no Energy card to point to; say what it needs.
+    content.appendChild(d && d.allowed === false
+      ? card(el, t("Energy"), [note(el, t("Energy needs PadSpan Pro or the Energy add-on."))], "not_allowed")
+      : card(el, t("Energy is off"), [note(el, t("Turn it on in Settings → Atlas → Energy."))], "off"));
     return;
   }
   const cur = d.currency, priced = d.price !== null && d.price !== undefined;

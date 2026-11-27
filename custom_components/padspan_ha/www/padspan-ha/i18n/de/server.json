@@ -251,5 +251,6 @@
 "OS 2 Local for Control4 is not published yet.": "OS 2 Local for Control4 ist noch nicht veröffentlicht.",
 "A local Control4 integration is installed (not OS 2 Local for Control4), so PadSpan does not install over it.": "Eine lokale Control4-Integration ist installiert (nicht OS 2 Local for Control4), daher installiert PadSpan nicht darüber.",
 "Only an administrator can see who was home at spikes": "Nur ein Administrator kann sehen, wer bei Lastspitzen zu Hause war",
-"Only an administrator can change Energy's always-on list and spike timeline": "Nur ein Administrator kann die Dauerbetrieb-Liste und die Lastspitzen von Energie ändern"
+"Only an administrator can change Energy's always-on list and spike timeline": "Nur ein Administrator kann die Dauerbetrieb-Liste und die Lastspitzen von Energie ändern",
+"Only an administrator can turn Energy on or off": "Nur ein Administrator kann Energie ein- oder ausschalten"
 }

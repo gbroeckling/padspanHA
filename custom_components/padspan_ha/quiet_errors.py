@@ -218,6 +218,7 @@ energy:areas
 energy:get
 energy:load
 energy:map_rooms
+energy:people
 energy:prefs
 energy:save
 energy:spike_who

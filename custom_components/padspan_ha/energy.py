@@ -31,7 +31,7 @@ WHAT IT WORKS OUT (async_summary, the panel's padspan_ha/energy_get):
     empty      watts in rooms nobody has been in for energy_empty_after_min (PadSpan's own presence: Traceback; and
                the room's own motion / occupancy / presence sensors; with everyone away, every room), leaving out the
                devices on the always-on list (energy_always_on)
-    standby    while everyone is out (every HA person away and PadSpan seeing nobody) or Vacation Mode is on, the
+    standby    while everyone is out (every HA person away and PadSpan seeing none of their devices) or Vacation Mode is on, the
                house's watts are sampled every SAMPLE_EVERY into a small store of its own; the 1st percentile of them
                is "standby while you're out", with its cost over a year
     health     stale sensors, units that are not W / kW or kWh / Wh, a power sensor and its energy sensor that
@@ -48,6 +48,7 @@ money, which identify routines.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import time
@@ -79,7 +80,6 @@ STATS_EVERY_S = 300.0                    # today's kWh read from the recorder at
 OCCUPANCY_EVERY_S = 600.0                # Traceback's day read at most this often (its last minutes, from memory, between)
 LOOKBACK_S = 86400.0                     # how far back Traceback is read for "empty since"
 SEEN_NOW_S = 120.0                       # someone seen in a room this recently is in it now
-HOME_SEEN_S = 300.0                      # PadSpan saw someone home this recently: not everyone is out
 SAMPLE_EVERY = timedelta(minutes=5)
 SAMPLES_DAYS = 14
 SAMPLES_MAX = 4032                       # 14 days of 5-minute samples
@@ -97,13 +97,16 @@ SPIKE_RISE_W = 1000.0                    # ... this much above the baseline ...
 SPIKE_FACTOR = 2.0                       # ... and at least twice it
 SPIKE_BASE_N = 12                        # the baseline: the median of the hour before (12 five-minute points)
 SPIKES_MAX = 50
+SPIKE_FRAMES = 20000                     # Traceback's frames read once for every spike's "who was home"
 STORE_KEY = "padspan_ha.energy"
 SAVE_DELAY_S = 60.0
 _DATA = "_energy"
 
-POWER_UNITS = {"W": 1.0, "kW": 1000.0}
-ENERGY_UNITS = {"kWh": 1.0, "Wh": 0.001}
-ISSUE_KINDS: tuple[str, ...] = ("stale", "unit", "mismatch", "child_over_parent", "grid_sign", "no_area")
+# Every power and energy unit Home Assistant's own converters know (PowerConverter, EnergyConverter): live power is
+# converted to W here, and the recorder hands energy back in kWh whatever the sensor's unit.
+POWER_UNITS = {"mW": 0.001, "W": 1.0, "kW": 1000.0, "MW": 1e6, "GW": 1e9, "TW": 1e12}
+ENERGY_UNITS = frozenset({"mWh", "Wh", "kWh", "MWh", "GWh", "TWh", "J", "kJ", "MJ", "GJ", "cal", "kcal", "Mcal", "Gcal"})
+ISSUE_KINDS: tuple[str, ...] = ("stale", "unit", "mismatch", "child_over_parent", "grid_sign", "no_area", "loop")
 OCCUPANCY_CLASSES = ("motion", "occupancy", "presence")
 
 
@@ -181,7 +184,8 @@ def reading(state: Any, now: float) -> dict[str, Any]:
 
 def devices_of(prefs: dict[str, Any] | None) -> list[dict[str, Any]]:
     """The metered devices in Home Assistant's Energy setup, each once: {id (stat_consumption), rate (stat_rate or
-    None), name, parent (included_in_stat or None)}."""
+    None), name, parent (included_in_stat or None), loop (its included_in_stat goes round in a circle, A in B and B
+    in A: the loop's links are left out, so nothing there is taken out of anything)}."""
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for d in (prefs or {}).get("device_consumption") or []:
@@ -197,23 +201,52 @@ def devices_of(prefs: dict[str, Any] | None) -> list[dict[str, Any]]:
         out.append({"id": sid, "rate": rate, "name": name, "parent": parent if parent != sid else None})
     ids = {d["id"] for d in out}
     for d in out:                          # a parent that is not a metered device here is no parent
+        d["loop"] = False
         if d["parent"] not in ids:
             d["parent"] = None
+    parent = {d["id"]: d["parent"] for d in out}
+    looped: set[str] = set()
+    for d in out:
+        chain, at = [], d["id"]
+        while at is not None and at not in chain and at not in looped:
+            chain.append(at)
+            at = parent.get(at)
+        if at is not None and at in chain:                 # came back round: the chain from `at` on is a loop
+            looped.update(chain[chain.index(at):])
+    for d in out:
+        if d["id"] in looped:
+            d["parent"], d["loop"] = None, True
     return out
 
 
 def sources_of(prefs: dict[str, Any] | None) -> dict[str, Any]:
-    """The whole-house figure's sensors: {home: [stat_rate], grid: [stat_rate], solar: [stat_rate], battery: bool}."""
-    out: dict[str, Any] = {"home": [], "grid": [], "solar": [], "battery": False}
+    """The whole-house figure's sensors: {home, grid, solar, battery_rate: [stat_rate], battery: bool (a battery is
+    set up, with or without a live figure)}."""
+    out: dict[str, Any] = {"home": [], "grid": [], "solar": [], "battery_rate": [], "battery": False}
     for s in (prefs or {}).get("energy_sources") or []:
         if not isinstance(s, dict):
             continue
         kind, rate = s.get("type"), s.get("stat_rate")
         if kind == "battery":
             out["battery"] = True
-        if kind in ("home", "grid", "solar") and isinstance(rate, str) and rate:
-            out[kind].append(rate)
+        if kind in ("home", "grid", "solar", "battery") and isinstance(rate, str) and rate:
+            out["battery_rate" if kind == "battery" else kind].append(rate)
     return out
+
+
+def house_parts(prefs: dict[str, Any] | None, states: Any, now: float) -> dict[str, Any]:
+    """The whole-house watts now: the home source, else the grid's signed figure (+ import, - export) plus solar's and
+    the battery's (+ discharging). {w, source, stale, parts: [(entity, reading)]}. Any part stale or unreadable: w is
+    None and stale True, never a partial sum (a stale solar, or one of two grid connections, would read low)."""
+    src = sources_of(prefs)
+    ids = src["home"] or src["grid"]
+    if not ids:
+        return {"w": None, "source": None, "stale": False, "parts": []}
+    every = list(ids) if src["home"] else [*src["grid"], *src["solar"], *src["battery_rate"]]
+    parts = [(e, reading(states.get(e), now)) for e in every]
+    bad = any(p["stale"] or p["w"] is None for _e, p in parts)
+    return {"w": None if bad else sum(p["w"] for _e, p in parts),
+            "source": None if bad else ("home" if src["home"] else "grid"), "stale": bad, "parts": parts}
 
 
 def _price_unit_factor(unit: Any) -> float:
@@ -265,22 +298,25 @@ def empty_spans(occupied: list[tuple[float, float]], start: float, end: float) -
 
 def room_occupancy(rooms: list[str], trace: dict[str, list[tuple[float, float]]] | None, trace_start: float,
                    sensors: dict[str, list[tuple[bool, float | None]]], away_since: float | None, now: float,
-                   after_s: float, day_start: float) -> dict[str, dict[str, Any]]:
+                   after_s: float, day_start: float, receivers: Any = ()) -> dict[str, dict[str, Any]]:
     """{room key: {occupied, since (empty since; None while occupied), empty (seconds empty now, 0 while occupied),
     spans (today's stretches the room counted as empty: each gap less its first after_s)}} for each room something
     is known about. Pure.
 
     trace: Traceback's occupied stretches since trace_start by room key (None: PadSpan's presence is not in use
-    here, no scanners); sensors: each room's motion / occupancy / presence sensors as (on, last changed); away_since:
-    when everyone went out (every HA person away and PadSpan seeing nobody), else None. A room nothing is known about
+    here, no scanners); through it a room is known only where PadSpan can see someone, as Yesterday at home reads it:
+    a receiver's room (receivers, by name) or a room Traceback saw someone in. Any other room (a garage with no
+    receiver, an area off the map) is known only by its own sensors or by everyone being away; sensors: each room's motion / occupancy / presence sensors as (on, last changed); away_since:
+    when everyone went out (every HA person away and PadSpan seeing none of their devices), else None. A room nothing is known about
     is left out: it never counts as empty."""
     out: dict[str, dict[str, Any]] = {}
+    seeable = {_key(r) for r in receivers or ()} | set(trace or {})
     for room in rooms:
         k = _key(room)
         known, occupied, last = False, False, None
         occ: list[tuple[float, float]] = []
         start = None
-        if trace is not None:
+        if trace is not None and k in seeable:
             known, start = True, trace_start
             spans = trace.get(k) or []
             occ.extend(spans)
@@ -316,13 +352,14 @@ def room_occupancy(rooms: list[str], trace: dict[str, list[tuple[float, float]]]
     return out
 
 
-def kwh_in_spans(hourly: list[tuple[float, float]], spans: list[tuple[float, float]]) -> float:
-    """The kWh of each hour (hour start, kWh) in proportion to how much of it the spans cover."""
+def kwh_in_spans(hourly: list[tuple], spans: list[tuple[float, float]]) -> float:
+    """The kWh of each bucket (start, kWh[, seconds long: an hour unless said]) in proportion to how much of it the
+    spans cover."""
     total = 0.0
-    for start, kwh in hourly:
-        end = start + 3600.0
-        cover = sum(max(0.0, min(end, e) - max(start, s)) for s, e in spans)
-        total += kwh * min(1.0, cover / 3600.0)
+    for b in hourly:
+        start, kwh, dur = b[0], b[1], (b[2] if len(b) > 2 else 3600.0)
+        cover = sum(max(0.0, min(start + dur, e) - max(start, s)) for s, e in spans)
+        total += kwh * min(1.0, cover / dur) if dur > 0 else 0.0
     return total
 
 
@@ -341,15 +378,15 @@ def _own(devs: list[dict[str, Any]], field: str) -> dict[str, float | None]:
     return out
 
 
-def _own_hourly(devs: list[dict[str, Any]], hourly: dict[str, list[tuple[float, float]]]) -> dict[str, list[tuple[float, float]]]:
+def _own_hourly(devs: list[dict[str, Any]], hourly: dict[str, list[tuple]]) -> dict[str, list[tuple]]:
     kids: dict[str, dict[float, float]] = {}
     for d in devs:
         if d["parent"]:
             row = kids.setdefault(d["parent"], {})
-            for h, v in hourly.get(d["id"]) or []:
-                row[h] = row.get(h, 0.0) + v
-    return {d["id"]: [(h, max(0.0, v - kids.get(d["id"], {}).get(h, 0.0))) for h, v in hourly.get(d["id"]) or []]
-            for d in devs}
+            for b in hourly.get(d["id"]) or []:
+                row[b[0]] = row.get(b[0], 0.0) + b[1]
+    return {d["id"]: [(b[0], max(0.0, b[1] - kids.get(d["id"], {}).get(b[0], 0.0)), *b[2:])
+                      for b in hourly.get(d["id"]) or []] for d in devs}
 
 
 def compute(f: dict[str, Any]) -> dict[str, Any]:
@@ -403,6 +440,8 @@ def compute(f: dict[str, Any]) -> dict[str, Any]:
             issue("unit", d["id"], unit=cu)
         if not area:
             issue("no_area", d["rate"] or d["id"])
+        if d.get("loop"):
+            issue("loop", d["id"])
         pk = pkwh.get(d["rate"]) if d["rate"] else None
         if isinstance(k, (int, float)) and isinstance(pk, (int, float)) and max(k, pk) >= MISMATCH_MIN_KWH:
             lo, hi = min(k, pk), max(k, pk)
@@ -424,22 +463,14 @@ def compute(f: dict[str, Any]) -> dict[str, Any]:
         r["own_w"], r["own_kwh"] = own_w[r["id"]], own_kwh[r["id"]]
         r["cost"] = round(r["own_kwh"] * price, 4) if price is not None and r["own_kwh"] is not None else None
 
-    # The house: the home source, else the grid's signed figure plus solar's.
-    house_w, house_src, house_stale = None, None, False
-    ids = src["home"] or src["grid"]
-    if ids:
-        parts = [reading(states.get(e), now) for e in ids]
-        extra = [reading(states.get(e), now) for e in src["solar"]] if not src["home"] else []
-        good = [p for p in parts if not p["stale"] and p["w"] is not None]
-        house_stale = len(good) < len(parts)
-        if good:
-            house_w = sum(p["w"] for p in good) + sum(p["w"] for p in extra if not p["stale"] and p["w"] is not None)
-            house_src = "home" if src["home"] else "grid"
-        for e, p in zip(ids, parts):
-            if p["stale"]:
-                issue("stale", e, age_s=p["age_s"])
-            elif p["w"] is None and not p["unit_ok"]:
-                issue("unit", e, unit=p["unit"])
+    # The house (house_parts): the home source, else the grid plus solar plus the battery; none from a stale part.
+    hp = house_parts(prefs, states, now)
+    house_w, house_src, house_stale = hp["w"], hp["source"], hp["stale"]
+    for e, p in hp["parts"]:
+        if p["stale"]:
+            issue("stale", e, age_s=p["age_s"])
+        elif p["w"] is None and not p["unit_ok"]:
+            issue("unit", e, unit=p["unit"])
     # The grid's sign: exporting at night with no battery can't be (solar makes nothing then). A sign the wrong way
     # round reads as export.
     if f.get("sun_below") and not src["battery"]:
@@ -525,16 +556,8 @@ def standby_w(samples: list[Any], now: float) -> float | None:
 
 
 def house_w(prefs: dict[str, Any] | None, states: Any, now: float) -> float | None:
-    """The whole-house watts now (compute's figure), or None."""
-    src = sources_of(prefs)
-    ids = src["home"] or src["grid"]
-    parts = [reading(states.get(e), now) for e in ids]
-    good = [p["w"] for p in parts if not p["stale"] and p["w"] is not None]
-    if not good:
-        return None
-    extra = [] if src["home"] else [p["w"] for p in (reading(states.get(e), now) for e in src["solar"])
-                                    if not p["stale"] and p["w"] is not None]
-    return sum(good) + sum(extra)
+    """The whole-house watts now (compute's figure), or None (no figure, or a part of it stale)."""
+    return house_parts(prefs, states, now)["w"]
 
 
 # ── spikes ──────────────────────────────────────────────────────────────────
@@ -666,15 +689,32 @@ def _all_states(hass: Any, domain: str) -> list[Any]:
         return []
 
 
+def padspan_person_home(hass: Any) -> bool:
+    """PadSpan sees one of the house's people home: a device a Home Assistant person carries (presence_rules.is_carried:
+    their phone, their watch), present and in a room. A tag on keys left at home is nobody."""
+    pc = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    data = getattr(pc, "data", None)
+    if not isinstance(data, dict):
+        return False
+    try:
+        from .presence_rules import is_carried  # noqa: PLC0415
+        for o in data.values():
+            if not isinstance(o, dict) or o.get("away") or o.get("_stale") or o.get("_ghost"):
+                continue
+            if str(o.get("room") or "") not in ("", "unknown", "not_home") and is_carried(hass, o, data):
+                return True
+    except Exception:  # noqa: BLE001 — not readable now: Home Assistant's people decide
+        _quiet_error("energy:people")
+    return False
+
+
 def away_since(hass: Any, now: float) -> float | None:
-    """When everyone went out: every HA person away (at least one person) and PadSpan seeing nobody home in the
-    last HOME_SEEN_S; then the latest a person left. Else None."""
+    """When everyone went out: every HA person away (at least one person) and PadSpan seeing none of the house's people
+    home (padspan_person_home: their own devices, never a tag left at home); then the latest a person left. Else None."""
     people = _all_states(hass, "person")
     if not people or any(str(getattr(p, "state", "")) == "home" for p in people):
         return None
-    tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
-    frames = list(getattr(tb, "frames", None) or []) if tb is not None else []
-    if frames and isinstance(frames[-1], dict) and now - float(frames[-1].get("ts") or 0) <= HOME_SEEN_S:
+    if padspan_person_home(hass):
         return None
     left = [_ts(getattr(p, "last_changed", None)) for p in people]
     left = [x for x in left if x is not None]
@@ -684,6 +724,12 @@ def away_since(hass: Any, now: float) -> float | None:
 def everyone_out(hass: Any, now: float) -> bool:
     """Away standby's moment: everyone out, or Vacation Mode on."""
     return _settings(hass).get("vacation_mode_enabled") is True or away_since(hass, now) is not None
+
+
+def _receiver_rooms(hass: Any) -> list[str]:
+    """Each receiver's room, as the presence poll last mapped them (Yesterday at home reads the same)."""
+    pc = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    return sorted({str(r) for r in (getattr(pc, "_last_source_to_area", None) or {}).values() if r})
 
 
 def _room_sensors(hass: Any, rooms: list[str]) -> dict[str, list[tuple[bool, float | None]]]:
@@ -702,26 +748,27 @@ def _room_sensors(hass: Any, rooms: list[str]) -> dict[str, list[tuple[bool, flo
 
 
 async def _async_trace(hass: Any, now: float) -> tuple[dict[str, list[tuple[float, float]]] | None, float]:
-    """Traceback's occupied stretches by room key over the last LOOKBACK_S (read at most every OCCUPANCY_EVERY_S),
-    or None where it holds nothing in that time (no scanners: PadSpan's presence is not in use)."""
+    """Traceback's occupied stretches by room key over the last LOOKBACK_S, or None where it holds nothing in that
+    time (no scanners: PadSpan's presence is not in use). Read at most every OCCUPANCY_EVERY_S, and then only the
+    frames since the last read (a cursor), the stretches older than LOOKBACK_S dropped; one read at a time."""
     mem = _mem(hass)
     tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
-    got = mem.get("trace")
-    if not got or now - got[0] >= OCCUPANCY_EVERY_S:
-        start = now - LOOKBACK_S
-        trace = None
-        if tb is not None:
-            try:
-                summ = await tb.async_day_summary(start, now)
-                if summ.get("frames") or summ.get("occupied"):
-                    trace = {}
-                    for room, spans in (summ.get("occupied") or {}).items():
-                        trace.setdefault(_key(room), []).extend((float(s), float(e)) for s, e in spans)
-            except Exception:  # noqa: BLE001 — Traceback not readable now: as if it held nothing
-                _quiet_error("energy:trace")
-        got = mem["trace"] = (now, trace, start)
+    async with mem.setdefault("trace_lock", asyncio.Lock()):
+        got = mem.get("trace")
+        if not got or now - got["at"] >= OCCUPANCY_EVERY_S:
+            start = now - LOOKBACK_S
+            frm = max(start, got["at"]) if got else start
+            spans = {k: [sp for sp in v if sp[1] >= start] for k, v in (got["spans"] if got else {}).items()}
+            if tb is not None:
+                try:
+                    summ = await tb.async_day_summary(frm, now)
+                    for room, sp in (summ.get("occupied") or {}).items():
+                        spans.setdefault(_key(room), []).extend((float(a), float(b)) for a, b in sp)
+                except Exception:  # noqa: BLE001 — Traceback not readable now: what was read before stands
+                    _quiet_error("energy:trace")
+            got = mem["trace"] = {"at": now, "spans": {k: v for k, v in spans.items() if v}}
     # Between those reads, who is in which room now from Traceback's last minutes in memory (recorded every poll).
-    return with_recent(got[1], getattr(tb, "frames", None) or [], got[0]), got[2]
+    return with_recent(got["spans"] or None, getattr(tb, "frames", None) or [], got["at"]), now - LOOKBACK_S
 
 
 def with_recent(trace: dict[str, list[tuple[float, float]]] | None, frames: list[Any],
@@ -737,31 +784,54 @@ def with_recent(trace: dict[str, list[tuple[float, float]]] | None, frames: list
     return out
 
 
+def _changes(rows: Any, lo: float, hi: float) -> list[tuple[float, float]]:
+    """(start, kWh) of each statistics row with a `change` that starts in [lo, hi)."""
+    return [(t, float(r["change"])) for r in rows or []
+            if (t := _row_start(r)) is not None and lo <= t < hi and _num(r.get("change")) is not None]
+
+
 async def _async_today(hass: Any, devs: list[dict[str, Any]], now: float, day_start: float) -> dict[str, Any]:
-    """Today's kWh by device (hourly `change`) and each power sensor's kWh from its 5-minute means, read at most
-    every STATS_EVERY_S."""
+    """Today's kWh by device and each power sensor's kWh from its 5-minute means, read at most every STATS_EVERY_S,
+    one read at a time (a second caller waits for the first and takes its figures).
+
+    The hourly `change` rows start on the hour; where local midnight is not on one (a half-hour time zone), the part
+    of the day before the first full hour comes from the 5-minute rows, as one bucket of its own. A power sensor's
+    kWh is summed only over the 5-minute rows before the end of its device's last hourly row, so the two cover the
+    same time (the hourly figure ends at the last full hour)."""
     mem = _mem(hass)
     ids = {d["id"] for d in devs}
     rates = {d["rate"] for d in devs if d["rate"]}
-    got = mem.get("today")
-    if got and now - got["at"] < STATS_EVERY_S and got["day"] == day_start and got["ids"] == ids | rates:
+    async with mem.setdefault("today_lock", asyncio.Lock()):
+        got = mem.get("today")
+        if got and now - got["at"] < STATS_EVERY_S and got["day"] == day_start and got["ids"] == ids | rates:
+            return got
+        hour0 = math.floor(day_start / 3600.0) * 3600.0          # the hour that holds local midnight
+        first = day_start if hour0 == day_start else hour0 + 3600.0
+        utc = lambda ts: datetime.fromtimestamp(ts, timezone.utc)  # noqa: E731
+        end = now + 3600.0
+        hourly: dict[str, list[tuple]] = {}
+        for sid, rows in (await _async_stats(hass, ids, utc(first), utc(end), "hour", {"change"})).items():
+            hourly[sid] = _changes(rows, first, end)
+        if first > day_start:
+            for sid, rows in (await _async_stats(hass, ids, utc(day_start), utc(first), "5minute", {"change"})).items():
+                part = _changes(rows, day_start, first)
+                if part:
+                    hourly[sid] = [(day_start, sum(v for _t, v in part), first - day_start), *hourly.get(sid, [])]
+        cut = {}
+        for d in devs:
+            if d["rate"] and hourly.get(d["id"]):
+                cut[d["rate"]] = max(b[0] + (b[2] if len(b) > 2 else 3600.0) for b in hourly[d["id"]])
+        power_kwh: dict[str, float] = {}
+        for sid, rows in (await _async_stats(hass, set(cut), utc(day_start), utc(end), "5minute", {"mean"})).items():
+            vals = [_num(r.get("mean")) for r in rows or []
+                    if isinstance(r, dict) and (t := _row_start(r)) is not None and t < cut.get(sid, 0.0)]
+            vals = [v for v in vals if v is not None]
+            if vals:
+                power_kwh[sid] = sum(vals) * (5.0 / 60.0) / 1000.0
+        got = {"at": now, "day": day_start, "ids": ids | rates, "hourly": hourly, "power_kwh": power_kwh,
+               "kwh": {sid: sum(b[1] for b in rows) for sid, rows in hourly.items()}}
+        mem["today"] = got
         return got
-    start = datetime.fromtimestamp(day_start, timezone.utc)
-    end = datetime.fromtimestamp(now, timezone.utc) + timedelta(hours=1)
-    hourly: dict[str, list[tuple[float, float]]] = {}
-    for sid, rows in (await _async_stats(hass, ids, start, end, "hour", {"change"})).items():
-        hourly[sid] = [(t, float(r["change"])) for r in rows or []
-                       if (t := _row_start(r)) is not None and _num(r.get("change")) is not None]
-    power_kwh: dict[str, float] = {}
-    for sid, rows in (await _async_stats(hass, rates, start, end, "5minute", {"mean"})).items():
-        vals = [_num(r.get("mean")) for r in rows or [] if isinstance(r, dict)]
-        vals = [v for v in vals if v is not None]
-        if vals:
-            power_kwh[sid] = sum(vals) * (5.0 / 60.0) / 1000.0
-    got = {"at": now, "day": day_start, "ids": ids | rates, "hourly": hourly, "power_kwh": power_kwh,
-           "kwh": {sid: sum(v for _h, v in rows) for sid, rows in hourly.items()}}
-    mem["today"] = got
-    return got
 
 
 def _sun_below(hass: Any) -> bool:
@@ -831,6 +901,13 @@ async def async_summary(hass: Any, now: float | None = None) -> dict[str, Any]:
     devs = devices_of(prefs)
     settings = _settings(hass)
     day_start = _day_start(hass, now)
+    if not set_up(prefs):
+        # Home Assistant's Energy is not set up: say so, and read nothing else (no Traceback, no statistics).
+        out = compute({"prefs": prefs, "states": hass.states, "now": now, "day_start": day_start, "settings": settings,
+                       "currency": _currency(hass)})
+        out["away"] = False
+        _mem(hass)["counts"] = {"at": now, "rooms": 0, "devices": 0, "issues": 0, "house": False}
+        return out
     today = await _async_today(hass, devs, now, day_start) if devs else {}
     eids = {d["id"] for d in devs} | {d["rate"] for d in devs if d["rate"]}
     rooms = _map_rooms(hass)
@@ -839,7 +916,8 @@ async def async_summary(hass: Any, now: float | None = None) -> dict[str, Any]:
     trace, trace_start = await _async_trace(hass, now)
     sensors = _room_sensors(hass, area_rooms)
     away = away_since(hass, now)
-    occ = room_occupancy(area_rooms, trace, trace_start, sensors, away, now, empty_after_s(settings), day_start)
+    occ = room_occupancy(area_rooms, trace, trace_start, sensors, away, now, empty_after_s(settings), day_start,
+                         _receiver_rooms(hass))
     source = "padspan" if trace is not None else "sensors" if sensors else "away" if away is not None else None
     samples = await _async_samples(hass)
     out = compute({"prefs": prefs, "states": hass.states, "now": now, "day_start": day_start, "settings": settings,
@@ -925,14 +1003,16 @@ async def async_spikes(hass: Any, now: float | None = None) -> dict[str, Any]:
     points = [(t, w) for t, w in series.items() if have.get(t) == len(ids)]
     spikes = find_spikes(points)
     tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
+    frames: list[dict[str, Any]] = []
+    if tb is not None and spikes:
+        # One read for them all: from the first spike to the end of the last one's five minutes.
+        try:
+            frames = await tb.async_get_frames(min(x["ts"] for x in spikes), max(x["ts"] for x in spikes) + 300.0,
+                                               max_frames=SPIKE_FRAMES)
+        except Exception:  # noqa: BLE001 — Traceback not readable: nobody named
+            _quiet_error("energy:spike_who")
     for s in spikes:
-        who: list[dict[str, Any]] = []
-        if tb is not None:
-            try:
-                who = who_at(await tb.async_get_frames(s["ts"], s["ts"] + 300.0, max_frames=60))
-            except Exception:  # noqa: BLE001 — Traceback not readable: nobody named
-                _quiet_error("energy:spike_who")
-        s["who"] = who
+        s["who"] = who_at([f for f in frames if isinstance(f, dict) and s["ts"] <= float(f.get("ts") or 0) <= s["ts"] + 300.0])
         s["link"] = traceback_link(s["ts"])
     return {"enabled": True, "house": True, "days": SPIKE_DAYS, "spikes": spikes}
 

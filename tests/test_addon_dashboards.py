@@ -244,14 +244,16 @@ def test_stats_php_adds_it_up_when_php_is_here(tmp_path):
     # Before December 1 Advanced map creation and Robot vacuum are not sold: everyone's, so every install is on them.
     b = run("before", FREE_BASICS_FROM_TS - 1)
     # Forensics: part of Presence insights since 2026-11-26, never sold on its own and never everyone's.
-    assert b["not_sold"] == ["forensics", "maps", "vacuum", "c4local"], b["not_sold"]
+    # Energy (2026-11-26): not on sale until the owner publishes it, and never everyone's.
+    assert b["not_sold"] == ["forensics", "maps", "vacuum", "energy", "c4local"], b["not_sold"]
     assert b["on_it"]["maps"] == 3 and b["on_it"]["vacuum"] == 3 and b["used"]["maps"] == 1
     assert b["reach"]["maps"] == {"installs": 1, "on_it": 1} and b["reach"]["vacuum"] == {"installs": 1, "on_it": 1}
     assert b["moved"]["lidar"]["into"] == "maps"
     # From December 1 every add-on is on sale but OS 2 Local for Control4, which has no moment yet, and is never
     # everyone's: on it is Pro (B) or a key carrying it.
     a = run("from", FREE_BASICS_FROM_TS)
-    assert a["not_sold"] == ["forensics", "c4local"] and a["not_on_sale"] == ["c4local", "forensics"] and a["on_it"]["c4local"] == 1
+    assert a["not_sold"] == ["forensics", "energy", "c4local"] and a["not_on_sale"] == ["c4local", "forensics", "energy"]
+    assert a["on_it"]["c4local"] == 1 and a["on_it"]["energy"] == 1
     assert a["on_it"]["maps"] == 1 and a["on_it"]["vacuum"] == 1
     assert a["reach"]["vacuum"] == {"installs": 1, "on_it": 1}
     assert a["installs"] == 3 and a["licence"] == {"addon": 1, "pro_year": 1, "trial": 1}

@@ -59,5 +59,7 @@
 "minutes with nobody in it": "Minuten, in denen niemand darin ist",
 "Lists the biggest jumps in the house's power over the last 7 days with who PadSpan saw at home and where. Energy data shows a household's routines: this stays on this house, and only administrators see it. Off by default.": "Listet die größten Sprünge im Stromverbrauch des Hauses der letzten 7 Tage mit denen auf, die PadSpan zu Hause sah, und wo. Energiedaten zeigen die Gewohnheiten eines Haushalts: Das bleibt in diesem Haus, und nur Administratoren sehen es. Standardmäßig aus.",
 "Open the Energy view": "Ansicht Energie öffnen",
-"The devices you expect to run all the time are picked in the Energy view.": "Die Geräte, die ständig laufen sollen, wählen Sie in der Ansicht Energie."
+"The devices you expect to run all the time are picked in the Energy view.": "Die Geräte, die ständig laufen sollen, wählen Sie in der Ansicht Energie.",
+"It and another device are each set as part of the other: neither is taken out of the other": "Er und ein anderes Gerät sind jeweils als Teil des anderen eingetragen: Keins wird vom anderen abgezogen",
+"Energy needs PadSpan Pro or the Energy add-on.": "Energie braucht PadSpan Pro oder das Add-on Energie."
 }

@@ -140,6 +140,28 @@ await tryCase("map", async () => {
   check("map", !dw(MODEL).includes("ldev-watts"), "an unplaced device got watts");
 });
 
+// ── review fixes: two neighbouring rooms' chips never overlap; several metered devices on one HA device are summed ──
+await tryCase("review", async () => {
+  // A dense grid of small metered rooms: every chip is a placed label, so none lands on another (nor on a name).
+  const g = {}, re = {};
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) {
+    g[`R${i}${j}`] = { type: "poly", floor_id: "main", points_m: [[i * 0.8, j * 0.8], [(i + 1) * 0.8, j * 0.8], [(i + 1) * 0.8, (j + 1) * 0.8], [i * 0.8, (j + 1) * 0.8]] };
+    re[`R${i}${j}`] = "1.5 kW";
+  }
+  const grid = { ...MODEL, areas: [], room_geometry_m: g };
+  const svg = ISO.buildIsoSVG(grid, {}, new Set(), null, 150, 0, {}, false, MODEL.floors, { codeChip: true, roomEnergy: re });
+  const boxes = [...svg.matchAll(/class="lroom-energy"[^>]*><rect x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/g)].map(m => m.slice(1).map(Number));
+  const meet = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+  const hits = boxes.flatMap((a, i) => boxes.slice(i + 1).filter(b => meet(a, b)).map(b => [a, b]));
+  check("review", boxes.length === 36 && hits.length === 0, { n: boxes.length, hits: hits.slice(0, 3) });
+  const two = SUMMARY();
+  two.devices.push({ id: "sensor.fridge2_energy", rate: "sensor.fridge2_power", name: "Fridge outlet 2", room: "Kitchen", device_id: "dev_fridge",
+    w: 40, own_w: 40, kwh: 0.1, own_kwh: 0.1, cost: 0.01, stale: false, always_on: false });
+  const r = energy(two);
+  r.en.chips(); await tick(); await tick();
+  check("review", r.en.deviceWatts()["switch.fridge_plug"] === "120 W", r.en.deviceWatts());
+});
+
 // ── sheet: the room's Energy part; a room without metering, and Energy not passed, gain nothing ──
 await tryCase("sheet", async () => {
   reset();
