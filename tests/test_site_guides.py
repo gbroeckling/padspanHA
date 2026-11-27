@@ -76,20 +76,24 @@ def test_each_sales_page_is_there_in_english_and_german(folder: str) -> None:
 
 
 def _without_pinned_prices(page: pathlib.Path) -> str:
-    """The page with what may quote a price because tests/test_site_seo.py pins it left out: structured data
-    everywhere, and on /pro/ (EN, DE) the lifetime and two-year boxes with their scripts and the description."""
+    """The page with what may quote a price because tests/test_site_seo.py pins it left out, on /pro/ (EN, DE)
+    only: the lifetime and two-year boxes, the description, and the scripts (its structured data among them)."""
     from tests.test_pricing_dec16 import _without
 
-    html = re.sub(r'<script type="application/ld\+json">.*?</script>', "", page.read_text(encoding="utf-8"), flags=re.S)
+    html = page.read_text(encoding="utf-8")
     if page.parent.relative_to(_SITE).parts[0] == "pro":
         html = _without(_without(html, "data-until-pass"), "data-from-pass")
         html = re.sub(r'<meta name="description" content="[^"]*">', "", html)
     return html
 
 
+# A price in words or figures, or in structured data ("price": "3.22", "priceCurrency": "CAD").
+_PRICE = re.compile(r'\$\s?\d|\d\s?(CAD|USD|EUR|€)|"(?:price|lowPrice|highPrice|priceCurrency)"\s*:')
+
+
 def test_no_guide_quotes_a_price() -> None:
     for page in _GUIDES:
-        assert not re.search(r"\$\s?\d|\d\s?(CAD|USD|EUR|€)", _without_pinned_prices(page)), page
+        assert not _PRICE.search(_without_pinned_prices(page)), page
 
 
 def test_links_into_the_site_are_absolute() -> None:
