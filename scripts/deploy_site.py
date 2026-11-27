@@ -185,6 +185,43 @@ LANGUAGE_CASES = (
 )
 
 
+# http -> https (site/.htaccess), asked of the live site, through Cloudflare, which tells the origin the visitor's
+# scheme in X-Forwarded-Proto (the origin checks above send none, so they never see this redirect). Each: the
+# address, where it must send the visitor in one 301 (None: no redirect at all), and whether a wrong answer fails
+# the deploy. An http page not sent on still works; the API sent on, or an https page sent anywhere (a loop), does not.
+SCHEME_CASES = (
+    ("http://padspan.traks.ca/pro/", "https://padspan.traks.ca/pro/", False),
+    ("http://padspan.traks.ca/?lang=de", "https://padspan.traks.ca/?lang=de", False),
+    ("http://padspan.traks.ca/api/version.php", None, True),
+    ("https://padspan.traks.ca/?hl=en", None, True),
+)
+
+
+class _NoFollow(urllib.request.HTTPRedirectHandler):
+    """A redirect is the answer to look at, not a page to go on to."""
+
+    def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, msg, hdrs, None)
+
+
+def check_schemes(open_=None) -> bool:
+    """Each of SCHEME_CASES answers as it must. False only for a wrong answer that fails the deploy."""
+    open_ = open_ or urllib.request.build_opener(_NoFollow).open
+    ok = True
+    for url, want, fatal in SCHEME_CASES:
+        try:
+            with open_(urllib.request.Request(url, headers={"User-Agent": "padspan-deploy"}), timeout=15) as resp:
+                code, where = resp.status, ""
+        except urllib.error.HTTPError as e:
+            code, where = e.code, (e.headers.get("Location", "") if e.headers else "")
+        except Exception as e:  # noqa: BLE001
+            code, where = 0, str(e)
+        good = (code == 301 and where == want) if want else code == 200
+        print(f"    {'OK  ' if good else 'FAIL' if fatal else 'WARN'} {url} -> {code} {where}".rstrip())
+        ok = ok and (good or not fatal)
+    return ok
+
+
 def preflight_htaccess() -> list[str]:
     """Try site/.htaccess in a scratch folder on the server before it replaces the
     live one. A broken .htaccess answers every request on the site with a 500,
@@ -301,6 +338,7 @@ def verify_live(version: str) -> bool:
         except Exception as e:  # noqa: BLE001
             print(f"    WARN /{path} check failed: {e}")
 
+    ok = check_schemes() and ok
     ok = verify_guides() and ok
     return ok
 
