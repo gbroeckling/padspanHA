@@ -115,15 +115,15 @@ export const SHOW_ITEMS = [
   // flat Map, lights_map.js and atlas_fit.edgeZoom; the 3D look, live_aboard_edgecut.js, and its Views ▾). Lights and
   // buttons out at an edge are cut with it. Per screen, off unless ticked.
   { key: "edgecut", group: "house", get words() { return t("Edgecut"); }, get hint() { return t("The rooms fill the screen edge to edge: the house's outer edges, and on a stack of floors the top and bottom ones, run off the screen"); }, flat: true, dflt: false },
+  // Energy (energy_map.js; the owner, 2026-11-26), the Energy add-on's, offered only where the host has it on for the
+  // house (roomLines: Settings → Atlas → Energy turned on): on the flat Map a room's watts beside its name and a placed
+  // device's watts, and the room's sheet or panel gains its Energy. Per screen, off unless ticked.
+  { key: "energy", group: "house", get words() { return t("Energy"); }, get hint() { return t("A room's watts beside its name, a device's watts on the map, and Energy in the room's panel: watts now, kWh and cost today"); }, flat: true, dflt: false },
   // Audio (room_controls.js; the owner, 2026-11-25: "In the pulldown where you have room controls, that should say
   // audio!!! And the setup card for audio should be accessible there"; the key stays room_controls, so the ticks kept
   // and the report go on): on the flat Map a speaker beside the name of a room whose player is on, and the room's
   // sheet or panel gains its audio (its shades and thermostats are lines of their own: room_shades, room_climate). Per screen, off unless ticked. Its Set up › opens the
   // matching card over the map, ticked or not (audio_setup, an administrator's).
-  // Energy (energy_map.js; the owner, 2026-11-26), the Energy add-on's, offered only where the host has it on for the
-  // house (roomLines: Settings → Atlas → Energy turned on): on the flat Map a room's watts beside its name and a placed
-  // device's watts, and the room's sheet or panel gains its Energy. Per screen, off unless ticked.
-  { key: "energy", group: "house", get words() { return t("Energy"); }, get hint() { return t("A room's watts beside its name, a device's watts on the map, and Energy in the room's panel: watts now, kWh and cost today"); }, flat: true, dflt: false },
   { key: "room_controls", group: "house", get words() { return t("Audio"); }, get hint() { return t("Volume, mute and off for each room's players in the room's panel, and Room off; a speaker beside a room's name while a player there is on"); }, link: "audio_setup", flat: true, dflt: false },
   // Walls: Glass (live_aboard.js): the walls Cut takes away stand as tinted glass, the far ones solid. The same choice
   // as Glass and Cut under Walls on this screen. Off unless a screen ticks it (Cut, as ever).

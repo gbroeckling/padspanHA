@@ -984,20 +984,24 @@ if (Cls) {
     return { house: q.el._energyHouse(), on: q.el._energyOn(), chip: s.includes("lroom-energy"), chipWords: s.includes("⚡ 120 W"), part,
              asked: q.asked.length, sent: q.sent.filter(e => e.startsWith("energy:")) }; };
   try {
-    let p = await open({ without: true });
-    const bareSvg = p.svg(), bareSheet = JSON.stringify(tree(p.sheet()));
-    p.done();
+    // Each case against the panel without the module drawn just before and just after it: the house's own clock (a
+    // reading's freshness, the sun) can move between two opens on a busy machine, and that is not Energy.
+    const bare = async () => { const q = await open({ without: true }); const out = { svg: q.svg(), sheet: JSON.stringify(tree(q.sheet())) }; q.done(); return out; };
+    const same = async (opts) => {
+      const a = await bare();
+      const q = await open(opts);
+      const svg = q.svg(), sheet = JSON.stringify(tree(q.sheet()));
+      const got = await seen(q);
+      q.done();
+      const b = await bare();
+      return { svgSame: svg.length > 0 && (svg === a.svg || svg === b.svg), sheetSame: sheet === a.sheet || sheet === b.sheet, ...got };
+    };
+    let p;
     // Off by default: the same drawing, the same sheet, never asked, nothing counted, ticked or not.
-    p = await open();
-    energy.off = { svgSame: p.svg() === bareSvg && bareSvg.length > 0, sheetSame: JSON.stringify(tree(p.sheet())) === bareSheet, ...(await seen(p)) };
-    p.done();
-    p = await open({ ticked: true });
-    energy.offTicked = { svgSame: p.svg() === bareSvg, sheetSame: JSON.stringify(tree(p.sheet())) === bareSheet, ...(await seen(p)) };
-    p.done();
+    energy.off = await same({});
+    energy.offTicked = await same({ ticked: true });
     // On for the house, not ticked on this screen: the line is offered, nothing drawn, nothing asked.
-    p = await open({ more: { energy_enabled: true } });
-    energy.houseOnly = { svgSame: p.svg() === bareSvg, sheetSame: JSON.stringify(tree(p.sheet())) === bareSheet, ...(await seen(p)) };
-    p.done();
+    energy.houseOnly = await same({ more: { energy_enabled: true } });
     // Ticked: the chip by the Kitchen's name, its sheet's Energy, counted.
     p = await open({ ticked: true, more: { energy_enabled: true } });
     energy.ticked = await seen(p);

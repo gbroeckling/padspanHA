@@ -109,7 +109,11 @@ export function createEnergy(o){
     const out = {};
     if (!live()) return out;
     const byDevice = new Map();
-    for (const d of data.devices || []) if (d && d.device_id && Number(d.w) >= quiet()) byDevice.set(d.device_id, d.w);
+    // Several metered devices on one Home Assistant device (a strip's outlets): their watts together.
+    for (const d of data.devices || []) {
+      if (d && d.device_id && Number.isFinite(Number(d.w)) && d.w !== null) byDevice.set(d.device_id, (byDevice.get(d.device_id) || 0) + Number(d.w));
+    }
+    for (const [k, w] of byDevice) if (w < quiet()) byDevice.delete(k);
     if (!byDevice.size) return out;
     for (const [eid, e] of Object.entries(H().entities || {})) {
       const w = e && e.device_id ? byDevice.get(e.device_id) : undefined;

@@ -34,7 +34,7 @@ def run():
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
-@pytest.mark.parametrize("case", ["format", "chips", "map", "sheet", "host-only", "german"])
+@pytest.mark.parametrize("case", ["format", "chips", "map", "review", "sheet", "host-only", "german"])
 def test_energy_on_the_atlas(run, case):
     assert run["cases"].get(case) is True, json.dumps([f for f in run["failures"] if f["name"] == case], indent=1)[:4000]
 
@@ -80,3 +80,21 @@ def test_the_view_counts_its_use_once_and_the_spikes_are_an_administrator_s():
     assert 'if (admin && ctx.state.settings && ctx.state.settings.energy_spikes_enabled === true) content.appendChild(spikesCard(ctx, el, d));' in v
     assert "if (admin) content.appendChild(alwaysOnCard(ctx, el, d));" in v
     assert 'href: d.config_url || "/config/energy"' in v
+
+
+def test_the_view_says_what_energy_needs_where_it_is_not_allowed_and_the_line_s_comment_is_its_own():
+    """Not allowed, Settings has no Energy card to point to: the view says it needs PadSpan Pro or the add-on. And the ⋯
+    list's Energy entry sits under its own comment, not between Audio's comment and Audio's entry."""
+    v = _src("views/energy.js")
+    assert 'd && d.allowed === false' in v and 't("Energy needs PadSpan Pro or the Energy add-on.")' in v
+    show = _src("views/live_aboard_show.js").splitlines()
+    i = next(n for n, ln in enumerate(show) if ln.startswith('  { key: "energy",'))
+    j = next(n for n, ln in enumerate(show) if ln.startswith('  { key: "room_controls",'))
+    assert i < j and show[i - 3].startswith("  // Energy (energy_map.js;") and show[j - 5].startswith("  // Audio (room_controls.js;")
+    assert all(ln.lstrip().startswith("//") for ln in show[i + 1:j])
+
+
+def test_a_chip_is_a_placed_label_so_the_next_room_s_chip_keeps_clear():
+    iso = _src("views/iso_lights.js")
+    at = iso.index("energyMark(ex, ey, efs, color, label)")
+    assert "placedLabels.push({x:ex, y:ey, w:ehw*2, h:ehh*2});" in iso[at:at + 300]
