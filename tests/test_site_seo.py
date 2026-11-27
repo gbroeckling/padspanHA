@@ -375,3 +375,18 @@ def test_the_add_ons_half_prices_are_what_the_panel_charges_on_each_first_and_la
         assert first == last == f'${product["offers"]["price"]} CAD', anchor
         assert not half_before, anchor
         assert sold_before == (anchor not in ("maps", "vacuum")), anchor
+
+
+# --------------------------------------------------------------------- Search Console
+
+def test_the_search_console_line_has_its_marked_place_and_no_made_up_value() -> None:
+    """A marked place in the home page's <head> for the google-site-verification line the owner will send. Until he
+    does there is none; once there, it carries a value Google gave, never a placeholder."""
+    page = _read(_HOME)
+    head = page[:page.index("</head>")]
+    assert head.count("<!-- GOOGLE SEARCH CONSOLE VERIFICATION:") == 1
+    live = re.sub(r"<!--.*?-->", "", page, flags=re.S)
+    assert len(re.findall(r'<meta name="google-site-verification"', live)) <= 1
+    for value in re.findall(r'<meta name="google-site-verification" content="([^"]*)">', live):
+        assert re.fullmatch(r"[A-Za-z0-9_-]{20,}", value), value
+        assert f'<meta name="google-site-verification" content="{value}">' in head
