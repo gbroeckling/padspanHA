@@ -44,6 +44,7 @@ folding heading on that tab.
 | Theme: Day | off | on or off | Day, PadSpan's designed light look (Pro or the Looks pack add-on). It wins over Light. | `day_theme` |
 | Theme: Follow the sun | off | on or off | Day (Light without Pro or the Looks pack) from sunrise to sunset, the theme you picked at night. | `theme_follow_sun` |
 | Units: Show lengths in feet and inches | off | on or off | Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way. | `units_feet` |
+| Tips: Show a tip now and then | on | on or off | A tip about a feature this house has and doesn't use yet: at most one a day, none in an install's first week, never one seen before, never on a wall screen. No more tips on any tip turns it off. | `tips_enabled` |
 | 2D Map Mode: Replace 3D isometric view with flat 2D map | off | on or off | Experimental: the Overview shows the floor plan flat, with zoom and pan. | `overview_2d_mode` |
 
 ### Settings → Tracking → Rooms and timing
@@ -365,6 +366,8 @@ itself (when it last checked, what it has asked, what it has learned). You never
 | `tester_signup` | empty |  | Your tester sign-up, so you can update or withdraw it. |
 | `pro_invite` | empty |  | An invite to free Pro, and your answer. |
 | `server_offers` | empty |  | Which free-Pro offers the update check last said are on. |
+| `tips_state` | empty |  | Which tips were shown and when, which were dismissed, and which are about a feature now in use. |
+| `server_tips_rank` | empty |  | The tips' order the update check last brought: the features most used by the installs that send the usage report. It only breaks a tie between two tips that fit this house as well. |
 | `flood_latches` | empty |  | Leak alarms the Atlas keeps showing until cleared. |
 | `atlas_weather_rain_wet_since` | 0 |  | When the Outdoor weather rain sensor last turned wet, so one stuck on wet for hours is ignored. |
 | `zigbee_twins_told` | empty |  | The Zigbee devices in two integrations you were told about, once each. |

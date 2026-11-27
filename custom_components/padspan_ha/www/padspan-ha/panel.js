@@ -137,6 +137,12 @@ let FQ = null;
 import(`./views/first_question.js?b=${BUILD_ID}`)
   .then(m => { FQ = m; })
   .catch(err => console.warn("PadSpan: first_question module failed to load", err));
+// Feature tips (views/tips.js): the Overview's card, last in line, and the words that say a feature was used.
+// Optional like the others.
+let TIPS = null;
+import(`./views/tips.js?b=${BUILD_ID}`)
+  .then(m => { TIPS = m; })
+  .catch(err => console.warn("PadSpan: tips module failed to load", err));
 // "Is this setup step done?": views/setup_status.js, the one rule Setup, the
 // Setup Wizard and Mapping read; the Getting started card waits for it.
 let SETUP_STATUS = null;
@@ -1588,6 +1594,19 @@ class PadSpanHaApp extends HTMLElement {
     return card;
   }
 
+  // Feature tips (views/tips.js): a feature this house has and doesn't use, one card per page load like the others and
+  // the last of them, so only when no other card wants the slot; never on a wall, in live data only. tips.js decides
+  // which and when (fit to the house first, one a day, none in an install's first week, never one seen).
+  _featureTipCard(){
+    if (!TIPS || !this.state.settings || this.state.kioskMode || wallScreen(false)) return null;
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
+    if (!this._tipCardVisible && this._overviewCardShown) return null;   // another card has this page load
+    let card = null;
+    try { card = TIPS.overviewCard(TIPS.hostFromCtx(this._ctx())); } catch(e) { card = null; }
+    if (card) { this._tipCardVisible = true; this._overviewCardShown = true; }
+    return card;
+  }
+
   _aiWizardOverviewCard(){
     if (!AIW || this.state.kioskMode) return null;
     if (!this._aiwCardVisible && this._overviewCardShown) return null;   // another card has this page load
@@ -2996,8 +3015,19 @@ class PadSpanHaApp extends HTMLElement {
     if (!HA_SIDEBAR) return;
     this._telemetryEvent(HA_SIDEBAR.toggleHaSidebar(this, this._hass));
   }
+  // A word that says a feature was used: its tip (views/tips.js) is done with, report on or off.
+  _tipNote(name){
+    const s = this.state.settings;
+    if (!TIPS || !s || !("tips_enabled" in s)) return;
+    try {
+      TIPS.noteEvent({ settings: s, send: (w) => this._telemetryEvent(w),
+        save: (patch) => this._callWS({ type: "padspan_ha/settings_set", ...patch })
+          .then(res => { if (res && res.settings) this.state.settings = res.settings; }) }, String(name));
+    } catch (_) { /* a tip is never the error */ }
+  }
   _telemetryEvent(name, extra){
     const s = this.state.settings;
+    if (TIPS && s) this._tipNote(name);   // a feature used: its tip is done with
     if (!s || !("telemetry_enabled" in s)) {
       const q = this._telemetryQueue || (this._telemetryQueue = []);
       // Screen-counted events need their id, so they wait for the next tick;
@@ -4139,7 +4169,7 @@ class PadSpanHaApp extends HTMLElement {
    *  are drawn again in it. A string not translated stays English. */
   _loadPanelLanguage(){
     const req = this._panelLangReq = (this._panelLangReq || 0) + 1;
-    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "energy", "server"]) : "en").then(got => {
+    _i18nPromise.then(m => m ? m.useLanguage(this._hass, ["panel", "setup", "mapping", "stack", "plans", "calibration", "beacon", "screens", "health", "devices", "bluetooth", "settings", "tracking", "tracking2", "features", "ai", "atlas", "manage", "manage2", "training", "training2", "training3", "rooms", "traceback", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "furnish", "furnish2", "furniture", "energy", "tips", "server"]) : "en").then(got => {
       if(req !== this._panelLangReq || got === (this._panelLangShown || "en")) return;
       this._panelLangShown = got;
       if(this.$){ this._paintShellWords(); this._paintDataModeLabel(); }
@@ -5905,9 +5935,12 @@ class PadSpanHaApp extends HTMLElement {
             // "Pro for life ends Dec 15" first (it ends with lifetime), then a Pro
             // invite, the one-time tester card, "The 3D house is now free", the
             // add-on sale's, then the trial's, then OS 2 Local for Control4's: whichever is first to be due, one at a time.
+            // With none of them, a feature tip (views/tips.js, _featureTipCard).
             const _ms = this._launchPriceCard() || this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
               || this._freeHouseCard() || this._addonSaleCard() || this._aiWizardOverviewCard() || this._trialMilestoneCard(_hasPositioned) || this._c4localOverviewCard();
+            const _tip = _ms ? null : this._featureTipCard();
             if (_ms) frag.appendChild(_ms);
+            else if (_tip) frag.appendChild(_tip);
             // Last in line: the accuracy tips, only when no other card is up.
             else { const _tips = this._accuracyTipsCard(); if (_tips) frag.appendChild(_tips); }
           } catch(e) { console.warn("PadSpan: trial milestone failed", e); }

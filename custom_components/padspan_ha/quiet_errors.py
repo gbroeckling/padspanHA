@@ -590,6 +590,7 @@ traceback_store:load
 update_check:check_fetch
 update_check:check_notify
 update_check:keep_offers
+update_check:keep_tips
 update_check:revalidate_license
 update_check:stop_update_check
 update_check:tester_line_edition

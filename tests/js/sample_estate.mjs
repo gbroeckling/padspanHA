@@ -118,6 +118,8 @@ const browser = (store) => new Function("SAMPLE_SNAPSHOT", "__importHouse", "loc
 const BUILD_ID = "t", APP_VERSION = "0.0.0";
 // panel.js's alarm module (views/alarm_panel.js), not loaded here: the emergency banner has the latches alone.
 let ALARM = null;
+// Nor its feature tips (views/tips.js): _telemetryEvent's word for them is never asked.
+let TIPS = null;
 let _mapImageUrls = {};
 ${KIND}
 return class Panel {

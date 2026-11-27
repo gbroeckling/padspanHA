@@ -420,6 +420,17 @@ const CSS = `
 .la3d-show .la3d-sreset{background:rgba(82,183,136,.18);border:1px solid rgba(82,183,136,.45)}
 .la3d-show .la3d-sreset[aria-disabled="true"]{opacity:.45;cursor:default}
 .la3d-show .la3d-sset{margin-left:auto;color:#7dd3fc}
+/* A feature tip (views/tips.js menuTip) under the heading: quiet, its three answers finger-sized. Never on a wall. */
+.la3d-show .la3d-stip{margin:0 10px 6px;padding:8px 10px;border-radius:10px;background:rgba(82,183,136,.08);border:1px solid rgba(82,183,136,.25);
+  font-size:12px;line-height:1.4;color:#cbd5e1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.la3d-show .la3d-stip > span{flex:1 1 240px;min-width:0}
+.la3d-show .la3d-stip b{color:#8ee5b4}
+.la3d-show .la3d-stip button{min-height:36px;padding:6px 11px;border-radius:8px;font-weight:700;color:#94a3b8}
+.la3d-show .la3d-stip button:hover,.la3d-show .la3d-stip button:focus-visible{background:rgba(255,255,255,.08);color:#e2e8f0}
+.la3d-show .la3d-stip .la3d-stipgo{color:#071008;background:#52b788}
+.la3d-show .la3d-stip .la3d-stipgo:hover,.la3d-show .la3d-stip .la3d-stipgo:focus-visible{background:#74c69d;color:#071008}
+.la3d-show .la3d-srow.la3d-spoint{outline:2px solid #52b788;outline-offset:-2px}
+:host([data-wall]) .la3d-show .la3d-stip{display:none}
 :host([data-wall]) .la3d-more,:host([data-wall]) .la3d-show{zoom:var(--wall-ctl,var(--wall-ui,1))}
 /* A wall (2026-11-09, "fits the wall"): the whole list on the screen
    with no scrolling. As wide and tall as the screen lets it be (over the
@@ -447,6 +458,8 @@ const CSS = `
  *   opened()         the list opened (the report)
  *   seen(rows)       the lines shown (the report: "not set up" seen)
  *   onOpen(), onClose()   the view closes its other menus, and repaints
+ *   tip(keys)        optional: a feature tip for this list (views/tips.js menuTip: the host
+ *                    hands none on a wall), asked once each time it opens; keys: its lines
  * }
  */
 export function createShowMenu(v){
@@ -470,6 +483,42 @@ export function createShowMenu(v){
   let box = null, off = null;
   const stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
   for (const ev of ["pointerup", "wheel", "dblclick"]) btn.addEventListener(ev, stop);
+  // A wall (data-wall on the host, ?kiosk=1 or a window filling the screen): never a tip, whatever the host hands in.
+  const onWall = () => {
+    try {
+      const host = v.root.getRootNode && v.root.getRootNode().host;
+      return !!((host && host.hasAttribute && host.hasAttribute("data-wall")) || (v.root.closest && v.root.closest("[data-wall]")));
+    } catch (_) { return false; }
+  };
+  /** The feature tip's line (views/tips.js menuTip), or null: Show me points at its line here, or leaves for its place. */
+  function tipRow(){
+    if (typeof v.tip !== "function" || onWall()) return null;
+    let tp = null;
+    try { tp = v.tip(v.rows().flatMap(g => g.rows.map(r => r.key))); } catch (_) { tp = null; }
+    if (!tp) return null;
+    const w = d("div", "la3d-stip");
+    w.setAttribute("data-la3d-tip", tp.id);
+    w.setAttribute("role", "note");
+    const words = d("span", null);
+    words.append(d("b", null, tp.title + ". "), d("span", null, tp.body));
+    w.appendChild(words);
+    const act = (label, cls, word, fn) => {
+      const b = d("button", cls, label);
+      b.type = "button";
+      b.setAttribute("data-la3d-tip-act", word);
+      b.addEventListener("click", v.guard((e) => { stop(e); w.remove(); fn(); }));
+      w.appendChild(b);
+    };
+    if (tp.canGo) act(tp.words.go, "la3d-stipgo", "go", () => {
+      tp.go();
+      if (!tp.line) { close(); return; }
+      const row = box && box.querySelector(`[data-show="${tp.line}"]`);
+      if (row) { row.classList.add("la3d-spoint"); try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) { /* in view */ } }
+    });
+    act(tp.words.notNow, null, "not_now", () => tp.notNow());
+    act(tp.words.off, null, "off", () => tp.off());
+    return w;
+  }
   btn.addEventListener("click", v.guard((e) => { stop(e); if (box) close(); else open(); }));
 
   function close(){
@@ -571,7 +620,8 @@ export function createShowMenu(v){
       set.addEventListener("click", v.guard((e) => { stop(e); close(); v.go("atlas", null); }));
       foot.appendChild(set);
     }
-    box.append(head, body, foot);
+    const tip = tipRow();
+    box.append(...(tip ? [head, tip, body, foot] : [head, body, foot]));
     v.root.appendChild(box);
     btn.setAttribute("aria-expanded", "true");
     paint();

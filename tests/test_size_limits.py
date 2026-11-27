@@ -138,7 +138,7 @@ SETTING_LISTS = ["hidden_map_ids", "followed_addrs", "lights_hidden", "advanced_
                  "atlas_3d_director", "atlas_3d_director_people", "whole_house_presets", "vacation_mode_anchors",
                  "door_opener_ids"]
 SETTING_MAPS = ["espresense_room_map", "scanner_offsets", "beacon_group_overrides", "setup_progress",
-                "atlas_3d_carries", "light_shapes", "light_type_overrides"]
+                "atlas_3d_carries", "light_shapes", "light_type_overrides", "tips_state"]
 
 
 @pytest.mark.parametrize("name", SETTING_LISTS)

@@ -91,6 +91,9 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "furniture": ("views/live_aboard_furniture.js",),
     # Energy, the add-on (2026-11-26): its view and its Settings card. German first, as the Atlas's groups.
     "energy": ("views/energy.js", "views/settings.js#energy"),
+    # Feature tips (2026-11-26): the catalogue, the Overview's card, the Atlas's line and Settings' Tips card. German
+    # first, like the groups above.
+    "tips": ("views/tips.js",),
 }
 SERVER = "server"
 

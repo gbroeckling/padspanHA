@@ -66,6 +66,10 @@ const LIGHTS_FOLLOW = await import(`./lights_follow.js${new URL(import.meta.url)
 const C4LOCAL = await import(`./c4local.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: c4local failed to load", err); return null; });
 
+// Feature tips (views/tips.js): Appearance's Tips card, and a tip's quiet line on the Atlas tab. Optional, as the others are.
+const TIPS = await import(`./tips.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: tips failed to load", err); return null; });
+
 // Its words in the panel's language (views/i18n.js; English is the key). So far the frame, Appearance, Scanner Map
 // and Tracking; the other tabs are still English.
 const { t, tn } = await import(`./i18n.js${new URL(import.meta.url).search}`);
@@ -411,6 +415,12 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       el("div",{class:"muted",style:"font-size:12px"},
         t("Shows your floor plan image as a flat 2D map with zoom/pan (mouse wheel + drag). Includes toggle filters for scanners, tagged objects, unknown devices, and room boundaries. The map fills more screen space and hides multi-floor controls when only one map is uploaded. This is experimental — the 3D view is still available by toggling this off.")),
     ]));
+  }
+
+  // ── Tips (views/tips.js): the switch "No more tips" turns off, and every tip for this house ──
+  if (TIPS) {
+    try { const tipsCard = TIPS.settingsCard(TIPS.hostFromCtx(ctx)); if (tipsCard) wrap.appendChild(tipsCard); }
+    catch (e) { console.warn("PadSpan: tips card", e); }
   }
 
   return wrap;
@@ -1042,7 +1052,7 @@ function _settingsPresence(ctx, el){
       lineBoxes.push(c);
       lineRow.appendChild(el("label",{style:"font-size:13px;color:#e2e8f0;display:flex;gap:6px;align-items:center"},[c, label]));
     }
-    put("phones", el("div",{class:"card",style:"border-color:" + (yOn ? "#52b788" : "#2d4a38")},[
+    put("phones", el("div",{class:"card","data-focus-part":"yesterday_home",style:"border-color:" + (yOn ? "#52b788" : "#2d4a38")},[
       el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, t("Yesterday at home")),
       el("div",{style:rowStyle},[ yToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, t("Send a morning message about the day before")) ]),
       el("div",{class:"muted",style:"font-size:12px;margin:4px 0 8px;line-height:1.5"},
@@ -3927,7 +3937,7 @@ function _settingsFeatures(ctx, el){
 
   for(const f of features){
     const on = settings[f.key] === true;
-    const card = el("div",{class:"card",style:"margin-bottom:10px"});
+    const card = el("div",{class:"card","data-focus-part":"feature_" + f.key,style:"margin-bottom:10px"});
     const row = el("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:12px"});
     const left = el("div",{style:"flex:1"});
     left.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"}, [
@@ -3955,7 +3965,7 @@ function _settingsFeatures(ctx, el){
   // ── Forensics (privacy-sensitive, off by default — issue #55) ─────────────
   {
     const forensicsOn = settings.forensics_enabled === true;
-    const card = el("div",{class:"card",style:"margin-top:14px;border-color:" + (forensicsOn ? "#b91c1c" : "#2d4a38")});
+    const card = el("div",{class:"card","data-focus-part":"forensics",style:"margin-top:14px;border-color:" + (forensicsOn ? "#b91c1c" : "#2d4a38")});
 
     card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
       el("div",{class:"h2",style:"margin:0;color:#f87171"},t("Forensics")),
@@ -5228,6 +5238,11 @@ function _settingsAtlas(ctx, el){
   ]));
   wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:0"},
     t("The Atlas (the house map for everyday light control) and Live Aboard, its 3D view.")));
+  // A feature tip, where the Atlas is adjusted (views/tips.js adjustLine): one a day at most, never on a wall.
+  if (TIPS) {
+    try { const tipLine = TIPS.adjustLine(TIPS.hostFromCtx(ctx), "settings_atlas"); if (tipLine) { tipLine.style.marginTop = "12px"; wrap.appendChild(tipLine); } }
+    catch (e) { /* a tip is never the error */ }
+  }
 
   // ── The Atlas (was "Mapped Light Control Goodie") ──
   // The Atlas is on by default now (settings_store.py). Two switches that
@@ -5259,7 +5274,7 @@ function _settingsAtlas(ctx, el){
   // The Atlas's red "Test emergency lighting" button — shown only when the
   // house has emergency lights; this hides it even then (never while a test
   // runs). Saved on its own the moment it changes.
-  const emergRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const emergRow = el("label",{"data-focus-part":"emergency_button",style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   const emergCb = el("input",{type:"checkbox"});
   emergCb.checked = settings.atlas_emergency_button !== false;
   emergRow.appendChild(emergCb);
@@ -5308,7 +5323,7 @@ function _settingsAtlas(ctx, el){
   // than 6 hours, or a window or cover open in the rain or snow, rings its room
   // in amber (lights_map.js safetyAlerts; a leak, smoke, gas or CO alarm
   // already rings red), and a wall screen names the worst one across its top.
-  const pulseRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const pulseRow = el("label",{"data-focus-part":"alert_pulse",style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   const pulseCb = el("input",{type:"checkbox"});
   pulseCb.checked = settings.atlas_alert_pulse === true;
   pulseRow.appendChild(pulseCb);
@@ -5358,7 +5373,7 @@ function _settingsAtlas(ctx, el){
   // PadSpan Pro's and the Climate map add-on's: without either, no row at all,
   // and whatever is stored is kept for when a key comes back (as the 3D house's below).
   if (addonAllowed(settings, "climate")) {
-  const heatRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
+  const heatRow = el("label",{"data-focus-part":"atlas_heatmap",style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
   const heatCb = el("input",{type:"checkbox"});
   heatCb.checked = settings.atlas_heatmap_enabled === true;
   heatRow.appendChild(heatCb);
@@ -5383,7 +5398,7 @@ function _settingsAtlas(ctx, el){
   // per screen on the new layout (lights_panel.js _roomControlsOn). PadSpan Pro's and the Audio add-on's: without
   // either, no row at all, and whatever is stored is kept for when a key comes back.
   if (addonAllowed(settings, "audio")) {
-  const audioRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-audio"});
+  const audioRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-audio","data-focus-part":"atlas_audio"});
   const audioCb = el("input",{type:"checkbox"});
   audioCb.checked = settings.atlas_audio_enabled === true;
   audioRow.appendChild(audioCb);
@@ -5408,7 +5423,8 @@ function _settingsAtlas(ctx, el){
   // the owner, 2026-11-26: "Shades should go with doors and Windows", "Thermostats in climate and air quality"): Shades
   // everyone's; Thermostats the Climate map add-on's (Pro includes it), without it no row and whatever is stored kept.
   const roomPartRow = (key, words, note) => {
-    const row = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-" + key.split("_")[1]});
+    const row = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px","data-settings":"atlas-" + key.split("_")[1],
+      "data-focus-part":key.replace(/_enabled$/, "")});
     const cb = el("input",{type:"checkbox"});
     cb.checked = settings[key] === true;
     row.appendChild(cb);

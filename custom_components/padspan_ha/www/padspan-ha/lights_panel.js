@@ -26,7 +26,7 @@ const STAMP = ((b) => (b ? `?b=${b}` : ""))(new URL(import.meta.url).searchParam
 const I18N = await import(`./views/i18n.js${STAMP}`);
 const { t, tn } = I18N;
 // The groups this page and what it shows speak (scripts/i18n_coverage.py says which files each holds).
-const I18N_GROUPS = ["panel", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "server"];
+const I18N_GROUPS = ["panel", "atlas1", "atlasmap", "atlasmap2", "aboard", "aboard2", "tips", "server"];
 const { hasControlCard, hasFixedGlyph, isControllable } =
   await import(`./views/light_codes.js${STAMP}`);
 // THE shared lights view — data pipeline, map card and index table, also used
@@ -85,6 +85,8 @@ const HA_SIDEBAR = await import(`./ha_sidebar.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: ha_sidebar failed to load", err); return null; });
 // The 90-day trial card, shared with every other paid wall. Optional: a card
 // that fails to load must not blank the house map.
+// Feature tips (views/tips.js): the ⋯ list's tip while it is open (never on a wall). Optional: without it, no tip.
+const TIPS = await import(`./views/tips.js${STAMP}`).catch(() => null);
 const { trialOfferCard } = await import(`./views/trial_offer.js${STAMP}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferCard: () => null }; });
 // Which PadSpan module an uncaught error came from (see panel.js "Uncaught
@@ -435,7 +437,7 @@ class PadSpanLightsApp extends HTMLElement {
     try{
       const res = await this._ws({ type:"padspan_ha/settings_get" });
       s = res?.settings || {};
-      if(res && res.settings){ this._screensOn = s.screens_remote_enabled === true; this._screenSync(); }
+      if(res && res.settings){ this._screensOn = s.screens_remote_enabled === true; this._screenSync(); this.state._tipSettings = s; }
     }catch(e){}
     try{
       if(applyView){
@@ -810,6 +812,7 @@ class PadSpanLightsApp extends HTMLElement {
   // The opt-in report: alarm_button:shown / arm / disarm / refused, counts
   // only (telemetry.py ALARM_BUTTON_EVENTS), never a code or a name.
   _alarmCount(word){
+    this._tipNote("alarm_button:" + word);
     if(!this.state._telemetryOn || !this._hass) return;
     Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:"alarm_button:" + word })).catch(()=>{});
   }
@@ -1125,6 +1128,7 @@ class PadSpanLightsApp extends HTMLElement {
       openers: ()=>this._doorOpeners(),
       // The opt-in report's room_controls:<word> (telemetry.py ROOM_CONTROLS_EVENTS), only while it is on.
       count: (word)=>{
+        this._tipNote("room_controls:" + word);
         if(!this.state._telemetryOn || !this._hass) return;
         Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:"room_controls:" + word })).catch(()=>{});
       },
@@ -1134,6 +1138,36 @@ class PadSpanLightsApp extends HTMLElement {
   }
   // The PadSpan panel's Basic / Advanced choice, kept in this browser (panel.js).
   _basicMode(){ try { return localStorage.getItem("padspan_complexity") === "basic"; } catch (_) { return false; } }
+  // Feature tips (views/tips.js) on this page: the settings as last read, saved with settings_set, counted only while
+  // the report is on. Show me leaves for the PadSpan panel on that tab and card, as the ⋯ list's links do: an
+  // administrator's, never in Basic or on a wall (where only a line of the list itself can be shown).
+  _tipHost(kiosk){
+    const s = this.state._tipSettings;
+    if(!TIPS || !s) return null;
+    const wall = !!kiosk || this.hasAttribute("data-wall");
+    const admin = !!this._hass?.user?.is_admin;
+    const basic = this._basicMode();
+    const go = admin && !wall && !basic ? (t)=>{
+      const q = new URLSearchParams({ view: String(t.view) });
+      if (t.tab) q.set("tab", String(t.tab));
+      if (t.part) q.set("part", String(t.part));
+      try { window.location.assign(`/padspan-ha?${q.toString()}`); } catch (_) { /* stays here */ }
+    } : null;
+    return {
+      settings: s, admin, basic, kiosk: wall, live: s.data_mode !== "sample",
+      facts: ()=>TIPS.factsFrom({ states: this._hass?.states, entities: this._hass?.entities, model: this.state.model, settings: s }),
+      save: (patch)=>Promise.resolve(this._ws({ type:"padspan_ha/settings_set", ...patch })),
+      send: (w)=>{ if(this.state._telemetryOn && this._hass) Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(w) })).catch(()=>{}); },
+      go,
+      // Only a place the panel's ?view=&tab=&part= opens, and only with a way there.
+      canGo: (t)=>!!go && !!t && (t.view === "settings" || t.view === "maps"),
+      toast: (m)=>this._toast(m),
+    };
+  }
+  // A word that says a feature was used (Audio's, the alarm's, a ⋯ line ticked): its tip is done with, report or not.
+  _tipNote(name){
+    try { const th = this._tipHost(false); if (th) TIPS.noteEvent(th, String(name)); } catch (_) { /* a tip is never the error */ }
+  }
   // Deep-link into the builder: the panel reads ?view= (existing), ?tab= and
   // ?light= (panel.js) and lands on Mapping → Lights with the light selected.
   _gotoBuilder(eid){
@@ -1639,7 +1673,10 @@ class PadSpanLightsApp extends HTMLElement {
         // The 3D file (doors and windows drawn in 3D, heights): read when
         // the 3D view shows, never on the poll.
         load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),
+        // The ⋯ list's tip (views/tips.js menuTip): never on a wall.
+        tip: kiosk ? null : (keys)=>{ const th = this._tipHost(kiosk); return th ? TIPS.menuTip(th, keys) : null; },
         telemetry: (name)=>{
+          this._tipNote(name);
           if(!this.state._telemetryOn || !this._hass) return;
           Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
         },

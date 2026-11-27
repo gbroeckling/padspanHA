@@ -1290,7 +1290,7 @@ def _default_words(key: str) -> str:
 # The panel's text, for checking a label is really there.
 PLACE_FILES = {
     "Settings": ("views/settings.js", "views/wall_card.js", "views/screens_card.js", "views/power_teams.js", "views/lights_follow.js",
-                 "views/first_question.js"),
+                 "views/first_question.js", "views/tips.js"),
     "Manage": ("views/manage.js",),
     "Mapping": ("views/maps.js", "views/lights_map.js", "views/iso_lights.js"),
     "Atlas": ("lights_panel.js", "views/lights_map.js", "views/iso_lights.js", "views/room_controls.js"),
@@ -1342,6 +1342,7 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "day_theme": ("Settings → Appearance", "Theme", "Day", "Day, PadSpan's designed light look (Pro or the Looks pack add-on). It wins over Light."),
     "theme_follow_sun": ("Settings → Appearance", "Theme", "Follow the sun", "Day (Light without Pro or the Looks pack) from sunrise to sunset, the theme you picked at night."),
     "units_feet": ("Settings → Appearance", "Units", "Show lengths in feet and inches", "Mapping's measuring and the rooms helper show feet and inches. Lengths are kept in metres either way."),
+    "tips_enabled": ("Settings → Appearance", "Tips", "Show a tip now and then", "A tip about a feature this house has and doesn't use yet: at most one a day, none in an install's first week, never one seen before, never on a wall screen. No more tips on any tip turns it off."),
     "overview_2d_mode": ("Settings → Appearance", "2D Map Mode", "Replace 3D isometric view with flat 2D map", "Experimental: the Overview shows the floor plan flat, with zoom and pan."),
     # Settings → Tracking
     "room_change_delay_s": (T + "Rooms and timing", "Room Change Delay", "Room change delay", "Seconds a receiver must stay ahead before a device moves to its room. A clear move next door needs half."),
@@ -1579,6 +1580,8 @@ SETTINGS_ENTRIES: dict[str, tuple] = {
     "tester_signup": (None, "kept", "", "Your tester sign-up, so you can update or withdraw it."),
     "pro_invite": (None, "kept", "", "An invite to free Pro, and your answer."),
     "server_offers": (None, "kept", "", "Which free-Pro offers the update check last said are on."),
+    "tips_state": (None, "kept", "", "Which tips were shown and when, which were dismissed, and which are about a feature now in use."),
+    "server_tips_rank": (None, "kept", "", "The tips' order the update check last brought: the features most used by the installs that send the usage report. It only breaks a tie between two tips that fit this house as well."),
     "flood_latches": (None, "kept", "", "Leak alarms the Atlas keeps showing until cleared."),
     "atlas_weather_rain_wet_since": (None, "kept", "", "When the Outdoor weather rain sensor last turned wet, so one stuck on wet for hours is ignored."),
     "zigbee_twins_told": (None, "kept", "", "The Zigbee devices in two integrations you were told about, once each."),

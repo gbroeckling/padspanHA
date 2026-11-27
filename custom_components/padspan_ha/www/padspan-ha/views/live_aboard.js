@@ -6680,6 +6680,8 @@ function createSlot(slotKey){
       seen: (groups) => { for (const g of groups) for (const r of g.rows) if (r.setup && !r.setup.perm) showSend(`house3d_show:setup_seen:${r.key}`, true); },
       onOpen: () => { closeMenu(); if (use) use.clear(); markMenus(true); },
       onClose: () => markMenus(),
+      // A feature tip while the list is open (views/tips.js menuTip, the host's): none on a wall, none where it hands none.
+      tip: (keys) => (houseP && typeof houseP.tip === "function" ? houseP.tip(keys) : null),
     });
   }
   /** The list changed: drawn again from the card's data (only what it touches
