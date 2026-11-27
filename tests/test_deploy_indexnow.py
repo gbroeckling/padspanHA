@@ -197,3 +197,15 @@ def test_indexnow_submit_says_unreachable_instead_of_raising(monkeypatch, troubl
     monkeypatch.setattr(indexnow.urllib.request, "urlopen", boom)
     status, reason = indexnow.submit(["https://padspan.traks.ca/pro/"])
     assert status == 0 and reason.startswith("unreachable (")
+
+
+def test_a_page_that_differs_only_in_line_endings_is_not_a_change(monkeypatch, sent) -> None:
+    """A checkout on the Windows PC has CRLF line endings and this one LF, so the same page uploaded from each
+    differs in bytes only. Only what a reader would see counts as a change."""
+    mod = _deploy_site()
+    up = _uploads(mod)
+    crlf = {n: b.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n") for n, b in up.items()}
+    crlf["pro/index.html"] = b"<p>an older /pro/</p>\r\n"
+    _server(mod, monkeypatch, crlf)
+    mod.main()
+    assert sent == [["https://padspan.traks.ca/pro/"]]

@@ -393,7 +393,14 @@ def changed_pages(pages: dict[str, bytes]) -> list[str] | None:
     there = {name: digest for digest, name in re.findall(r"(?m)^([0-9a-f]{64}) [ *](\S+)$", r.stdout or "")}
     if not there:
         return None
-    return [n for n in names if there.get(n) != hashlib.sha256(pages[n]).hexdigest()]
+    return [n for n in names if there.get(n) not in _same_page(pages[n])]
+
+
+def _same_page(body: bytes) -> set[str]:
+    """The sha256 of a page as it is and with LF or CRLF line endings. The Windows PC's checkout has CRLF and
+    this one LF, so the same page deployed from each differs only in them, which no reader sees."""
+    lf = body.replace(b"\r\n", b"\n")
+    return {hashlib.sha256(b).hexdigest() for b in (body, lf, lf.replace(b"\n", b"\r\n"))}
 
 
 def tell_indexnow(urls: list[str], what: str) -> None:
