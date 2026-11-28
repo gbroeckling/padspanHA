@@ -18,7 +18,7 @@ cryptography==50.0.2
 # always ships it (aiohttp depends on it); the stubbed suite needs it pinned.
 yarl==1.25.1
 # The config-flow translation test reads services.yaml (Home Assistant ships PyYAML).
-pyyaml==6.0.3
+pyyaml==6.0.4
 # The stairs-from-plans command (ws_house3d_stairs.py) reads and shrinks each
 # placed plan with Pillow, which Home Assistant always ships; the stubbed suite
 # needs it pinned (tests/test_house3d_stairs.py).
@@ -29,4 +29,4 @@ pillow==13.0.0
 tzdata==2026.6
 # The undefined-name check on the Python (tests/test_backend_lint.py and the
 # Tests workflow's lint step): rules F821, F822 and F823 only.
-ruff==0.17.5
+ruff==0.17.6
